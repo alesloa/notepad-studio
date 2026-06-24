@@ -1,0 +1,202 @@
+Notepad Studio — Change Log
+===========================
+
+This file opens automatically the first time you launch Notepad Studio after
+a new install or an update. To dismiss, just close the tab.
+
+Notepad Studio is a lightweight cross-platform text editor inspired by
+Notepad++, written in Rust on GPUI. Apache-2.0.
+
+
+v0.0.5 — current
+
+  Recent additions:
+
+    1. NPP-style tab right-click context menu — Close, Close Multiple Tabs
+       (BUT This / Left / Right / Unchanged), Save, Save As, Open into ▶
+       (Reveal in Finder/Explorer, Open Terminal, Default Viewer), Rename,
+       Move to Trash / Recycle Bin, Reload, Read-Only flag, Copy to
+       Clipboard ▶ (full path / filename / dir), Move Document ▶ (Start /
+       End), Apply Color to Tab ▶ (5 NPP-canonical swatches).
+    2. Help ▸ About modal — version, license, repo, OK button.
+    3. File ▸ Recent Files (MRU, capped at 10), persisted to
+       <config>/Notepad Studio/recent.toml. Stale entries prompt for removal.
+    4. macOS dock-icon reopen restores tabs and window placement.
+    5. Find dialog "Backward direction" and "In selection" toggles wired
+       through to the search engine.
+    6. change.log auto-opens on first launch and on every version update.
+
+  v0.1.0 — syntax & language:
+
+    1. Tree-sitter syntax highlighting for 24 languages: Rust, Python, C,
+       C#, JavaScript, TypeScript, TSX, JSON, Markdown, Bash/Sh/Zsh/Ksh,
+       PowerShell, Go, Java, Swift, Ruby, PHP, C++, Lua, HTML, CSS, SCSS,
+       YAML, TOML, XML, SQL. Filename detection and shebang fallback.
+    2. Bracket matching — depth-aware, skips brackets inside strings and
+       comments via tree-sitter span filter.
+    3. Auto-indent on Enter — inherits leading whitespace; extra indent
+       after `{`, `[`, `(`.
+    4. Comment toggle (syntax-aware) — per-language tokens for all 24
+       grammars. HTML/XML/Markdown wrap line ranges in <!-- -->.
+    5. Settings ▸ Shortcut Mapper — rebind any action with conflict
+       detection. Persisted to <config>/Notepad Studio/shortcuts.toml.
+
+  Polish:
+
+    1. Multi-click selection — double-click selects a word, triple-click
+       selects a line, quad-click and beyond select all.
+    2. Drop-to-open — drag a file onto the window to open it as a new tab.
+       Folders are rejected with a status message.
+    3. Notepad++-style icon toolbar above the tab strip — File / Edit /
+       Search / View / Macro / Plugins groups, monochrome SVGs tinted from
+       the active theme. Hover, pressed, and disabled states.
+
+  Beyond:
+
+    1. Column-mode selection + multi-edit — Alt-drag a rectangle. Virtual
+       columns extend past end-of-line. Typing, Backspace, Delete, Cut,
+       Copy, Paste, and the Cmd/Ctrl+Alt+Shift+Arrow extenders all operate
+       rectangularly in a single undo step. Notepad Studio→Notepad Studio block paste
+       lands as column paste via a sentinel-tagged clipboard.
+    2. Macro record / replay — Cmd/Ctrl+Shift+R toggle recording,
+       Cmd/Ctrl+Shift+P playback, Cmd/Ctrl+Shift+M opens an inline
+       "Run N times" prompt. Save Currently Recorded prompts for a name and
+       persists to <config>/Notepad Studio/macros.toml.
+    3. Plugin host — native cdylib plugins drop into
+       <config>/Notepad Studio/plugins/ and load at startup via libloading. The
+       notepad-studio-plugin crate defines the C ABI and ships a safe Plugin
+       trait + declare_plugin! macro for authors.
+    4. Large-file streaming reads — files larger than 10 MB stream in
+       1 MB chunks on the bg executor with status-bar progress and Cancel.
+       Files larger than 2 GB show a confirm-open dialog. Syntax
+       highlighting is skipped above 50 MB.
+    5. Session restore — open tabs, scroll positions, selections, and
+       per-window placement persist across restarts. Saved on autosave
+       tick, on window close, and on app quit.
+
+
+v0.0.7 — Edit ops (Notepad++ parity)
+
+    1. Duplicate Line / Selection — Cmd/Ctrl+D.
+    2. Move Line Up / Down — Ctrl+Shift+Up/Down on Linux/Windows,
+       Alt+Shift+Up/Down on macOS.
+    3. Delete Line — Cmd/Ctrl+Shift+L.
+    4. UPPERCASE — Cmd/Ctrl+Shift+U.
+    5. lowercase — Cmd/Ctrl+U.
+    6. Toggle Block Comment — Cmd+/ on macOS, Ctrl+Q on Linux/Windows.
+    7. Toggle Stream Comment — Cmd+Shift+/ on macOS, Ctrl+Shift+Q on
+       Linux/Windows.
+    8. Insert Blank Line Above / Below — Cmd/Ctrl+Alt+Enter and
+       Cmd/Ctrl+Shift+Enter.
+    9. Trim Trailing Whitespace — from the Edit menu.
+   10. Replace All as a single undo step.
+
+
+v0.0.6 — viewing comfort
+
+    1. Scrollable vertical viewport — only visible lines shape and paint.
+    2. Vertical scrollbar — drag thumb to scroll, click track to page-step.
+    3. Mouse wheel and trackpad scroll (pixel and line-mode deltas).
+    4. PageUp / PageDown navigation with Shift- variants for selection.
+    5. Cursor auto-scrolls into view on every move.
+    6. Drag-select past the viewport edge auto-scrolls.
+    7. Async file and message dialogs — fixes a hard crash on dirty-tab
+       close where sync rfd dialogs reentered the gpui AppCell borrow.
+    8. Word wrap toggle — View ▸ Word Wrap.
+    9. Horizontal scrollbar — visible when wrap is off.
+   10. Right-click context menu in the editor body — Undo, Redo, Cut,
+       Copy, Paste, Delete, Select All, Toggle Bookmark, Go to Line, Find.
+   11. Show whitespace — View ▸ Show Whitespace, · for spaces, → for tabs.
+   12. Zoom in/out — Cmd/Ctrl +/-/0, scales chrome, gutter, and editor.
+       Persisted to <config>/Notepad Studio/window.toml.
+   13. Full-screen toggle — F11.
+
+
+v0.0.5 — Notepad++ basics
+
+    1. Find bar with incremental search — Cmd/Ctrl+F.
+    2. Find Next / Find Previous — F3 / Shift+F3, also Enter / Shift+Enter
+       in the find input.
+    3. Match-case, whole-word, and regex toggles powered by
+       regex::RegexBuilder.
+    4. Match counter chip — "X of Y" / "No matches" / "Invalid regex".
+    5. All-match highlighting in the editor; current match gets a stronger
+       tint.
+    6. Replace bar with Replace / Replace All — Ctrl+H, or Cmd+Opt+F on
+       macOS.
+    7. Go to Line — Ctrl+G, or Cmd+L on macOS.
+    8. Find in Files — Cmd/Ctrl+Shift+F. walkdir-backed traversal, async
+       off-main search, scrollable results panel, click-to-jump.
+    9. "Extended" search mode — \n \r \t \0 \b \\ \xHH \dDDD \oOOO escape
+       interpretation in non-regex find/replace.
+   10. Mark / Bookmark — F2 toggle, Ctrl+F2 next, Shift+F2 previous,
+       Cmd/Ctrl+Shift+F2 clear all. Gutter glyph plus buffer-local set.
+   11. Line endings toggle — CRLF / LF / CR. Click the EOL chip in the
+       status bar to cycle.
+   12. Encoding toggle — UTF-8 / UTF-8 BOM / UTF-16 LE/BE / Latin-1. Click
+       the encoding chip to cycle.
+
+
+v0.0.4 — file I/O & tabs
+
+    1. Multi-tab buffers — switchable buffers in one window with a top tab
+       strip.
+    2. Cmd/Ctrl+N opens a new empty tab. Cmd/Ctrl+W closes the active tab.
+    3. Ctrl+Tab and Ctrl+Shift+Tab cycle tabs in MRU order.
+    4. Ctrl+PageDown and Ctrl+PageUp cycle tabs in visual order.
+    5. Cmd/Ctrl+1..9 jump directly to tab N.
+    6. Cmd/Ctrl+Shift+W closes every tab; one fresh blank tab is left
+       behind.
+    7. Cmd/Ctrl+Shift+T restores the most recently closed tab — last 20.
+    8. Closing the last tab in a window closes the window.
+    9. File ▸ Open via rfd — loads into the active empty tab or a new tab.
+       Detects LF / CRLF / CR.
+   10. File ▸ Save — Cmd/Ctrl+S. Save As — Cmd+Shift+S on macOS,
+       Ctrl+Alt+S on Linux/Windows.
+   11. File ▸ Save All — Cmd+Opt+S on macOS, Ctrl+Shift+S on Linux/Windows.
+   12. Dirty-prompt on close-tab and Close All — Save / Don't Save /
+       Cancel.
+   13. Window title and tab strip sync to active tab's file path and
+       dirty bit.
+
+
+v0.0.3 — editable buffer & cross-platform polish
+
+    1. EntityInputHandler — OS / IME text routes into the rope buffer.
+    2. Backspace, Delete, Enter, Tab (4 spaces, configurable).
+    3. Arrow keys, Home/End, Cmd+Home/End, Cmd+Up/Down for doc bounds.
+    4. Alt+Left/Right (macOS) and Ctrl+Left/Right (NPP) for word
+       boundaries.
+    5. Shift-extend variants on every movement.
+    6. Sticky desired column for vertical movement.
+    7. Caret blinks every 500 ms via gpui::Timer; resets on activity.
+    8. Cut / Paste wired to system clipboard.
+    9. Linear undo / redo stacks — Cmd+Z, Cmd+Shift+Z, Ctrl+Y.
+   10. Dirty bit reflected in the title bar (● prefix).
+   11. Mouse drag keeps selecting when the cursor leaves the window.
+   12. File ▸ New Window — Cmd/Ctrl+Shift+N — and macOS dock-icon reopen.
+   13. Ctrl- variants for every Cmd- chord; Linux/Windows-friendly
+       defaults.
+   14. QuitMode::Default — macOS stays alive on last window close,
+       Linux/Windows exit.
+   15. File ▸ Exit menu entry alongside the macOS Quit.
+   16. OS-aware line endings — CRLF default on Windows, LF elsewhere.
+   17. Panic hook writes timestamped reports to a platform-correct log
+       dir.
+   18. Window placement persisted to <config>/Notepad Studio/window.toml.
+
+
+v0.0.2 — selection & themes
+
+    1. Custom EditorElement with shaped lines and selection paint.
+    2. Click + drag to select; shift-click to extend selection.
+    3. Cmd/Ctrl+A select all, Cmd/Ctrl+C copy via system clipboard.
+    4. FocusHandle, key context, IBeam cursor over the editor.
+    5. Light + Dark theme with View ▸ Toggle Theme — Cmd/Ctrl+Shift+T.
+
+
+v0.0.1 — scaffold
+
+    1. Window opens, native menu bar, dark theme, status bar.
+    2. Stubbed actions for File / Edit / View / Help.
+    3. Rope-backed read-only buffer renders line-by-line with gutter.

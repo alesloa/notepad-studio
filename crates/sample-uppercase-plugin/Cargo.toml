@@ -1,0 +1,13 @@
+[package]
+name = "sample-uppercase-plugin"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+description = "Sample Notepad Studio plugin: uppercases the active selection and shows a hello message."
+authors = ["Notepad Studio contributors"]
+
+[lib]
+crate-type = ["cdylib"]
+
+[dependencies]
+notepad-studio-plugin = { path = "../notepad-studio-plugin" }

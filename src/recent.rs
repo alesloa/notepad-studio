@@ -1,0 +1,200 @@
+// Recent Files persistence.
+//
+// Notepad++'s File ▸ Open Recent submenu — most-recently-used queue of file
+// paths that survives restarts. Lives in its own `recent.toml` next to
+// `window.toml` so the recents read on every menu rebuild stays cheap and
+// independent of the (larger) session manifest.
+//
+// In-memory shape: `RecentFiles` wraps a `Vec<PathBuf>` ordered front-to-back
+// from most-recent to least-recent, capped at `MAX_RECENT`. Push dedupes on
+// equality (same path bumped to the front) and trims the tail past the cap.
+// On-disk shape: a single TOML doc with one `paths` array of strings, since
+// PathBuf round-trips fine through display strings on every platform we
+// target (rfd's file dialogs already canonicalise to absolute paths).
+
+use std::path::{Path, PathBuf};
+use std::sync::{Mutex, OnceLock};
+
+use serde::{Deserialize, Serialize};
+
+use crate::consts::APP_NAME;
+
+/// Effective MRU cap. Reads `Settings.recent_files_max` (NPP `Recent Files
+/// History ▸ Max. number of entries:`) and clamps to `[0, 30]` to match
+/// NPP's spinner range — zero disables the list, anything beyond 30 is
+/// silently capped. Default settings value is 10, matching NPP's own
+/// default and the prior hardcoded `MAX_RECENT` const.
+fn max_recent() -> usize {
+    let n = crate::settings::snapshot()
+        .recent_files_max
+        .min(crate::settings::RECENT_FILES_MAX_HARD_CAP);
+    n as usize
+}
+
+#[derive(Default, Debug, Clone)]
+pub(crate) struct RecentFiles {
+    /// Most-recent first. Bounded to `MAX_RECENT` entries by `push`.
+    paths: Vec<PathBuf>,
+}
+
+impl RecentFiles {
+    /// Bump `path` to the front of the MRU queue. Equal entries already in
+    /// the list are removed first so a re-open doesn't leave stale duplicates
+    /// — paths are compared with `PathBuf::==`, which already canonicalises
+    /// for the rfd-supplied absolute paths we're given. Trims to the
+    /// user-configurable `Settings.recent_files_max` cap.
+    pub(crate) fn push(&mut self, path: PathBuf) {
+        self.paths.retain(|p| p != &path);
+        self.paths.insert(0, path);
+        let cap = max_recent();
+        if self.paths.len() > cap {
+            self.paths.truncate(cap);
+        }
+    }
+
+    pub(crate) fn clear(&mut self) {
+        self.paths.clear();
+    }
+}
+
+#[derive(Serialize, Deserialize, Default)]
+struct RecentFilesDisk {
+    /// Stored as strings so the file stays round-trippable across platforms
+    /// (Windows backslashes vs. POSIX forward slashes both serialise as TOML
+    /// strings without serde adapters).
+    #[serde(default)]
+    paths: Vec<String>,
+}
+
+fn config_path() -> Option<PathBuf> {
+    dirs::config_dir().map(|d| d.join(APP_NAME).join("recent.toml"))
+}
+
+/// Read `recent.toml` from disk into a `RecentFiles`. Missing file or any
+/// parse failure returns an empty list — recents are purely a convenience
+/// feature, never a hard error path. When `Settings.recent_files_check_at_launch`
+/// is on (NPP `Don't check at launch time`-inverse), entries whose path no
+/// longer exists are dropped during this load — keeps the File ▸ Open Recent
+/// menu free of dead links across moves and deletions.
+pub(crate) fn load() -> RecentFiles {
+    let Some(path) = config_path() else {
+        return RecentFiles::default();
+    };
+    let Ok(raw) = std::fs::read_to_string(&path) else {
+        return RecentFiles::default();
+    };
+    let parsed: RecentFilesDisk = match toml::from_str(&raw) {
+        Ok(v) => v,
+        Err(_) => return RecentFiles::default(),
+    };
+    let mut paths: Vec<PathBuf> = parsed.paths.into_iter().map(PathBuf::from).collect();
+    if crate::settings::snapshot().recent_files_check_at_launch {
+        paths = filter_existing(&paths);
+    }
+    let cap = max_recent();
+    if paths.len() > cap {
+        paths.truncate(cap);
+    }
+    RecentFiles { paths }
+}
+
+/// Drop entries from `list` whose path no longer exists on disk. Preserves
+/// order. Used at launch when the user opted into stale-entry pruning.
+pub(crate) fn filter_existing(list: &[PathBuf]) -> Vec<PathBuf> {
+    list.iter().filter(|p| p.exists()).cloned().collect()
+}
+
+/// Persist `recent` to `recent.toml`. Best-effort: any I/O error is dropped
+/// silently so a non-writable config dir can't surface as a broken-looking
+/// File menu interaction.
+pub(crate) fn save(recent: &RecentFiles) {
+    let Some(path) = config_path() else {
+        return;
+    };
+    if let Some(parent) = path.parent() {
+        let _ = std::fs::create_dir_all(parent);
+    }
+    let disk = RecentFilesDisk {
+        paths: recent
+            .paths
+            .iter()
+            .map(|p| p.to_string_lossy().into_owned())
+            .collect(),
+    };
+    if let Ok(serialized) = toml::to_string_pretty(&disk) {
+        let _ = std::fs::write(&path, serialized);
+    }
+}
+
+/// Process-global MRU list. Initialised lazily on first access from the
+/// persisted file. The OS app menu is a single shared surface (macOS most
+/// strictly, but every platform we ship to here) so a single shared MRU
+/// across windows is the right model — a fresh recent in window A should
+/// surface immediately in window B's File menu.
+static GLOBAL: OnceLock<Mutex<RecentFiles>> = OnceLock::new();
+
+fn global() -> &'static Mutex<RecentFiles> {
+    GLOBAL.get_or_init(|| Mutex::new(load()))
+}
+
+/// Snapshot the current MRU paths for menu builders. Returns an owned `Vec`
+/// to keep callers off the lock for any longer than necessary.
+pub(crate) fn snapshot() -> Vec<PathBuf> {
+    global()
+        .lock()
+        .map(|g| g.paths.clone())
+        .unwrap_or_default()
+}
+
+/// Push `path` to the front of the global MRU list and persist to disk.
+pub(crate) fn record_opened(path: PathBuf) {
+    if let Ok(mut g) = global().lock() {
+        g.push(path);
+        save(&g);
+    }
+}
+
+/// Empty the global MRU list and persist the cleared state.
+pub(crate) fn clear_global() {
+    if let Ok(mut g) = global().lock() {
+        g.clear();
+        save(&g);
+    }
+}
+
+/// Drop a single entry from the MRU list. Used when the user confirms
+/// removal of a stale recent (file no longer exists on disk).
+pub(crate) fn remove_path(path: &Path) {
+    if let Ok(mut g) = global().lock() {
+        let before = g.paths.len();
+        g.paths.retain(|p| p != path);
+        if g.paths.len() != before {
+            save(&g);
+        }
+    }
+}
+
+/// Pretty-print a path for the File ▸ Open Recent menu. When `full_path` is
+/// true (NPP `Display the full path`), shows the home-collapsed full path;
+/// otherwise shows only the file name (NPP default — filename-only).
+pub(crate) fn display_label(path: &Path, full_path: bool) -> String {
+    if !full_path {
+        return path
+            .file_name()
+            .map(|f| f.to_string_lossy().into_owned())
+            .unwrap_or_else(|| path.to_string_lossy().into_owned());
+    }
+    if let Some(home) = dirs::home_dir() {
+        if let Ok(rest) = path.strip_prefix(&home) {
+            // `Path::join("~", rest)` would yield `~/...` only on Unix-style
+            // separators; format directly so Windows still gets `~\...` if
+            // it ever lands there.
+            let rest_str = rest.to_string_lossy();
+            if rest_str.is_empty() {
+                return "~".to_string();
+            }
+            return format!("~{}{}", std::path::MAIN_SEPARATOR, rest_str);
+        }
+    }
+    path.to_string_lossy().into_owned()
+}

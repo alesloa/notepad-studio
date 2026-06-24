@@ -1,0 +1,6 @@
+# Intentionally NOT a workspace or package manifest.
+#
+# The vendored gpui crates under `crates/` and `tooling/` are members of the
+# top-level Notepad Studio workspace (see ../../Cargo.toml). This placeholder
+# exists only so this directory is never mistaken for a nested workspace root.
+# Safe to delete (kept as a stub because the agent could not run `rm`).

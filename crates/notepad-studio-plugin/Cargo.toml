@@ -1,0 +1,10 @@
+[package]
+name = "notepad-studio-plugin"
+version = "0.1.0"
+edition = "2021"
+license = "Apache-2.0"
+description = "Plugin ABI for Notepad Studio — define the C-ABI types and safe Rust wrappers used by both the editor host and plugin authors."
+authors = ["Notepad Studio contributors"]
+repository = "https://github.com/alesloa/notepad-studio"
+
+[dependencies]

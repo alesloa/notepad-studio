@@ -1,0 +1,62 @@
+# Lightweight build-check. Runs on every push to main and on every pull request
+# to catch compile breakage across all three desktop OSes. Intentionally minimal:
+# no clippy/fmt gates, no release build, no test suite — just `cargo build` and
+# `cargo check` so a broken commit is caught early without a slow pipeline.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request: {}
+
+jobs:
+  build-check:
+    name: build (${{ matrix.os }})
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-14, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # gpui's Linux backend needs Vulkan / Wayland / X11 / xkbcommon /
+      # fontconfig dev libraries to build. Same starting set as release.yml;
+      # may need a tweak or two after the first real run. No-op on mac/Windows.
+      - name: Install Linux build dependencies
+        if: runner.os == 'Linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            clang cmake pkg-config libssl-dev \
+            libwayland-dev libxkbcommon-dev libxkbcommon-x11-dev \
+            libx11-dev libxcb1-dev libxext-dev \
+            libvulkan-dev mesa-vulkan-drivers \
+            libgl1-mesa-dev libegl1-mesa-dev \
+            libfontconfig1-dev libfreetype6-dev \
+            libzstd-dev
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2
+
+      # tree-sitter grammar C build scripts pass GCC/Clang warning flags
+      # (e.g. -Wno-unused-parameter) that MSVC's cl.exe rejects. clang-cl ships
+      # with the windows-latest runner's LLVM and accepts both clang-style and
+      # MSVC-style flags, so the grammars build. No-op on mac/Linux.
+      - name: Use clang-cl on Windows (tree-sitter grammars pass MSVC-incompatible warning flags)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          echo "CC=clang-cl" >> "$GITHUB_ENV"
+          echo "CXX=clang-cl" >> "$GITHUB_ENV"
+
+      - name: cargo build
+        run: cargo build
+
+      - name: cargo check
+        run: cargo check

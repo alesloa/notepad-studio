@@ -1,0 +1,271 @@
+# Tag-driven release build. Push a tag like `v0.0.5` (or run manually via the
+# Actions tab) to build native binaries on four targets and publish them to a
+# GitHub Release.
+#
+# Targets:
+#   - macOS Apple Silicon (arm64)  -> macos-14 runner (native)
+#   - macOS Intel (x86_64)         -> macos-14 runner (cross-compiled)
+#   - Linux x86_64                 -> ubuntu-latest   (native)
+#   - Windows x86_64               -> windows-latest  (native)
+#
+# Both macOS arches build on macos-14: the Intel/macos-13 runners are scarce and
+# being retired, so the x86_64 artifact is cross-compiled on Apple Silicon via
+# `rustup target add x86_64-apple-darwin` (universal macOS SDK, no extra setup).
+#
+# Assets are EMBEDDED into the binary at compile time (include_bytes! for icons,
+# include_str! for themes; fonts come from the OS text system). So the Linux
+# tarball and Windows zip ship ONLY the binary — there is no assets/ folder to
+# carry alongside it. macOS ships the `cargo bundle`-produced `Notepad Studio.app`.
+#
+# macOS builds are UNSIGNED for now. The signing / notarization steps are left
+# commented out below; uncomment and add the referenced secrets when ready.
+
+name: Release
+
+on:
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch: {}
+
+# Needed so the final `release` job can create the GitHub Release.
+permissions:
+  contents: write
+
+jobs:
+  # ---------------------------------------------------------------------------
+  # macOS — Apple Silicon (arm64) and Intel (x86_64). Same steps, same runner
+  # (macos-14); each entry targets its own triple, bundles the .app via
+  # cargo-bundle and zips it.
+  # ---------------------------------------------------------------------------
+  macos:
+    name: macOS ${{ matrix.arch }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: aarch64-apple-darwin
+            arch: arm64
+          - target: x86_64-apple-darwin
+            arch: x86_64
+    # Both architectures build on macos-14 (Apple Silicon): arm64 natively and
+    # x86_64 via cross-compilation. The macos-13 (Intel) runners are scarce and
+    # being retired — jobs queued there sit for 40+ minutes and never start.
+    # macos-14's Apple toolchain + rustup target the universal macOS SDK, so the
+    # x86_64 cross-build needs no extra setup beyond `rustup target add`.
+    runs-on: macos-14
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      # arm64 is the host (no-op); x86_64 adds the cross-compilation target.
+      - name: Add Rust target
+        run: rustup target add ${{ matrix.target }}
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2
+
+      # cargo-bundle reads [package.metadata.bundle] in Cargo.toml to produce
+      # `Notepad Studio.app`. Cached by rust-cache once installed.
+      - name: Install cargo-bundle
+        run: cargo install cargo-bundle --locked
+
+      - name: Build release
+        run: cargo build --release --target ${{ matrix.target }}
+
+      - name: Bundle .app
+        run: cargo bundle --release --target ${{ matrix.target }}
+
+      # ----------------------------------------------------------------------
+      # CODE SIGNING / NOTARIZATION (currently disabled — builds are UNSIGNED).
+      #
+      # To enable: add these repository secrets, then uncomment the two steps.
+      #   MACOS_CERT_P12        - base64 of the "Developer ID Application" .p12
+      #   MACOS_CERT_PASSWORD   - password for that .p12
+      #   APPLE_ID              - Apple ID email used for notarization
+      #   APPLE_TEAM_ID         - 10-char Apple Developer Team ID
+      #   NOTARYTOOL_PASSWORD   - app-specific password for notarytool
+      # ----------------------------------------------------------------------
+      # - name: Sign the .app (UNSIGNED today — uncomment when secrets exist)
+      #   env:
+      #     MACOS_CERT_P12: ${{ secrets.MACOS_CERT_P12 }}
+      #     MACOS_CERT_PASSWORD: ${{ secrets.MACOS_CERT_PASSWORD }}
+      #   run: |
+      #     echo "$MACOS_CERT_P12" | base64 --decode > /tmp/cert.p12
+      #     security create-keychain -p actions build.keychain
+      #     security default-keychain -s build.keychain
+      #     security unlock-keychain -p actions build.keychain
+      #     security import /tmp/cert.p12 -k build.keychain \
+      #       -P "$MACOS_CERT_PASSWORD" -T /usr/bin/codesign
+      #     security set-key-partition-list -S apple-tool:,apple:,codesign: \
+      #       -s -k actions build.keychain
+      #     codesign --deep --force --options runtime --timestamp \
+      #       --sign "Developer ID Application" \
+      #       "target/${{ matrix.target }}/release/bundle/osx/Notepad Studio.app"
+      #
+      # - name: Notarize the .app (UNSIGNED today — uncomment when secrets exist)
+      #   env:
+      #     APPLE_ID: ${{ secrets.APPLE_ID }}
+      #     APPLE_TEAM_ID: ${{ secrets.APPLE_TEAM_ID }}
+      #     NOTARYTOOL_PASSWORD: ${{ secrets.NOTARYTOOL_PASSWORD }}
+      #   run: |
+      #     ditto -c -k --keepParent \
+      #       "target/${{ matrix.target }}/release/bundle/osx/Notepad Studio.app" /tmp/notarize.zip
+      #     xcrun notarytool submit /tmp/notarize.zip \
+      #       --apple-id "$APPLE_ID" \
+      #       --team-id "$APPLE_TEAM_ID" \
+      #       --password "$NOTARYTOOL_PASSWORD" --wait
+      #     xcrun stapler staple "target/${{ matrix.target }}/release/bundle/osx/Notepad Studio.app"
+
+      # `ditto` preserves the .app bundle structure / symlinks better than `zip`.
+      - name: Zip the .app
+        run: |
+          ditto -c -k --keepParent \
+            "target/${{ matrix.target }}/release/bundle/osx/Notepad Studio.app" \
+            "Notepad-Studio-macos-${{ matrix.arch }}.zip"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: notepad-studio-macos-${{ matrix.arch }}
+          path: Notepad-Studio-macos-${{ matrix.arch }}.zip
+          if-no-files-found: error
+
+  # ---------------------------------------------------------------------------
+  # Linux x86_64. Installs gpui's build-system deps, builds release, tars the
+  # bare binary (assets are embedded — no assets/ dir to ship).
+  # ---------------------------------------------------------------------------
+  linux:
+    name: Linux x86_64
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # gpui's Linux backend uses Vulkan (via blade-graphics), Wayland + X11,
+      # xkbcommon, and fontconfig/freetype. This is the gpui build-dep starting
+      # point; gpui/blade may need one or two additional -dev packages once the
+      # first real CI run surfaces a missing symbol — adjust here if so.
+      - name: Install Linux build dependencies
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends \
+            clang cmake pkg-config libssl-dev \
+            libwayland-dev libxkbcommon-dev libxkbcommon-x11-dev \
+            libx11-dev libxcb1-dev libxext-dev \
+            libvulkan-dev mesa-vulkan-drivers \
+            libgl1-mesa-dev libegl1-mesa-dev \
+            libfontconfig1-dev libfreetype6-dev \
+            libzstd-dev
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2
+
+      - name: Build release
+        run: cargo build --release
+
+      # Bare binary only — assets are compiled into it.
+      - name: Package tarball
+        run: |
+          tar -czf Notepad-Studio-linux-x86_64.tar.gz \
+            -C target/release notepad-studio
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: notepad-studio-linux-x86_64
+          path: Notepad-Studio-linux-x86_64.tar.gz
+          if-no-files-found: error
+
+  # ---------------------------------------------------------------------------
+  # Windows x86_64. Builds release, zips the bare .exe (assets embedded; the
+  # app icon is link-time-embedded into the .exe via build.rs).
+  # ---------------------------------------------------------------------------
+  windows:
+    name: Windows x86_64
+    runs-on: windows-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      - name: Cache Rust build
+        uses: Swatinem/rust-cache@v2
+
+      # tree-sitter grammar C build scripts pass GCC/Clang warning flags
+      # (e.g. -Wno-unused-parameter) that MSVC's cl.exe rejects. clang-cl ships
+      # with the windows-latest runner's LLVM and accepts both clang-style and
+      # MSVC-style flags, so the grammars build. No-op on mac/Linux.
+      - name: Use clang-cl on Windows (tree-sitter grammars pass MSVC-incompatible warning flags)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |
+          echo "CC=clang-cl" >> "$GITHUB_ENV"
+          echo "CXX=clang-cl" >> "$GITHUB_ENV"
+
+      - name: Build release
+        run: cargo build --release
+
+      # Bare .exe only — assets are compiled into it.
+      - name: Package zip
+        shell: pwsh
+        run: |
+          Compress-Archive `
+            -Path target\release\notepad-studio.exe `
+            -DestinationPath Notepad-Studio-windows-x86_64.zip
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: notepad-studio-windows-x86_64
+          path: Notepad-Studio-windows-x86_64.zip
+          if-no-files-found: error
+
+  # ---------------------------------------------------------------------------
+  # Publish: collect all four artifacts and create / update the GitHub Release
+  # using the official `gh` CLI (preferred over third-party release actions).
+  # ---------------------------------------------------------------------------
+  release:
+    name: Publish release
+    needs: [macos, linux, windows]
+    runs-on: ubuntu-latest
+    # Manual `workflow_dispatch` runs have no tag to release against; only run
+    # this job for actual tag pushes.
+    if: startsWith(github.ref, 'refs/tags/')
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      # Pulls every uploaded artifact into ./dist/<name>/<file>.
+      - name: Download all artifacts
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+
+      - name: Create or update GitHub Release
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAG: ${{ github.ref_name }}
+        run: |
+          set -euo pipefail
+          # Flatten the per-artifact subdirectories into a single file list.
+          FILES=$(find dist -type f)
+          echo "Release assets:"
+          echo "$FILES"
+          if gh release view "$TAG" >/dev/null 2>&1; then
+            # Release already exists (e.g. re-run) — upload/overwrite assets.
+            gh release upload "$TAG" $FILES --clobber
+          else
+            gh release create "$TAG" \
+              --title "$TAG" \
+              --generate-notes \
+              $FILES
+          fi

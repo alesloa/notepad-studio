@@ -1,0 +1,35 @@
+Notepad Studio
+Copyright 2026 Notepad Studio contributors
+
+This product bundles a vendored copy of GPUI and several supporting crates from
+the Zed project, located under `vendor/gpui/`. These crates are licensed under
+the Apache License, Version 2.0. Each retains its original `LICENSE-APACHE`
+file.
+
+    GPUI and supporting crates
+    Copyright Zed Industries, Inc. and the Zed contributors
+    Source: https://github.com/zed-industries/zed
+    Vendored from revision acd8f23 (via the alesloa/zed fork)
+    License: Apache-2.0
+
+Vendored crates:
+    collections, gpui, gpui_macros, http_client, media, refineable,
+    refineable/derive_refineable, sum_tree, util, util_macros, tooling/perf
+
+Modifications made to the vendored sources (per Apache-2.0 section 4(b)):
+
+  * crates/sum_tree:
+      - Removed the `ztracing` (AGPL-3.0) dependency. The `#[instrument]`
+        attributes it provided were repointed to the permissive `tracing`
+        crate, which sum_tree already depended on.
+      - Removed the `zlog` (GPL-3.0) test-only dev-dependency. Its single use
+        (`zlog::init_test()` in a `#[cfg(test)]` block) was replaced with a
+        no-op. No GPL/AGPL code remains in the vendored tree.
+
+  * crates/gpui:
+      - Removed the `reqwest_client` dev-dependency (a non-vendored Zed crate).
+        gpui's test suite is not built when gpui is consumed as a path
+        dependency, so this has no effect on the library build.
+
+No other source modifications were made; the vendored crate sources are
+otherwise unchanged from upstream.

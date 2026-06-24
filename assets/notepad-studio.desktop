@@ -1,0 +1,17 @@
+[Desktop Entry]
+Type=Application
+Version=1.0
+Name=Notepad Studio
+GenericName=Text Editor
+Comment=Lightweight cross-platform text editor inspired by Notepad++
+Exec=notepad-studio %F
+Icon=notepad-studio
+Terminal=false
+Categories=Utility;TextEditor;Development;
+# MimeType determines which file types list Notepad Studio in the
+# Files / Dolphin / Thunar "Open With" context menu. Keep this in sync
+# with the macOS CFBundleDocumentTypes list in scripts/bundle-mac.sh so
+# the three platforms expose the same set of file associations.
+MimeType=text/plain;text/markdown;text/csv;text/tab-separated-values;text/x-log;application/json;application/xml;text/xml;text/html;application/xhtml+xml;image/svg+xml;text/css;application/javascript;text/javascript;application/x-shellscript;application/x-sh;text/x-shellscript;text/x-script.sh;text/x-script.python;text/x-python;text/x-csrc;text/x-c++src;text/x-chdr;text/x-c++hdr;text/x-rust;text/x-go;text/x-java;text/x-csharp;text/x-ruby;text/x-php;text/x-swift;text/x-kotlin;text/x-lua;text/x-perl;text/x-dart;text/x-vala;text/x-tex;text/x-bibtex;text/x-r;text/x-yaml;application/x-yaml;application/toml;text/x-ini;text/x-properties;application/sql;text/x-sql;text/x-patch;text/x-diff;application/rtf;text/rtf;application/msword;application/vnd.openxmlformats-officedocument.wordprocessingml.document;application/vnd.oasis.opendocument.text;application/x-powershell;text/vue;text/x-svelte;
+StartupWMClass=notepad-studio
+Keywords=Notepad;Editor;Text;Code;

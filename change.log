@@ -132,6 +132,34 @@ v0.0.5 — current
        per-window placement persist across restarts. Saved on autosave
        tick, on window close, and on app quit.
 
+  Reliability:
+
+    1. A file you open and save without editing comes back byte for
+       byte. LF files are no longer rewritten as CRLF on Windows, mixed
+       line endings stay mixed, and UTF-8 BOM, UTF-16 and Latin-1 files
+       keep their exact bytes, files over 10 MB included.
+    2. Save writes over the file in place and keeps a safety copy until
+       the write succeeds. A full disk or a lost drive no longer leaves
+       the file empty or cut short.
+    3. A damaged settings, session, window, recent-files, macro, shortcut
+       or undo file no longer stops startup or wipes everything in it.
+       Only the bad entries reset, and the file is kept beside the new
+       one as <name>.corrupt. These files and themes are now written
+       atomically.
+    4. Session restore no longer drops UTF-16 and Latin-1 tabs, and an
+       autosave missing from the session list comes back as an untitled
+       tab instead of being deleted.
+    5. Save As and the save prompt on close save the tab that asked, even
+       if you switch or close tabs while the file dialog is open.
+    6. Fixed crashes: a backslash before an accented letter in an
+       Extended-mode search, input-method typing over a selection that
+       ends inside a multi-byte character, a shortcut override gpui
+       can't parse, and a hand-edited tab width far out of range (now
+       held to 1-16, the Preferences range).
+    7. Faster on big files: input-method caret lookups on a 63 MB file
+       went from 148 ms to under a microsecond, and word wrap on a
+       200 KB line from 3.1 s to 3 ms.
+
 
 v0.0.7 — Edit ops (Notepad++ parity)
 

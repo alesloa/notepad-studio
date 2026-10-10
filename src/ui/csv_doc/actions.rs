@@ -284,7 +284,7 @@ pub(crate) fn emit_to_source(
         return;
     };
     let Some(new_text) = model.emit_source() else {
-        w.set_status("CSV grid edit not written: the result is not valid UTF-8");
+        w.set_status("CSV grid edit not written: the grid could not be written back as CSV text");
         cx.notify();
         return;
     };

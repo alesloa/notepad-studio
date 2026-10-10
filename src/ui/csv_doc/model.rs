@@ -2134,8 +2134,8 @@ impl CsvModel {
     /// trailing-newline convention from the original source. Called on
     /// every cell commit / reorder / structural edit; the result is fed
     /// into a single `replace_byte_range(0..len, …)` against the active
-    /// buffer. `None` means the output would not be valid UTF-8; the
-    /// caller then leaves the document as it is.
+    /// buffer. `None` means the writer failed or the output would not be
+    /// valid UTF-8; the caller then leaves the document as it is.
     pub(crate) fn emit_source(&self) -> Option<String> {
         // Empty schema with empty rows = empty file. Skip the csv writer
         // entirely (which would emit a single quoted empty record).
@@ -2153,19 +2153,23 @@ impl CsvModel {
             LineTerminator::Crlf => csv::Terminator::CRLF,
         };
         {
+            // Flexible: a row whose length differs from the first record
+            // is otherwise refused after its fields are written but
+            // before its terminator, which runs it into the next row.
             let mut writer = csv::WriterBuilder::new()
                 .delimiter(self.delimiter)
                 .terminator(terminator)
+                .flexible(true)
                 .from_writer(&mut buf);
             if self.has_header && !self.headers.is_empty() {
-                let _ = writer.write_record(self.headers.iter().map(|s| s.as_str()));
+                writer.write_record(self.headers.iter().map(|s| s.as_str())).ok()?;
             }
             for row in &self.rows {
                 if !row.is_empty() {
-                    let _ = writer.write_record(row.iter().map(|s| s.as_str()));
+                    writer.write_record(row.iter().map(|s| s.as_str())).ok()?;
                 }
             }
-            let _ = writer.flush();
+            writer.flush().ok()?;
         }
 
         // csv always writes a terminator after the last record. Strip it
@@ -4837,6 +4841,23 @@ mod tests {
         let mut m = fresh("a,b\nél,2\n");
         m.delimiter = 0xC3;
         assert_eq!(m.emit_source(), None);
+    }
+
+    #[test]
+    fn emit_keeps_rows_longer_than_the_header_on_their_own_lines() {
+        // Deleting every column leaves zero-length rows; Add Row then
+        // gives each new row one cell, and Add Column widens all of them,
+        // so the new rows end up one cell longer than the header.
+        let mut m = fresh("a\n1\n");
+        m.delete_cols(&BTreeSet::from([0]));
+        m.add_row();
+        m.add_row();
+        m.add_column();
+        assert!(m.set_cell(1, 0, "one".to_string()));
+        assert!(m.set_cell(2, 0, "two".to_string()));
+        let again = fresh(&m.emit_source().unwrap());
+        assert_eq!(again.row_count(), 3);
+        assert_eq!((again.cell(1, 0), again.cell(2, 0)), ("one", "two"));
     }
 
     // ---- Hostile input: parse matrix -----------------------------------------

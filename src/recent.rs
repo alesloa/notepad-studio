@@ -80,14 +80,7 @@ pub(crate) fn load() -> RecentFiles {
     let Some(path) = config_path() else {
         return RecentFiles::default();
     };
-    let Ok(raw) = std::fs::read_to_string(&path) else {
-        return RecentFiles::default();
-    };
-    let parsed: RecentFilesDisk = match toml::from_str(&raw) {
-        Ok(v) => v,
-        Err(_) => return RecentFiles::default(),
-    };
-    let mut paths: Vec<PathBuf> = parsed.paths.into_iter().map(PathBuf::from).collect();
+    let mut paths = load_paths_at(&path);
     if crate::settings::snapshot().recent_files_check_at_launch {
         paths = filter_existing(&paths);
     }
@@ -96,6 +89,25 @@ pub(crate) fn load() -> RecentFiles {
         paths.truncate(cap);
     }
     RecentFiles { paths }
+}
+
+/// The paths stored in `path`. An entry that isn't a string is skipped
+/// rather than costing the whole list; a file that isn't TOML is moved
+/// aside as `recent.toml.corrupt`.
+fn load_paths_at(path: &Path) -> Vec<PathBuf> {
+    let parsed = crate::persist::load_toml(
+        path,
+        |t| crate::persist::salvage_table(t, &[]).unwrap_or_default(),
+        RecentFilesDisk::default,
+    )
+    .into_option()
+    .unwrap_or_default();
+    parsed
+        .paths
+        .into_iter()
+        .filter(|p| !p.is_empty())
+        .map(PathBuf::from)
+        .collect()
 }
 
 /// Drop entries from `list` whose path no longer exists on disk. Preserves
@@ -111,8 +123,14 @@ pub(crate) fn save(recent: &RecentFiles) {
     let Some(path) = config_path() else {
         return;
     };
+    if let Err(err) = save_at(&path, recent) {
+        eprintln!("[recent] couldn't save {}: {err}", path.display());
+    }
+}
+
+fn save_at(path: &Path, recent: &RecentFiles) -> std::io::Result<()> {
     if let Some(parent) = path.parent() {
-        let _ = std::fs::create_dir_all(parent);
+        std::fs::create_dir_all(parent)?;
     }
     let disk = RecentFilesDisk {
         paths: recent
@@ -121,9 +139,8 @@ pub(crate) fn save(recent: &RecentFiles) {
             .map(|p| p.to_string_lossy().into_owned())
             .collect(),
     };
-    if let Ok(serialized) = toml::to_string_pretty(&disk) {
-        let _ = std::fs::write(&path, serialized);
-    }
+    let serialized = toml::to_string_pretty(&disk).map_err(std::io::Error::other)?;
+    crate::persist::atomic_write(path, serialized.as_bytes())
 }
 
 /// Process-global MRU list. Initialised lazily on first access from the
@@ -197,4 +214,38 @@ pub(crate) fn display_label(path: &Path, full_path: bool) -> String {
         }
     }
     path.to_string_lossy().into_owned()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::persist::TempDir;
+
+    #[test]
+    fn a_bad_entry_does_not_empty_the_recent_list() {
+        let dir = TempDir::new("recent-load");
+        let p = dir.join("recent.toml");
+        assert!(load_paths_at(&p).is_empty());
+        assert!(std::fs::write(&p, "paths = [\"/a.txt\", 3, \"\", \"/b.txt\"]\n").is_ok());
+        assert_eq!(
+            load_paths_at(&p),
+            vec![PathBuf::from("/a.txt"), PathBuf::from("/b.txt")]
+        );
+        assert!(dir.join("recent.toml.corrupt").exists());
+    }
+
+    #[test]
+    fn recent_list_round_trips_and_ignores_non_utf8_bytes() {
+        let dir = TempDir::new("recent-save");
+        let p = dir.join("recent.toml");
+        let recent = RecentFiles {
+            paths: vec![PathBuf::from("/x/ñ.txt"), PathBuf::from("C:\\y\\z.md")],
+        };
+        assert!(save_at(&p, &recent).is_ok());
+        assert_eq!(load_paths_at(&p), recent.paths);
+
+        // A stray byte in a comment (an editor saved it as Latin-1).
+        assert!(std::fs::write(&p, b"paths = [\"/ok.txt\"]\n# caf\xe9\n").is_ok());
+        assert_eq!(load_paths_at(&p), vec![PathBuf::from("/ok.txt")]);
+    }
 }

@@ -82,6 +82,20 @@ pub(crate) fn quarantine(path: &Path) -> Option<PathBuf> {
     }
 }
 
+/// Copy a state file that only partly loaded to `<name>.corrupt` before the
+/// next save rewrites it with just the parts that survived.
+fn keep_copy(path: &Path) {
+    let target = sibling_with_suffix(path, ".corrupt");
+    match fs::copy(path, &target) {
+        Ok(_) => eprintln!(
+            "[persist] {} only partly loaded; the original is kept as {}",
+            path.display(),
+            target.display()
+        ),
+        Err(err) => eprintln!("[persist] couldn't copy {}: {err}", path.display()),
+    }
+}
+
 /// Outcome of reading a TOML state file with `load_toml`.
 pub(crate) enum Loaded<T> {
     /// No file yet (first launch) or it couldn't be opened.
@@ -89,7 +103,8 @@ pub(crate) enum Loaded<T> {
     /// The file matched the schema.
     Clean(T),
     /// Some of the file didn't match; this is what survived. The original
-    /// was moved aside with `quarantine` when it wasn't TOML at all.
+    /// is kept as `<name>.corrupt`: copied when part of it loaded, moved
+    /// when it wasn't TOML at all.
     Salvaged(T),
 }
 
@@ -128,6 +143,7 @@ pub(crate) fn load_toml<T: DeserializeOwned>(
                     "[persist] {} doesn't match the current format, keeping what fits: {strict}",
                     path.display()
                 );
+                keep_copy(path);
                 Loaded::Salvaged(salvage(&table))
             }
             Err(_) => {
@@ -152,6 +168,13 @@ pub(crate) fn salvage_table<T: DeserializeOwned>(
     required: &[&str],
 ) -> Option<T> {
     let fits = |t: &toml::Table| t.clone().try_into::<T>().ok();
+    if !required.iter().all(|key| table.contains_key(*key)) {
+        return None;
+    }
+    // Most elements of a damaged array are fine; don't rebuild those key by key.
+    if let Some(whole) = fits(table) {
+        return Some(whole);
+    }
     let mut kept = toml::Table::new();
     for key in required {
         let value = table.get(*key)?;
@@ -346,6 +369,11 @@ mod tests {
         );
         assert!(matches!(got, Loaded::Salvaged(Sample { width: 0, ref name, .. }) if name == "n"));
         assert!(p.exists(), "a salvageable file stays where it is");
+        assert_eq!(
+            fs::read_to_string(dir.join("state.toml.corrupt")).ok().as_deref(),
+            Some("width = \"wide\"\nname = \"n\"\n"),
+            "and a copy keeps the field the next save will drop"
+        );
 
         let _ = fs::write(&p, b"\xff\xfe[[[ not toml");
         let got = load_toml::<Sample>(&p, |_| Sample::default(), Sample::default);

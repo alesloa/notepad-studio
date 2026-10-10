@@ -15,7 +15,7 @@
 // itself during playback.
 
 use std::collections::BTreeMap;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::{Mutex, OnceLock};
 
 use serde::{Deserialize, Serialize};
@@ -142,13 +142,28 @@ fn load_saved() -> BTreeMap<String, Vec<MacroEvent>> {
     let Some(path) = macros_path() else {
         return BTreeMap::new();
     };
-    let Ok(raw) = std::fs::read_to_string(&path) else {
-        return BTreeMap::new();
-    };
-    let parsed: MacrosFile = match toml::from_str(&raw) {
-        Ok(v) => v,
-        Err(_) => return BTreeMap::new(),
-    };
+    load_saved_at(&path)
+}
+
+/// Saved macros in `path`. A macro this build can't replay (an event name
+/// it doesn't know, say from a newer version) is skipped whole instead of
+/// losing every macro; the original file is kept as `macros.toml.corrupt`
+/// before the next save rewrites it.
+fn load_saved_at(path: &Path) -> BTreeMap<String, Vec<MacroEvent>> {
+    let parsed = crate::persist::load_toml(
+        path,
+        |t| {
+            let (macros, dropped) =
+                crate::persist::salvage_array::<MacroEntry>(t.get("macro_"), &["name", "events"]);
+            if dropped > 0 {
+                eprintln!("[macros] skipped {dropped} macro(s) this version can't replay");
+            }
+            MacrosFile { macro_: macros }
+        },
+        MacrosFile::default,
+    )
+    .into_option()
+    .unwrap_or_default();
     parsed
         .macro_
         .into_iter()
@@ -160,8 +175,14 @@ fn persist(saved: &BTreeMap<String, Vec<MacroEvent>>) {
     let Some(path) = macros_path() else {
         return;
     };
+    if let Err(err) = persist_at(&path, saved) {
+        eprintln!("[macros] couldn't save {}: {err}", path.display());
+    }
+}
+
+fn persist_at(path: &Path, saved: &BTreeMap<String, Vec<MacroEvent>>) -> std::io::Result<()> {
     if let Some(parent) = path.parent() {
-        let _ = std::fs::create_dir_all(parent);
+        std::fs::create_dir_all(parent)?;
     }
     let file = MacrosFile {
         macro_: saved
@@ -172,9 +193,8 @@ fn persist(saved: &BTreeMap<String, Vec<MacroEvent>>) {
             })
             .collect(),
     };
-    if let Ok(serialized) = toml::to_string_pretty(&file) {
-        let _ = std::fs::write(&path, serialized);
-    }
+    let serialized = toml::to_string_pretty(&file).map_err(std::io::Error::other)?;
+    crate::persist::atomic_write(path, serialized.as_bytes())
 }
 
 static GLOBAL: OnceLock<Mutex<MacroRecorder>> = OnceLock::new();
@@ -314,3 +334,71 @@ pub(crate) fn save_macro(name: String) -> bool {
     true
 }
 
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::persist::TempDir;
+
+    fn names(m: &BTreeMap<String, Vec<MacroEvent>>) -> Vec<&str> {
+        m.keys().map(String::as_str).collect()
+    }
+
+    #[test]
+    fn a_macro_with_an_unknown_event_does_not_lose_the_others() {
+        let dir = TempDir::new("macros-load");
+        let p = dir.join("macros.toml");
+        let src = "[[macro_]]\nname = \"keep\"\nevents = [{ InsertText = \"hi\" }, \"Backspace\"]\n\
+                   [[macro_]]\nname = \"newer\"\nevents = [\"Backspace\", \"Teleport\"]\n\
+                   [[macro_]]\nevents = [\"Delete\"]\n";
+        assert!(std::fs::write(&p, src).is_ok());
+        let got = load_saved_at(&p);
+        assert_eq!(names(&got), vec!["keep"]);
+        assert!(matches!(
+            got.get("keep").map(Vec::as_slice),
+            Some([MacroEvent::InsertText(t), MacroEvent::Backspace]) if t == "hi"
+        ));
+        assert_eq!(
+            std::fs::read_to_string(dir.join("macros.toml.corrupt")).ok().as_deref(),
+            Some(src),
+            "the skipped macros stay recoverable"
+        );
+    }
+
+    #[test]
+    fn saved_macros_round_trip() {
+        let dir = TempDir::new("macros-save");
+        let p = dir.join("macros.toml");
+        let mut saved = BTreeMap::new();
+        saved.insert(
+            "crlf ñ".to_string(),
+            vec![
+                MacroEvent::InsertText("a\r\nb\u{1F600}\"\\".into()),
+                MacroEvent::InsertDateTimeCustomized,
+                MacroEvent::SelectWordLeft,
+            ],
+        );
+        assert!(persist_at(&p, &saved).is_ok());
+        let got = load_saved_at(&p);
+        assert_eq!(names(&got), vec!["crlf ñ"]);
+        assert!(matches!(
+            got.get("crlf ñ").map(Vec::as_slice),
+            Some([
+                MacroEvent::InsertText(t),
+                MacroEvent::InsertDateTimeCustomized,
+                MacroEvent::SelectWordLeft,
+            ]) if t == "a\r\nb\u{1F600}\"\\"
+        ));
+        assert!(!dir.join("macros.toml.tmp").exists());
+    }
+
+    #[test]
+    fn unreadable_macro_file_is_kept_aside() {
+        let dir = TempDir::new("macros-junk");
+        let p = dir.join("macros.toml");
+        assert!(load_saved_at(&p).is_empty());
+        assert!(std::fs::write(&p, "[[macro_]\nname = ").is_ok());
+        assert!(load_saved_at(&p).is_empty());
+        assert!(dir.join("macros.toml.corrupt").exists());
+    }
+}

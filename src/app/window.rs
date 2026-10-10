@@ -167,7 +167,7 @@ fn spawn_window(cx: &mut App, entry: Option<WindowEntry>, restore_session: bool)
         .clamp(crate::consts::ZOOM_MIN, crate::consts::ZOOM_MAX);
 
     let bounds = entry
-        .map(WindowEntry::into_bounds)
+        .and_then(WindowEntry::into_bounds)
         .unwrap_or_else(|| Bounds::centered(None, size(px(1100.), px(720.)), cx));
 
     let window = match cx.open_window(

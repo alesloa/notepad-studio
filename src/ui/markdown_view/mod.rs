@@ -415,13 +415,24 @@ fn parser_options() -> Options {
     o
 }
 
+/// Deepest container nesting (block quotes, lists, footnote definitions,
+/// alignment wrappers) the preview builds as nested blocks. The parser,
+/// `render_block`, and gpui's layout / prepaint / paint passes all recurse
+/// once per level, every level costs up to three divs, and gpui runs those
+/// passes on the main thread, whose stack is 1 MB on Windows. 10,000
+/// nested `> ` markers overflowed a 2 MB test thread in the parser alone.
+/// Content nested deeper than this
+/// still renders, flattened into the innermost container that fits.
+/// Hand-written markdown nests a handful of levels, so 16 leaves room.
+const MAX_BLOCK_NESTING: usize = 16;
+
 fn parse(source: &str) -> Vec<Block> {
     let parser = Parser::new_ext(source, parser_options());
     let events: Vec<EventWithRange> = parser.into_offset_iter().collect();
     let mut idx = 0;
     let mut out = Vec::new();
     while idx < events.len() {
-        if let Some(block) = read_block(source, &events, &mut idx) {
+        if let Some(block) = read_block(source, &events, &mut idx, 0) {
             out.push(block);
         } else {
             idx += 1;
@@ -430,10 +441,16 @@ fn parse(source: &str) -> Vec<Block> {
     out
 }
 
-/// Pulls one top-level block starting at `*idx`. Returns `None` on events
+/// Pulls one block starting at `*idx`. `depth` counts the containers
+/// already open around it (0 at the top level). Returns `None` on events
 /// that don't start a block (stray ends, table content we don't render
 /// yet). Advances `*idx` past whatever it consumed.
-fn read_block(source: &str, events: &[EventWithRange], idx: &mut usize) -> Option<Block> {
+fn read_block(
+    source: &str,
+    events: &[EventWithRange],
+    idx: &mut usize,
+    depth: usize,
+) -> Option<Block> {
     while *idx < events.len() {
         match &events[*idx].0 {
             Event::Start(tag) => {
@@ -501,15 +518,19 @@ fn read_block(source: &str, events: &[EventWithRange], idx: &mut usize) -> Optio
                         Block::CodeBlock { lang, runs }
                     }
                     Tag::BlockQuote(_) => {
-                        let inner = read_blocks_until(source, events, idx, |t| {
-                            matches!(t, TagEnd::BlockQuote(_))
-                        });
+                        let inner = read_blocks_until(
+                            source,
+                            events,
+                            idx,
+                            |t| matches!(t, TagEnd::BlockQuote(_)),
+                            depth + 1,
+                        );
                         Block::BlockQuote(inner)
                     }
                     Tag::List(start) => {
                         let ordered = start.is_some();
                         let start = start.unwrap_or(1);
-                        let items = read_list_items(source, events, idx);
+                        let items = read_list_items(source, events, idx, depth + 1);
                         Block::List {
                             ordered,
                             start,
@@ -518,9 +539,13 @@ fn read_block(source: &str, events: &[EventWithRange], idx: &mut usize) -> Optio
                     }
                     Tag::Table(alignments) => read_table(source, events, idx, alignments),
                     Tag::FootnoteDefinition(label) => {
-                        let blocks = read_blocks_until(source, events, idx, |t| {
-                            matches!(t, TagEnd::FootnoteDefinition)
-                        });
+                        let blocks = read_blocks_until(
+                            source,
+                            events,
+                            idx,
+                            |t| matches!(t, TagEnd::FootnoteDefinition),
+                            depth + 1,
+                        );
                         Block::FootnoteDefinition {
                             label: label.to_string().into(),
                             blocks,
@@ -555,7 +580,10 @@ fn read_block(source: &str, events: &[EventWithRange], idx: &mut usize) -> Optio
                 // require the close tag to exist somewhere ahead at all
                 // — without this, an unclosed `<center>` would centre
                 // every block that follows.
-                if let Some(tag) = parse_html_tag_prefix(s) {
+                // Past `MAX_BLOCK_NESTING` the wrapper is dropped and its
+                // blocks are read as siblings, which keeps the recursion
+                // bounded.
+                if let Some(tag) = parse_html_tag_prefix(s).filter(|_| depth + 1 < MAX_BLOCK_NESTING) {
                     if let Some(align) = container_alignment(&tag) {
                         let close_marker = format!("</{}", tag.name).to_ascii_lowercase();
                         let close_found = events.iter().skip(*idx + 1).any(|(e, _)| {
@@ -587,7 +615,7 @@ fn read_block(source: &str, events: &[EventWithRange], idx: &mut usize) -> Optio
                                         }
                                     }
                                 }
-                                if let Some(b) = read_block(source, events, idx) {
+                                if let Some(b) = read_block(source, events, idx, depth + 1) {
                                     inner.push(b);
                                 } else {
                                     *idx += 1;
@@ -818,12 +846,19 @@ fn read_paragraph_segments(
     }
 }
 
+/// Reads the blocks of an open block quote or footnote definition.
+/// `depth` is the nesting level of those blocks; at `MAX_BLOCK_NESTING`
+/// they are read flat.
 fn read_blocks_until<F: Fn(&TagEnd) -> bool>(
     source: &str,
     events: &[EventWithRange],
     idx: &mut usize,
     stop: F,
+    depth: usize,
 ) -> Vec<Block> {
+    if depth >= MAX_BLOCK_NESTING {
+        return read_flattened(source, events, idx);
+    }
     let mut out = Vec::new();
     while *idx < events.len() {
         if let Event::End(end) = &events[*idx].0 {
@@ -832,8 +867,78 @@ fn read_blocks_until<F: Fn(&TagEnd) -> bool>(
                 return out;
             }
         }
-        if let Some(block) = read_block(source, events, idx) {
+        if let Some(block) = read_block(source, events, idx, depth) {
             out.push(block);
+        }
+    }
+    out
+}
+
+/// True for the end of a container `read_flattened` walks through.
+fn is_container_end(end: &TagEnd) -> bool {
+    matches!(
+        end,
+        TagEnd::BlockQuote(_) | TagEnd::List(_) | TagEnd::Item | TagEnd::FootnoteDefinition
+    )
+}
+
+/// Reads the rest of an open container (block quote, list item, footnote
+/// definition) whose contents sit at `MAX_BLOCK_NESTING`. Containers
+/// inside it are not built; their leaf blocks are appended in source
+/// order, so the text still shows and nothing recurses. Leaves `*idx`
+/// past the End event that closes the open container.
+fn read_flattened(source: &str, events: &[EventWithRange], idx: &mut usize) -> Vec<Block> {
+    let mut out = Vec::new();
+    // Containers opened inside the flattened region and not yet closed.
+    let mut open = 0usize;
+    while let Some((event, _)) = events.get(*idx) {
+        match event {
+            Event::Start(
+                Tag::BlockQuote(_) | Tag::List(_) | Tag::Item | Tag::FootnoteDefinition(_),
+            ) => {
+                open += 1;
+                *idx += 1;
+            }
+            Event::End(end) if is_container_end(end) => {
+                *idx += 1;
+                if open == 0 {
+                    return out;
+                }
+                open -= 1;
+            }
+            Event::Start(
+                Tag::Paragraph | Tag::Heading { .. } | Tag::CodeBlock(_) | Tag::Table(_),
+            ) => {
+                // Leaf blocks: `read_block` reads these without recursing.
+                if let Some(block) = read_block(source, events, idx, MAX_BLOCK_NESTING) {
+                    out.push(block);
+                }
+            }
+            Event::Start(tag) if is_block_start_tag(tag) => {
+                // HTML blocks, metadata, stray table parts: skipped, as
+                // `read_block` does.
+                *idx += 1;
+                skip_until_end(events, idx);
+            }
+            Event::Rule => {
+                *idx += 1;
+                out.push(Block::Rule);
+            }
+            Event::TaskListMarker(_) | Event::End(_) => {
+                *idx += 1;
+            }
+            _ => {
+                // Inline content of a tight list item.
+                let before = *idx;
+                let (runs, tags) =
+                    read_implicit_paragraph_until(source, events, idx, is_container_end);
+                if !runs.is_empty() {
+                    out.push(Block::Paragraph { runs, tags });
+                }
+                if *idx == before {
+                    *idx += 1;
+                }
+            }
         }
     }
     out
@@ -843,6 +948,7 @@ fn read_list_items(
     source: &str,
     events: &[EventWithRange],
     idx: &mut usize,
+    depth: usize,
 ) -> Vec<ListItem> {
     let mut items = Vec::new();
     while *idx < events.len() {
@@ -858,7 +964,7 @@ fn read_list_items(
                     checkbox = Some(*checked);
                     *idx += 1;
                 }
-                let blocks = read_item_blocks(source, events, idx);
+                let blocks = read_item_blocks(source, events, idx, depth);
                 items.push(ListItem { checkbox, blocks });
             }
             _ => {
@@ -875,12 +981,17 @@ fn read_list_items(
 /// items (where inline events fire directly inside the item). For tight
 /// items we collect contiguous inline events into an implicit Paragraph
 /// block; block-level events (nested lists, code blocks) still go
-/// through `read_block`.
+/// through `read_block`. `depth` is the nesting level of the item's
+/// blocks; at `MAX_BLOCK_NESTING` they are read flat.
 fn read_item_blocks(
     source: &str,
     events: &[EventWithRange],
     idx: &mut usize,
+    depth: usize,
 ) -> Vec<Block> {
+    if depth >= MAX_BLOCK_NESTING {
+        return read_flattened(source, events, idx);
+    }
     let mut out = Vec::new();
     while *idx < events.len() {
         let (event, _) = &events[*idx];
@@ -894,7 +1005,7 @@ fn read_item_blocks(
                 out.push(Block::Rule);
             }
             Event::Start(tag) if is_block_start_tag(tag) => {
-                if let Some(block) = read_block(source, events, idx) {
+                if let Some(block) = read_block(source, events, idx, depth) {
                     out.push(block);
                 }
             }
@@ -3727,6 +3838,54 @@ mod hostile_input_tests {
         exercise("**unclosed *emphasis ~~strike `code");
         exercise("<div align=\"center\">\n\nunclosed container\n");
         exercise("[^1]: definition only\n\n[^1]\n");
+    }
+
+    /// Levels of nested block lists, the top level counting as 1.
+    fn nesting_depth(blocks: &[Block]) -> usize {
+        blocks
+            .iter()
+            .map(|b| match b {
+                Block::BlockQuote(inner)
+                | Block::Aligned { blocks: inner, .. }
+                | Block::FootnoteDefinition { blocks: inner, .. } => nesting_depth(inner),
+                Block::List { items, .. } => {
+                    items.iter().map(|i| nesting_depth(&i.blocks)).max().unwrap_or(0)
+                }
+                _ => 0,
+            })
+            .max()
+            .map_or(0, |d| d + 1)
+    }
+
+    /// Parse a deeply nested document and check the tree stays within
+    /// `MAX_BLOCK_NESTING` while the innermost text still renders.
+    fn assert_nesting_bounded(source: &str) {
+        let blocks = exercise(source);
+        assert!(nesting_depth(&blocks) <= MAX_BLOCK_NESTING + 1);
+        let mut lines = Vec::new();
+        collect_lines(&blocks, &mut lines);
+        assert!(lines.iter().any(|(runs, _)| runs.iter().any(|r| r.text.contains("deep"))));
+    }
+
+    #[test]
+    fn deeply_nested_blockquotes() {
+        assert_nesting_bounded(&format!("{}deep", "> ".repeat(10_000)));
+        assert_nesting_bounded(&format!("{}deep\n", ">".repeat(10_000)));
+    }
+
+    #[test]
+    fn deeply_nested_lists() {
+        assert_nesting_bounded(&format!("{}deep", "- ".repeat(10_000)));
+        assert_nesting_bounded(&format!("{}deep", "1. ".repeat(10_000)));
+        assert_nesting_bounded(&format!("{}deep", "* > ".repeat(5_000)));
+        // One item per line, each indented one level deeper.
+        let stairs: String = (0..2_000).map(|i| format!("{}- deep\n", "  ".repeat(i))).collect();
+        assert_nesting_bounded(&stairs);
+    }
+
+    #[test]
+    fn deeply_nested_footnote_definitions() {
+        assert_nesting_bounded(&format!("{}deep\n", "[^a]: > ".repeat(5_000)));
     }
 
     #[test]

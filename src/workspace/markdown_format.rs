@@ -139,7 +139,7 @@ impl Workspace {
         cx: &mut gpui::Context<Self>,
     ) {
         let buf = self.buffer();
-        let edit = plan_append_image(&buf.rope, &snippet, buf.line_ending.as_str());
+        let edit = plan_append_image(&buf.rope, &snippet, "\n");
         self.apply_md_edit(edit, cx);
     }
 
@@ -656,7 +656,7 @@ impl Workspace {
     fn md_code_block(&mut self, cx: &mut Context<Self>) {
         let r = self.selection().ordered();
         let buf = self.buffer();
-        let edit = plan_code_block(&buf.rope, r, buf.line_ending.as_str());
+        let edit = plan_code_block(&buf.rope, r, "\n");
         self.apply_md_edit(edit, cx);
     }
 
@@ -674,7 +674,7 @@ impl Workspace {
     fn md_horizontal_rule(&mut self, cx: &mut Context<Self>) {
         let r = self.selection().ordered();
         let buf = self.buffer();
-        let edit = plan_horizontal_rule(&buf.rope, r, buf.line_ending.as_str());
+        let edit = plan_horizontal_rule(&buf.rope, r, "\n");
         self.apply_md_edit(edit, cx);
     }
 

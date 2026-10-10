@@ -1132,6 +1132,10 @@ impl EntityInputHandler for Workspace {
                 } else {
                     new_text
                 };
+                // The rope holds LF only, so a CR or CR LF arriving as text
+                // input becomes LF; saving writes the document's ending.
+                let new_text_owned = crate::text::eol_convert::to_rope_eols(new_text);
+                let new_text: &str = &new_text_owned;
 
                 // NPP `Auto-Completion ▸ HTML/XML close tag` — when the user
                 // types `/` immediately after a `<` in an HTML/XML buffer,

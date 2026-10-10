@@ -79,6 +79,10 @@ v0.0.5 — current
        characters. Case conversion in column mode converts each row. An
        invalid custom date format is reported instead of doing nothing.
        Text Tools keep line endings and stay responsive on large input.
+   22. Windows line endings: Enter, Paste, Insert Blank Line, Duplicate
+       Line and Move Line no longer save a Windows file with doubled line
+       breaks (CR CR LF). Pasted text takes the document's line ending, and
+       Copy and Cut hand other apps the document's own line endings.
 
   v0.1.0 — syntax & language:
 

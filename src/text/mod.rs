@@ -1,4 +1,5 @@
 pub(crate) mod encoding;
+pub(crate) mod eol_convert;
 pub(crate) mod extended_escape;
 pub(crate) mod line_ending;
 pub(crate) mod url_scan;

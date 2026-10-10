@@ -247,16 +247,22 @@ impl Workspace {
             let (_, span) = line_span_at(rope, head);
             let text = rope.byte_slice(span).to_string();
             if !text.is_empty() {
-                crate::clipboard_history::record_copy(&text);
-                cx.write_to_clipboard(ClipboardItem::new_string(text));
+                self.write_editor_clipboard(&text, cx);
             }
             return;
         }
         let text = self.buffer().slice_bytes(self.selection().ordered());
         if !text.is_empty() {
-            crate::clipboard_history::record_copy(&text);
-            cx.write_to_clipboard(ClipboardItem::new_string(text));
+            self.write_editor_clipboard(&text, cx);
         }
+    }
+
+    /// Put text copied out of the editor on the clipboard with the
+    /// document's line ending, as Scintilla copies the document's bytes.
+    fn write_editor_clipboard(&self, text: &str, cx: &mut Context<Self>) {
+        let text = crate::text::eol_convert::to_doc_eols(text, self.buffer().line_ending);
+        crate::clipboard_history::record_copy(&text);
+        cx.write_to_clipboard(ClipboardItem::new_string(text.into_owned()));
     }
 
     pub(crate) fn cut(&mut self, _: &EditCut, window: &mut Window, cx: &mut Context<Self>) {
@@ -301,8 +307,7 @@ impl Workspace {
                 return;
             }
             let delete = cut_line_range(rope, head);
-            crate::clipboard_history::record_copy(&text);
-            cx.write_to_clipboard(ClipboardItem::new_string(text));
+            self.write_editor_clipboard(&text, cx);
             self.replace_byte_range(delete, "", cx);
             return;
         }
@@ -311,8 +316,7 @@ impl Workspace {
         if text.is_empty() {
             return;
         }
-        crate::clipboard_history::record_copy(&text);
-        cx.write_to_clipboard(ClipboardItem::new_string(text));
+        self.write_editor_clipboard(&text, cx);
         self.replace_byte_range(r, "", cx);
     }
 
@@ -370,6 +374,9 @@ impl Workspace {
             return;
         }
         crate::macros::record(crate::macros::MacroEvent::Paste);
+        // The rope holds LF only; a CR LF or CR from the clipboard would be
+        // written back doubled on save.
+        let text = crate::text::eol_convert::to_rope_eols(&text);
         // Notepad++ column paste: clipboard payloads written by a prior
         // block Cut/Copy carry a sentinel prefix. When detected, route
         // through the rectangular paste path.
@@ -404,8 +411,9 @@ impl Workspace {
         ) {
             return false;
         }
+        let text = crate::text::eol_convert::to_rope_eols(text);
         let r = self.selection().ordered();
-        self.replace_byte_range(r, text, cx);
+        self.replace_byte_range(r, &text, cx);
         cx.notify();
         true
     }
@@ -733,11 +741,9 @@ impl Workspace {
                 if in_md_preview {
                     crate::macros::record(crate::macros::MacroEvent::InsertNewline);
                     let r = self.selection().ordered();
-                    let ending = self.buffer().line_ending.as_str().to_string();
-                    // Use the line-ending twice so a CRLF doc stays CRLF;
-                    // pulldown-cmark normalises internally so the
-                    // resulting block split lands the same way either
-                    // way, but writing back to disk preserves convention.
+                    let ending = "\n".to_string();
+                    // Two line breaks end the paragraph. The rope holds LF
+                    // only; saving writes the document's line ending.
                     let insert = format!("{ending}{ending}");
                     self.replace_byte_range(r, &insert, cx);
                     return;
@@ -752,7 +758,7 @@ impl Workspace {
                 //              specific opener keyword (Python `:`, Ruby/Lua
                 //              `do`/`then`, Bash `then`/`do`, etc.).
                 let r = self.selection().ordered();
-                let ending = self.buffer().line_ending.as_str().to_string();
+                let ending = "\n".to_string();
                 let prefs = crate::settings::snapshot();
                 let mode = prefs.auto_indent_mode;
                 let lang = self.buffer().language;
@@ -3224,7 +3230,7 @@ impl Workspace {
         let has_term = line_text.ends_with('\n') || line_text.ends_with('\r');
         let body_len = line_text.trim_end_matches(['\n', '\r']).len();
         let col_bytes = head - line_start;
-        let ending = self.buffer().line_ending.as_str().to_string();
+        let ending = "\n".to_string();
         let (insert_at, insert_text, new_head) = if has_term {
             let insert_at = line_start + line_text.len();
             (insert_at, line_text.clone(), insert_at + col_bytes)
@@ -3323,7 +3329,7 @@ impl Workspace {
         let (block_start, block_end) = (block.start, block.end);
         let block_text = rope.byte_slice(block_start..block_end).to_string();
         let block_has_term = block_text.ends_with('\n') || block_text.ends_with('\r');
-        let ending = self.buffer().line_ending.as_str().to_string();
+        let ending = "\n".to_string();
 
         if delta < 0 {
             let above_start = rope.line_to_byte(first - 1);
@@ -3882,7 +3888,7 @@ impl Workspace {
         let rope = &self.buffer().rope;
         let (_, span) = line_span_at(rope, head);
         let line_start = span.start;
-        let ending = self.buffer().line_ending.as_str().to_string();
+        let ending = "\n".to_string();
         self.replace_byte_range(line_start..line_start, &ending, cx);
         let tab = self.active_tab_mut();
         tab.selection.collapse_to(line_start);
@@ -3906,7 +3912,7 @@ impl Workspace {
         let line_text = rope.line(line).to_string();
         let line_has_term = line_text.ends_with('\n') || line_text.ends_with('\r');
         let next_line_start = span.end;
-        let ending = self.buffer().line_ending.as_str().to_string();
+        let ending = "\n".to_string();
         let (insert_at, new_caret) = if line_has_term {
             (next_line_start, next_line_start)
         } else {

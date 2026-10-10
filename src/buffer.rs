@@ -228,10 +228,8 @@ impl Buffer {
     /// allocation — the cost of `rope.to_string()` is paid once per edit
     /// instead of once per find-as-you-type keystroke.
     pub(crate) fn flat_text(&mut self) -> &str {
-        if self.flat_text_cache.is_none() {
-            self.flat_text_cache = Some(self.rope.to_string());
-        }
-        self.flat_text_cache.as_deref().unwrap()
+        let rope = &self.rope;
+        self.flat_text_cache.get_or_insert_with(|| rope.to_string())
     }
 
     /// Drop the cached flat text. Call this whenever `rope` is mutated so the
@@ -310,14 +308,14 @@ impl Buffer {
         self.rich_doc.is_some()
     }
 
+    /// Text in `range`, clamped to the rope and with both ends floored to a
+    /// char boundary (ropey's `byte_slice` panics on a mid-char offset).
     pub(crate) fn slice_bytes(&self, range: Range<usize>) -> String {
-        let total = self.rope.len_bytes();
-        let start = range.start.min(total);
-        let end = range.end.min(total);
-        if start >= end {
+        let range = char_boundary_range(&self.rope, range);
+        if range.is_empty() {
             return String::new();
         }
-        self.rope.byte_slice(start..end).to_string()
+        self.rope.byte_slice(range).to_string()
     }
 
     // ---- Bookmarks ----------------------------------------------------------------
@@ -341,9 +339,10 @@ impl Buffer {
 
     /// Returns the line index (0-based) of every bookmark, in document order.
     pub(crate) fn bookmark_lines(&self) -> Vec<usize> {
+        let total = self.rope.len_bytes();
         self.bookmarks
             .iter()
-            .map(|b| self.rope.byte_to_line(*b))
+            .map(|b| self.rope.byte_to_line((*b).min(total)))
             .collect()
     }
 
@@ -526,6 +525,35 @@ impl Selection {
         self.head = byte_offset;
         self.is_dragging = false;
     }
+
+    /// This selection with both ends clamped to `rope` and floored to a
+    /// char boundary. A selection restored from undo history, a session file
+    /// or a plugin call can point past the end of a shorter document.
+    pub(crate) fn clamped(self, rope: &ropey::Rope) -> Self {
+        Self {
+            anchor: floor_char_boundary(rope, self.anchor),
+            head: floor_char_boundary(rope, self.head),
+            is_dragging: self.is_dragging,
+        }
+    }
+}
+
+/// Largest char boundary at or below `byte`, after clamping `byte` to the
+/// rope's length. Offsets from files, sessions, plugins or stale state can
+/// point past the end or into a multi-byte UTF-8 sequence; ropey panics on
+/// both in `byte_slice`, `char_to_byte` and friends.
+pub(crate) fn floor_char_boundary(rope: &ropey::Rope, byte: usize) -> usize {
+    let byte = byte.min(rope.len_bytes());
+    // `byte_to_char` maps a mid-char byte to the char containing it.
+    rope.char_to_byte(rope.byte_to_char(byte))
+}
+
+/// `range` clamped to the rope with both ends floored to char boundaries;
+/// a reversed range collapses to an empty one at its start.
+pub(crate) fn char_boundary_range(rope: &ropey::Rope, range: Range<usize>) -> Range<usize> {
+    let start = floor_char_boundary(rope, range.start);
+    let end = floor_char_boundary(rope, range.end).max(start);
+    start..end
 }
 
 /// Notepad++ column-mode (block / rectangular) selection. Coordinates are
@@ -839,4 +867,56 @@ fn first_nonempty_line(rope: &ropey::Rope) -> Option<String> {
         return Some(out);
     }
     None
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use ropey::Rope;
+
+    /// "aé中😀" is 1 + 2 + 3 + 4 bytes: boundaries at 0, 1, 3, 6, 10.
+    const MIXED: &str = "aé中😀";
+
+    #[test]
+    fn floor_char_boundary_snaps_into_range() {
+        let rope = Rope::from_str(MIXED);
+        let cases = [
+            (0, 0), (1, 1), (2, 1), (3, 3), (4, 3), (5, 3), (6, 6),
+            (7, 6), (9, 6), (10, 10), (11, 10), (usize::MAX, 10),
+        ];
+        for (byte, want) in cases {
+            assert_eq!(floor_char_boundary(&rope, byte), want, "byte {byte}");
+        }
+        assert_eq!(floor_char_boundary(&Rope::new(), 5), 0);
+    }
+
+    #[test]
+    fn slice_bytes_tolerates_mid_char_and_past_end_ranges() {
+        let mut buf = Buffer::empty();
+        buf.rope = Rope::from_str(MIXED);
+        // Mid-char ends used to reach `byte_slice` and panic.
+        assert_eq!(buf.slice_bytes(2..5), "é");
+        assert_eq!(buf.slice_bytes(7..usize::MAX), "😀");
+        assert_eq!(buf.slice_bytes(8..4), "");
+        assert_eq!(buf.slice_bytes(50..60), "");
+    }
+
+    #[test]
+    fn selection_clamped_to_shorter_document() {
+        let rope = Rope::from_str("é\r\n");
+        let sel = Selection { anchor: 1, head: 99, is_dragging: false }.clamped(&rope);
+        assert_eq!((sel.anchor, sel.head), (0, 4));
+    }
+
+    #[test]
+    fn bookmark_lines_ignores_offsets_past_the_end() {
+        let mut buf = Buffer::empty();
+        buf.rope = Rope::from_str("one\ntwo");
+        buf.bookmarks.insert(4);
+        // A bookmark that outlived a shrinking edit or came from an old
+        // session used to panic in `byte_to_line`.
+        buf.bookmarks.insert(1_000);
+        assert_eq!(buf.bookmark_lines(), vec![1, 1]);
+    }
+
 }

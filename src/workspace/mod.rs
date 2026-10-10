@@ -1494,8 +1494,13 @@ impl Workspace {
         &self.tabs[self.active].buffer
     }
 
+    /// Active tab's selection, clamped to the rope and floored to char
+    /// boundaries. The stored value can be stale (undo restore, session
+    /// restore, plugin calls); every reader through here gets offsets ropey
+    /// accepts.
     pub(crate) fn selection(&self) -> Selection {
-        self.tabs[self.active].selection
+        let tab = &self.tabs[self.active];
+        tab.selection.clamped(&tab.buffer.rope)
     }
 
     /// Active tab's pending Begin/End Select marker as a 0-based line index,
@@ -1554,16 +1559,15 @@ impl Workspace {
     }
 
     pub(crate) fn offset_at_position(&self, pos: Point<Pixels>) -> usize {
-        if self.last_lines.is_empty() {
+        let (Some(first), Some(last)) = (self.last_lines.first(), self.last_lines.last()) else {
             return 0;
-        }
-        let last = self.last_lines.last().unwrap();
+        };
         // Above the first visible line — clamp to its start. That keeps
         // a drag-out-of-window selection extending toward the top of the
         // viewport rather than teleporting to byte 0 (which it would do
         // when more than one screenful is scrolled below).
-        if pos.y < self.last_lines[0].bounds.top() {
-            return self.last_lines[0].line_byte_start;
+        if pos.y < first.bounds.top() {
+            return first.line_byte_start;
         }
         if pos.y >= last.bounds.bottom() {
             return last.line_byte_start + last.line_byte_len;

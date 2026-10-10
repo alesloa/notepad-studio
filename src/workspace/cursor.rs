@@ -16,9 +16,12 @@ impl Workspace {
     ) -> EditOp {
         let active = self.active;
         let tab = &mut self.tabs[active];
-        let total = tab.buffer.rope.len_bytes();
-        let start = byte_range.start.min(total);
-        let end = byte_range.end.min(total).max(start);
+        // Callers derive ranges from find results, undo history (possibly
+        // restored from disk), macros and plugins. Clamp to the rope and land
+        // both ends on a char boundary so the removal, the recorded undo op
+        // and the shifted bookmarks/marks all agree on the same bytes.
+        let Range { start, end } =
+            crate::buffer::char_boundary_range(&tab.buffer.rope, byte_range);
 
         let removed = tab.buffer.slice_bytes(start..end);
         let sel_before_anchor = tab.selection.anchor;
@@ -217,8 +220,9 @@ impl Workspace {
                 // because the transaction snapshots before the first op runs and
                 // each `apply_edit` records `sel_before_*` from the same caret.
                 let mut ops = txn.ops;
-                tab.undo_stack
-                    .push(UndoEntry::Single(ops.pop().expect("len==1")));
+                if let Some(op) = ops.pop() {
+                    tab.undo_stack.push(UndoEntry::Single(op));
+                }
             } else {
                 tab.undo_stack.push(UndoEntry::Group {
                     ops: txn.ops,
@@ -237,14 +241,15 @@ impl Workspace {
     /// per-edit `undo` action so the same primitive can walk an entire
     /// `Group` in reverse for composite-entry undo.
     fn replay_undo_op(&mut self, op: &EditOp, cx: &mut Context<Self>) {
-        let undo_range = op.byte_start..op.byte_start + op.inserted.len();
+        // `byte_start` may come from an undo file on disk: no overflow.
+        let undo_range = op.byte_start..op.byte_start.saturating_add(op.inserted.len());
         let _ = self.apply_edit(undo_range, &op.removed, cx);
     }
 
     /// Redo a single `EditOp` by replaying it forward. Same role as
     /// `replay_undo_op` but the other direction.
     fn replay_redo_op(&mut self, op: &EditOp, cx: &mut Context<Self>) {
-        let redo_range = op.byte_start..op.byte_start + op.removed.len();
+        let redo_range = op.byte_start..op.byte_start.saturating_add(op.removed.len());
         let _ = self.apply_edit(redo_range, &op.inserted, cx);
     }
 
@@ -264,6 +269,7 @@ impl Workspace {
                 let tab = self.active_tab_mut();
                 tab.selection.anchor = op.sel_before_anchor;
                 tab.selection.head = op.sel_before_head;
+                tab.selection = tab.selection.clamped(&tab.buffer.rope);
             }
             UndoEntry::Group {
                 ops,
@@ -282,6 +288,7 @@ impl Workspace {
                 let tab = self.active_tab_mut();
                 tab.selection.anchor = *sel_before_anchor;
                 tab.selection.head = *sel_before_head;
+                tab.selection = tab.selection.clamped(&tab.buffer.rope);
                 self.after_edit_flush(cx);
             }
         }
@@ -316,8 +323,13 @@ impl Workspace {
 
     // ---- Navigation helpers ----------------------------------------------------------------
 
+    // Every helper below clamps `byte` to the rope first: callers pass carets
+    // and offsets that can outlive a shrinking edit, and ropey panics on an
+    // out-of-range index.
+
     pub(crate) fn prev_char_byte(&self, byte: usize) -> usize {
         let rope = &self.buffer().rope;
+        let byte = byte.min(rope.len_bytes());
         if byte == 0 {
             return 0;
         }
@@ -344,13 +356,13 @@ impl Workspace {
 
     pub(crate) fn line_start_byte(&self, byte: usize) -> usize {
         let rope = &self.buffer().rope;
-        let line = rope.byte_to_line(byte);
+        let line = rope.byte_to_line(byte.min(rope.len_bytes()));
         rope.line_to_byte(line)
     }
 
     pub(crate) fn line_end_byte(&self, byte: usize) -> usize {
         let rope = &self.buffer().rope;
-        let line = rope.byte_to_line(byte);
+        let line = rope.byte_to_line(byte.min(rope.len_bytes()));
         let line_start = rope.line_to_byte(line);
         let line_slice = rope.line(line);
         let raw = line_slice.to_string();
@@ -360,7 +372,7 @@ impl Workspace {
 
     pub(crate) fn prev_word_boundary(&self, byte: usize) -> usize {
         let rope = &self.buffer().rope;
-        let mut idx = rope.byte_to_char(byte);
+        let mut idx = rope.byte_to_char(byte.min(rope.len_bytes()));
         if idx == 0 {
             return 0;
         }
@@ -383,7 +395,7 @@ impl Workspace {
     pub(crate) fn next_word_boundary(&self, byte: usize) -> usize {
         let rope = &self.buffer().rope;
         let total = rope.len_chars();
-        let mut idx = rope.byte_to_char(byte);
+        let mut idx = rope.byte_to_char(byte.min(rope.len_bytes()));
         let mut entered_word = false;
         while idx < total {
             let c = rope.char(idx);
@@ -473,8 +485,7 @@ impl Workspace {
         // Block-aware actions call `block_extend` directly — they bypass
         // this funnel and keep the block alive.
         self.clear_block_selection();
-        let total = self.buffer().rope.len_bytes();
-        let target = byte.min(total);
+        let target = crate::buffer::floor_char_boundary(&self.buffer().rope, byte);
         let tab = self.active_tab_mut();
         if extend {
             tab.selection.head = target;
@@ -588,16 +599,9 @@ impl Workspace {
                 let total_lines = rope.len_lines().max(1) as i32;
                 let cur_logical = rope.byte_to_line(head) as i32;
                 let target_logical = (cur_logical + delta).clamp(0, total_lines - 1);
-                let tgt_line_start = rope.line_to_byte(target_logical as usize);
-                let tgt_line_len = {
-                    let line_slice = rope.line(target_logical as usize);
-                    let raw = line_slice.to_string();
-                    raw.trim_end_matches(['\n', '\r']).len()
-                };
-                let cur_line_start = rope.line_to_byte(cur_logical as usize);
-                let col_bytes = head.saturating_sub(cur_line_start);
-                tgt_line_start + col_bytes.min(tgt_line_len)
+                same_byte_column(rope, head, target_logical as usize)
             };
+            let new_byte = crate::buffer::floor_char_boundary(&self.buffer().rope, new_byte);
 
             let tab = self.active_tab_mut();
             if extend {
@@ -648,8 +652,8 @@ impl Workspace {
                 Some(x) => x,
                 None => {
                     let cur = &self.last_lines[cur_idx];
-                    let local = head - cur.line_byte_start;
-                    cur.shaped.x_for_index(local)
+                    let local = head.saturating_sub(cur.line_byte_start);
+                    cur.shaped.x_for_index(local.min(cur.line_byte_len))
                 }
             };
             self.active_tab_mut().desired_col_x = Some(desired_x);
@@ -666,17 +670,9 @@ impl Workspace {
         } else {
             // Fallback: same column-byte-offset within target line, clamped
             // to the line's printable length.
-            let rope = &self.buffer().rope;
-            let cur_line_start = rope.line_to_byte(cur_logical as usize);
-            let col_bytes = head - cur_line_start;
-            let tgt_line_start = rope.line_to_byte(target_logical as usize);
-            let tgt_line_len = {
-                let line_slice = rope.line(target_logical as usize);
-                let raw = line_slice.to_string();
-                raw.trim_end_matches(['\n', '\r']).len()
-            };
-            tgt_line_start + col_bytes.min(tgt_line_len)
+            same_byte_column(&self.buffer().rope, head, target_logical as usize)
         };
+        let new_byte = crate::buffer::floor_char_boundary(&self.buffer().rope, new_byte);
 
         let tab = self.active_tab_mut();
         if extend {
@@ -687,5 +683,83 @@ impl Workspace {
         self.caret_visible = true;
         self.ensure_cursor_visible(cx);
         cx.notify();
+    }
+}
+
+/// Byte offset on `target_line` at the same byte column as `head` on its own
+/// line, capped at the target line's printable length (CR/LF excluded) and
+/// floored to a char boundary. A byte column carried onto a line with
+/// different multi-byte characters can land inside one; a caret there made
+/// the next copy or delete panic in ropey's `byte_slice`.
+fn same_byte_column(rope: &ropey::Rope, head: usize, target_line: usize) -> usize {
+    let head = head.min(rope.len_bytes());
+    let target_line = target_line.min(rope.len_lines().saturating_sub(1));
+    let cur_line_start = rope.line_to_byte(rope.byte_to_line(head));
+    let col_bytes = head.saturating_sub(cur_line_start);
+    let tgt_line_start = rope.line_to_byte(target_line);
+    let tgt_line_len = {
+        let raw = rope.line(target_line).to_string();
+        raw.trim_end_matches(['\n', '\r']).len()
+    };
+    crate::buffer::floor_char_boundary(rope, tgt_line_start + col_bytes.min(tgt_line_len))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::same_byte_column;
+    use crate::buffer::{Buffer, char_boundary_range};
+    use ropey::Rope;
+
+    #[test]
+    fn vertical_move_never_lands_inside_a_char() {
+        // Caret at byte column 1 ("a|bc…") moving down onto "éx": byte 1 of
+        // that line is the middle of 'é'.
+        let rope = Rope::from_str("abcdefgh\néx\n中文\r\n😀\n");
+        let line1 = rope.line_to_byte(1);
+        assert_eq!(same_byte_column(&rope, 1, 1), line1);
+        // Column 2 onto "中文" (3-byte chars) floors to the start of '中'.
+        let line2 = rope.line_to_byte(2);
+        assert_eq!(same_byte_column(&rope, 2, 2), line2);
+        // Column 3 onto "😀" (4 bytes) floors to the line start.
+        let line3 = rope.line_to_byte(3);
+        assert_eq!(same_byte_column(&rope, 3, 3), line3);
+        // Column past the end of a short line caps at its printable end,
+        // before the CRLF.
+        assert_eq!(same_byte_column(&rope, 7, 2), line2 + 6);
+        // Every result is a char boundary the rope can slice at.
+        for head in 0..=rope.len_bytes() + 2 {
+            for line in 0..rope.len_lines() + 1 {
+                let b = same_byte_column(&rope, head, line);
+                let _ = rope.byte_slice(b..b);
+            }
+        }
+    }
+
+    #[test]
+    fn same_byte_column_on_empty_rope() {
+        let rope = Rope::new();
+        assert_eq!(same_byte_column(&rope, 10, 3), 0);
+    }
+
+    /// Table of ranges `apply_edit` used to pass straight to ropey: past the
+    /// end, reversed, and mid-char in each multi-byte width. The normalized
+    /// range must slice cleanly and stay inside the rope.
+    #[test]
+    fn edit_ranges_are_normalized_before_touching_the_rope() {
+        let texts = ["", "x", "aé中😀", "a\r\nb", "a\rb", "👨\u{200d}👩\u{200d}👧"];
+        for text in texts {
+            let rope = Rope::from_str(text);
+            let len = rope.len_bytes();
+            for start in 0..len + 3 {
+                for end in 0..len + 3 {
+                    let r = char_boundary_range(&rope, start..end);
+                    assert!(r.start <= r.end && r.end <= len, "{text:?} {start}..{end}");
+                    let _ = rope.byte_slice(r.clone());
+                    let mut buf = Buffer::empty();
+                    buf.rope = rope.clone();
+                    assert_eq!(buf.slice_bytes(start..end), rope.byte_slice(r).to_string());
+                }
+            }
+        }
     }
 }

@@ -283,7 +283,11 @@ pub(crate) fn emit_to_source(
     let Some(model) = w.csv_models.get(&tab_id) else {
         return;
     };
-    let new_text = model.emit_source();
+    let Some(new_text) = model.emit_source() else {
+        w.set_status("CSV grid edit not written: the result is not valid UTF-8");
+        cx.notify();
+        return;
+    };
     let total = w.tabs[w.active].buffer.rope.len_bytes();
     let current_text = w.tabs[w.active].buffer.rope.to_string();
     if current_text == new_text {

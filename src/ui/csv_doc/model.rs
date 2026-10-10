@@ -2134,16 +2134,17 @@ impl CsvModel {
     /// trailing-newline convention from the original source. Called on
     /// every cell commit / reorder / structural edit; the result is fed
     /// into a single `replace_byte_range(0..len, …)` against the active
-    /// buffer.
-    pub(crate) fn emit_source(&self) -> String {
+    /// buffer. `None` means the output would not be valid UTF-8; the
+    /// caller then leaves the document as it is.
+    pub(crate) fn emit_source(&self) -> Option<String> {
         // Empty schema with empty rows = empty file. Skip the csv writer
         // entirely (which would emit a single quoted empty record).
         if self.headers.is_empty() && self.rows.is_empty() {
-            return if self.has_bom {
+            return Some(if self.has_bom {
                 String::from("\u{FEFF}")
             } else {
                 String::new()
-            };
+            });
         }
 
         let mut buf: Vec<u8> = Vec::new();
@@ -2176,12 +2177,15 @@ impl CsvModel {
             }
         }
 
+        // Cells are `String`s and every delimiter the UI sets is ASCII,
+        // so this only fails if that stops holding; an empty string here
+        // would replace the whole document.
+        let mut out = String::from_utf8(buf).ok()?;
         // Re-prepend BOM when the original carried one.
-        let mut out = String::from_utf8(buf).unwrap_or_default();
         if self.has_bom {
             out.insert(0, '\u{FEFF}');
         }
-        out
+        Some(out)
     }
 
     /// Recompute `find_matches` from the current cell contents. Header
@@ -2751,7 +2755,7 @@ mod tests {
         assert_eq!(m.rows.len(), 2);
         assert_eq!(m.cell(0, 0), "Alice");
         assert_eq!(m.cell(1, 2), "LA");
-        let out = m.emit_source();
+        let out = m.emit_source().unwrap();
         // The csv crate normalizes quoting but the field contents survive.
         let mut m2 = CsvModel::empty(b',');
         m2.rebuild_from_source(&out, 2);
@@ -3057,7 +3061,7 @@ mod tests {
     fn assert_round_trip(src: &str) {
         let mut m = CsvModel::empty(b',');
         m.rebuild_from_source(src, 1);
-        let emitted = m.emit_source();
+        let emitted = m.emit_source().unwrap();
         let mut m2 = CsvModel::empty(b',');
         m2.rebuild_from_source(&emitted, 2);
         assert_eq!(m.headers, m2.headers, "headers diverged: {emitted:?}");
@@ -3106,7 +3110,7 @@ mod tests {
         let src = "name,emoji\nЯлекс,🚀\n張三,😀\n";
         let mut m = CsvModel::empty(b',');
         m.rebuild_from_source(src, 1);
-        let emitted = m.emit_source();
+        let emitted = m.emit_source().unwrap();
         let mut m2 = CsvModel::empty(b',');
         m2.rebuild_from_source(&emitted, 2);
         assert_eq!(m.rows, m2.rows);
@@ -3139,7 +3143,7 @@ mod tests {
         let mut m = CsvModel::empty(b',');
         m.rebuild_from_source(src, 1);
         assert_eq!(m.line_terminator, LineTerminator::Crlf);
-        let emit = m.emit_source();
+        let emit = m.emit_source().unwrap();
         assert!(
             emit.contains("\r\n"),
             "CRLF terminator must round-trip, got {:?}",
@@ -3154,7 +3158,7 @@ mod tests {
         let mut m = CsvModel::empty(b',');
         m.rebuild_from_source(src, 1);
         assert_eq!(m.line_terminator, LineTerminator::Lf);
-        let emit = m.emit_source();
+        let emit = m.emit_source().unwrap();
         assert!(!emit.contains('\r'), "LF source must not pick up CR on emit");
     }
 
@@ -3164,7 +3168,7 @@ mod tests {
         let mut m = CsvModel::empty(b',');
         m.rebuild_from_source(src, 1);
         assert!(m.trailing_newline);
-        let emit = m.emit_source();
+        let emit = m.emit_source().unwrap();
         assert!(emit.ends_with('\n'), "trailing newline lost: {emit:?}");
     }
 
@@ -3174,7 +3178,7 @@ mod tests {
         let mut m = CsvModel::empty(b',');
         m.rebuild_from_source(src, 1);
         assert!(!m.trailing_newline);
-        let emit = m.emit_source();
+        let emit = m.emit_source().unwrap();
         assert!(
             !emit.ends_with('\n'),
             "trailing newline injected where source had none: {emit:?}"
@@ -3188,7 +3192,7 @@ mod tests {
         m.rebuild_from_source(with_bom, 1);
         assert!(m.has_bom);
         assert_eq!(m.headers, vec!["a", "b"]);
-        let emit = m.emit_source();
+        let emit = m.emit_source().unwrap();
         assert!(emit.starts_with('\u{FEFF}'), "BOM dropped on emit");
     }
 
@@ -3198,7 +3202,7 @@ mod tests {
         let mut m = CsvModel::empty(b',');
         m.rebuild_from_source(without, 1);
         assert!(!m.has_bom);
-        assert!(!m.emit_source().starts_with('\u{FEFF}'));
+        assert!(!m.emit_source().unwrap().starts_with('\u{FEFF}'));
     }
 
     #[test]
@@ -3209,7 +3213,7 @@ mod tests {
         assert_eq!(m.rows.len(), 0);
         // Emit must be safe and produce an empty string (no trailing
         // newline since there was none to begin with).
-        assert_eq!(m.emit_source(), "");
+        assert_eq!(m.emit_source().unwrap(), "");
     }
 
     #[test]
@@ -3235,7 +3239,7 @@ mod tests {
         assert_eq!(m.headers, vec!["a", "b"], "headers wiped by row deletion");
         assert_eq!(m.rows.len(), 0);
         // Emit yields just the header line.
-        let emit = m.emit_source();
+        let emit = m.emit_source().unwrap();
         assert!(
             emit.starts_with("a,b"),
             "header missing after delete-all-rows: {emit:?}"
@@ -3254,7 +3258,7 @@ mod tests {
         assert_eq!(m.headers.len(), 0);
         assert_eq!(m.col_count(), 0);
         // emit_source must not panic on an empty schema.
-        let _ = m.emit_source();
+        let _ = m.emit_source().unwrap();
     }
 
     #[test]
@@ -3265,7 +3269,7 @@ mod tests {
         m.rebuild_from_source("name,age\nAlice,30\n", 1);
         let changed = m.set_header(0, "Full Name".to_string());
         assert!(changed);
-        let emit = m.emit_source();
+        let emit = m.emit_source().unwrap();
         assert!(
             emit.starts_with("Full Name,age"),
             "renamed header missing from emit: {emit:?}"
@@ -3765,7 +3769,7 @@ mod tests {
         let mut m = CsvModel::empty(b',');
         m.rebuild_from_source("k,v\nc,3\na,1\nb,2\n", 1);
         m.sort_by_col(0, true);
-        let emit = m.emit_source();
+        let emit = m.emit_source().unwrap();
         // Header first, then rows in sorted order.
         let mut lines = emit.lines();
         assert_eq!(lines.next(), Some("k,v"));
@@ -4826,6 +4830,15 @@ mod tests {
         assert_eq!((m.row_count(), m.col_count()), (2, 2));
     }
 
+    #[test]
+    fn emit_that_cannot_be_utf8_does_not_blank_the_document() {
+        // Every delimiter the UI offers is ASCII, but a byte past 0x7F
+        // splits a multibyte cell into invalid UTF-8 on the way out.
+        let mut m = fresh("a,b\nél,2\n");
+        m.delimiter = 0xC3;
+        assert_eq!(m.emit_source(), None);
+    }
+
     // ---- Hostile input: parse matrix -----------------------------------------
 
     /// Emit `m` and parse the result with the same settings: the cells
@@ -4833,12 +4846,12 @@ mod tests {
     fn assert_emit_reparses(m: &CsvModel) {
         let mut again = CsvModel::empty(m.delimiter);
         again.has_header = m.has_header;
-        again.rebuild_from_source(&m.emit_source(), 2);
+        again.rebuild_from_source(&m.emit_source().unwrap(), 2);
         assert_eq!(
             (&again.headers, &again.rows),
             (&m.headers, &m.rows),
             "emit of {:?} parsed differently",
-            m.emit_source()
+            m.emit_source().unwrap()
         );
     }
 
@@ -4894,7 +4907,7 @@ mod tests {
     #[test]
     fn parse_empty_and_single_cell_round_trip_bytes() {
         for src in ["", "\u{FEFF}", "x", "x\n", "\u{FEFF}x\r\n"] {
-            assert_eq!(fresh(src).emit_source(), src);
+            assert_eq!(fresh(src).emit_source().unwrap(), src);
         }
         let m = fresh("x");
         assert_eq!((m.row_count(), m.col_count()), (0, 1));
@@ -4929,7 +4942,7 @@ mod tests {
         let started = std::time::Instant::now();
         let m = fresh(&line);
         assert_eq!((m.row_count(), m.col_count()), (0, 1_000_000));
-        assert_eq!(m.emit_source(), line);
+        assert_eq!(m.emit_source().unwrap(), line);
         let took = started.elapsed();
         assert!(took < std::time::Duration::from_secs(20), "took {took:?}");
     }
@@ -4944,7 +4957,7 @@ mod tests {
         assert_eq!(m.cell(2, 1), "6");
         let m = fresh("a,b\r\n\"x\r\ny\",2\r\n");
         assert_eq!(m.cell(0, 0), "x\r\ny");
-        assert_eq!(m.emit_source(), "a,b\r\n\"x\r\ny\",2\r\n");
+        assert_eq!(m.emit_source().unwrap(), "a,b\r\n\"x\r\ny\",2\r\n");
         let m = fresh("\u{FEFF}\"a\",b\r\n1,2");
         assert_eq!((m.header(0), m.cell(0, 1)), ("a", "2"));
     }
@@ -4955,7 +4968,7 @@ mod tests {
         let mut m = fresh(src);
         assert_eq!(m.header(2), "👩‍👩‍👧");
         assert_eq!(m.cell(0, 2), "🏳️‍🌈");
-        assert_eq!(m.emit_source(), src);
+        assert_eq!(m.emit_source().unwrap(), src);
         m.find_case_sensitive = false;
         m.update_find_query("\u{200D}".to_string());
         assert_eq!(m.find_matches, vec![(usize::MAX, 2), (0, 2)]);
@@ -4969,7 +4982,7 @@ mod tests {
     fn parse_delimiter_at_eof_and_trailing_blank_lines() {
         let m = fresh("a,b,");
         assert_eq!(m.headers, ["a", "b", ""]);
-        assert_eq!(m.emit_source(), "a,b,");
+        assert_eq!(m.emit_source().unwrap(), "a,b,");
         let m = fresh("a,b\n1,2,\n");
         assert_eq!(m.col_count(), 3);
         let m = fresh("a,b\n1,2\n\n\n");
@@ -5036,7 +5049,7 @@ mod tests {
         m.toggle_has_header();
         m.toggle_has_header();
         assert_eq!((m.row_count(), m.col_count()), (0, 0));
-        assert_eq!(m.emit_source(), "");
+        assert_eq!(m.emit_source().unwrap(), "");
     }
 
     #[test]
@@ -5045,7 +5058,7 @@ mod tests {
         let stale = CellRange::new((1, 1), (2, 2));
         m.delete_rows(&BTreeSet::from([1, 2]));
         m.delete_cols(&BTreeSet::from([1, 2]));
-        assert_eq!(m.emit_source(), "a\n1\n");
+        assert_eq!(m.emit_source().unwrap(), "a\n1\n");
         let undo_depth = m.undo_stack.len();
 
         m.cell_range = Some(stale);
@@ -5068,7 +5081,7 @@ mod tests {
         m.find_current_match = Some(7);
         assert!(!m.replace_current());
         assert_eq!(m.undo_stack.len(), undo_depth);
-        assert_eq!(m.emit_source(), "a\n1\n");
+        assert_eq!(m.emit_source().unwrap(), "a\n1\n");
     }
 
     #[test]
@@ -5085,7 +5098,7 @@ mod tests {
         assert_eq!(m.next_match(), Some((0, 0)));
         assert_eq!(m.next_match(), Some((0, 0)));
         assert_eq!(m.prev_match(), Some((0, 0)));
-        assert_eq!(m.emit_source(), "h\n7\n");
+        assert_eq!(m.emit_source().unwrap(), "h\n7\n");
 
         let mut m = fresh("a,b,c\n");
         m.sort_by_col(1, true);
@@ -5095,7 +5108,7 @@ mod tests {
         assert_eq!(m.find_matches, vec![(usize::MAX, 1)]);
         m.replace_text = "B".to_string();
         assert!(m.replace_current());
-        assert_eq!(m.emit_source(), "a,B,c\n");
+        assert_eq!(m.emit_source().unwrap(), "a,B,c\n");
     }
 
     #[test]
@@ -5147,14 +5160,14 @@ mod tests {
         m.insert_col_at(0, true);
         m.insert_col_at(m.col_count() - 1, false);
         assert_eq!((m.row_count(), m.col_count()), (4, 4));
-        assert_eq!(m.emit_source(), "Column 1,a,b,Column 4\n,,,\n,1,2,\n,3,4,\n,,,\n");
+        assert_eq!(m.emit_source().unwrap(), "Column 1,a,b,Column 4\n,,,\n,1,2,\n,3,4,\n,,,\n");
         m.delete_row(0);
         m.delete_row(m.row_count() - 1);
         m.delete_column(0);
         m.delete_column(m.col_count() - 1);
         m.delete_row(99);
         m.delete_column(99);
-        assert_eq!(m.emit_source(), "a,b\n1,2\n3,4\n");
+        assert_eq!(m.emit_source().unwrap(), "a,b\n1,2\n3,4\n");
 
         let mut m = fresh("");
         m.insert_col_at(0, true);
@@ -5229,7 +5242,7 @@ mod tests {
         ];
         assert!(m.paste_at(0, 0, &ragged, None));
         assert_eq!((m.row_count(), m.col_count()), (3, 3));
-        assert_eq!(m.emit_source(), "a,b,Column 3\nx,2,\n,,\ny,z,w\n");
+        assert_eq!(m.emit_source().unwrap(), "a,b,Column 3\nx,2,\n,,\ny,z,w\n");
 
         // A block bigger than the sheet, anchored at its last cell.
         let big: Vec<Vec<String>> = (0..50)
@@ -5249,6 +5262,6 @@ mod tests {
         assert!(m.undo());
         assert!(m.undo());
         assert!(m.undo());
-        assert_eq!(m.emit_source(), "a,b\n1,2\n");
+        assert_eq!(m.emit_source().unwrap(), "a,b\n1,2\n");
     }
 }

@@ -92,15 +92,28 @@ fn line_span_in(rope: &Rope, selection: Option<Range<usize>>) -> Option<LineSpan
         }
     };
 
-    let block_start = rope.line_to_byte(first_line);
-    let block_end = if last_line + 1 < total_lines {
+    // ropey also ends lines at VT, FF, NEL, LS and PS; the ops split only on
+    // CR and LF, as Notepad++ does. Widen the block to whole CR/LF lines so
+    // it never cuts one: a cut line's tail would fuse with whatever the op
+    // moved last.
+    let block_start = crlf_line_start(rope, rope.line_to_byte(first_line));
+    let rope_end = if last_line + 1 < total_lines {
         rope.line_to_byte(last_line + 1)
     } else {
         total_bytes
     };
+    let block_end = crlf_line_end(rope, rope_end);
     if block_start >= block_end {
         return None;
     }
+    let reaches_doc_end = if block_end == rope_end {
+        last_line + 1 >= total_lines
+    } else {
+        // Widened: the block's last line is the document's last line only
+        // when no line end follows it.
+        block_end == total_bytes
+            && !matches!(rope.get_byte(block_end.saturating_sub(1)), Some(b'\n' | b'\r'))
+    };
     let after_cr = block_start
         .checked_sub(1)
         .and_then(|i| rope.get_byte(i))
@@ -111,9 +124,54 @@ fn line_span_in(rope: &Rope, selection: Option<Range<usize>>) -> Option<LineSpan
         block_start,
         block_end,
         whole_buffer,
-        reaches_doc_end: last_line + 1 >= total_lines,
+        reaches_doc_end,
         after_cr,
     })
+}
+
+/// `at` moved back to the start of its CR/LF line.
+fn crlf_line_start(rope: &Rope, at: usize) -> usize {
+    let Some(mut bytes) = rope.get_bytes_at(at) else {
+        return at;
+    };
+    let mut start = at;
+    while let Some(b) = bytes.prev() {
+        if b == b'\n' || b == b'\r' {
+            break;
+        }
+        start = start.saturating_sub(1);
+    }
+    start
+}
+
+/// `at` moved forward past the end of its CR/LF line, terminator included.
+/// An offset that already follows a CR or LF is a line start and stays.
+fn crlf_line_end(rope: &Rope, at: usize) -> usize {
+    let Some(bytes) = rope.get_bytes_at(at) else {
+        return at;
+    };
+    let Some(before) = at.checked_sub(1) else {
+        return at;
+    };
+    if matches!(rope.get_byte(before), Some(b'\n' | b'\r')) {
+        return at;
+    }
+    let mut end = at;
+    let mut prev_cr = false;
+    for b in bytes {
+        if prev_cr {
+            if b == b'\n' {
+                end += 1;
+            }
+            break;
+        }
+        end += 1;
+        if b == b'\n' {
+            break;
+        }
+        prev_cr = b == b'\r';
+    }
+    end
 }
 
 /// The lines a permuting or filtering op works on. Like NPP, the empty piece
@@ -933,6 +991,9 @@ mod tests {
         "x\n\n\nx\n",
         "10\n-2\n3,5\n3.5\n-.\n.\n-1\n",
         "aaaa bbbb cccc\r\n中中中中中中\rdd",
+        // ropey also breaks lines on VT, FF, NEL, LS and PS.
+        "b\u{2028}a\nc\u{85}d\u{b}e\u{c}f\u{2029}g\n",
+        "\u{2028}\r\n\u{85}",
     ];
 
     type Op = fn(&str, &LineSpan) -> Option<String>;
@@ -1071,6 +1132,29 @@ mod tests {
         assert_eq!((span.block_start, span.block_end), (3, 5));
         let span = line_span_in(&rope, Some(1..50)).expect("span");
         assert_eq!((span.first_line, span.last_line), (0, 1));
+    }
+
+    #[test]
+    fn block_never_cuts_a_line_at_a_unicode_line_break() {
+        // ropey ends a line at NEL, so the block used to stop after
+        // "a\u{85}" and sorting fused "b" onto "rest".
+        let text = "x\nb\na\u{85}rest";
+        let (_, span, block) = span_of(text, Some(2..7));
+        assert_eq!(block, "b\na\u{85}rest");
+        assert!(span.reaches_doc_end);
+        let out = sort_block(&block, &span, false, |x, y| x.cmp(y)).expect("sorted");
+        assert_eq!(out, "a\u{85}rest\nb");
+
+        // The start snaps back the same way, past LS, VT and FF.
+        let text = "p\u{b}q\u{2028}r\u{c}s\nt\n";
+        let (_, span, block) = span_of(text, Some(6..12));
+        assert_eq!(block, "p\u{b}q\u{2028}r\u{c}s\nt\n");
+        assert!(!span.reaches_doc_end);
+        assert!(!span.after_cr);
+        // A block that already sits on CR/LF line starts is unchanged.
+        let (_, span, block) = span_of("a\r\nb\u{2029}c\rd", Some(0..3));
+        assert_eq!((span.block_start, span.block_end), (0, 3));
+        assert_eq!(block, "a\r\n");
     }
 
     #[test]

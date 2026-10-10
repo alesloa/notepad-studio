@@ -24,10 +24,10 @@ pub(crate) const FIND_IN_FILES_RESULT_CAP: usize = 1000;
 pub(crate) const FIND_IN_FILES_FILE_SIZE_LIMIT: u64 = 1_000_000;
 
 /// Longest slice of a line a result row keeps, in bytes from the line
-/// start. Notepad++ cuts result lines at `SC_SEARCHRESULT_LINEBUFFERMAXLENGTH
-/// - 4` (scintilla/include/Scintilla.h:1358, PowerEditor/src/
-/// ScintillaComponent/FindReplaceDlg.cpp:3581). Without a cap, 1000 hits on
-/// a 1 MB minified line hold 1000 copies of it.
+/// start. Notepad++ cuts result lines 4 bytes short of
+/// `SC_SEARCHRESULT_LINEBUFFERMAXLENGTH` (scintilla/include/Scintilla.h:1358,
+/// PowerEditor/src/ScintillaComponent/FindReplaceDlg.cpp:3581). Without a
+/// cap, 1000 hits on a 1 MB minified line hold 1000 copies of it.
 pub(crate) const RESULT_LINE_TEXT_MAX_BYTES: usize = 2048 - 4;
 
 /// Subdirectory names skipped at any depth. A user can still search inside

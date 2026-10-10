@@ -2148,8 +2148,7 @@ mod tests {
         let re = literal("a");
         // Empty, reversed and past-the-end scopes.
         assert!(collect_matches("aaa", &re, Some(&(1..1))).is_empty());
-        #[allow(clippy::reversed_empty_ranges)]
-        let reversed = 3..1;
+        let reversed = Range { start: 3, end: 1 };
         assert!(collect_matches("aaa", &re, Some(&reversed)).is_empty());
         assert_eq!(collect_matches("aaa", &re, Some(&(2..100))), vec![2..3]);
         assert!(collect_matches("aaa", &re, Some(&(50..100))).is_empty());

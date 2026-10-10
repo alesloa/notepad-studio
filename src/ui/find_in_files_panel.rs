@@ -465,7 +465,8 @@ mod tests {
             ("中x", 1..2),
             ("  é😀", 3..5),
             ("ab", 5..9),
-            ("ab", 2..1),
+            // Reversed span.
+            ("ab", std::ops::Range { start: 2, end: 1 }),
         ];
         for (line, span) in cases {
             let (pre, hit, post) = split_match(line, &span);

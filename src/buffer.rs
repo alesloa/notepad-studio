@@ -900,6 +900,7 @@ mod tests {
     }
 
     #[test]
+    #[allow(clippy::reversed_empty_ranges)] // 8..4 is the reversed input under test
     fn slice_bytes_tolerates_mid_char_and_past_end_ranges() {
         let mut buf = Buffer::empty();
         buf.rope = Rope::from_str(MIXED);

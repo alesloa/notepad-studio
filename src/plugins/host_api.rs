@@ -357,12 +357,12 @@ mod tests {
         // that is what the test checks (a read would fault).
         unsafe {
             assert!(plugin_bytes(ptr::null(), 4).is_none());
-            assert!(plugin_bytes(1usize as *const u8, usize::MAX).is_none());
+            assert!(plugin_bytes(ptr::dangling::<u8>(), usize::MAX).is_none());
             assert_eq!(plugin_bytes(ptr::null(), 0), Some(&[][..]));
             let bad = [0xffu8, 0xfe];
             assert!(plugin_text(bad.as_ptr(), bad.len(), "test").is_none());
             host_replace_selection(ptr::null(), 10);
-            host_set_status_message(1usize as *const u8, usize::MAX);
+            host_set_status_message(ptr::dangling::<u8>(), usize::MAX);
             host_get_selection(ptr::null_mut(), ptr::null_mut());
             let mut words = [0usize; 2];
             let misaligned = (words.as_mut_ptr() as *mut u8).add(1) as *mut usize;

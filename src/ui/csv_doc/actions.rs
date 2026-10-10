@@ -1607,6 +1607,26 @@ enum FillTarget {
     FromNeighbor(usize, usize),
 }
 
+/// Replace the selection between `cursor` and `anchor` (either order) in
+/// `buffer` with `text`, and return the byte offset just past the
+/// inserted text, where the caret goes. The offsets are fields other
+/// code writes too, so one past the end is taken as the end and one
+/// inside a multi-byte char as that char's start.
+fn replace_input_selection(buffer: &mut String, cursor: usize, anchor: usize, text: &str) -> usize {
+    let char_start = |i: usize| {
+        let mut i = i.min(buffer.len());
+        // Offset 0 is always a char boundary, so this stops.
+        while !buffer.is_char_boundary(i) {
+            i -= 1;
+        }
+        i
+    };
+    let lo = char_start(cursor.min(anchor));
+    let hi = char_start(cursor.max(anchor));
+    buffer.replace_range(lo..hi, text);
+    lo.saturating_add(text.len())
+}
+
 /// Cmd+; — insert today's date (yyyy-MM-dd) at the active cell. If a
 /// cell editor is open, insert at cursor; otherwise overwrite the active
 /// cell's value. No-op when there's no active cell or open editor.
@@ -1640,10 +1660,8 @@ fn insert_literal_into_active_cell(
         let Some(input) = model.cell_input.as_mut() else {
             return;
         };
-        let lo = input.cursor.min(input.anchor);
-        let hi = input.cursor.max(input.anchor);
-        input.buffer.replace_range(lo..hi, literal);
-        let new_cursor = lo + literal.len();
+        let new_cursor =
+            replace_input_selection(&mut input.buffer, input.cursor, input.anchor, literal);
         input.cursor = new_cursor;
         input.anchor = new_cursor;
         cx.notify();
@@ -2160,4 +2178,34 @@ pub(crate) fn cancel_fill_drag(w: &mut Workspace, cx: &mut Context<Workspace>) {
         model.cancel_fill_drag();
     }
     cx.notify();
+}
+
+#[cfg(test)]
+mod tests {
+    use super::replace_input_selection;
+
+    #[test]
+    fn replace_input_selection_inserts_and_replaces() {
+        let mut b = String::from("abc");
+        assert_eq!(replace_input_selection(&mut b, 1, 1, "XY"), 3);
+        assert_eq!(b, "aXYbc");
+        let mut b = String::from("abcdef");
+        assert_eq!(replace_input_selection(&mut b, 4, 1, "-"), 2);
+        assert_eq!(b, "a-ef");
+    }
+
+    #[test]
+    fn replace_input_selection_with_stale_offsets() {
+        // "é" is bytes 0..2 and "中" bytes 2..5. Offsets past the end
+        // land at the end; offsets inside a char move back to its start.
+        let mut b = String::from("é中");
+        assert_eq!(replace_input_selection(&mut b, 99, 99, "!"), 6);
+        assert_eq!(b, "é中!");
+        let mut b = String::from("é中");
+        assert_eq!(replace_input_selection(&mut b, 1, 3, "x"), 1);
+        assert_eq!(b, "x中");
+        let mut b = String::new();
+        assert_eq!(replace_input_selection(&mut b, 4, usize::MAX, "2026-10-10"), 10);
+        assert_eq!(b, "2026-10-10");
+    }
 }

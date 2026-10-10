@@ -428,6 +428,10 @@ pub(crate) fn load_binding(
     context: Option<&str>,
     mapper: &dyn gpui::PlatformKeyboardMapper,
 ) -> anyhow::Result<KeyBinding> {
+    // gpui loads a blank chord as a binding with no keystrokes.
+    if chord.split_whitespace().next().is_none() {
+        anyhow::bail!("empty chord");
+    }
     let predicate = match context {
         Some(ctx) => Some(Rc::new(gpui::KeyBindingContextPredicate::parse(ctx)?)),
         None => None,
@@ -487,26 +491,35 @@ fn shortcuts_path() -> Option<PathBuf> {
     dirs::config_dir().map(|d| d.join(APP_NAME).join("shortcuts.toml"))
 }
 
-/// Parse the contents of `shortcuts.toml`. A file that fails to parse
-/// loads as no overrides, so startup continues on defaults.
-fn parse_overrides(raw: &str) -> Overrides {
-    let Ok(file) = toml::from_str::<OverridesFile>(raw) else {
-        return Overrides::new();
-    };
-    file.binding
-        .into_iter()
-        .map(|b| (b.action, b.keys))
-        .collect()
-}
-
 pub(crate) fn load_overrides() -> Overrides {
     let Some(path) = shortcuts_path() else {
         return Overrides::new();
     };
-    let Ok(raw) = std::fs::read_to_string(&path) else {
-        return Overrides::new();
-    };
-    parse_overrides(&raw)
+    load_overrides_at(&path)
+}
+
+/// Overrides stored in `path`. A damaged `[[binding]]` row is skipped (that
+/// action keeps its default chords) instead of resetting every override;
+/// the original file is kept as `shortcuts.toml.corrupt`.
+fn load_overrides_at(path: &std::path::Path) -> Overrides {
+    let file = crate::persist::load_toml(
+        path,
+        |t| {
+            let (binding, dropped) =
+                crate::persist::salvage_array::<BindingEntry>(t.get("binding"), &["action", "keys"]);
+            if dropped > 0 {
+                eprintln!("shortcuts.toml: skipped {dropped} unreadable binding(s)");
+            }
+            OverridesFile { binding }
+        },
+        OverridesFile::default,
+    )
+    .into_option()
+    .unwrap_or_default();
+    file.binding
+        .into_iter()
+        .map(|b| (b.action, b.keys))
+        .collect()
 }
 
 pub(crate) fn save_overrides(overrides: &Overrides) -> std::io::Result<()> {
@@ -516,6 +529,10 @@ pub(crate) fn save_overrides(overrides: &Overrides) -> std::io::Result<()> {
             "no config dir",
         ));
     };
+    save_overrides_at(&path, overrides)
+}
+
+fn save_overrides_at(path: &std::path::Path, overrides: &Overrides) -> std::io::Result<()> {
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)?;
     }
@@ -528,10 +545,8 @@ pub(crate) fn save_overrides(overrides: &Overrides) -> std::io::Result<()> {
             })
             .collect(),
     };
-    let serialized = toml::to_string_pretty(&file).map_err(|e| {
-        std::io::Error::new(std::io::ErrorKind::Other, e.to_string())
-    })?;
-    std::fs::write(&path, serialized)
+    let serialized = toml::to_string_pretty(&file).map_err(std::io::Error::other)?;
+    crate::persist::atomic_write(path, serialized.as_bytes())
 }
 
 /// Resolve the currently-effective key list for a single catalog row. The
@@ -818,11 +833,16 @@ keys = ["cmd-d"]
 action = "MdBold"
 keys = []
 "#;
-        let parsed = parse_overrides(raw);
+        let dir = crate::persist::TempDir::new("shortcuts-old");
+        let p = dir.join("shortcuts.toml");
+        assert!(std::fs::write(&p, raw).is_ok());
+        let parsed = load_overrides_at(&p);
         assert_eq!(parsed.get("EditDuplicateLine"), Some(&vec!["cmd-d".to_string()]));
         assert_eq!(parsed.get("MdBold"), Some(&Vec::new()));
-        assert!(parse_overrides("not = [valid").is_empty());
-        assert!(parse_overrides("").is_empty());
+        assert!(std::fs::write(&p, "not = [valid").is_ok());
+        assert!(load_overrides_at(&p).is_empty());
+        assert!(std::fs::write(&p, "").is_ok());
+        assert!(load_overrides_at(&p).is_empty());
     }
 
     #[test]
@@ -849,5 +869,56 @@ keys = []
         assert_eq!(conflict_for("ctrl-*", &overrides, "MdBulletList"), None);
         assert!(same_chord("ctrl-shift-8", "ctrl-*"));
         assert!(!same_chord("ctrl-8", "ctrl-*"));
+    }
+}
+
+#[cfg(test)]
+mod persistence_tests {
+    use super::*;
+    use crate::persist::TempDir;
+
+    #[test]
+    fn a_damaged_binding_resets_only_that_action() {
+        let dir = TempDir::new("shortcuts-load");
+        let p = dir.join("shortcuts.toml");
+        assert!(load_overrides_at(&p).is_empty());
+        let src = "[[binding]]\naction = \"FileSave\"\nkeys = [\"ctrl-alt-s\"]\n\
+                   [[binding]]\naction = \"FileOpen\"\nkeys = \"ctrl-o\"\n\
+                   [[binding]]\naction = \"FileNew\"\nkeys = []\n";
+        assert!(std::fs::write(&p, src).is_ok());
+        let got = load_overrides_at(&p);
+        assert_eq!(got.get("FileSave"), Some(&vec!["ctrl-alt-s".to_string()]));
+        assert_eq!(got.get("FileOpen"), None, "falls back to the default chords");
+        assert_eq!(got.get("FileNew"), Some(&Vec::new()), "an explicit unbind survives");
+        assert!(dir.join("shortcuts.toml.corrupt").exists());
+    }
+
+    #[test]
+    fn overrides_round_trip() {
+        let dir = TempDir::new("shortcuts-save");
+        let p = dir.join("shortcuts.toml");
+        let mut o = Overrides::new();
+        o.insert("EditUndo".into(), vec!["ctrl-z".into(), "alt-backspace".into()]);
+        o.insert("FileNew".into(), Vec::new());
+        assert!(save_overrides_at(&p, &o).is_ok());
+        assert_eq!(load_overrides_at(&p), o);
+        assert!(!dir.join("shortcuts.toml.tmp").exists());
+    }
+
+    #[test]
+    fn chords_key_binding_would_reject_are_not_bound() {
+        // One `Keystroke::parse` over the whole string accepts this, and
+        // `KeyBinding::new` panics on its first keystroke. `load_binding`
+        // must return the error instead.
+        assert!(gpui::Keystroke::parse("a--b -").is_ok());
+        let old_path = std::panic::catch_unwind(|| KeyBinding::new("a--b -", Quit, None));
+        assert!(old_path.is_err());
+        let load = |c: &str| load_binding(c, Box::new(Quit), None, &gpui::DummyKeyboardMapper);
+        assert!(load("a--b -").is_err());
+        assert!(load("").is_err());
+        assert!(load("   ").is_err());
+        assert!(load("ctrl-s").is_ok());
+        assert!(load("ctrl-k ctrl-c").is_ok());
+        assert!(load("ctrl--").is_ok());
     }
 }

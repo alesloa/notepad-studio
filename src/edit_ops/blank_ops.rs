@@ -18,10 +18,14 @@
 // removes each EOL char in turn; if the previous non-EOL byte was a
 // non-whitespace char, inserts a single space, otherwise nothing. Net:
 // every EOL run collapses with surrounding whitespace into a single space.
+//
+// The byte-walking transforms copy every byte they keep into a `Vec<u8>`, so
+// multi-byte UTF-8 passes through whole; they only add or drop ASCII bytes.
 
 use gpui::{Context, Window};
 
 use crate::actions::*;
+use crate::edit_ops::util::{floor_char_boundary, split_lines_eol};
 use crate::workspace::Workspace;
 
 impl Workspace {
@@ -31,7 +35,7 @@ impl Workspace {
         _w: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        run_full_buffer_transform(self, cx, trim_leading);
+        run_full_buffer_transform(self, cx, |s| Ok(trim_leading(s)));
     }
 
     pub(crate) fn trim_leading_and_trailing_ws(
@@ -40,7 +44,7 @@ impl Workspace {
         _w: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        run_full_buffer_transform(self, cx, trim_both);
+        run_full_buffer_transform(self, cx, |s| Ok(trim_both(s)));
     }
 
     pub(crate) fn eol_to_space(
@@ -49,7 +53,7 @@ impl Workspace {
         _w: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        run_full_buffer_transform(self, cx, eol_to_space_lines_join);
+        run_full_buffer_transform(self, cx, |s| Ok(eol_to_space_lines_join(s)));
     }
 
     pub(crate) fn remove_unnecessary_blank_and_eol(
@@ -62,7 +66,7 @@ impl Workspace {
         // SCI_LINESJOIN. Composed transform.
         run_full_buffer_transform(self, cx, |s| {
             let trimmed = trim_both(s);
-            eol_to_space_lines_join(&trimmed)
+            Ok(eol_to_space_lines_join(&trimmed))
         });
     }
 
@@ -73,7 +77,11 @@ impl Workspace {
         cx: &mut Context<Self>,
     ) {
         let width = crate::settings::snapshot().tab_width.max(1);
-        run_full_buffer_transform(self, cx, |s| tab_to_space(s, width));
+        run_full_buffer_transform(self, cx, |s| {
+            tab_to_space(s, width).ok_or_else(|| {
+                format!("TAB to Space skipped: not enough memory to expand tabs to width {width}")
+            })
+        });
     }
 
     pub(crate) fn space_to_tab_all(
@@ -83,7 +91,7 @@ impl Workspace {
         cx: &mut Context<Self>,
     ) {
         let width = crate::settings::snapshot().tab_width.max(1);
-        run_full_buffer_transform(self, cx, |s| space_to_tab(s, width, false));
+        run_full_buffer_transform(self, cx, |s| Ok(space_to_tab(s, width, false)));
     }
 
     pub(crate) fn space_to_tab_leading(
@@ -93,29 +101,38 @@ impl Workspace {
         cx: &mut Context<Self>,
     ) {
         let width = crate::settings::snapshot().tab_width.max(1);
-        run_full_buffer_transform(self, cx, |s| space_to_tab(s, width, true));
+        run_full_buffer_transform(self, cx, |s| Ok(space_to_tab(s, width, true)));
     }
 }
 
 /// Apply a pure-text transform to the active buffer's full contents as a
 /// single undoable replacement, then collapse the selection at the clamped
-/// caret position. Mirrors `trim_trailing_ws`'s pattern.
+/// caret position. Mirrors `trim_trailing_ws`'s pattern. A transform that
+/// fails leaves the buffer alone and reports why in the status bar.
 fn run_full_buffer_transform<F>(ws: &mut Workspace, cx: &mut Context<Workspace>, transform: F)
 where
-    F: FnOnce(&str) -> String,
+    F: FnOnce(&str) -> Result<String, String>,
 {
     let total_bytes = ws.buffer().rope.len_bytes();
     if total_bytes == 0 {
         return;
     }
     let text = ws.buffer().rope.slice(..).to_string();
-    let out = transform(&text);
+    let out = match transform(&text) {
+        Ok(out) => out,
+        Err(msg) => {
+            ws.set_status(msg);
+            cx.notify();
+            return;
+        }
+    };
     if out == text {
         return;
     }
     let head_was = ws.selection().head;
     ws.replace_byte_range(0..total_bytes, &out, cx);
-    let clamped = head_was.min(ws.buffer().rope.len_bytes());
+    // The old caret offset can fall inside a multi-byte char of the new text.
+    let clamped = floor_char_boundary(&ws.buffer().rope, head_was);
     let tab = ws.active_tab_mut();
     tab.selection.collapse_to(clamped);
     tab.desired_col_x = None;
@@ -126,8 +143,7 @@ where
 
 fn trim_leading(text: &str) -> String {
     let mut out = String::with_capacity(text.len());
-    for line in text.split_inclusive('\n') {
-        let (body, term) = split_line_terminator(line);
+    for (body, term) in split_lines_eol(text) {
         out.push_str(body.trim_start_matches([' ', '\t']));
         out.push_str(term);
     }
@@ -136,25 +152,11 @@ fn trim_leading(text: &str) -> String {
 
 fn trim_both(text: &str) -> String {
     let mut out = String::with_capacity(text.len());
-    for line in text.split_inclusive('\n') {
-        let (body, term) = split_line_terminator(line);
+    for (body, term) in split_lines_eol(text) {
         out.push_str(body.trim_matches([' ', '\t']));
         out.push_str(term);
     }
     out
-}
-
-/// Strip CRLF, LF, or CR off the end of a line slice from `split_inclusive`.
-fn split_line_terminator(line: &str) -> (&str, &str) {
-    if let Some(s) = line.strip_suffix("\r\n") {
-        (s, "\r\n")
-    } else if let Some(s) = line.strip_suffix('\n') {
-        (s, "\n")
-    } else if let Some(s) = line.strip_suffix('\r') {
-        (s, "\r")
-    } else {
-        (line, "")
-    }
 }
 
 /// Emulate Scintilla `SCI_LINESJOIN`: walk the buffer and delete every EOL
@@ -164,77 +166,63 @@ fn split_line_terminator(line: &str) -> (&str, &str) {
 /// a single space, so `"foo \n\n bar"` becomes `"foo bar"`.
 fn eol_to_space_lines_join(text: &str) -> String {
     let bytes = text.as_bytes();
-    let mut out = String::with_capacity(text.len());
+    let mut out: Vec<u8> = Vec::with_capacity(text.len());
     let mut prev_non_ws = false;
-    let mut i = 0;
-    while i < bytes.len() {
-        let b = bytes[i];
-        if b == b'\n' {
+    let mut iter = bytes.iter().copied().peekable();
+    while let Some(b) = iter.next() {
+        if b == b'\n' || b == b'\r' {
             if prev_non_ws {
-                out.push(' ');
+                out.push(b' ');
             }
             prev_non_ws = false;
-            i += 1;
-        } else if b == b'\r' {
-            if prev_non_ws {
-                out.push(' ');
-            }
-            prev_non_ws = false;
-            // Consume optional LF in CRLF.
-            if i + 1 < bytes.len() && bytes[i + 1] == b'\n' {
-                i += 2;
-            } else {
-                i += 1;
+            // Consume the LF of a CRLF pair.
+            if b == b'\r' && iter.peek() == Some(&b'\n') {
+                iter.next();
             }
         } else {
-            out.push(b as char);
-            // UTF-8 continuation bytes don't toggle prev_non_ws on their own;
-            // ASCII path covers space/tab vs. non-WS. For multi-byte chars
-            // (always non-ASCII whitespace candidates excluded here), treat
-            // any non-EOL non-ASCII byte as non-whitespace.
-            if b == b' ' || b == b'\t' {
-                prev_non_ws = false;
-            } else if b < 0x80 {
-                prev_non_ws = true;
-            } else {
-                // Non-ASCII leading or continuation byte.
-                prev_non_ws = true;
-            }
-            i += 1;
+            out.push(b);
+            // Space and tab are whitespace; every other byte, including the
+            // bytes of a multi-byte char, counts as non-whitespace.
+            prev_non_ws = b != b' ' && b != b'\t';
         }
     }
-    out
+    // Only ASCII EOL bytes were dropped and ASCII spaces added, so `out` is
+    // valid UTF-8; the fallback leaves the text unchanged.
+    String::from_utf8(out).unwrap_or_else(|_| text.to_string())
 }
 
 /// Column-aware TAB → spaces. Each `\t` expands to enough spaces to reach the
 /// next tab stop (column % tab_width == 0). UTF-8 continuation bytes don't
-/// advance the column.
-fn tab_to_space(text: &str, tab_width: usize) -> String {
-    let mut out = String::with_capacity(text.len());
-    let bytes = text.as_bytes();
+/// advance the column. Returns `None` when the expanded text can't be
+/// allocated (a huge tab width from settings).
+fn tab_to_space(text: &str, tab_width: usize) -> Option<String> {
+    let tab_width = tab_width.max(1);
+    let mut out: Vec<u8> = Vec::new();
+    out.try_reserve(text.len()).ok()?;
     let mut column = 0usize;
-    for &b in bytes {
+    for &b in text.as_bytes() {
         match b {
             b'\t' => {
                 let fill = tab_width - (column % tab_width);
-                for _ in 0..fill {
-                    out.push(' ');
-                }
-                column += fill;
+                out.try_reserve(fill).ok()?;
+                out.resize(out.len().saturating_add(fill), b' ');
+                column = column.saturating_add(fill);
             }
             b'\n' | b'\r' => {
-                out.push(b as char);
+                out.push(b);
                 column = 0;
             }
             _ => {
-                out.push(b as char);
+                out.push(b);
                 if b < 0x80 || (b & 0xC0) != 0x80 {
-                    column += 1;
+                    column = column.saturating_add(1);
                 }
             }
         }
     }
-    out
+    // Tabs became ASCII spaces and every other byte was copied, so `out` is
+    // valid UTF-8; the fallback leaves the text unchanged.
+    Some(String::from_utf8(out).unwrap_or_else(|_| text.to_string()))
 }
 
 /// Column-aware Space → TAB. Mirror of NPP `wsTabConvert(space2Tab*)`. Walks
@@ -243,20 +231,19 @@ fn tab_to_space(text: &str, tab_width: usize) -> String {
 /// become tab. With `only_leading`, conversion stops once a non-space/tab
 /// char is seen on the line (so inline spacing in code stays untouched).
 fn space_to_tab(text: &str, tab_width: usize, only_leading: bool) -> String {
+    let tab_width = tab_width.max(1);
     let bytes = text.as_bytes();
-    let mut out = String::with_capacity(text.len());
+    let mut out: Vec<u8> = Vec::with_capacity(text.len());
     let mut column = 0usize;
     // Distance to the next tab stop, counted from zero (mirrors NPP `tabStop`).
     let mut tab_stop = tab_width.saturating_sub(1);
     let mut nonspace_seen = false;
     let mut i = 0usize;
-    while i < bytes.len() {
-        let b = bytes[i];
-
+    while let Some(&b) = bytes.get(i) {
         // Handle leading-only gating: once a non-space/tab is hit on this
         // line, fall through to a copy-only path until EOL.
         if only_leading && nonspace_seen {
-            out.push(b as char);
+            out.push(b);
             match b {
                 b'\n' | b'\r' => {
                     column = 0;
@@ -265,7 +252,7 @@ fn space_to_tab(text: &str, tab_width: usize, only_leading: bool) -> String {
                 }
                 _ => {
                     if b < 0x80 || (b & 0xC0) != 0x80 {
-                        column += 1;
+                        column = column.saturating_add(1);
                     }
                 }
             }
@@ -278,33 +265,29 @@ fn space_to_tab(text: &str, tab_width: usize, only_leading: bool) -> String {
             let mut counter = 0usize;
             let mut emitted = false;
             loop {
-                let probe_byte = i + counter;
-                if probe_byte >= bytes.len() || bytes[probe_byte] != b' ' {
+                if bytes.get(i + counter) != Some(&b' ') {
                     break;
                 }
-                if column + counter == tab_stop {
-                    tab_stop += tab_width;
+                if column.saturating_add(counter) == tab_stop {
+                    tab_stop = tab_stop.saturating_add(tab_width);
                     if counter >= 1 {
-                        out.push('\t');
-                        i += counter; // i now sits on the boundary space
-                        column += counter + 1;
-                        // Consume that boundary space as part of the tab.
-                        i += 1;
+                        out.push(b'\t');
+                        // Skip the run up to and including the boundary space.
+                        i += counter + 1;
+                        column = column.saturating_add(counter + 1);
                         emitted = true;
                         break;
-                    } else if i + 1 < bytes.len()
-                        && (bytes[i + 1] == b' ' || bytes[i + 1] == b'\t')
-                    {
+                    } else if matches!(bytes.get(i + 1), Some(b' ') | Some(b'\t')) {
                         // Single space at a tab stop followed by ws → tab.
-                        out.push('\t');
+                        out.push(b'\t');
                         i += 1;
-                        column += 1;
+                        column = column.saturating_add(1);
                         emitted = true;
                         break;
                     } else {
                         // Single space at boundary, not followed by ws.
-                        out.push(' ');
-                        column += 1;
+                        out.push(b' ');
+                        column = column.saturating_add(1);
                         i += 1;
                         emitted = true;
                         break;
@@ -318,17 +301,17 @@ fn space_to_tab(text: &str, tab_width: usize, only_leading: bool) -> String {
             }
 
             // Spaces "absorbed" by a trailing tab on the right.
-            if i + counter < bytes.len() && bytes[i + counter] == b'\t' {
-                out.push('\t');
+            if bytes.get(i + counter) == Some(&b'\t') {
+                out.push(b'\t');
                 i += counter + 1;
-                column = tab_stop + 1;
-                tab_stop += tab_width;
+                column = tab_stop.saturating_add(1);
+                tab_stop = tab_stop.saturating_add(tab_width);
                 continue;
             }
 
             // Plain space, no boundary in sight — emit as-is and advance.
-            out.push(' ');
-            column += 1;
+            out.push(b' ');
+            column = column.saturating_add(1);
             i += 1;
             continue;
         }
@@ -340,29 +323,31 @@ fn space_to_tab(text: &str, tab_width: usize, only_leading: bool) -> String {
 
         match b {
             b'\n' | b'\r' => {
-                out.push(b as char);
+                out.push(b);
                 column = 0;
                 tab_stop = tab_width.saturating_sub(1);
                 nonspace_seen = false;
             }
             b'\t' => {
-                out.push('\t');
-                column = tab_stop + 1;
-                tab_stop += tab_width;
+                out.push(b'\t');
+                column = tab_stop.saturating_add(1);
+                tab_stop = tab_stop.saturating_add(tab_width);
             }
             _ => {
-                out.push(b as char);
+                out.push(b);
                 if b < 0x80 || (b & 0xC0) != 0x80 {
-                    column += 1;
-                    if column > 0 && column % tab_width == 0 {
-                        tab_stop += tab_width;
+                    column = column.saturating_add(1);
+                    if column.is_multiple_of(tab_width) {
+                        tab_stop = tab_stop.saturating_add(tab_width);
                     }
                 }
             }
         }
         i += 1;
     }
-    out
+    // Only ASCII spaces were swapped for tabs, so `out` is valid UTF-8; the
+    // fallback leaves the text unchanged.
+    String::from_utf8(out).unwrap_or_else(|_| text.to_string())
 }
 
 #[cfg(test)]
@@ -402,9 +387,9 @@ mod tests {
     #[test]
     fn tab_to_space_column_aware() {
         // tab at col 0 → 4 spaces; ab + tab → 2 spaces to fill to col 4.
-        assert_eq!(tab_to_space("\tfoo", 4), "    foo");
-        assert_eq!(tab_to_space("ab\tcd", 4), "ab  cd");
-        assert_eq!(tab_to_space("abcd\tef", 4), "abcd    ef");
+        assert_eq!(tab_to_space("\tfoo", 4).as_deref(), Some("    foo"));
+        assert_eq!(tab_to_space("ab\tcd", 4).as_deref(), Some("ab  cd"));
+        assert_eq!(tab_to_space("abcd\tef", 4).as_deref(), Some("abcd    ef"));
     }
 
     #[test]
@@ -416,6 +401,73 @@ mod tests {
         assert_eq!(space_to_tab("ab    cd", 4, false), "ab\t  cd");
         // 2 spaces at col 2-3 fully consumed by the tab.
         assert_eq!(space_to_tab("ab  cd", 4, false), "ab\tcd");
+    }
+
+    #[test]
+    fn non_ascii_text_survives_blank_ops() {
+        assert_eq!(tab_to_space("é\tx", 4).as_deref(), Some("é   x"));
+        assert_eq!(eol_to_space_lines_join("é\n中"), "é 中");
+        assert_eq!(space_to_tab("中    x", 4, false), "中\t x");
+    }
+
+    #[test]
+    fn huge_tab_width_does_not_overflow() {
+        assert_eq!(space_to_tab("\t\t\t", usize::MAX, false), "\t\t\t");
+        assert_eq!(space_to_tab("a  \t  b", usize::MAX, true), "a  \t  b");
+        // Expanding to usize::MAX columns can't be allocated: refused, not
+        // attempted.
+        assert_eq!(tab_to_space("a\tb", usize::MAX), None);
+        // A zero width is treated as one column, not a division by zero.
+        assert_eq!(tab_to_space("a\tb", 0).as_deref(), Some("a b"));
+        assert_eq!(space_to_tab("a    b", 0, false), "a\t\t\t b");
+    }
+
+    /// Every blank op over the shared edge-case inputs: valid UTF-8, and the
+    /// line-end sequence is untouched (EOL→Space removes it, by design).
+    #[test]
+    fn blank_ops_keep_line_ends_on_edge_inputs() {
+        use crate::edit_ops::util::split_lines_eol;
+        let inputs = [
+            "",
+            "abc",
+            "  a\n\tb\n",
+            " a \r\n\t b\t\r\n",
+            "  a\r  b\r",
+            " a\r\n b\n c\r d",
+            "é\t中 \n 👨‍👩‍👧\t🇯🇵\r\n  ß İ  ",
+            "\t   \n    \n",
+            "x",
+        ];
+        let eols = |s: &str| -> Vec<String> {
+            split_lines_eol(s).into_iter().map(|p| p.1.to_string()).collect()
+        };
+        for input in inputs {
+            let outs = [
+                ("trim_leading", trim_leading(input)),
+                ("trim_both", trim_both(input)),
+                ("tab_to_space", tab_to_space(input, 4).unwrap_or_default()),
+                ("space_to_tab_all", space_to_tab(input, 4, false)),
+                ("space_to_tab_leading", space_to_tab(input, 4, true)),
+            ];
+            for (name, out) in outs {
+                assert_eq!(eols(&out), eols(input), "{name} on {input:?} -> {out:?}");
+                // Only spaces and tabs change.
+                let strip = |s: &str| s.replace([' ', '\t'], "");
+                assert_eq!(strip(&out), strip(input), "{name} on {input:?}");
+            }
+            let joined = eol_to_space_lines_join(input);
+            assert!(!joined.contains(['\r', '\n']), "eol_to_space on {input:?}");
+            assert_eq!(
+                joined.replace(' ', ""),
+                input.replace([' ', '\r', '\n'], ""),
+                "eol_to_space on {input:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn trim_handles_cr_lines() {
+        assert_eq!(trim_leading("  a\r  b\r"), "a\rb\r");
     }
 
     #[test]

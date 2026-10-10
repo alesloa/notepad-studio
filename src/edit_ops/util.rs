@@ -78,6 +78,21 @@ pub(crate) fn clamp_byte_range(rope: &Rope, range: Range<usize>) -> Range<usize>
     a.min(b)..a.max(b)
 }
 
+/// Byte offset of char column `col` on `line`, for column (block)
+/// selections. A column past the line's text maps to the end of the text,
+/// before its line end; a line past the end of the rope maps to the rope's
+/// end. Same mapping as `Workspace::byte_at_line_col`, over a plain rope.
+pub(crate) fn byte_at_line_col(rope: &Rope, line: usize, col: usize) -> usize {
+    if line >= rope.len_lines() {
+        return rope.len_bytes();
+    }
+    let start = rope.line_to_byte(line);
+    let text = rope.line(line).to_string();
+    let body = text.trim_end_matches(['\n', '\r']);
+    let in_line = body.char_indices().nth(col).map_or(body.len(), |(b, _)| b);
+    start + in_line
+}
+
 /// Clamp `byte` to `s` and move it back to the start of the char it falls in.
 pub(crate) fn floor_str_boundary(s: &str, byte: usize) -> usize {
     let mut b = byte.min(s.len());
@@ -135,6 +150,22 @@ mod tests {
         assert_eq!(clamp_byte_range(&rope, 2..99), 1..6);
         let empty = Rope::new();
         assert_eq!(clamp_byte_range(&empty, 3..7), 0..0);
+    }
+
+    #[test]
+    fn byte_at_line_col_clamps_to_line_text() {
+        let rope = Rope::from_str("aé中\r\nb\n\nlast");
+        // Line 0: a=0, é=1..3, 中=3..6, CRLF=6..8.
+        assert_eq!(byte_at_line_col(&rope, 0, 0), 0);
+        assert_eq!(byte_at_line_col(&rope, 0, 2), 3);
+        assert_eq!(byte_at_line_col(&rope, 0, 3), 6);
+        assert_eq!(byte_at_line_col(&rope, 0, 99), 6);
+        assert_eq!(byte_at_line_col(&rope, 1, 5), 9);
+        assert_eq!(byte_at_line_col(&rope, 2, 1), 10);
+        assert_eq!(byte_at_line_col(&rope, 3, 2), 13);
+        assert_eq!(byte_at_line_col(&rope, 3, 99), 15);
+        assert_eq!(byte_at_line_col(&rope, 40, 0), 15);
+        assert_eq!(byte_at_line_col(&Rope::new(), 0, 3), 0);
     }
 
     #[test]

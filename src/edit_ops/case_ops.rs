@@ -24,13 +24,19 @@
 //
 // Selection rules match `case_convert` in `workspace::edits` — operate on
 // the selection if any, else expand to the current word via prev/next
-// word boundary helpers.
+// word boundary helpers. A column (block) selection converts each row on
+// its own, as NPP `convertSelectedTextTo` does for multi-selections
+// (ScintillaEditView.cpp:3835).
 
+use std::ops::Range;
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use gpui::{Context, Window};
+use ropey::Rope;
 
 use crate::actions::*;
+use crate::buffer::BlockSelection;
+use crate::edit_ops::util::{byte_at_line_col, clamp_byte_range, floor_char_boundary};
 use crate::tab::InputFocus;
 use crate::workspace::Workspace;
 
@@ -93,16 +99,23 @@ impl Workspace {
         &mut self,
         window: &Window,
         cx: &mut Context<Self>,
-        transform: impl FnOnce(&str) -> String,
+        transform: impl Fn(&str) -> String,
     ) {
         if self.input_focus(window) != InputFocus::Editor {
+            return;
+        }
+        if self.has_block_selection() {
+            if let Some(block) = self.block_selection() {
+                self.case_transform_block(block, &transform, cx);
+            }
             return;
         }
         let sel = self.selection();
         let range = if !sel.is_empty() {
             sel.ordered()
         } else {
-            let head = sel.head;
+            // Clamp first: the word helpers index the rope by char.
+            let head = floor_char_boundary(&self.buffer().rope, sel.head);
             let start = self.prev_word_boundary(head);
             let end = self.next_word_boundary(head);
             if start == end {
@@ -110,14 +123,9 @@ impl Workspace {
             }
             start..end
         };
-        let text = self.buffer().slice_bytes(range.clone());
-        if text.is_empty() {
+        let Some((range, new_text)) = case_edit(&self.buffer().rope, range, &transform) else {
             return;
-        }
-        let new_text = transform(&text);
-        if new_text == text {
-            return;
-        }
+        };
         let anchor_was = sel.anchor;
         let head_was = sel.head;
         self.replace_byte_range(range.clone(), &new_text, cx);
@@ -137,8 +145,70 @@ impl Workspace {
         tab.desired_col_x = None;
         cx.notify();
     }
+
+    /// Convert every row of a column selection as one undo step. The block
+    /// itself stays; the caret goes to its head corner, as `block_replace`
+    /// leaves it.
+    fn case_transform_block(
+        &mut self,
+        block: BlockSelection,
+        transform: &impl Fn(&str) -> String,
+        cx: &mut Context<Self>,
+    ) {
+        let edits = block_case_edits(&self.buffer().rope, &block, transform);
+        if edits.is_empty() {
+            return;
+        }
+        self.begin_edit_group();
+        for (range, new_text) in edits {
+            self.replace_byte_range(range, &new_text, cx);
+        }
+        self.end_edit_group(cx);
+        let head = byte_at_line_col(&self.buffer().rope, block.head_line, block.head_col);
+        let tab = self.active_tab_mut();
+        tab.selection.collapse_to(head);
+        tab.desired_col_x = None;
+        cx.notify();
+    }
 }
 
+/// The replacement for `range` of `rope` under `transform`, or `None` when
+/// the range is empty or the text comes back unchanged. The range is clamped
+/// to the rope and floored to char boundaries first, so a stale selection
+/// can't panic the slice.
+fn case_edit(
+    rope: &Rope,
+    range: Range<usize>,
+    transform: &impl Fn(&str) -> String,
+) -> Option<(Range<usize>, String)> {
+    let range = clamp_byte_range(rope, range);
+    let text = rope.get_byte_slice(range.clone())?.to_string();
+    if text.is_empty() {
+        return None;
+    }
+    let new_text = transform(&text);
+    (new_text != text).then_some((range, new_text))
+}
+
+/// One edit per row of a column selection, bottom row first, so applying
+/// them in order leaves the offsets of the rows above valid. Rows shorter
+/// than the block's left column have nothing selected and are skipped.
+fn block_case_edits(
+    rope: &Rope,
+    block: &BlockSelection,
+    transform: &impl Fn(&str) -> String,
+) -> Vec<(Range<usize>, String)> {
+    let last = block.max_line().min(rope.len_lines().saturating_sub(1));
+    let (min_col, max_col) = (block.min_col(), block.max_col());
+    (block.min_line()..=last)
+        .rev()
+        .filter_map(|line| {
+            let start = byte_at_line_col(rope, line, min_col);
+            let end = byte_at_line_col(rope, line, max_col);
+            case_edit(rope, start..end, transform)
+        })
+        .collect()
+}
 // --- Transform fns ---------------------------------------------------------
 
 fn proper_case_force(s: &str) -> String {
@@ -331,5 +401,123 @@ impl XorShift64 {
         x ^= x << 17;
         self.state = x;
         x.wrapping_mul(0x2545F4914F6CDD1D)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::edit_ops::util::split_lines_eol;
+
+    const INPUTS: &[&str] = &[
+        "",
+        "abc",
+        "hello wORLD it's",
+        "a\r\nb\rc\nd\n",
+        "straße",
+        "İstanbul",
+        "ǅemal",
+        "é中👨‍👩‍👧🇯🇵 x",
+        "it's a test. ok! fine? i think so\n\nnew para",
+        "   \t ",
+        "ΣΑΣ σας",
+    ];
+
+    type Transform = fn(&str) -> String;
+
+    fn transforms() -> [(&'static str, Transform); 6] {
+        [
+            ("proper_force", proper_case_force),
+            ("proper_blend", proper_case_blend),
+            ("sentence_force", sentence_case_force),
+            ("sentence_blend", sentence_case_blend),
+            ("invert", invert_case),
+            ("random", random_case),
+        ]
+    }
+
+    fn apply(text: &str, edits: Vec<(Range<usize>, String)>) -> String {
+        let mut s = text.to_string();
+        for (r, t) in edits {
+            s.replace_range(r, &t);
+        }
+        s
+    }
+
+    #[test]
+    fn transforms_change_only_letters() {
+        let eols = |s: &str| -> Vec<String> {
+            split_lines_eol(s).into_iter().map(|p| p.1.to_string()).collect()
+        };
+        let non_letters = |s: &str| -> String {
+            s.chars().filter(|c| c.is_ascii() && !c.is_ascii_alphabetic()).collect()
+        };
+        for input in INPUTS {
+            for (name, f) in transforms() {
+                let out = f(input);
+                assert_eq!(eols(&out), eols(input), "{name} on {input:?}");
+                assert_eq!(non_letters(&out), non_letters(input), "{name} on {input:?}");
+            }
+        }
+    }
+
+    #[test]
+    fn transforms_handle_length_changing_case_maps() {
+        // ß -> SS and İ -> i̇ change byte length; nothing may assume it holds.
+        assert_eq!(invert_case("straße"), "STRASSE");
+        assert_eq!(invert_case("İ"), "i\u{307}");
+        assert_eq!(proper_case_force("hello wORLD it's"), "Hello World It's");
+        assert_eq!(proper_case_blend("hello wORLD"), "Hello WORLD");
+        assert_eq!(sentence_case_force("hello. WORLD! i think"), "Hello. World! I think");
+        assert_eq!(random_case("abc def").to_lowercase(), "abc def");
+    }
+
+    #[test]
+    fn case_edit_clamps_stale_and_mid_char_ranges() {
+        // A range ending inside `中` used to panic `byte_slice`.
+        let rope = Rope::from_str("aé中");
+        assert_eq!(case_edit(&rope, 2..5, &invert_case), Some((1..3, "É".to_string())));
+        let rope = Rope::from_str("abc");
+        assert_eq!(case_edit(&rope, 1..99, &invert_case), Some((1..3, "BC".to_string())));
+        assert_eq!(case_edit(&rope, 50..99, &invert_case), None);
+        assert_eq!(case_edit(&Rope::new(), 0..4, &invert_case), None);
+        assert_eq!(case_edit(&Rope::from_str("1 2"), 0..3, &invert_case), None);
+    }
+
+    #[test]
+    fn block_selection_converts_each_row() {
+        let text = "abcdef\nab\n\nabcdefgh\r\nx";
+        let rope = Rope::from_str(text);
+        let block = BlockSelection {
+            anchor_line: 0,
+            anchor_col: 1,
+            head_line: 4,
+            head_col: 4,
+            is_dragging: false,
+        };
+        let edits = block_case_edits(&rope, &block, &invert_case);
+        assert_eq!(apply(text, edits), "aBCDef\naB\n\naBCDefgh\r\nx");
+
+        // Byte length changes per row; bottom-first order keeps rows above valid.
+        let text = "aßc\nxßy\nz";
+        let block = BlockSelection {
+            anchor_line: 1,
+            anchor_col: 2,
+            head_line: 0,
+            head_col: 1,
+            is_dragging: false,
+        };
+        let edits = block_case_edits(&Rope::from_str(text), &block, &invert_case);
+        assert_eq!(apply(text, edits), "aSSc\nxSSy\nz");
+
+        // A block left over from a longer buffer selects nothing.
+        let block = BlockSelection {
+            anchor_line: 10,
+            anchor_col: 0,
+            head_line: 12,
+            head_col: 3,
+            is_dragging: false,
+        };
+        assert!(block_case_edits(&Rope::from_str(text), &block, &invert_case).is_empty());
     }
 }

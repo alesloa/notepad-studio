@@ -3023,6 +3023,16 @@ impl Workspace {
             };
             let target = handle.path().to_path_buf();
             crate::settings::record_last_used_directory(&target);
+            let refused = this
+                .update(cx, |w, cx| {
+                    let active = w.active;
+                    w.save_target_open_elsewhere(&target, active, cx)
+                })
+                .unwrap_or(false);
+            if refused {
+                super::show_already_open_error().await;
+                return;
+            }
             let save_result = crate::rich_doc::doc::save_as_docx(&payload_owned, &target);
             let _ = this.update(cx, |w, cx| match save_result {
                 Ok(()) => {

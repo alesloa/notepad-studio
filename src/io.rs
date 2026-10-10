@@ -75,6 +75,9 @@ impl Workspace {
     /// recents submenu reflects the change immediately. A failed read does
     /// NOT pollute the MRU — recents only ever lists paths that opened OK.
     pub(crate) fn open_path(&mut self, path: PathBuf, cx: &mut Context<Self>) {
+        if self.activate_open_tab_for(&path, cx) {
+            return;
+        }
         let display = path.display().to_string();
 
         // Stat first — files larger than the streaming threshold go through
@@ -489,6 +492,16 @@ impl Workspace {
             };
             let path = handle.path().to_path_buf();
             crate::settings::record_last_used_directory(&path);
+            let refused = this
+                .update(cx, |w, cx| {
+                    let active = w.active;
+                    w.save_target_open_elsewhere(&path, active, cx)
+                })
+                .unwrap_or(false);
+            if refused {
+                crate::workspace::show_already_open_error().await;
+                return;
+            }
             this.update(cx, |w, cx| {
                 let buf = &mut w.active_tab_mut().buffer;
                 buf.file_path = Some(path.clone());
@@ -703,6 +716,11 @@ pub(crate) async fn save_tab_for_close(
 
     workspace
         .update(cx, |w, cx| {
+            if let Some(p) = new_path.as_deref() {
+                if w.open_tab_index_for(p).is_some_and(|other| other != idx) {
+                    return Err(crate::workspace::already_open_message());
+                }
+            }
             let prev = w.active;
             w.active = idx;
             let recorded = if let Some(p) = new_path {

@@ -20,6 +20,8 @@ mod macros;
 mod markdown_format;
 mod menu_bar;
 mod mouse;
+mod open_existing;
+pub(crate) use open_existing::{already_open_message, show_already_open_error};
 mod movement;
 mod plugins;
 mod render;

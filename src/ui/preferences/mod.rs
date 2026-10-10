@@ -1327,7 +1327,9 @@ fn parse_bounded_u32(id: FieldId, text: &str, fallback: u32) -> u32 {
 /// clamped to `(min, max, step)`. Non-numeric text starts from `min`.
 fn stepped_value(text: &str, delta: i64, (min, max, step): (i64, i64, i64)) -> i64 {
     let current = text.trim().parse::<i64>().unwrap_or(min);
-    (current + delta * step).clamp(min, max)
+    current
+        .saturating_add(delta.saturating_mul(step))
+        .clamp(min, max.max(min))
 }
 
 /// Find any Workspace window and run `f` against its entity + window.
@@ -2466,5 +2468,18 @@ mod tests {
             parse_bounded_u32(FieldId::CaretBlinkRateMs, "", DEFAULT_CARET_BLINK_RATE_MS),
             DEFAULT_CARET_BLINK_RATE_MS
         );
+    }
+
+    /// Stepping from a value at the edge of `i64` overflowed the addition:
+    /// a panic in debug builds, a wrap to the wrong end of the range in
+    /// release.
+    #[test]
+    fn stepping_from_an_extreme_value_saturates() {
+        let bounds = (1, 16, 1);
+        assert_eq!(stepped_value("9223372036854775807", 1, bounds), 16);
+        assert_eq!(stepped_value("-9223372036854775808", -1, bounds), 1);
+        assert_eq!(stepped_value("4", 1, bounds), 5);
+        assert_eq!(stepped_value("", 1, bounds), 2);
+        assert_eq!(stepped_value("abc", -1, bounds), 1);
     }
 }

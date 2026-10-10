@@ -9,9 +9,13 @@
 // line when no selection). An indent step is one literal `\t` if present,
 // otherwise up to `settings.tab_width` leading spaces.
 
+use std::ops::Range;
+
 use gpui::{Context, Window};
+use ropey::Rope;
 
 use crate::actions::*;
+use crate::edit_ops::util::{floor_char_boundary, split_lines_eol};
 use crate::tab::InputFocus;
 use crate::workspace::Workspace;
 
@@ -43,66 +47,19 @@ impl Workspace {
             return;
         }
         let sel = self.selection();
-        let r = sel.ordered();
-        let rope = &self.buffer().rope;
-        let total_lines = rope.len_lines();
-        if total_lines == 0 {
-            return;
-        }
-        let first = rope.byte_to_line(r.start);
-        let last_raw = rope.byte_to_line(r.end);
-        // If the selection ends exactly at a line start (and spans more than
-        // one line), the trailing line is not visually selected — exclude it.
-        let last = if r.end > r.start
-            && last_raw > first
-            && rope.line_to_byte(last_raw) == r.end
-        {
-            last_raw - 1
-        } else {
-            last_raw
-        };
-        let block_start = rope.line_to_byte(first);
-        let block_end = if last + 1 < total_lines {
-            rope.line_to_byte(last + 1)
-        } else {
-            rope.len_bytes()
-        };
-        let block_text = rope.byte_slice(block_start..block_end).to_string();
         let tab_width = crate::settings::snapshot().tab_width.max(1);
-
-        let mut new_block = String::with_capacity(block_text.len());
-        for line in block_text.split_inclusive('\n') {
-            let body = line.trim_end_matches(['\n', '\r']);
-            let term = &line[body.len()..];
-            let stripped = strip_one_indent(body, tab_width);
-            new_block.push_str(stripped);
-            new_block.push_str(term);
-        }
-        if new_block == block_text {
+        let rope = &self.buffer().rope;
+        let Some(out) = outdent_block(rope, sel.ordered(), tab_width) else {
             return;
-        }
-
-        let anchor_was = sel.anchor;
-        let head_was = sel.head;
-        let new_block_len = new_block.len();
-        let old_block_len = block_text.len();
-        let added = new_block_len as i64 - old_block_len as i64;
-
-        self.replace_byte_range(block_start..block_end, &new_block, cx);
-
-        let adjust = |off: usize| -> usize {
-            if off <= block_start {
-                off
-            } else if off >= block_end {
-                ((off as i64) + added).max(block_start as i64) as usize
-            } else {
-                let rel = off - block_start;
-                let new_end = block_start + new_block_len;
-                (block_start + rel).min(new_end)
-            }
         };
-        let new_anchor = adjust(anchor_was);
-        let new_head = adjust(head_was);
+        // Clamp first: a stale offset must not map past the new text.
+        let anchor_was = floor_char_boundary(rope, sel.anchor);
+        let head_was = floor_char_boundary(rope, sel.head);
+
+        self.replace_byte_range(out.range.clone(), &out.text, cx);
+
+        let new_anchor = out.map_offset(anchor_was);
+        let new_head = out.map_offset(head_was);
         let tab = self.active_tab_mut();
         tab.selection.anchor = new_anchor;
         tab.selection.head = new_head;
@@ -111,17 +68,151 @@ impl Workspace {
     }
 }
 
+/// The result of outdenting a block of lines: the byte range replaced, its
+/// new text, and where each line's removed indent sat so old offsets can be
+/// mapped into the new text.
+#[derive(Debug, PartialEq, Eq)]
+struct Outdent {
+    range: Range<usize>,
+    text: String,
+    /// `(old line start, bytes removed there)`, in line order.
+    cuts: Vec<(usize, usize)>,
+}
+
+impl Outdent {
+    /// Map an offset in the old text to the new one: a removed byte before it
+    /// shifts it left, and an offset inside a removed indent lands where the
+    /// indent was.
+    fn map_offset(&self, off: usize) -> usize {
+        let mut shift = 0usize;
+        for &(start, removed) in &self.cuts {
+            if start >= off {
+                break;
+            }
+            shift += (off - start).min(removed);
+        }
+        off.saturating_sub(shift)
+    }
+}
+
+/// Strip one indent step from every line `sel` touches. A selection ending
+/// at column 0 of a line leaves that line out. The selection is clamped to
+/// the rope, so a stale one can't panic. `None` when nothing changes.
+fn outdent_block(rope: &Rope, sel: Range<usize>, tab_width: usize) -> Option<Outdent> {
+    let total_lines = rope.len_lines();
+    if total_lines == 0 {
+        return None;
+    }
+    let len = rope.len_bytes();
+    let (start, end) = (sel.start.min(sel.end).min(len), sel.start.max(sel.end).min(len));
+    let first = rope.byte_to_line(start);
+    let last_raw = rope.byte_to_line(end);
+    // If the selection ends exactly at a line start (and spans more than
+    // one line), the trailing line is not visually selected — exclude it.
+    let last = if end > start && last_raw > first && rope.line_to_byte(last_raw) == end {
+        last_raw - 1
+    } else {
+        last_raw
+    };
+    let block_start = rope.line_to_byte(first);
+    let block_end = if last + 1 < total_lines {
+        rope.line_to_byte(last + 1)
+    } else {
+        len
+    };
+    let block_text = rope.get_byte_slice(block_start..block_end)?.to_string();
+
+    let mut text = String::with_capacity(block_text.len());
+    let mut cuts = Vec::new();
+    let mut line_start = block_start;
+    for (body, term) in split_lines_eol(&block_text) {
+        let stripped = strip_one_indent(body, tab_width);
+        let removed = body.len() - stripped.len();
+        if removed > 0 {
+            cuts.push((line_start, removed));
+        }
+        text.push_str(stripped);
+        text.push_str(term);
+        line_start += body.len() + term.len();
+    }
+    if cuts.is_empty() {
+        return None;
+    }
+    Some(Outdent {
+        range: block_start..block_end,
+        text,
+        cuts,
+    })
+}
+
 fn strip_one_indent(body: &str, tab_width: usize) -> &str {
     if let Some(rest) = body.strip_prefix('\t') {
         return rest;
     }
-    let mut bytes = 0;
-    for (i, c) in body.char_indices() {
-        if c == ' ' && i < tab_width {
-            bytes = i + 1;
-        } else {
-            break;
+    // Leading spaces, at most one indent step: ASCII, so the slice below is
+    // on a char boundary.
+    let spaces = body.bytes().take(tab_width).take_while(|&b| b == b' ').count();
+    body.get(spaces..).unwrap_or(body)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn outdent(text: &str, sel: Range<usize>, tab_width: usize) -> Option<String> {
+        let rope = Rope::from_str(text);
+        let out = outdent_block(&rope, sel, tab_width)?;
+        let mut s = text.to_string();
+        s.replace_range(out.range.clone(), &out.text);
+        Some(s)
+    }
+
+    #[test]
+    fn outdent_strips_one_step_per_line() {
+        assert_eq!(outdent("\t\ta\n    b\n  c", 0..13, 4).as_deref(), Some("\ta\nb\nc"));
+        assert_eq!(outdent("      a", 0..0, 4).as_deref(), Some("  a"));
+        assert_eq!(outdent("a\n  b", 0..1, 4), None);
+        // Selection ending at column 0 of line 1 leaves line 1 alone.
+        assert_eq!(outdent("  a\n  b", 0..4, 4).as_deref(), Some("a\n  b"));
+    }
+
+    #[test]
+    fn outdent_keeps_every_line_end_kind() {
+        // CR-only lines used to be one "line" to `split_inclusive('\n')`.
+        assert_eq!(outdent("  a\r  b", 0..7, 4).as_deref(), Some("a\rb"));
+        assert_eq!(outdent("\ta\r\n\tb\n\tc\r", 0..12, 4).as_deref(), Some("a\r\nb\nc\r"));
+        assert_eq!(outdent("  é\n  👨‍👩‍👧\n  🇯🇵", 0..40, 4).as_deref(), Some("é\n👨‍👩‍👧\n🇯🇵"));
+        assert_eq!(outdent("   \n", 0..4, 4).as_deref(), Some("\n"));
+    }
+
+    #[test]
+    fn outdent_clamps_stale_selection() {
+        // A selection left over from a longer buffer used to panic
+        // `byte_to_line`.
+        assert_eq!(outdent("  ab\n  cd", 10..50, 4).as_deref(), Some("  ab\ncd"));
+        assert_eq!(outdent("", 3..9, 4), None);
+    }
+
+    #[test]
+    fn outdent_maps_offsets_onto_char_boundaries() {
+        // Caret after the first `中` of "  中中" (byte 5). The old mapping kept
+        // the in-block offset, landing inside the second `中` (bytes 3..6 of
+        // "中中") once the indent was gone.
+        let text = "  中中\n  x";
+        let rope = Rope::from_str(text);
+        let out = outdent_block(&rope, 0..text.len(), 4).expect("changed");
+        assert_eq!(out.text, "中中\nx");
+        assert_eq!(out.map_offset(5), 3);
+        assert_eq!(out.map_offset(0), 0);
+        // Inside the removed indent: lands at the line start.
+        assert_eq!(out.map_offset(1), 0);
+        assert_eq!(out.map_offset(9), 7);
+        assert_eq!(out.map_offset(10), 7);
+        assert_eq!(out.map_offset(text.len()), out.text.len());
+        for off in 0..=text.len() {
+            if text.is_char_boundary(off) {
+                assert!(out.text.is_char_boundary(out.map_offset(off)), "offset {off}");
+            }
         }
     }
-    &body[bytes..]
 }

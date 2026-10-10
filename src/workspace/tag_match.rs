@@ -91,9 +91,11 @@ fn surrounding_tag_bounds(source: &str, cursor: usize) -> Option<(usize, usize, 
     // the document classifies every `<` we'd cross; whichever zone covers
     // the cursor (open or skip) tells us if there's a tag to match.
     //
-    // Cheap pre-filter: if the byte slice [..cursor].rfind('<') doesn't exist,
-    // there's no tag at all.
-    if !source[..cursor].contains('<') {
+    // Cheap pre-filter: if the bytes before the cursor hold no `<`, there's
+    // no tag at all. Byte-level so a cursor inside a multi-byte char can't
+    // slice the str off a char boundary.
+    let before = bytes.get(..cursor)?;
+    if !before.contains(&b'<') {
         return None;
     }
     // Walk forward from byte 0 building a list of (lt, gt, is_close, is_skip).
@@ -773,6 +775,51 @@ mod tests {
         // cursor between the two comments
         let got = super::find_zone_pair(src, 16);
         assert!(got.is_none());
+    }
+
+    #[test]
+    fn cursor_mid_char_does_not_panic() {
+        // `é` spans bytes 3..5; a caret byte of 4 sits inside it.
+        let src = "<a>é</a>";
+        assert!(find_tag_pair(src, 4, true).is_none());
+        assert!(super::find_attribute_ranges(src, 4).is_empty());
+        assert!(super::find_zone_pair(src, 4).is_none());
+    }
+
+    #[test]
+    fn every_cursor_on_edge_inputs_is_safe() {
+        let sources = [
+            "",
+            "<",
+            "<a",
+            "</",
+            "<!--",
+            "<![CDATA[",
+            "<?",
+            "<%",
+            "<a href=\"é\">中</a>",
+            "<p>👨‍👩‍👧<br/>🇫🇷</p>",
+            "<a>\r\n<b>\r</b>\n</a>",
+            "<a b='<'>x</A>",
+            "<x:y-z_1>é</x:y-z_1>",
+        ];
+        for src in sources {
+            for cursor in 0..=src.len() + 2 {
+                for html in [true, false] {
+                    if let Some(p) = find_tag_pair(src, cursor, html) {
+                        assert!(src.get(p.open.clone()).is_some(), "{src:?} @ {cursor}");
+                        assert!(src.get(p.close.clone()).is_some(), "{src:?} @ {cursor}");
+                    }
+                }
+                for r in super::find_attribute_ranges(src, cursor) {
+                    assert!(src.get(r).is_some(), "{src:?} @ {cursor}");
+                }
+                if let Some(p) = super::find_zone_pair(src, cursor) {
+                    assert!(src.get(p.open.clone()).is_some(), "{src:?} @ {cursor}");
+                    assert!(src.get(p.close.clone()).is_some(), "{src:?} @ {cursor}");
+                }
+            }
+        }
     }
 
     #[test]

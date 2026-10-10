@@ -55,16 +55,7 @@ pub(crate) fn autocomplete_popup(
     let text = theme.text;
     let hover = theme.toggle_active;
 
-    let visible_start = if candidates.len() <= MAX_VISIBLE_ROWS {
-        0
-    } else if selected + 1 >= MAX_VISIBLE_ROWS {
-        // Keep the selected row inside the window; bottom-anchored once we
-        // walk past the initial chunk.
-        (selected + 1).saturating_sub(MAX_VISIBLE_ROWS)
-    } else {
-        0
-    };
-    let visible_end = (visible_start + MAX_VISIBLE_ROWS).min(candidates.len());
+    let (visible_start, visible_end) = visible_window(candidates.len(), selected);
 
     let mut menu = div()
         .flex()
@@ -81,7 +72,7 @@ pub(crate) fn autocomplete_popup(
         .iter()
         .enumerate()
         .skip(visible_start)
-        .take(visible_end - visible_start)
+        .take(visible_end.saturating_sub(visible_start))
     {
         let is_selected = idx == selected;
         let row_text_color = if is_selected { theme.bg } else { text };
@@ -124,4 +115,43 @@ pub(crate) fn autocomplete_popup(
         ),
     )
     .with_priority(2)
+}
+
+/// Rows `[start, end)` of a `len`-row list to paint so `selected` stays in
+/// view: the first `MAX_VISIBLE_ROWS`, bottom-anchored on `selected` once it
+/// walks past them.
+fn visible_window(len: usize, selected: usize) -> (usize, usize) {
+    let selected = selected.min(len.saturating_sub(1));
+    let visible_start = if len <= MAX_VISIBLE_ROWS {
+        0
+    } else {
+        (selected + 1).saturating_sub(MAX_VISIBLE_ROWS)
+    };
+    let visible_end = visible_start.saturating_add(MAX_VISIBLE_ROWS).min(len);
+    (visible_start, visible_end)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{MAX_VISIBLE_ROWS, visible_window};
+
+    #[test]
+    fn window_follows_selection() {
+        assert_eq!(visible_window(0, 0), (0, 0));
+        assert_eq!(visible_window(3, 2), (0, 3));
+        assert_eq!(visible_window(50, 0), (0, MAX_VISIBLE_ROWS));
+        assert_eq!(visible_window(50, 7), (0, 8));
+        assert_eq!(visible_window(50, 8), (1, 9));
+        assert_eq!(visible_window(50, 49), (42, 50));
+    }
+
+    #[test]
+    fn selection_past_the_list_stays_in_range() {
+        // A selected index past the list used to put start past end, and
+        // `end - start` underflowed.
+        for (len, selected) in [(50, 60), (9, 100), (9, usize::MAX), (0, usize::MAX)] {
+            let (start, end) = visible_window(len, selected);
+            assert!(start <= end && end <= len, "{len} {selected} -> {start}..{end}");
+        }
+    }
 }

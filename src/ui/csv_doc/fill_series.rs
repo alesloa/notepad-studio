@@ -422,20 +422,22 @@ fn format_text_number(prefix: &str, n: i128, width: usize) -> String {
 
 fn format_numeric(n: f64, format: NumberFormat) -> String {
     let raw = if format.decimals == 0 {
-        // Round to integer when source had no decimal places.
-        let rounded = n.round();
+        // Round to integer when source had no decimal places. `{:.0}`
+        // prints every digit of the rounded value, where a cast to i64
+        // would clamp anything past 9.2e18. Adding 0.0 turns -0.0 into
+        // 0.0 so a value that rounds to zero doesn't print as "-0".
+        let rounded = n.round() + 0.0;
         if format.leading_zero_width > 0 {
             // Integer padding.
             let sign_prefix = if rounded < 0.0 { "-" } else { "" };
-            let abs = rounded.abs() as i64;
             return format!(
-                "{}{:0>width$}",
+                "{}{:0>width$.0}",
                 sign_prefix,
-                abs,
+                rounded.abs(),
                 width = format.leading_zero_width.saturating_sub(sign_prefix.len())
             );
         }
-        format!("{}", rounded as i64)
+        format!("{rounded:.0}")
     } else {
         format!("{:.*}", format.decimals, n)
     };
@@ -857,5 +859,24 @@ mod tests {
         let p = detect(&s(&["-1e308", "1.7e308"]));
         assert_eq!(project_with_source_len(&p, 2, 2, false), vec![None, None]);
         assert_eq!(project_with_source_len(&p, 2, 2, true), vec![None, None]);
+    }
+
+    #[test]
+    fn project_numeric_past_i64_keeps_digits() {
+        let p = detect(&s(&["100000000000000000000", "200000000000000000000"]));
+        assert_eq!(
+            project_with_source_len(&p, 2, 1, false),
+            some(&["300000000000000000000"])
+        );
+        let p = detect(&s(&["000000000000000000001", "100000000000000000000"]));
+        assert_eq!(
+            project_with_source_len(&p, 2, 1, false),
+            some(&["200000000000000000000"])
+        );
+        let p = detect(&s(&["-100000000000000000000", "-200000000000000000000"]));
+        assert_eq!(
+            project_with_source_len(&p, 2, 1, false),
+            some(&["-300000000000000000000"])
+        );
     }
 }

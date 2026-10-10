@@ -570,8 +570,8 @@ pub(crate) struct WrapCache {
     /// convenience so `max_scroll_top` doesn't have to .len() each call.
     pub(crate) total_rows: u32,
     /// Buffer-byte length the cache was built against. Cheap edit-detection
-    /// signal — any apply_edit invalidates anyway, but this is a backup.
-    #[allow(dead_code)]
+    /// signal — any apply_edit invalidates anyway, but this is a backup
+    /// that `EditorElement::prepaint` checks.
     pub(crate) byte_len: u32,
     pub(crate) rows: Vec<WrapRow>,
 }

@@ -114,8 +114,9 @@ impl Element for GutterElement {
         };
 
         let first_line = (scroll_top / line_height).floor() as usize;
-        let visible_count = (bounds.size.height / line_height).ceil() as usize + 1;
-        let last_line = (first_line + visible_count).min(total_lines);
+        // A zero line height saturates both casts to usize::MAX.
+        let visible_count = ((bounds.size.height / line_height).ceil() as usize).saturating_add(1);
+        let last_line = first_line.saturating_add(visible_count).min(total_lines);
 
         // Glyph geometry — small filled circle in the gutter's left margin.
         // Sized in rems so it scales with Cmd+= zoom alongside the gutter font.

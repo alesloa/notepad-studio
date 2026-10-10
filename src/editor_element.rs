@@ -152,7 +152,7 @@ fn rebuild_wrap_cache(
             rows.push(WrapRow {
                 logical_line: line_idx as u32,
                 byte_start: line_byte_start,
-                byte_end: line_byte_start + line_byte_len,
+                byte_end: line_byte_start.saturating_add(line_byte_len),
             });
             continue;
         }
@@ -162,8 +162,8 @@ fn rebuild_wrap_cache(
         for seg in segments {
             rows.push(WrapRow {
                 logical_line: line_idx as u32,
-                byte_start: line_byte_start + seg.start as u32,
-                byte_end: line_byte_start + seg.end as u32,
+                byte_start: line_byte_start.saturating_add(seg.start as u32),
+                byte_end: line_byte_start.saturating_add(seg.end as u32),
             });
         }
     }
@@ -176,6 +176,19 @@ fn rebuild_wrap_cache(
         byte_len: total_bytes,
         rows,
     }
+}
+
+/// One cached wrap row's text within its trimmed logical line, with the
+/// row's byte offset into that line. Wrap breaks sit on char boundaries
+/// when the cache is built, but a cache that outlived a change to the rope
+/// (a reload, a streamed chunk) can hold offsets past the line or inside a
+/// multi-byte char; those are clamped and snapped back to a boundary.
+fn wrap_row_text<'a>(trimmed: &'a str, line_byte_start: usize, row: &WrapRow) -> (usize, &'a str) {
+    let start = (row.byte_start as usize).saturating_sub(line_byte_start);
+    let end = (row.byte_end as usize).saturating_sub(line_byte_start);
+    let start = trimmed.floor_char_boundary(start);
+    let end = trimmed.floor_char_boundary(end).max(start);
+    (start, trimmed.get(start..end).unwrap_or(""))
 }
 
 /// One visual row prepared for paint. Same shape under both wrap modes:
@@ -217,16 +230,17 @@ impl IntoElement for EditorElement {
 /// visible line, then build the sequence of `TextRun`s the shaper expects.
 /// Gaps between highlighted spans get the default text color; spans
 /// extending past the line end clamp to it. The sum of `run.len` equals
-/// `line_len`, which is what `Window::shape_line` requires.
+/// `text.len()`, which is what `Window::shape_line` requires.
 fn build_line_runs(
     line_start: usize,
-    line_len: usize,
+    text: &str,
     spans: &[HighlightSpan],
     font: Font,
     default_color: Hsla,
     syntax: &SyntaxTheme,
 ) -> Vec<TextRun> {
     let mut runs: Vec<TextRun> = Vec::new();
+    let line_len = text.len();
     let line_end = line_start + line_len;
     let mut local_pos: usize = 0;
 
@@ -254,8 +268,16 @@ fn build_line_runs(
         if e <= s {
             continue;
         }
-        let local_s = s - line_start;
-        let local_e = e - line_start;
+        // Spans lag edits until the debounced reparse lands, so a span edge
+        // can fall inside a multi-byte char of the current text. The
+        // platform shapers slice the text at run edges (`&text[a..b]` in
+        // DirectWrite, `split_at` in CoreText) and panic there, so snap
+        // both edges back to a char boundary.
+        let local_s = text.floor_char_boundary(s - line_start);
+        let local_e = text.floor_char_boundary(e - line_start);
+        if local_e <= local_s {
+            continue;
+        }
 
         if local_s < local_pos {
             // Overlapping region — already covered by the previous run.
@@ -355,6 +377,14 @@ fn apply_url_underlines(
     *runs = out;
 }
 
+/// The rope text of one painted row, `len` bytes from `start`. `None` when
+/// the range doesn't fit the rope or splits a char, which a wrap row from a
+/// stale cache can do.
+fn row_text(rope: &ropey::Rope, start: usize, len: usize) -> Option<String> {
+    let end = start.checked_add(len)?;
+    rope.get_byte_slice(start..end).map(|s| s.to_string())
+}
+
 /// Build the per-glyph layout for the "show whitespace" overlay. Shapes the
 /// dot (`·`) and arrow (`→`) once each at file scope, then walks every
 /// visible line's text and emits one entry per space / tab. Each entry's
@@ -417,16 +447,10 @@ fn prepaint_whitespace_glyphs(
         // Pull *just this segment's* text from the rope. Under wrap-on,
         // each `EditorLineLayout` covers a sub-range of its logical line;
         // walk only those bytes so glyph-cell indices line up with the
-        // segment-level `shaped` layout. Slicing on segment boundaries is
-        // safe because wrap breaks always sit on UTF-8 char boundaries.
-        let total_bytes = buffer.rope.len_bytes();
-        if line_byte_start + line_byte_len > total_bytes {
+        // segment-level `shaped` layout.
+        let Some(segment_string) = row_text(&buffer.rope, line_byte_start, line_byte_len) else {
             continue;
-        }
-        let segment_string = buffer
-            .rope
-            .byte_slice(line_byte_start..line_byte_start + line_byte_len)
-            .to_string();
+        };
 
         let line_top = layout.bounds.top();
         let bytes = segment_string.as_bytes();
@@ -470,6 +494,28 @@ fn prepaint_whitespace_glyphs(
     }
 
     out
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum EolMark {
+    Crlf,
+    Lf,
+    Cr,
+}
+
+/// The line ending that starts at byte `end`, the first byte past a row's
+/// printable text. The wrap cache trims `\n`/`\r`, so these are the raw
+/// EOL bytes when the row ends its line. Reads bytes rather than slicing:
+/// `end + 2` lands inside the next char whenever an LF is followed by a
+/// multi-byte char, or a wrapped row ends between two CJK chars.
+fn eol_mark_at(rope: &ropey::Rope, end: usize) -> Option<EolMark> {
+    let mut bytes = rope.get_bytes_at(end)?;
+    match (bytes.next(), bytes.next()) {
+        (Some(b'\r'), Some(b'\n')) => Some(EolMark::Crlf),
+        (Some(b'\n'), _) => Some(EolMark::Lf),
+        (Some(b'\r'), _) => Some(EolMark::Cr),
+        _ => None,
+    }
 }
 
 /// Build the per-line EOL marker overlay (CRLF / LF / CR). For each visible
@@ -521,18 +567,11 @@ fn prepaint_eol_glyphs(
         if end >= total_bytes {
             continue;
         }
-        // Sniff the byte(s) immediately past the printable region. The
-        // wrap-cache trims `\n`/`\r` so end..end+2 contains the raw EOL.
-        let slice = buffer
-            .rope
-            .byte_slice(end..total_bytes.min(end + 2))
-            .to_string();
-        let bytes = slice.as_bytes();
-        let glyph = match bytes {
-            [b'\r', b'\n', ..] => &crlf,
-            [b'\n', ..] => &lf,
-            [b'\r', ..] => &cr,
-            _ => continue,
+        let glyph = match eol_mark_at(&buffer.rope, end) {
+            Some(EolMark::Crlf) => &crlf,
+            Some(EolMark::Lf) => &lf,
+            Some(EolMark::Cr) => &cr,
+            None => continue,
         };
         // Anchor the glyph just past the last printable byte's x. The
         // wrap-cache trims trailing whitespace from `line_byte_len`, so
@@ -610,18 +649,14 @@ fn prepaint_npc_glyphs(
         }
     };
 
-    let total_bytes = buffer.rope.len_bytes();
     let mut out: Vec<WhitespaceGlyph> = Vec::new();
     for layout in lines {
         if layout.line_byte_len == 0 {
             continue;
         }
-        let start = layout.line_byte_start;
-        let end = start + layout.line_byte_len;
-        if end > total_bytes {
+        let Some(text) = row_text(&buffer.rope, layout.line_byte_start, layout.line_byte_len) else {
             continue;
-        }
-        let text = buffer.rope.byte_slice(start..end).to_string();
+        };
         let line_top = layout.bounds.top();
         // Pass 1: C0 + DEL byte scan. Cheap and the common case.
         for (i, &b) in text.as_bytes().iter().enumerate() {
@@ -1001,14 +1036,24 @@ impl gpui::Element for EditorElement {
         if word_wrap {
             // Decide whether we need a (re)build outside the workspace
             // borrow so we don't hold a mutable handle longer than needed.
-            let needs_rebuild = self.workspace.read(cx).tabs[self.workspace.read(cx).active]
-                .wrap_cache
-                .as_ref()
-                .is_none_or(|c| {
+            let needs_rebuild = {
+                let w = self.workspace.read(cx);
+                let buffer = w.buffer();
+                // Edits drop the cache in `apply_edit`; the byte length
+                // catches a rope replaced without one (reload, open into
+                // the pristine tab). Not while a streamed load is still
+                // appending chunks: that would rebuild the whole cache per
+                // chunk. The first paint after the load finishes catches up.
+                let len_changed = |c: &WrapCache| {
+                    buffer.loading.is_none() && c.byte_len != buffer.rope.len_bytes() as u32
+                };
+                w.tabs[w.active].wrap_cache.as_ref().is_none_or(|c| {
                     c.viewport_width != wrap_max_width
                         || c.rem_size != rem_size
                         || c.font_family != font.family
-                });
+                        || len_changed(c)
+                })
+            };
             if needs_rebuild {
                 // Snapshot rope into a temporary so the cache builder can
                 // shape lines via the window without holding the workspace
@@ -1100,8 +1145,10 @@ impl gpui::Element for EditorElement {
         // viewport. Wrap-off mode produces exactly one entry per logical
         // line; wrap-on mode reads the cached `WrapRow`s. Both modes feed
         // the same per-row paint loop below.
+        // Float-to-int `as` saturates, so a zero line height gives
+        // usize::MAX here; keep the sums below from overflowing.
         let first_visual_row = (scroll_top / line_height).floor() as usize;
-        let visible_count = (bounds.size.height / line_height).ceil() as usize + 1;
+        let visible_count = ((bounds.size.height / line_height).ceil() as usize).saturating_add(1);
 
         let total_visual_rows = if word_wrap {
             workspace
@@ -1113,7 +1160,7 @@ impl gpui::Element for EditorElement {
         } else {
             total_lines
         };
-        let last_visual_row = (first_visual_row + visible_count).min(total_visual_rows);
+        let last_visual_row = first_visual_row.saturating_add(visible_count).min(total_visual_rows);
         let first_visual_row = first_visual_row.min(total_visual_rows.saturating_sub(1));
 
         let style_font = font.clone();
@@ -1139,27 +1186,21 @@ impl gpui::Element for EditorElement {
             for (i, row) in wrap_rows.iter().enumerate() {
                 let row_idx = first_visual_row + i;
                 let logical_line = row.logical_line as usize;
+                // A row from a cache that outlived the rope can name a line
+                // that no longer exists.
+                let Some(line_slice) = buffer.rope.get_line(logical_line) else {
+                    continue;
+                };
                 let line_byte_start = buffer.rope.line_to_byte(logical_line);
-                let line_slice = buffer.rope.line(logical_line);
                 let raw = line_slice.to_string();
                 let trimmed = raw.trim_end_matches(['\n', '\r']);
                 let full_line_byte_len = trimmed.len();
 
-                let seg_byte_start = row.byte_start as usize;
-                let seg_byte_end = row.byte_end as usize;
-                let seg_offset_in_line = seg_byte_start.saturating_sub(line_byte_start);
-                let seg_byte_len = seg_byte_end.saturating_sub(seg_byte_start);
-
-                // Slice the trimmed line down to just this row's bytes. Wrap
-                // breaks live on char boundaries (the wrap algorithm walks
-                // char_indices), so this slice is always UTF-8 valid.
-                let seg_text: &str = if seg_byte_len == 0 {
-                    ""
-                } else {
-                    let s = seg_offset_in_line;
-                    let e = (s + seg_byte_len).min(trimmed.len());
-                    &trimmed[s..e]
-                };
+                // Slice the trimmed line down to just this row's bytes.
+                let (seg_offset_in_line, seg_text) =
+                    wrap_row_text(trimmed, line_byte_start, row);
+                let seg_byte_start = line_byte_start + seg_offset_in_line;
+                let seg_byte_len = seg_text.len();
 
                 let mut runs: Vec<TextRun> = if seg_text.is_empty() {
                     Vec::new()
@@ -1169,7 +1210,7 @@ impl gpui::Element for EditorElement {
                     // wrapped sub-text.
                     build_line_runs(
                         line_byte_start + seg_offset_in_line,
-                        seg_byte_len,
+                        seg_text,
                         &buffer.highlights,
                         style_font.clone(),
                         text_color,
@@ -1223,7 +1264,7 @@ impl gpui::Element for EditorElement {
                 } else {
                     build_line_runs(
                         line_byte_start,
-                        line_byte_len,
+                        trimmed,
                         &buffer.highlights,
                         style_font.clone(),
                         text_color,
@@ -2207,5 +2248,99 @@ mod tests {
         // A zero-width or narrow character still gets a visible bar.
         let b = caret_bounds(px(10.), px(40.), px(20.), Some(px(0.)));
         assert_eq!(b.size, size(px(2.), px(2.)));
+    }
+
+    fn span(range: Range<usize>, kind: HighlightKind) -> HighlightSpan {
+        HighlightSpan { range, kind }
+    }
+
+    /// Slice `text` at every run boundary, as the platform shapers do
+    /// (`&text[a..b]` in DirectWrite, `split_at` in CoreText).
+    fn slice_like_shaper<'a>(text: &'a str, runs: &[TextRun]) -> Vec<&'a str> {
+        let mut out = Vec::new();
+        let mut at = 0;
+        for run in runs {
+            out.push(&text[at..at + run.len]);
+            at += run.len;
+        }
+        assert_eq!(at, text.len(), "runs must cover the whole line");
+        out
+    }
+
+    #[test]
+    fn stale_spans_never_split_a_char() {
+        // Spans lag edits until the debounced reparse lands: `foo` was
+        // highlighted as 0..3, then `é` was typed after `fo`.
+        let text = "fo\u{e9}o(x)";
+        let spans = [
+            span(0..3, HighlightKind::Keyword),
+            span(4..6, HighlightKind::Function),
+            span(6..40, HighlightKind::String),
+        ];
+        let theme = crate::theme::Theme::for_mode(crate::theme::ThemeMode::Dark);
+        let runs = build_line_runs(0, text, &spans, gpui::font("Zed Mono"), gpui::black(), &theme.syntax);
+        let pieces = slice_like_shaper(text, &runs);
+        assert_eq!(pieces.concat(), text);
+
+        // A comment ending in a multi-byte char, with one byte typed in
+        // front of it: the stale end lands inside the `é`.
+        let text = "// xcaf\u{e9}";
+        let spans = [span(0..8, HighlightKind::Comment)];
+        let runs = build_line_runs(0, text, &spans, gpui::font("Zed Mono"), gpui::black(), &theme.syntax);
+        assert_eq!(slice_like_shaper(text, &runs).concat(), text);
+    }
+
+    #[test]
+    fn line_runs_cover_text_on_a_mid_document_line() {
+        let text = "\u{4e2d}\u{6587} ok";
+        let spans = [span(10..14, HighlightKind::Comment), span(15..17, HighlightKind::Number)];
+        let theme = crate::theme::Theme::for_mode(crate::theme::ThemeMode::Dark);
+        let runs = build_line_runs(10, text, &spans, gpui::font("Zed Mono"), gpui::black(), &theme.syntax);
+        assert_eq!(slice_like_shaper(text, &runs).concat(), text);
+    }
+
+    #[test]
+    fn eol_mark_reads_bytes_without_splitting_chars() {
+        // LF followed by a multi-byte char: `end..end + 2` splits `中`.
+        let rope = ropey::Rope::from_str("abc\n\u{4e2d}");
+        assert_eq!(eol_mark_at(&rope, 3), Some(EolMark::Lf));
+        // A wrapped row that ends between two CJK chars.
+        let rope = ropey::Rope::from_str("\u{4e2d}\u{6587}");
+        assert_eq!(eol_mark_at(&rope, 3), None);
+        let rope = ropey::Rope::from_str("a\r\nb");
+        assert_eq!(eol_mark_at(&rope, 1), Some(EolMark::Crlf));
+        let rope = ropey::Rope::from_str("a\rb");
+        assert_eq!(eol_mark_at(&rope, 1), Some(EolMark::Cr));
+        assert_eq!(eol_mark_at(&rope, 3), None);
+        assert_eq!(eol_mark_at(&rope, 99), None);
+    }
+
+    #[test]
+    fn row_text_rejects_ranges_that_split_a_char() {
+        let rope = ropey::Rope::from_str("a\u{4e2d}b");
+        assert_eq!(row_text(&rope, 0, 4).as_deref(), Some("a\u{4e2d}"));
+        assert_eq!(row_text(&rope, 0, 2), None);
+        assert_eq!(row_text(&rope, 2, 1), None);
+        assert_eq!(row_text(&rope, 3, 9), None);
+        assert_eq!(row_text(&rope, usize::MAX, 2), None);
+    }
+
+    #[test]
+    fn stale_wrap_rows_slice_on_char_boundaries() {
+        let row = |start: u32, end: u32| WrapRow {
+            logical_line: 0,
+            byte_start: start,
+            byte_end: end,
+        };
+        // Row cached for "ab" (0..2); the line is now "a\u{e9}".
+        assert_eq!(wrap_row_text("a\u{e9}", 0, &row(0, 2)), (0, "a"));
+        // Row starts inside the `é`.
+        assert_eq!(wrap_row_text("a\u{e9}z", 0, &row(2, 4)), (1, "\u{e9}z"));
+        // Row past the end of a line that got shorter.
+        assert_eq!(wrap_row_text("ab", 10, &row(20, 25)), (2, ""));
+        // Row from before the line start (lines above shrank).
+        assert_eq!(wrap_row_text("abc", 10, &row(5, 12)), (0, "ab"));
+        // Valid row is untouched.
+        assert_eq!(wrap_row_text("\u{4e2d}\u{6587}x", 7, &row(10, 14)), (3, "\u{6587}x"));
     }
 }

@@ -587,6 +587,7 @@ impl Workspace {
                 self.tabs[idx].selection = crate::buffer::Selection::default();
                 self.tabs[idx].undo_stack.clear();
                 self.tabs[idx].redo_stack.clear();
+                self.tabs[idx].wrap_cache = None;
                 self.tabs[idx].scroll_top = gpui::px(0.);
                 self.tabs[idx].scroll_left = gpui::px(0.);
                 self.set_status(format!("Reloaded {}", path.display()));

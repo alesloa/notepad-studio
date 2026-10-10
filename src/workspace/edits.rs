@@ -4128,6 +4128,15 @@ fn input_field_replace(target: &mut String, cursor: &mut usize, anchor: &mut usi
     *anchor = *cursor;
 }
 
+/// Rope twin of [`floor_char_boundary_in`]: clamp `byte` to the buffer and
+/// move it back to the start of the char it falls in. Every ropey call that
+/// takes a byte offset (`byte_slice`, `byte_to_line`, `byte_to_char`) is
+/// safe on the result.
+pub(crate) fn floor_rope_char_boundary(rope: &ropey::Rope, byte: usize) -> usize {
+    let b = byte.min(rope.len_bytes());
+    rope.char_to_byte(rope.byte_to_char(b))
+}
+
 /// Walk a `&str` left-to-right looking for the previous word boundary, mirror
 /// of `Workspace::prev_word_boundary` on a single-line input. Whitespace before
 /// the cursor is skipped, then the run of word characters is consumed; the

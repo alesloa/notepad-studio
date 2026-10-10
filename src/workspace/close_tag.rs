@@ -113,6 +113,21 @@ pub(crate) fn find_unclosed_tag(source: &str, html: bool) -> Option<String> {
     stack.pop()
 }
 
+/// `/` is about to be typed at byte `cursor`. When the char right before the
+/// caret is `<`, return the innermost tag still open before that `<`, so the
+/// caller can complete `</name>`. Scans the whole prefix, as Notepad++ does.
+pub(crate) fn close_tag_for_slash(rope: &ropey::Rope, cursor: usize, html: bool) -> Option<String> {
+    let cursor = super::edits::floor_rope_char_boundary(rope, cursor);
+    let char_idx = rope.byte_to_char(cursor);
+    let prev_idx = char_idx.checked_sub(1)?;
+    if rope.get_char(prev_idx)? != '<' {
+        return None;
+    }
+    let prev_char_start = rope.char_to_byte(prev_idx);
+    let prefix: String = rope.byte_slice(..prev_char_start).to_string();
+    find_unclosed_tag(&prefix, html)
+}
+
 fn scan_tag_name_end(bytes: &[u8], start: usize) -> usize {
     let mut i = start;
     while i < bytes.len() {
@@ -307,5 +322,56 @@ mod tests {
     #[test]
     fn no_tags_returns_none() {
         assert_eq!(find_unclosed_tag("just some prose with < and > in it", true), None);
+    }
+
+    #[test]
+    fn edge_inputs_never_panic() {
+        let sources = [
+            "", "<", "</", "<!", "<?", "<!--", "<![CDATA[", "<a", "<a b='", "<a\r\n<b>\r",
+            "<é>中</é><p>", "<p>👨‍👩‍👧<br>🇫🇷", "<a/><b></b", "<<<>>>", "</a></b></c>",
+        ];
+        for src in sources {
+            for html in [true, false] {
+                let _ = find_unclosed_tag(src, html);
+            }
+        }
+    }
+
+    #[test]
+    fn deep_nesting_is_linear_not_recursive() {
+        let src = "<d>".repeat(100_000);
+        assert_eq!(find_unclosed_tag(&src, true), Some("d".into()));
+    }
+
+    use super::close_tag_for_slash;
+    use ropey::Rope;
+
+    #[test]
+    fn slash_after_angle_completes_innermost_tag() {
+        let rope = Rope::from_str("<div><span>x<");
+        assert_eq!(close_tag_for_slash(&rope, rope.len_bytes(), true), Some("span".into()));
+        let rope = Rope::from_str("<root>\r\n  <");
+        assert_eq!(close_tag_for_slash(&rope, rope.len_bytes(), false), Some("root".into()));
+    }
+
+    #[test]
+    fn slash_without_angle_before_caret_is_none() {
+        let rope = Rope::from_str("<div>x");
+        assert_eq!(close_tag_for_slash(&rope, rope.len_bytes(), true), None);
+        assert_eq!(close_tag_for_slash(&Rope::new(), 0, true), None);
+        assert_eq!(close_tag_for_slash(&rope, 0, true), None);
+    }
+
+    #[test]
+    fn slash_with_caret_past_end_or_mid_char_does_not_panic() {
+        // A caret past EOF used to hit `byte_to_char` out of bounds; a caret
+        // inside `é` used to end `byte_slice` off a char boundary.
+        let rope = Rope::from_str("<p>é<");
+        assert_eq!(close_tag_for_slash(&rope, 99, true), Some("p".into()));
+        assert_eq!(close_tag_for_slash(&rope, 4, true), None);
+        let rope = Rope::from_str("<p><👍");
+        for cursor in 0..=rope.len_bytes() + 2 {
+            let _ = close_tag_for_slash(&rope, cursor, true);
+        }
     }
 }

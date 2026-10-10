@@ -11,10 +11,36 @@ use gpui::{
 use crate::settings::{self, Settings};
 use crate::tab::InputFocus;
 use crate::text::utf16::{
-    input_selection_range_utf16, replace_input_utf16, rope_byte_to_utf16, rope_utf16_to_byte,
-    slice_str_chars_utf16,
+    input_selection_range_utf16, rope_byte_to_utf16, rope_utf16_to_byte, slice_str_chars_utf16,
 };
 use crate::workspace::Workspace;
+
+/// IME / typed text into one of the String-backed inputs. Wraps
+/// [`crate::text::utf16::replace_input_utf16`], first pulling the stored
+/// cursor and anchor onto char starts inside `target`: several openers
+/// (Ctrl+F prefill, Go To reopen) replace the text but leave the anchor
+/// stale, and the wrapped helper slices at those offsets.
+fn replace_input_utf16(
+    target: &mut String,
+    cursor_field: &mut usize,
+    anchor_field: &mut usize,
+    byte_cursor: usize,
+    byte_anchor: usize,
+    range_utf16: Option<Range<usize>>,
+    new_text: &str,
+) {
+    let byte_cursor = super::edits::floor_char_boundary_in(target, byte_cursor);
+    let byte_anchor = super::edits::floor_char_boundary_in(target, byte_anchor);
+    crate::text::utf16::replace_input_utf16(
+        target,
+        cursor_field,
+        anchor_field,
+        byte_cursor,
+        byte_anchor,
+        range_utf16,
+        new_text,
+    );
+}
 
 /// NPP `Auto-Completion ▸ Auto-Insert` — what the matched-pair hook should do
 /// in response to a single typed character. `None` means "fall through to the
@@ -111,6 +137,42 @@ fn single_char(s: &str) -> Option<char> {
         return None;
     }
     Some(first)
+}
+
+/// The char starting at byte `cursor`, or `None` at the end of the buffer.
+/// Feeds the auto-pair skip-over check.
+fn char_at_byte(rope: &ropey::Rope, cursor: usize) -> Option<char> {
+    let cursor = super::edits::floor_rope_char_boundary(rope, cursor);
+    rope.get_char(rope.byte_to_char(cursor))
+}
+
+/// Byte range for a UTF-16 range the OS handed to `replace_text_in_range`.
+/// The OS can send offsets past the end, a reversed range, or one that
+/// splits a surrogate pair; the result is clamped, ordered and on char
+/// boundaries either way.
+fn utf16_range_to_bytes(rope: &ropey::Rope, range_utf16: Range<usize>) -> Range<usize> {
+    let a = super::edits::floor_rope_char_boundary(rope, rope_utf16_to_byte(rope, range_utf16.start));
+    let b = super::edits::floor_rope_char_boundary(rope, rope_utf16_to_byte(rope, range_utf16.end));
+    a.min(b)..a.max(b)
+}
+
+/// Line-local byte span of `byte_start..byte_end` on a laid-out line that
+/// starts at `line_start` and is `line_len` bytes long, or `None` when the
+/// range doesn't start on this line. Drives the IME candidate-window rect.
+fn local_span_on_line(
+    line_start: usize,
+    line_len: usize,
+    byte_start: usize,
+    byte_end: usize,
+) -> Option<(usize, usize)> {
+    let (byte_start, byte_end) = (byte_start.min(byte_end), byte_start.max(byte_end));
+    let line_end = line_start.saturating_add(line_len);
+    if byte_start >= line_start && byte_start <= line_end {
+        let local_start = byte_start - line_start;
+        let local_end = (byte_end - line_start).min(line_len);
+        return Some((local_start, local_end));
+    }
+    None
 }
 
 /// NPP-style C0-control bytes blocked when `prevent_c0_input` is on:
@@ -323,6 +385,84 @@ mod tests {
         assert_eq!(single_char("a"), Some('a'));
         assert_eq!(single_char("ab"), None);
         assert_eq!(single_char("漢"), Some('漢'));
+    }
+
+    // --- Offset hardening for OS / IME supplied positions ------------------
+
+    use super::{char_at_byte, local_span_on_line, utf16_range_to_bytes};
+    use ropey::Rope;
+
+    fn on_char_boundary(rope: &Rope, b: usize) -> bool {
+        b <= rope.len_bytes() && rope.char_to_byte(rope.byte_to_char(b)) == b
+    }
+
+    #[test]
+    fn char_at_byte_handles_eof_and_mid_char() {
+        let rope = Rope::from_str("aé");
+        assert_eq!(char_at_byte(&rope, 0), Some('a'));
+        assert_eq!(char_at_byte(&rope, 1), Some('é'));
+        assert_eq!(char_at_byte(&rope, 3), None);
+        // Mid-char and past-EOF carets used to panic in `byte_slice`.
+        assert_eq!(char_at_byte(&rope, 2), Some('é'));
+        assert_eq!(char_at_byte(&rope, 99), None);
+        assert_eq!(char_at_byte(&Rope::new(), 0), None);
+    }
+
+    #[test]
+    fn utf16_ranges_from_the_os_are_clamped_and_ordered() {
+        // a(1 unit) 👍(2 units, a surrogate pair) b(1 unit) \r\n 中
+        let rope = Rope::from_str("a👍b\r\n中");
+        let units = 1 + 2 + 1 + 2 + 1;
+        for start in 0..=units + 3 {
+            for end in 0..=units + 3 {
+                let r = utf16_range_to_bytes(&rope, start..end);
+                assert!(r.start <= r.end, "{start}..{end} -> {r:?}");
+                assert!(on_char_boundary(&rope, r.start), "{start}..{end} -> {r:?}");
+                assert!(on_char_boundary(&rope, r.end), "{start}..{end} -> {r:?}");
+            }
+        }
+        // A range that splits the surrogate pair rounds out to whole chars.
+        assert_eq!(utf16_range_to_bytes(&rope, 2..2), 5..5);
+        // Reversed ranges are reordered rather than turned into a pure insert.
+        assert_eq!(utf16_range_to_bytes(&rope, 4..1), 1..6);
+        assert_eq!(utf16_range_to_bytes(&rope, 50..60), 11..11);
+    }
+
+    #[test]
+    fn ime_bounds_span_handles_reversed_and_overlong_ranges() {
+        assert_eq!(local_span_on_line(10, 5, 12, 14), Some((2, 4)));
+        assert_eq!(local_span_on_line(10, 5, 12, 99), Some((2, 5)));
+        assert_eq!(local_span_on_line(10, 5, 3, 4), None);
+        // byte_end before the line start used to underflow.
+        assert_eq!(local_span_on_line(10, 5, 12, 8), None);
+        assert_eq!(local_span_on_line(0, 9, 12, 8), Some((8, 9)));
+        assert_eq!(local_span_on_line(usize::MAX - 1, 5, usize::MAX, usize::MAX), Some((1, 1)));
+    }
+
+    use super::replace_input_utf16;
+
+    #[test]
+    fn input_ime_replace_with_stale_carets_does_not_panic() {
+        // Ctrl+F prefill sets the query to "é" and the cursor to 2 but
+        // leaves the anchor at 1, inside the char.
+        let (mut t, mut c, mut a) = (String::from("é"), 2usize, 1usize);
+        replace_input_utf16(&mut t, &mut c, &mut a, 2, 1, None, "x");
+        assert!(t.is_char_boundary(c) && c == a && c <= t.len(), "{t:?} {c}");
+
+        for base in ["", "abc", "é", "中文", "a👍b", "👨‍👩‍👧", "🇫🇷"] {
+            for cur in 0..=base.len() + 2 {
+                for anc in 0..=base.len() + 2 {
+                    for range in [None, Some(0..1), Some(3..1), Some(1..99)] {
+                        let (mut t, mut c, mut a) = (base.to_string(), cur, anc);
+                        replace_input_utf16(&mut t, &mut c, &mut a, cur, anc, range.clone(), "é");
+                        assert!(
+                            c <= t.len() && t.is_char_boundary(c) && c == a,
+                            "{base:?} cur={cur} anc={anc} {range:?} -> {t:?} {c}"
+                        );
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -1008,58 +1148,39 @@ impl EntityInputHandler for Workspace {
                             | Some(crate::syntax::LanguageId::Xml)
                     );
                     if is_html_or_xml {
-                        let cursor = self.selection().head;
-                        let rope = &self.buffer().rope;
-                        let prev_char_start = if cursor > 0 {
-                            let char_idx = rope.byte_to_char(cursor);
-                            if char_idx > 0 {
-                                Some(rope.char_to_byte(char_idx - 1))
-                            } else {
-                                None
-                            }
-                        } else {
-                            None
-                        };
-                        let prev_is_open_angle = prev_char_start.is_some_and(|p| {
-                            rope.byte_slice(p..cursor).chars().next() == Some('<')
-                        });
-                        if prev_is_open_angle {
-                            // Build source = bytes up to (but not including)
-                            // the `<` that precedes the caret. Scanning the
-                            // whole prefix matches NPP's "find the nearest
-                            // unclosed tag at this point in the document"
-                            // behavior — no heuristic backwards cap.
-                            let scan_end = prev_char_start.expect("checked above");
-                            let prefix: String =
-                                rope.byte_slice(0..scan_end).to_string();
-                            let html_mode = matches!(
-                                lang,
-                                Some(crate::syntax::LanguageId::Html)
+                        let cursor = super::edits::floor_rope_char_boundary(
+                            &self.buffer().rope,
+                            self.selection().head,
+                        );
+                        let html_mode = matches!(
+                            lang,
+                            Some(crate::syntax::LanguageId::Html)
+                        );
+                        if let Some(tag) = super::close_tag::close_tag_for_slash(
+                            &self.buffer().rope,
+                            cursor,
+                            html_mode,
+                        ) {
+                            // Insert `/tag>` at the caret, then place the
+                            // caret right after the closing `>` so the
+                            // user can keep typing.
+                            let payload = format!("/{tag}>");
+                            crate::macros::record(
+                                crate::macros::MacroEvent::InsertText(payload.clone()),
                             );
-                            if let Some(tag) =
-                                super::close_tag::find_unclosed_tag(&prefix, html_mode)
+                            // Only the typed `/` overtypes; Notepad++
+                            // inserts the tag name after it.
+                            let end = self.overtype_end(cursor, "/");
+                            self.replace_byte_range(cursor..end, &payload, cx);
+                            if self.find_state.open
+                                && !self.find_state.query.is_empty()
                             {
-                                // Insert `/tag>` at the caret, then place the
-                                // caret right after the closing `>` so the
-                                // user can keep typing.
-                                let payload = format!("/{tag}>");
-                                crate::macros::record(
-                                    crate::macros::MacroEvent::InsertText(payload.clone()),
-                                );
-                                // Only the typed `/` overtypes; Notepad++
-                                // inserts the tag name after it.
-                                let end = self.overtype_end(cursor, "/");
-                                self.replace_byte_range(cursor..end, &payload, cx);
-                                if self.find_state.open
-                                    && !self.find_state.query.is_empty()
-                                {
-                                    self.refresh_matches();
-                                }
-                                self.smart_match_word = None;
-                                self.refresh_smart_highlight();
-                                cx.notify();
-                                return;
+                                self.refresh_matches();
                             }
+                            self.smart_match_word = None;
+                            self.refresh_smart_highlight();
+                            cx.notify();
+                            return;
                         }
                     }
                 }
@@ -1078,13 +1199,9 @@ impl EntityInputHandler for Workspace {
                 if let Some(typed) = typed_for_pair {
                     let snap = settings::snapshot();
                     let sel = self.selection();
-                    let cursor = sel.head;
-                    let next_char = self
-                        .buffer()
-                        .rope
-                        .byte_slice(cursor..self.buffer().rope.len_bytes())
-                        .chars()
-                        .next();
+                    let cursor =
+                        super::edits::floor_rope_char_boundary(&self.buffer().rope, sel.head);
+                    let next_char = char_at_byte(&self.buffer().rope, cursor);
                     match compute_auto_pair_action(typed, sel.is_empty(), next_char, &snap) {
                         AutoPairAction::SkipOver => {
                             let advance = typed.len_utf8();
@@ -1116,7 +1233,12 @@ impl EntityInputHandler for Workspace {
                             return;
                         }
                         AutoPairAction::WrapSelection { open, close } => {
-                            let range = sel.ordered();
+                            let range = {
+                                let rope = &self.buffer().rope;
+                                let r = sel.ordered();
+                                super::edits::floor_rope_char_boundary(rope, r.start)
+                                    ..super::edits::floor_rope_char_boundary(rope, r.end)
+                            };
                             let selected: String = self
                                 .buffer()
                                 .rope
@@ -1215,8 +1337,7 @@ impl EntityInputHandler for Workspace {
                     && self.selection().is_empty()
                     && !self.has_block_selection();
                 let mut byte_range = if let Some(ru) = range_utf16 {
-                    let rope = &self.buffer().rope;
-                    rope_utf16_to_byte(rope, ru.start)..rope_utf16_to_byte(rope, ru.end)
+                    utf16_range_to_bytes(&self.buffer().rope, ru)
                 } else {
                     self.selection().ordered()
                 };
@@ -1277,10 +1398,12 @@ impl EntityInputHandler for Workspace {
         let byte_start = rope_utf16_to_byte(rope, range_utf16.start);
         let byte_end = rope_utf16_to_byte(rope, range_utf16.end);
         for line in &self.last_lines {
-            let line_end = line.line_byte_start + line.line_byte_len;
-            if byte_start >= line.line_byte_start && byte_start <= line_end {
-                let local_start = byte_start - line.line_byte_start;
-                let local_end = (byte_end - line.line_byte_start).min(line.line_byte_len);
+            if let Some((local_start, local_end)) = local_span_on_line(
+                line.line_byte_start,
+                line.line_byte_len,
+                byte_start,
+                byte_end,
+            ) {
                 let x_start = line.bounds.left() + line.shaped.x_for_index(local_start);
                 let x_end = line.bounds.left() + line.shaped.x_for_index(local_end);
                 return Some(Bounds::from_corners(

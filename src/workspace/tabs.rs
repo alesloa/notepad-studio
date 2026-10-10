@@ -69,19 +69,29 @@ impl Workspace {
             return;
         }
 
+        // The prompt is not modal: tabs can close or move while it is up, so
+        // `idx` goes stale across the await. Re-find the tab by its id.
+        let id = self.tabs[idx].session_id;
         let name = self.tabs[idx].buffer.display_short_name().to_string();
         cx.spawn_in(window, async move |this, cx| {
             let decision = show_dirty_close_dialog(name).await;
             match decision {
                 CloseDecision::Cancel => {}
                 CloseDecision::DontSave => {
-                    this.update_in(cx, |w, window, cx| w.finish_close(idx, window, cx))
+                    this.update_in(cx, |w, window, cx| w.finish_close_id(id, window, cx))
                         .ok();
                 }
                 CloseDecision::Save => {
+                    let Some(idx) = this
+                        .update(cx, |w, _| tab_index_of(&w.tabs, id))
+                        .ok()
+                        .flatten()
+                    else {
+                        return;
+                    };
                     let saved = save_tab_for_close(&this, cx, idx).await;
                     this.update_in(cx, |w, window, cx| match saved {
-                        Ok(()) => w.finish_close(idx, window, cx),
+                        Ok(()) => w.finish_close_id(id, window, cx),
                         Err(err) => {
                             w.set_status(format!("Save failed, keeping tab open: {err}"));
                             cx.notify();
@@ -94,12 +104,23 @@ impl Workspace {
         .detach();
     }
 
+    /// `finish_close` for the tab whose `session_id` is `id`. A no-op when
+    /// that tab is already gone (closed while the dirty prompt was up).
+    fn finish_close_id(&mut self, id: Uuid, window: &mut Window, cx: &mut Context<Self>) {
+        if let Some(idx) = tab_index_of(&self.tabs, id) {
+            self.finish_close(idx, window, cx);
+        }
+    }
+
     /// Remove the tab at `idx`, push it onto the closed-tab stack, and adjust
     /// the active-tab index. Closes the window if the last tab is gone, or —
     /// when NPP `Exit on close the last tab` is unset — replaces the last tab
     /// with a fresh blank one so the window stays open.
     /// Caller has already settled any dirty-prompt save flow before calling.
     fn finish_close(&mut self, idx: usize, window: &mut Window, cx: &mut Context<Self>) {
+        if idx >= self.tabs.len() {
+            return;
+        }
         let removed = self.tabs.remove(idx);
         self.remember_closed(removed);
         self.settle_after_tab_removal(idx, window, cx);
@@ -133,11 +154,7 @@ impl Workspace {
             }
         }
 
-        if idx < self.active {
-            self.active -= 1;
-        } else if self.active >= self.tabs.len() {
-            self.active = self.tabs.len() - 1;
-        }
+        self.active = active_after_removal(self.active, idx, self.tabs.len());
         self.touch_mru();
         self.last_lines.clear();
         self.caret_visible = true;
@@ -185,20 +202,20 @@ impl Workspace {
             // ones we still have to handle. Cancel at any tab aborts the
             // entire batch — tabs already removed stay removed (matches
             // Notepad++).
+            // The prompt is not modal, so the strip can change while it is
+            // up: each tab is tracked by `session_id`, never by a captured
+            // index, and `active` is re-settled after every removal so a
+            // render during the next prompt (or after Cancel) stays in range.
             loop {
                 let next = this
                     .update(cx, |w, _| {
-                        if w.tabs.is_empty() {
-                            return None;
-                        }
-                        let idx = w.tabs.len() - 1;
-                        let dirty = w.tabs[idx].buffer.dirty;
-                        let name = w.tabs[idx].buffer.display_short_name().to_string();
-                        Some((idx, dirty, name))
+                        let tab = w.tabs.last()?;
+                        let name = tab.buffer.display_short_name().to_string();
+                        Some((tab.session_id, tab.buffer.dirty, name))
                     })
                     .ok()
                     .flatten();
-                let Some((idx, dirty, name)) = next else { break };
+                let Some((id, dirty, name)) = next else { break };
 
                 if dirty {
                     match show_dirty_close_dialog(name).await {
@@ -212,6 +229,13 @@ impl Workspace {
                         }
                         CloseDecision::DontSave => {}
                         CloseDecision::Save => {
+                            let Some(idx) = this
+                                .update(cx, |w, _| tab_index_of(&w.tabs, id))
+                                .ok()
+                                .flatten()
+                            else {
+                                continue;
+                            };
                             if let Err(err) = save_tab_for_close(&this, cx, idx).await {
                                 this.update(cx, |w, cx| {
                                     w.set_status(format!(
@@ -227,12 +251,15 @@ impl Workspace {
                 }
 
                 let last = this
-                    .update(cx, |w, _| {
-                        if idx >= w.tabs.len() {
-                            return true;
-                        }
+                    .update(cx, |w, cx| {
+                        let Some(idx) = tab_index_of(&w.tabs, id) else {
+                            return w.tabs.is_empty();
+                        };
                         let removed = w.tabs.remove(idx);
                         w.remember_closed(removed);
+                        w.active = active_after_removal(w.active, idx, w.tabs.len());
+                        w.last_lines.clear();
+                        cx.notify();
                         w.tabs.is_empty()
                     })
                     .unwrap_or(true);
@@ -281,14 +308,13 @@ impl Workspace {
             for id in targets.into_iter().rev() {
                 let next = this
                     .update(cx, |w, _| {
-                        let idx = w.tabs.iter().position(|t| t.session_id == id)?;
-                        let dirty = w.tabs[idx].buffer.dirty;
-                        let name = w.tabs[idx].buffer.display_short_name().to_string();
-                        Some((idx, dirty, name))
+                        let tab = w.tabs.get(tab_index_of(&w.tabs, id)?)?;
+                        let name = tab.buffer.display_short_name().to_string();
+                        Some((tab.buffer.dirty, name))
                     })
                     .ok()
                     .flatten();
-                let Some((idx, dirty, name)) = next else { continue };
+                let Some((dirty, name)) = next else { continue };
 
                 if dirty {
                     match show_dirty_close_dialog(name).await {
@@ -302,6 +328,15 @@ impl Workspace {
                         }
                         CloseDecision::DontSave => {}
                         CloseDecision::Save => {
+                            // Re-find the tab: the strip may have changed
+                            // while the (non-modal) prompt was up.
+                            let Some(idx) = this
+                                .update(cx, |w, _| tab_index_of(&w.tabs, id))
+                                .ok()
+                                .flatten()
+                            else {
+                                continue;
+                            };
                             if let Err(err) = save_tab_for_close(&this, cx, idx).await {
                                 this.update(cx, |w, cx| {
                                     w.set_status(format!("Close aborted — save failed: {err}"));
@@ -314,17 +349,15 @@ impl Workspace {
                     }
                 }
 
-                this.update(cx, |w, _| {
-                    let Some(idx) = w.tabs.iter().position(|t| t.session_id == id) else {
+                this.update(cx, |w, cx| {
+                    let Some(idx) = tab_index_of(&w.tabs, id) else {
                         return;
                     };
                     let removed = w.tabs.remove(idx);
                     w.remember_closed(removed);
-                    if idx < w.active {
-                        w.active = w.active.saturating_sub(1);
-                    } else if w.active >= w.tabs.len() {
-                        w.active = w.tabs.len().saturating_sub(1);
-                    }
+                    w.active = active_after_removal(w.active, idx, w.tabs.len());
+                    w.last_lines.clear();
+                    cx.notify();
                 })
                 .ok();
             }
@@ -658,11 +691,7 @@ impl Workspace {
                     window.remove_window();
                     return;
                 }
-                if idx < self.active {
-                    self.active = self.active.saturating_sub(1);
-                } else if self.active >= self.tabs.len() {
-                    self.active = self.tabs.len() - 1;
-                }
+                self.active = active_after_removal(self.active, idx, self.tabs.len());
                 self.touch_mru();
                 self.last_lines.clear();
                 self.caret_visible = true;
@@ -904,5 +933,65 @@ impl Workspace {
         self.caret_visible = true;
         self.save_session();
         cx.notify();
+    }
+}
+
+/// Position of the tab whose `session_id` is `id`, if it is still open.
+fn tab_index_of(tabs: &[Tab], id: Uuid) -> Option<usize> {
+    tabs.iter().position(|t| t.session_id == id)
+}
+
+/// Active-tab index after the tab at `removed` has been taken out of a strip
+/// that now holds `len` tabs. The same buffer stays active when it is still
+/// open; otherwise its right neighbour (or the new last tab) takes over.
+/// Returns 0 for an empty strip; callers refill or close the window then.
+pub(crate) fn active_after_removal(active: usize, removed: usize, len: usize) -> usize {
+    let shifted = if removed < active { active - 1 } else { active };
+    shifted.min(len.saturating_sub(1))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::active_after_removal;
+
+    /// Replays the Close All loop (rightmost tab first) and checks after
+    /// every removal that `active` still indexes a tab, which is what render
+    /// does while the next dirty prompt is up.
+    #[test]
+    fn close_all_keeps_active_in_range_after_each_removal() {
+        for len in 1..6usize {
+            for start_active in 0..len {
+                let mut tabs: Vec<usize> = (0..len).collect();
+                let mut active = start_active;
+                let want = tabs[active];
+                while let Some(idx) = tabs.len().checked_sub(1) {
+                    tabs.remove(idx);
+                    active = active_after_removal(active, idx, tabs.len());
+                    if tabs.is_empty() {
+                        break;
+                    }
+                    assert!(active < tabs.len(), "len {len} active {start_active}");
+                    if want < tabs.len() {
+                        assert_eq!(tabs[active], want, "active buffer changed");
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn active_follows_its_buffer_or_neighbour() {
+        // [A, B, C], active C, close A -> C now at 1.
+        assert_eq!(active_after_removal(2, 0, 2), 1);
+        // active B, close B -> C slides into slot 1.
+        assert_eq!(active_after_removal(1, 1, 2), 1);
+        // active C, close C -> B.
+        assert_eq!(active_after_removal(2, 2, 2), 1);
+        // active A, close C -> A.
+        assert_eq!(active_after_removal(0, 2, 2), 0);
+        // last tab closed.
+        assert_eq!(active_after_removal(0, 0, 0), 0);
+        // stale active beyond the strip is pulled back in.
+        assert_eq!(active_after_removal(7, 5, 3), 2);
     }
 }

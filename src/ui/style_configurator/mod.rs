@@ -283,8 +283,7 @@ impl StyleConfiguratorDialog {
                 return Err(format!("failed to create {parent:?}: {err}"));
             }
         }
-        let xml = xml_save::write(&self.state.document);
-        if let Err(err) = std::fs::write(&target, xml) {
+        if let Err(err) = xml_save::write_to(&target, &self.state.document) {
             return Err(format!("write {target:?} failed: {err}"));
         }
 

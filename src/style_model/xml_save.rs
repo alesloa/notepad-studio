@@ -16,11 +16,18 @@
 // `parse → write → parse` for semantic equality (not byte-for-byte).
 
 use std::fmt::Write as _;
+use std::path::Path;
 
 use super::keyword_class::KeywordClass;
 use super::lexer::{LexerStyler, LexerStylerArray};
 use super::style::{format_hex_rgb, ColourFlags, Style, STYLE_NOT_USED};
 use super::xml_load::ThemeDocument;
+
+/// Save `doc` to `path`. Atomic: a full disk or a crash mid-write leaves
+/// the theme that was there whole, where a plain write would truncate it.
+pub fn write_to(path: &Path, doc: &ThemeDocument) -> std::io::Result<()> {
+    crate::persist::atomic_write(path, write(doc).as_bytes())
+}
 
 /// Serialise a complete theme document to XML.
 pub fn write(doc: &ThemeDocument) -> String {
@@ -196,8 +203,32 @@ fn push_xml_escaped(out: &mut String, s: &str) {
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::persist::TempDir;
     use crate::style_model::xml_load::parse;
     use crate::style_model::Style;
+
+    #[test]
+    fn saved_theme_reloads() {
+        let dir = TempDir::new("theme-save");
+        let p = dir.join("Mine.xml");
+        let Ok(doc) = parse(MINIMAL) else {
+            panic!("fixture parses");
+        };
+        assert!(write_to(&p, &doc).is_ok());
+        let back = std::fs::read_to_string(&p).ok().and_then(|x| parse(&x).ok());
+        assert_eq!(back, Some(doc));
+    }
+
+    #[test]
+    fn failed_theme_save_keeps_the_old_theme() {
+        let dir = TempDir::new("theme-save-fail");
+        let p = dir.join("Mine.xml");
+        assert!(std::fs::write(&p, MINIMAL).is_ok());
+        // A directory squatting on the temp name makes the write fail.
+        assert!(std::fs::create_dir(dir.join("Mine.xml.tmp")).is_ok());
+        assert!(write_to(&p, &ThemeDocument::default()).is_err());
+        assert_eq!(std::fs::read_to_string(&p).ok().as_deref(), Some(MINIMAL));
+    }
 
     const MINIMAL: &str = r#"<?xml version="1.0" encoding="UTF-8" ?>
 <NotepadPlus>

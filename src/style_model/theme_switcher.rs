@@ -78,10 +78,13 @@ pub fn discover_with(
         if user_names.iter().any(|n| n == name) {
             continue;
         }
+        let Some(xml) = bundled::get(name) else {
+            continue;
+        };
         let redirect = themes_dir.map(|d| d.join(format!("{name}.xml")));
         out.push(ThemeEntry {
             display_name: name.to_string(),
-            source: ThemeSource::Bundled(bundled::get(name).expect("bundled lookup")),
+            source: ThemeSource::Bundled(xml),
             save_redirect: redirect,
         });
     }

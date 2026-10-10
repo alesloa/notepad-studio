@@ -724,10 +724,11 @@ impl CsvModel {
             }
         }
         self.push_undo();
-        let row = self
-            .rows
-            .get_mut(row_orig)
-            .expect("row exists — checked above");
+        // push_undo only snapshots, so the row found above is still here.
+        let Some(row) = self.rows.get_mut(row_orig) else {
+            self.pop_undo_no_restore();
+            return false;
+        };
         if row.len() <= col_orig {
             row.resize(col_orig + 1, String::new());
         }
@@ -1243,7 +1244,7 @@ impl CsvModel {
         // Resolve to underlying. Easiest: materialise the current order
         // into the rows vec, then insert at the logical index.
         self.apply_row_order();
-        let target = if above { row_logical } else { row_logical + 1 };
+        let target = if above { row_logical } else { row_logical.saturating_add(1) };
         let target = target.min(self.rows.len());
         self.rows.insert(target, vec![String::new(); col_count]);
         self.row_order = (0..self.rows.len()).collect();
@@ -1258,7 +1259,7 @@ impl CsvModel {
         }
         self.push_undo();
         self.apply_col_order();
-        let target = if left { col_logical } else { col_logical + 1 };
+        let target = if left { col_logical } else { col_logical.saturating_add(1) };
         let target = target.min(self.headers.len());
         // Slide filters above the insert point up by one so they stay
         // glued to the same data column they were tracking.
@@ -1422,6 +1423,10 @@ impl CsvModel {
                 let c0 = range.min_col();
                 let c1 = range.max_col();
                 self.grow_to_accommodate(r1, c1);
+                // Growth stops at the last index `usize` can count, so
+                // walk only the cells that now exist.
+                let r1 = r1.min(self.row_count().saturating_sub(1));
+                let c1 = c1.min(self.col_count().saturating_sub(1));
                 let mut changed = false;
                 for r in r0..=r1 {
                     for c in c0..=c1 {
@@ -1446,8 +1451,8 @@ impl CsvModel {
             let r1 = range.max_row();
             let c0 = range.min_col();
             let c1 = range.max_col();
-            let tgt_rows = r1 - r0 + 1;
-            let tgt_cols = c1 - c0 + 1;
+            let tgt_rows = (r1 - r0).saturating_add(1);
+            let tgt_cols = (c1 - c0).saturating_add(1);
             let row_fits = tgt_rows > src_rows && tgt_rows % src_rows == 0;
             let col_fits = tgt_cols > src_cols && tgt_cols % src_cols == 0;
             let row_match = tgt_rows == src_rows;
@@ -1456,6 +1461,8 @@ impl CsvModel {
             // the other axis either matches or is also a strict multiple.
             if (row_fits || row_match) && (col_fits || col_match) && (row_fits || col_fits) {
                 self.grow_to_accommodate(r1, c1);
+                let r1 = r1.min(self.row_count().saturating_sub(1));
+                let c1 = c1.min(self.col_count().saturating_sub(1));
                 let mut changed = false;
                 for r in r0..=r1 {
                     let src_r = (r - r0) % src_rows;
@@ -1486,8 +1493,14 @@ impl CsvModel {
         // Block paste — write source[i][j] to (anchor + i, anchor + j),
         // growing the model as needed. Empty source rows (csv parsed an
         // empty trailing line) are skipped.
-        let target_max_row = anchor_row + src_rows.saturating_sub(1);
-        let target_max_col = anchor_col + src_cols.saturating_sub(1);
+        let (Some(target_max_row), Some(target_max_col)) = (
+            anchor_row.checked_add(src_rows.saturating_sub(1)),
+            anchor_col.checked_add(src_cols.saturating_sub(1)),
+        ) else {
+            // The block would end past the last index `usize` can count.
+            self.pop_undo_no_restore();
+            return false;
+        };
         self.grow_to_accommodate(target_max_row, target_max_col);
 
         let mut changed = false;
@@ -1578,14 +1591,18 @@ impl CsvModel {
     /// paste to grow the sheet rather than clipping at the existing
     /// boundary.
     fn grow_to_accommodate(&mut self, target_row: usize, target_col: usize) {
-        let needed_rows = target_row + 1;
-        let needed_cols = target_col + 1;
+        // An axis at `usize::MAX` has no count after it and is left as
+        // it is; callers clamp their writes to the cells that exist.
         // Add columns first so freshly-added rows have the right width.
-        while self.col_count() < needed_cols {
-            self.add_column_silent();
+        if let Some(needed_cols) = target_col.checked_add(1) {
+            while self.col_count() < needed_cols {
+                self.add_column_silent();
+            }
         }
-        while self.row_count() < needed_rows {
-            self.add_row_silent();
+        if let Some(needed_rows) = target_row.checked_add(1) {
+            while self.row_count() < needed_rows {
+                self.add_row_silent();
+            }
         }
     }
 
@@ -2230,12 +2247,15 @@ impl CsvModel {
             self.find_current_match = None;
             return None;
         }
-        let idx = match self.find_current_match {
-            Some(i) => (i + 1) % self.find_matches.len(),
-            None => 0,
-        };
+        // Past the end (or a stale index) wraps to the first match.
+        let len = self.find_matches.len();
+        let idx = self
+            .find_current_match
+            .and_then(|i| i.checked_add(1))
+            .filter(|&i| i < len)
+            .unwrap_or(0);
         self.find_current_match = Some(idx);
-        Some(self.find_matches[idx])
+        self.find_matches.get(idx).copied()
     }
 
     /// Step to the previous match. Wraps to the end when past zero.
@@ -2244,13 +2264,15 @@ impl CsvModel {
             self.find_current_match = None;
             return None;
         }
+        // `len >= 1` here. Before the first match, or from a stale index
+        // past the end, step to the last match.
         let len = self.find_matches.len();
         let idx = match self.find_current_match {
-            Some(0) | None => len - 1,
-            Some(i) => i - 1,
+            Some(i) if (1..=len).contains(&i) => i - 1,
+            _ => len - 1,
         };
         self.find_current_match = Some(idx);
-        Some(self.find_matches[idx])
+        self.find_matches.get(idx).copied()
     }
 
     /// Clear find state — bar closed, no query, no matches. Used when
@@ -2600,7 +2622,8 @@ fn normalize_row_len(row: &mut Vec<String>, n: usize) {
 /// Excel-style A1 notation.
 pub(crate) fn col_letter(idx: usize) -> String {
     let mut s = String::new();
-    let mut n = idx as u64 + 1;
+    // u128 so `usize::MAX + 1` still fits.
+    let mut n = idx as u128 + 1;
     while n > 0 {
         let rem = ((n - 1) % 26) as u8;
         s.insert(0, (b'A' + rem) as char);
@@ -4724,5 +4747,65 @@ mod tests {
         assert_eq!(m.cell(2, 0), "keep");
         assert_eq!(m.cell(3, 0), "keep");
         assert_eq!(m.undo_stack.len(), before);
+    }
+
+    // ---- Out-of-range indices -----------------------------------------------
+
+    #[test]
+    fn find_step_from_stale_index_stays_in_range() {
+        let mut m = fresh("h\nx\nx\n");
+        m.update_find_query("x".to_string());
+        assert_eq!(m.find_matches, vec![(0, 0), (1, 0)]);
+        m.find_current_match = Some(99);
+        assert_eq!(m.prev_match(), Some((1, 0)));
+        m.find_current_match = Some(99);
+        assert_eq!(m.next_match(), Some((0, 0)));
+        m.find_current_match = Some(usize::MAX);
+        assert_eq!(m.next_match(), Some((0, 0)));
+        assert_eq!(m.find_current_match, Some(0));
+    }
+
+    #[test]
+    fn insert_after_last_index_appends() {
+        let mut m = fresh("a,b\n1,2\n");
+        m.insert_row_at(usize::MAX, false);
+        assert_eq!(m.row_count(), 2);
+        assert_eq!(m.cell(0, 0), "1");
+        assert_eq!(m.cell(1, 0), "");
+        m.insert_col_at(usize::MAX, false);
+        assert_eq!(m.col_count(), 3);
+        assert_eq!(m.header(1), "b");
+        assert_eq!(m.cell(0, 1), "2");
+    }
+
+    #[test]
+    fn col_letter_at_usize_max() {
+        let last = col_letter(usize::MAX);
+        assert!(!last.is_empty());
+        assert!(last.bytes().all(|b| b.is_ascii_uppercase()));
+        assert_ne!(last, col_letter(usize::MAX - 1));
+    }
+
+    #[test]
+    fn paste_block_past_usize_max_is_refused() {
+        let mut m = fresh("a\n1\n");
+        let block = vec![vec!["x".to_string()], vec!["y".to_string()]];
+        assert!(!m.paste_at(usize::MAX, 0, &block, None));
+        assert!(!m.paste_at(0, usize::MAX, &[vec!["x".to_string(), "y".to_string()]], None));
+        assert_eq!((m.row_count(), m.col_count()), (1, 1));
+        assert_eq!(m.cell(0, 0), "1");
+        assert!(m.undo_stack.is_empty());
+    }
+
+    #[test]
+    fn paste_into_unbounded_range_fills_only_the_sheet() {
+        let mut m = fresh("a,b\n1,2\n3,4\n");
+        let whole = Some(CellRange::new((0, 0), (usize::MAX, usize::MAX)));
+        assert!(m.paste_at(0, 0, &[vec!["z".to_string()]], whole));
+        assert_eq!((m.row_count(), m.col_count()), (2, 2));
+        assert!((0..2).all(|r| (0..2).all(|c| m.cell(r, c) == "z")));
+        let tile = vec![vec!["p".to_string(), "q".to_string()]];
+        assert!(m.paste_at(0, 0, &tile, whole));
+        assert_eq!((m.row_count(), m.col_count()), (2, 2));
     }
 }

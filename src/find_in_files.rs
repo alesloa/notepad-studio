@@ -129,6 +129,10 @@ pub(crate) fn build_pattern(q: &FindInFilesQuery) -> Result<Regex, regex::Error>
     regex::RegexBuilder::new(&pattern)
         .case_insensitive(!q.match_case)
         .multi_line(true)
+        // Files are matched as stored, CRLF included (the editor's rope is
+        // LF-only). Without CRLF mode `$` misses every CRLF line end and `.`
+        // matches the `\r`, so Replace in Files with `a.*` stripped it.
+        .crlf(true)
         .dot_matches_new_line(q.regex && q.dot_matches_newline)
         .build()
 }
@@ -739,6 +743,21 @@ mod tests {
         assert_eq!(results.len(), 1);
         assert_eq!(results[0].match_in_line, 3..4);
         assert_eq!(results[0].line_text, "é x");
+    }
+
+    #[test]
+    fn crlf_line_ends_match_dollar_and_stay_out_of_dot() {
+        let dir = temp_dir();
+        std::fs::write(dir.join("crlf.txt"), "a1\r\nb2\r\n").unwrap();
+        let mut q = query(&dir, "[0-9]$");
+        q.regex = true;
+        let ends = search(&q);
+        q.text = "b.*".to_string();
+        let dots = search(&q);
+        let _ = std::fs::remove_dir_all(&dir);
+        assert_eq!(ends.len(), 2);
+        assert_eq!(dots.len(), 1);
+        assert_eq!(dots[0].match_in_line, 0..2);
     }
 
     #[test]

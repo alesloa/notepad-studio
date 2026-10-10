@@ -1304,6 +1304,14 @@ mod tests {
     }
 
     #[test]
+    fn regex_replace_keeps_crlf_line_endings() {
+        // `.` used to match the `\r` of a CRLF file on disk, so `a.*` ate it
+        // and the file came back with bare LF endings.
+        assert_eq!(replace_in(b"a1\r\na2\r\n", "a.*", true, false, "b"), b"b\r\nb\r\n");
+        assert_eq!(replace_in(b"a1\r\na2\r\n", "[0-9]$", true, false, "#"), b"a#\r\na#\r\n");
+    }
+
+    #[test]
     fn replacement_containing_the_query_runs_once() {
         assert_eq!(replace_in(b"aa", "a", false, false, "aa"), b"aaaa");
     }

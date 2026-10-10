@@ -509,6 +509,16 @@ impl Workspace {
                 i
             } else {
                 self.open_path(path.clone(), cx);
+                // `open_path` reports its own failure (deleted, unreadable,
+                // bad rich-doc) and leaves `active` where it was; the
+                // selection must not then land in that unrelated tab.
+                let opened = self
+                    .tabs
+                    .get(self.active)
+                    .is_some_and(|t| t.buffer.file_path.as_deref() == Some(path.as_path()));
+                if !opened {
+                    return;
+                }
                 self.active
             }
         };
@@ -525,21 +535,12 @@ impl Workspace {
             self.refresh_matches();
         }
 
-        let buffer = &self.tabs[tab_idx].buffer;
-        let total_lines = buffer.rope.len_lines().max(1);
-        let line = result.line.min(total_lines - 1);
-        let line_start = buffer.rope.line_to_byte(line);
-        let line_slice = buffer.rope.line(line);
-        let line_str = line_slice.to_string();
-        let line_str_no_eol = line_str.trim_end_matches(['\n', '\r']);
-        let local_start = result.match_in_line.start.min(line_str_no_eol.len());
-        let local_end = result.match_in_line.end.min(line_str_no_eol.len());
-        let abs_start = line_start + local_start;
-        let abs_end = line_start + local_end;
-
-        let tab = &mut self.tabs[tab_idx];
-        tab.selection.anchor = abs_start;
-        tab.selection.head = abs_end;
+        let Some(tab) = self.tabs.get_mut(tab_idx) else {
+            return;
+        };
+        let range = result_range_in_rope(&tab.buffer.rope, result.line, &result.match_in_line);
+        tab.selection.anchor = range.start;
+        tab.selection.head = range.end;
         tab.selection.is_dragging = false;
         tab.desired_col_x = None;
         self.last_lines.clear();
@@ -1037,6 +1038,38 @@ pub(crate) fn describe_search_mode(regex: bool, extended: bool) -> String {
     }
 }
 
+/// Absolute byte range in `rope` of a result at `line`, `span` being its
+/// offsets within that line. The file may have changed since the search,
+/// so the line is clamped to the rope, the span to the line's content (any
+/// ropey line break excluded, not only CR/LF), and both ends floored to a
+/// char boundary: a mid-char selection panics the next `byte_slice`.
+fn result_range_in_rope(
+    rope: &ropey::Rope,
+    line: usize,
+    span: &std::ops::Range<usize>,
+) -> std::ops::Range<usize> {
+    let line = line.min(rope.len_lines().saturating_sub(1));
+    let line_start = rope.line_to_byte(line);
+    let slice = rope.line(line);
+    let chars = slice.len_chars();
+    let last = chars.checked_sub(1).and_then(|i| slice.get_char(i));
+    let before_last = chars.checked_sub(2).and_then(|i| slice.get_char(i));
+    let break_len = match (before_last, last) {
+        (Some('\r'), Some('\n')) => 2,
+        (_, Some(c @ ('\n' | '\r' | '\u{0B}' | '\u{0C}' | '\u{85}' | '\u{2028}' | '\u{2029}'))) => {
+            c.len_utf8()
+        }
+        _ => 0,
+    };
+    let content_len = slice.len_bytes().saturating_sub(break_len);
+    let floor = |local: usize| {
+        let byte = line_start + local.min(content_len);
+        rope.char_to_byte(rope.byte_to_char(byte))
+    };
+    let start = floor(span.start);
+    start..floor(span.end).max(start)
+}
+
 /// Outcome of a successful Replace-in-Files run.
 struct ReplaceInFilesReport {
     files_changed: usize,
@@ -1217,6 +1250,35 @@ mod tests {
         let _ = std::fs::remove_dir_all(&dir);
         assert!(report.is_ok());
         out
+    }
+
+    #[test]
+    fn stale_result_never_selects_mid_char() {
+        // The file changed after the search: the stored span now cuts
+        // through "中", or through a U+2028 line separator ending the line.
+        let cases: [(&str, usize, std::ops::Range<usize>); 4] = [
+            ("中\n", 0, 1..2),
+            ("ab\u{2028}cd", 0, 3..4),
+            ("x\r\n😀", 9, 0..3),
+            ("", 4, 2..9),
+        ];
+        for (text, line, span) in cases {
+            let rope = ropey::Rope::from_str(text);
+            let r = result_range_in_rope(&rope, line, &span);
+            assert!(r.start <= r.end, "{text:?}");
+            assert!(rope.get_byte_slice(r.clone()).is_some(), "{text:?} -> {r:?}");
+        }
+    }
+
+    #[test]
+    fn result_range_lands_on_the_match() {
+        let rope = ropey::Rope::from_str("one\r\ntwo é three\u{2028}four");
+        // Line 1 is "two é three", the match "three" sits at 7..12 in it.
+        let r = result_range_in_rope(&rope, 1, &(7..12));
+        assert_eq!(rope.byte_slice(r).to_string(), "three");
+        // A span past the line end is clipped to the content, before the LS.
+        let r = result_range_in_rope(&rope, 1, &(7..40));
+        assert_eq!(rope.byte_slice(r).to_string(), "three");
     }
 
     #[test]

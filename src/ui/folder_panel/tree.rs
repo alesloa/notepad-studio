@@ -5,6 +5,7 @@
 // per-depth left padding — no nested overflow:hidden, so a deeply-indented
 // row stays clickable.
 
+use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
 use gpui::{
@@ -35,6 +36,85 @@ pub(crate) struct InlineCreateSnapshot {
     pub(crate) kind: FolderInlineCreateKind,
     pub(crate) focus: FocusHandle,
     pub(crate) error: Option<String>,
+}
+
+/// One line of a root's tree, in paint order.
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) enum TreeLine {
+    /// A root, folder or file row. Roots always list as folders.
+    Row {
+        depth: u32,
+        path: PathBuf,
+        is_dir: bool,
+        is_open: bool,
+        is_root: bool,
+    },
+    /// The inline-create typing row, listed first under its parent folder.
+    InlineCreate { depth: u32 },
+}
+
+/// Flatten `root` and its expanded descendants into rows, in the order the
+/// panel paints them. `read_dir` lists one folder's children.
+///
+/// The walk keeps its own stack, so a very deep expanded tree can't
+/// overflow the UI thread's stack, and opens each folder at most once, so
+/// a folder that lists itself (a link loop) can't walk forever.
+pub(crate) fn visible_rows(
+    root: &Path,
+    expanded: &HashSet<PathBuf>,
+    inline_parent: Option<&Path>,
+    read_dir: &mut dyn FnMut(&Path) -> Vec<DirEntry>,
+) -> Vec<TreeLine> {
+    let mut out = Vec::new();
+    let is_open = expanded.contains(root);
+    out.push(TreeLine::Row {
+        depth: 0,
+        path: root.to_path_buf(),
+        is_dir: true,
+        is_open,
+        is_root: true,
+    });
+    if !is_open {
+        return out;
+    }
+    let mut opened: HashSet<PathBuf> = HashSet::new();
+    opened.insert(root.to_path_buf());
+    let mut stack = vec![open_folder(root, 1, inline_parent, read_dir, &mut out)];
+    while let Some((depth, children)) = stack.last_mut() {
+        let depth = *depth;
+        let Some(entry) = children.next() else {
+            stack.pop();
+            continue;
+        };
+        let is_open = entry.is_dir && expanded.contains(&entry.path);
+        out.push(TreeLine::Row {
+            depth,
+            path: entry.path.clone(),
+            is_dir: entry.is_dir,
+            is_open,
+            is_root: false,
+        });
+        if is_open && opened.insert(entry.path.clone()) {
+            let child_depth = depth.saturating_add(1);
+            stack.push(open_folder(&entry.path, child_depth, inline_parent, read_dir, &mut out));
+        }
+    }
+    out
+}
+
+/// Start listing `dir`'s children at `depth`, after the inline-create row
+/// when the draft targets this folder.
+fn open_folder(
+    dir: &Path,
+    depth: u32,
+    inline_parent: Option<&Path>,
+    read_dir: &mut dyn FnMut(&Path) -> Vec<DirEntry>,
+    out: &mut Vec<TreeLine>,
+) -> (u32, std::vec::IntoIter<DirEntry>) {
+    if inline_parent == Some(dir) {
+        out.push(TreeLine::InlineCreate { depth });
+    }
+    (depth, read_dir(dir).into_iter())
 }
 
 const ROW_HEIGHT_REM: f32 = 22. / 16.;
@@ -69,16 +149,20 @@ pub(crate) fn folder_panel(
             .flex_grow()
             .min_h(px(0.))
             .overflow_y_scroll();
+        let inline_parent = inline_create.as_ref().map(|snap| snap.parent_dir.as_path());
+        let mut read_dir = |dir: &Path| cached_read_dir_sorted(dir, show_hidden);
         for root in &roots {
-            col = col.child(render_root(
-                theme,
-                root,
-                &expanded,
-                show_hidden,
-                selected.as_ref(),
-                workspace.clone(),
-                inline_create.as_ref(),
-            ));
+            for line in visible_rows(root, &expanded, inline_parent, &mut read_dir) {
+                if let Some(row) = render_line(
+                    theme,
+                    line,
+                    selected.as_ref(),
+                    workspace.clone(),
+                    inline_create.as_ref(),
+                ) {
+                    col = col.child(row);
+                }
+            }
         }
         col.into_any_element()
     };
@@ -158,123 +242,44 @@ fn empty_state(theme: &Theme) -> impl IntoElement {
         .child(div().child("Workspace…"))
 }
 
-fn render_root(
+/// Render one flattened tree line. `None` for an inline-create line with no
+/// draft to show.
+fn render_line(
     theme: &Theme,
-    root: &Path,
-    expanded: &std::collections::HashSet<PathBuf>,
-    show_hidden: bool,
+    line: TreeLine,
     selected: Option<&PathBuf>,
     workspace: Entity<Workspace>,
     inline_create: Option<&InlineCreateSnapshot>,
-) -> AnyElement {
-    let label = root
-        .file_name()
-        .map(|n| n.to_string_lossy().into_owned())
-        .unwrap_or_else(|| root.display().to_string());
-    let is_open = expanded.contains(root);
-    let is_selected = selected.map(|p| p == root).unwrap_or(false);
-    let mut col = div().flex().flex_col();
-
-    col = col.child(tree_row(
-        theme,
-        0,
-        true,
-        is_open,
-        is_selected,
-        &label,
-        root.to_path_buf(),
-        RowKind::Root,
-        workspace.clone(),
-    ));
-
-    if is_open {
-        if let Some(snap) = inline_create {
-            if snap.parent_dir == root {
-                col = col.child(inline_create_row(
-                    theme,
-                    1,
-                    snap,
-                    workspace.clone(),
-                ));
-            }
+) -> Option<AnyElement> {
+    match line {
+        TreeLine::InlineCreate { depth } => {
+            inline_create.map(|snap| inline_create_row(theme, depth, snap, workspace))
         }
-        let entries = cached_read_dir_sorted(root, show_hidden);
-        for entry in &entries {
-            col = col.child(render_entry(
-                theme,
-                1,
-                entry,
-                expanded,
-                show_hidden,
-                selected,
-                workspace.clone(),
-                inline_create,
-            ));
+        TreeLine::Row {
+            depth,
+            path,
+            is_dir,
+            is_open,
+            is_root,
+        } => {
+            let label = path
+                .file_name()
+                .map(|n| n.to_string_lossy().into_owned())
+                .unwrap_or_else(|| path.display().to_string());
+            let is_selected = selected.map(|p| p == &path).unwrap_or(false);
+            let kind = if is_root {
+                RowKind::Root
+            } else if is_dir {
+                RowKind::Folder
+            } else {
+                RowKind::File
+            };
+            Some(
+                tree_row(theme, depth, is_dir, is_open, is_selected, &label, path, kind, workspace)
+                    .into_any_element(),
+            )
         }
     }
-    col.into_any_element()
-}
-
-fn render_entry(
-    theme: &Theme,
-    depth: u32,
-    entry: &DirEntry,
-    expanded: &std::collections::HashSet<PathBuf>,
-    show_hidden: bool,
-    selected: Option<&PathBuf>,
-    workspace: Entity<Workspace>,
-    inline_create: Option<&InlineCreateSnapshot>,
-) -> AnyElement {
-    let label = entry
-        .path
-        .file_name()
-        .map(|n| n.to_string_lossy().into_owned())
-        .unwrap_or_else(|| entry.path.display().to_string());
-    let is_open = entry.is_dir && expanded.contains(&entry.path);
-    let is_selected = selected.map(|p| p == &entry.path).unwrap_or(false);
-    let kind = if entry.is_dir {
-        RowKind::Folder
-    } else {
-        RowKind::File
-    };
-    let mut col = div().flex().flex_col();
-    col = col.child(tree_row(
-        theme,
-        depth,
-        entry.is_dir,
-        is_open,
-        is_selected,
-        &label,
-        entry.path.clone(),
-        kind,
-        workspace.clone(),
-    ));
-    if is_open {
-        if let Some(snap) = inline_create {
-            if snap.parent_dir == entry.path {
-                col = col.child(inline_create_row(
-                    theme,
-                    depth + 1,
-                    snap,
-                    workspace.clone(),
-                ));
-            }
-        }
-        let kids = cached_read_dir_sorted(&entry.path, show_hidden);
-        for kid in &kids {
-            col = col.child(render_entry(
-                theme,
-                depth + 1,
-                kid,
-                expanded,
-                show_hidden,
-                selected,
-                workspace.clone(),
-                inline_create,
-            ));
-        }
-    }
-    col.into_any_element()
 }
 
 /// Render the inline-create draft row: chevron blank, icon matches the
@@ -532,5 +537,99 @@ impl Element for FolderPanelSplitter {
                 w.end_folder_panel_drag(cx);
             });
         });
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn dir(path: &str) -> DirEntry {
+        DirEntry {
+            path: PathBuf::from(path),
+            is_dir: true,
+        }
+    }
+
+    fn file(path: &str) -> DirEntry {
+        DirEntry {
+            path: PathBuf::from(path),
+            is_dir: false,
+        }
+    }
+
+    fn row(depth: u32, path: &str, is_dir: bool, is_open: bool) -> TreeLine {
+        TreeLine::Row {
+            depth,
+            path: PathBuf::from(path),
+            is_dir,
+            is_open,
+            is_root: false,
+        }
+    }
+
+    #[test]
+    fn rows_follow_paint_order() {
+        let expanded: HashSet<PathBuf> = ["r", "r/a"].iter().map(PathBuf::from).collect();
+        let mut read_dir = |p: &Path| match p.to_str() {
+            Some("r") => vec![dir("r/a"), dir("r/b"), file("r/z.txt")],
+            Some("r/a") => vec![file("r/a/x.txt")],
+            _ => Vec::new(),
+        };
+        let rows = visible_rows(Path::new("r"), &expanded, Some(Path::new("r/a")), &mut read_dir);
+        assert_eq!(
+            rows,
+            vec![
+                TreeLine::Row {
+                    depth: 0,
+                    path: PathBuf::from("r"),
+                    is_dir: true,
+                    is_open: true,
+                    is_root: true,
+                },
+                row(1, "r/a", true, true),
+                TreeLine::InlineCreate { depth: 2 },
+                row(2, "r/a/x.txt", false, false),
+                row(1, "r/b", true, false),
+                row(1, "r/z.txt", false, false),
+            ]
+        );
+    }
+
+    #[test]
+    fn collapsed_root_lists_only_itself() {
+        let mut read_dir = |_: &Path| vec![file("r/x")];
+        let rows = visible_rows(Path::new("r"), &HashSet::new(), None, &mut read_dir);
+        assert_eq!(rows.len(), 1);
+    }
+
+    /// A 100k-deep chain of expanded folders, as a symlink loop or a
+    /// generated tree can produce. The walk must not grow the stack with
+    /// depth.
+    #[test]
+    fn very_deep_tree_does_not_overflow_the_stack() {
+        const DEPTH: usize = 100_000;
+        let expanded: HashSet<PathBuf> =
+            (0..=DEPTH).map(|n| PathBuf::from(format!("d{n}"))).collect();
+        let mut read_dir = |p: &Path| {
+            let n = p
+                .to_str()
+                .and_then(|s| s.strip_prefix('d'))
+                .and_then(|s| s.parse::<usize>().ok())
+                .unwrap_or(DEPTH);
+            if n < DEPTH { vec![dir(&format!("d{}", n + 1))] } else { Vec::new() }
+        };
+        let rows = visible_rows(Path::new("d0"), &expanded, None, &mut read_dir);
+        assert_eq!(rows.len(), DEPTH + 1);
+    }
+
+    /// A folder listing itself (a self-referencing link) lists once and
+    /// stops instead of walking forever.
+    #[test]
+    fn self_listing_folder_terminates() {
+        let expanded: HashSet<PathBuf> = [PathBuf::from("loop")].into_iter().collect();
+        let mut read_dir = |_: &Path| vec![dir("loop")];
+        let rows = visible_rows(Path::new("loop"), &expanded, None, &mut read_dir);
+        assert_eq!(rows.len(), 2);
     }
 }

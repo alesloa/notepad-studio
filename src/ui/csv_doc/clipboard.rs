@@ -282,4 +282,38 @@ mod tests {
         assert_eq!(out.len(), 1);
         assert_eq!(out[0], vec!["hello"]);
     }
+
+    #[test]
+    fn copy_with_no_selection_or_one_past_the_end() {
+        let mut m = model_from("a,b\n1,2\n");
+        assert!(current_copy_kind(&m).is_none());
+        let stale = [
+            CopyKind::Rect(CellRange::new((5, 5), (9, 9))),
+            CopyKind::Rows(BTreeSet::from([5])),
+            CopyKind::Cols(BTreeSet::from([5])),
+            CopyKind::Cell((5, 5)),
+            CopyKind::Rows(BTreeSet::new()),
+            CopyKind::Cols(BTreeSet::new()),
+        ];
+        for kind in &stale {
+            assert!(!serialize_selection(&m, kind).contains(['1', '2']));
+        }
+        m.rebuild_from_source("", 2);
+        for kind in &stale {
+            assert_eq!(serialize_selection(&m, kind), "");
+        }
+        let whole = CopyKind::Rect(CellRange::new((0, 0), (usize::MAX, usize::MAX)));
+        assert_eq!(serialize_selection(&model_from("a,b\n1,2\n"), &whole), "1\t2");
+    }
+
+    #[test]
+    fn parse_hostile_clipboard_text() {
+        for text in ["\"", "\"\"", "\t", "\n", "\r\n\r\n", "a\t\"open\nb", "é\t中\t👩‍👩‍👧"] {
+            let out = parse_clipboard(text);
+            assert!(!out.is_empty(), "{text:?}");
+        }
+        assert!(parse_clipboard("").is_empty());
+        let wide = parse_clipboard(&"\t".repeat(99_999));
+        assert_eq!((wide.len(), wide[0].len()), (1, 100_000));
+    }
 }

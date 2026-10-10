@@ -3600,3 +3600,171 @@ impl gpui::Element for CaretOverlay {
     }
 }
 
+#[cfg(test)]
+mod hostile_input_tests {
+    use super::*;
+
+    /// Every selectable line the renderer would build, depth-first.
+    fn collect_lines<'a>(blocks: &'a [Block], out: &mut Vec<(&'a [InlineRun], &'a [EmphasisTag])>) {
+        for b in blocks {
+            match b {
+                Block::Heading { runs, tags, .. } | Block::Paragraph { runs, tags } => {
+                    out.push((runs, tags))
+                }
+                Block::CodeBlock { runs, .. } => out.push((runs, &[])),
+                Block::BlockQuote(inner)
+                | Block::Aligned { blocks: inner, .. }
+                | Block::FootnoteDefinition { blocks: inner, .. } => collect_lines(inner, out),
+                Block::List { items, .. } => {
+                    for item in items {
+                        collect_lines(&item.blocks, out);
+                    }
+                }
+                Block::Table { header, rows, .. } => {
+                    for cell in header.iter().chain(rows.iter().flatten()) {
+                        out.push((&cell.runs, &cell.tags));
+                    }
+                }
+                Block::ParagraphWithImages { segments } => {
+                    for s in segments {
+                        if let ParagraphSegment::Text { runs, tags } = s {
+                            out.push((runs, tags));
+                        }
+                    }
+                }
+                Block::Rule | Block::Image { .. } => {}
+            }
+        }
+    }
+
+    /// Parse `source` and push every line through the same run-building
+    /// and hit-mapping code the renderer and click handlers use, with
+    /// caret / selection positions at the start, the middle, inside
+    /// multi-byte characters, at the end and past the end.
+    fn exercise(source: &str) -> Vec<Block> {
+        let blocks = parse(source);
+        let mut lines = Vec::new();
+        collect_lines(&blocks, &mut lines);
+        let len = source.len();
+        let probes = [0, 1, len / 2, len.saturating_sub(1), len, len + 7, usize::MAX];
+        let theme = Theme::for_mode(crate::theme::ThemeMode::Dark);
+        let sel_bg: Hsla = rgba(theme.selection).into();
+        let marker = hsla(theme.disabled_text);
+        for (runs, tags) in lines {
+            for &a in &probes {
+                for &b in &probes {
+                    let sel = a.min(b)..a.max(b);
+                    let (combined, text_runs, hits) = build_runs_with_selection(
+                        &theme,
+                        runs,
+                        tags,
+                        13.5,
+                        FontWeight::NORMAL,
+                        Some(&sel),
+                        Some(b),
+                        sel_bg,
+                        marker,
+                    );
+                    // gpui shapes `combined` run by run: the run lengths
+                    // must tile the string exactly, on char boundaries.
+                    let mut at = 0usize;
+                    for run in &text_runs {
+                        at += run.len;
+                        assert!(combined.is_char_boundary(at));
+                    }
+                    assert_eq!(at, combined.len());
+                    // Each lookup walks every hit run, so sample long lines.
+                    let step = (combined.len() / 256).max(1);
+                    for i in (0..=combined.len() + 1).step_by(step).chain([combined.len() + 1]) {
+                        render_byte_to_source(&hits, i);
+                        let _ = link_at(&hits, i);
+                    }
+                    for &p in &probes {
+                        if let Some(r) = source_byte_to_render(&hits, p) {
+                            assert!(r <= combined.len());
+                        }
+                    }
+                }
+            }
+        }
+        blocks
+    }
+
+    #[test]
+    fn empty_and_whitespace_documents() {
+        assert!(exercise("").is_empty());
+        exercise("\n");
+        exercise("\r\n\r\n");
+        exercise("\r\r\r");
+        exercise("   \t  ");
+    }
+
+    #[test]
+    fn crlf_cr_and_multibyte_content() {
+        let body = "# é 中 👩\u{200d}👩\u{200d}👧\u{200d}👦\n\n- 中文 *é*\n- [x] 👍🏽 **ok**\n\n\
+                    | é | 中 |\n|---|:-:|\n| 👩\u{200d}💻 | `中` |\n\n\
+                    [链接 é](http://例え.jp) and https://example.com/é)\n\n> «quote» --- ...\n";
+        exercise(body);
+        exercise(&body.replace('\n', "\r\n"));
+        exercise(&body.replace('\n', "\r"));
+    }
+
+    #[test]
+    fn tables_with_mismatched_columns() {
+        exercise("| a | b | c |\n|---|---|---|\n| 1 |\n| 1 | 2 | 3 | 4 | 5 |\n|\n");
+        exercise("| header | only |\n|:--|--:|\n");
+        exercise("| a |\n|---|\n||\n|||\n");
+        exercise("a|b\n-|-\n");
+        let wide = format!("{}\n{}\n{}", "|x".repeat(2_000), "|-".repeat(2_000), "|\n".repeat(200));
+        exercise(&wide);
+    }
+
+    #[test]
+    fn unterminated_constructs_and_missing_references() {
+        exercise("```rust\nfn main() {\n    let é = \"中\";\n");
+        exercise("~~~\nunterminated tilde fence");
+        exercise("[missing][nope] and [also missing] and ![img][gone] and [^nofootnote]");
+        exercise("**unclosed *emphasis ~~strike `code");
+        exercise("<div align=\"center\">\n\nunclosed container\n");
+        exercise("[^1]: definition only\n\n[^1]\n");
+    }
+
+    #[test]
+    fn deeply_nested_emphasis() {
+        exercise(&format!("{}x{}", "*".repeat(10_000), "*".repeat(10_000)));
+        exercise(&format!("{}x{}", "_**~~".repeat(2_000), "~~**_".repeat(2_000)));
+    }
+
+    #[test]
+    fn deeply_nested_links_and_brackets() {
+        exercise(&format!("{}x{}", "[".repeat(10_000), "](u)".repeat(10_000)));
+        exercise(&format!("{}x{}", "[".repeat(10_000), "]".repeat(10_000)));
+    }
+
+    #[test]
+    fn deeply_nested_images() {
+        exercise(&format!("{}x{}", "![".repeat(5_000), "](i.png)".repeat(5_000)));
+    }
+
+    #[test]
+    fn deeply_nested_inline_html() {
+        exercise(&format!("{}x{}", "<b><i><a href=\"u\">".repeat(3_000), "</a></i></b>".repeat(3_000)));
+    }
+
+    #[test]
+    fn long_backtick_runs() {
+        exercise(&"`".repeat(10_000));
+    }
+
+    #[test]
+    fn deeply_nested_html_blocks() {
+        exercise(&format!("{}x\n\n{}", "<div>\n\n".repeat(10_000), "</div>\n\n".repeat(10_000)));
+        exercise(&format!("{}x\n\n{}", "<center>\n\n".repeat(10_000), "</center>\n\n".repeat(10_000)));
+        exercise(&format!(
+            "{}x\n\n{}",
+            "<div align=\"right\">\n\n".repeat(10_000),
+            "</div>\n\n".repeat(10_000)
+        ));
+    }
+}
+

@@ -2412,70 +2412,35 @@ impl CsvModel {
                 if !hay_lower.contains(needle_lower.as_str()) {
                     return None;
                 }
+                if !original.is_ascii() {
+                    return replace_lowered_matches(
+                        original,
+                        &hay_lower,
+                        &needle_lower,
+                        &self.replace_text,
+                    );
+                }
+                // Lowercase-mapping is byte-equal for ASCII, so offsets
+                // in the lowered copy are offsets in the original: every
+                // index below stays under `original.len()`.
                 let mut out = String::with_capacity(original.len());
                 let mut cursor = 0usize;
-                // Lowercase-mapping is byte-equal for ASCII; for non-
-                // ASCII the lowered string may differ in byte length
-                // from the original. Walk via byte offsets in the
-                // LOWERED string and clamp into the original via
-                // char-aligned splits. For non-ASCII whose lowercase
-                // byte-length differs (rare in CSV data), fall back to
-                // a single linear search using `to_lowercase` per slice.
-                if original.is_ascii() {
-                    let bytes = original.as_bytes();
-                    let n = bytes.len();
-                    let needle_len = needle_lower.len();
-                    let mut i = 0usize;
-                    while i + needle_len <= n {
-                        let slice = &hay_lower.as_bytes()[i..i + needle_len];
-                        if slice == needle_lower.as_bytes() {
-                            out.push_str(&original[cursor..i]);
-                            out.push_str(&self.replace_text);
-                            i += needle_len;
-                            cursor = i;
-                        } else {
-                            i += 1;
-                        }
-                    }
-                    out.push_str(&original[cursor..]);
-                } else {
-                    // Non-ASCII fallback: walk char by char, looking
-                    // up needle_lower in successive original char-
-                    // aligned windows.
-                    let mut iter_idx = 0usize;
-                    let mut chars_remaining = original.chars().count();
-                    while chars_remaining > 0 {
-                        let window: String = original[iter_idx..].to_lowercase();
-                        if window.starts_with(needle_lower.as_str()) {
-                            out.push_str(&self.replace_text);
-                            // Skip needle_lower's char count in the
-                            // original — find the matching byte length.
-                            let needle_char_count =
-                                self.find_query.chars().count();
-                            let advance_chars = needle_char_count;
-                            let advance_bytes: usize = original[iter_idx..]
-                                .chars()
-                                .take(advance_chars)
-                                .map(|c| c.len_utf8())
-                                .sum();
-                            iter_idx += advance_bytes;
-                            chars_remaining =
-                                chars_remaining.saturating_sub(advance_chars);
-                        } else {
-                            let ch_byte_len = original[iter_idx..]
-                                .chars()
-                                .next()
-                                .map(|c| c.len_utf8())
-                                .unwrap_or(0);
-                            if ch_byte_len == 0 {
-                                break;
-                            }
-                            out.push_str(&original[iter_idx..iter_idx + ch_byte_len]);
-                            iter_idx += ch_byte_len;
-                            chars_remaining = chars_remaining.saturating_sub(1);
-                        }
+                let bytes = original.as_bytes();
+                let n = bytes.len();
+                let needle_len = needle_lower.len();
+                let mut i = 0usize;
+                while i + needle_len <= n {
+                    let slice = &hay_lower.as_bytes()[i..i + needle_len];
+                    if slice == needle_lower.as_bytes() {
+                        out.push_str(&original[cursor..i]);
+                        out.push_str(&self.replace_text);
+                        i += needle_len;
+                        cursor = i;
+                    } else {
+                        i += 1;
                     }
                 }
+                out.push_str(&original[cursor..]);
                 Some(out)
             }
         }
@@ -2502,6 +2467,79 @@ impl CsvModel {
                 Some(i.min(self.find_matches.len().saturating_sub(1)))
             };
         }
+    }
+}
+
+/// Case-insensitive replace for a non-ASCII cell. Matches are found in
+/// `hay_lower` (`original.to_lowercase()`, the string `update_find_query`
+/// searched) and spliced back into `original`. `str::to_lowercase` lowers
+/// one char at a time, so each original char owns one contiguous run of
+/// `hay_lower`; a match that starts or ends inside a run (`İ` lowers to
+/// two chars) is left alone. One forward pass over both strings, so a
+/// long cell stays linear.
+fn replace_lowered_matches(
+    original: &str,
+    hay_lower: &str,
+    needle_lower: &str,
+    replacement: &str,
+) -> Option<String> {
+    if needle_lower.is_empty() {
+        return None;
+    }
+    let mut out = String::with_capacity(original.len());
+    let mut walker = LoweredOffsets::new(original);
+    let mut copied = 0usize;
+    let mut from = 0usize;
+    while let Some(rel) = hay_lower.get(from..).and_then(|h| h.find(needle_lower)) {
+        let start = from + rel;
+        let end = start + needle_lower.len();
+        let orig_start = walker.seek(start);
+        let mut probe = walker.clone();
+        if let (Some(a), Some(b)) = (orig_start, probe.seek(end)) {
+            out.push_str(original.get(copied..a)?);
+            out.push_str(replacement);
+            copied = b;
+            walker = probe;
+            from = end;
+        } else {
+            let step = hay_lower
+                .get(start..)
+                .and_then(|s| s.chars().next())
+                .map_or(1, char::len_utf8);
+            from = start + step;
+        }
+    }
+    out.push_str(original.get(copied..)?);
+    Some(out)
+}
+
+/// Walks `original` one char at a time, tracking where each char's
+/// lower-case form starts in `original.to_lowercase()`. The final-sigma
+/// rule changes which sigma `Σ` lowers to, never its byte length, so
+/// per-char lengths add up to the whole-string offsets.
+#[derive(Clone)]
+struct LoweredOffsets<'a> {
+    chars: std::str::Chars<'a>,
+    lower: usize,
+    orig: usize,
+}
+
+impl<'a> LoweredOffsets<'a> {
+    fn new(original: &'a str) -> Self {
+        Self { chars: original.chars(), lower: 0, orig: 0 }
+    }
+
+    /// Advance to lowered offset `target` (never backwards). Returns the
+    /// byte offset in `original` when `target` is where a char's
+    /// lower-case form starts, or the end; `None` when it falls inside
+    /// one char's form or past the end.
+    fn seek(&mut self, target: usize) -> Option<usize> {
+        while self.lower < target {
+            let c = self.chars.next()?;
+            self.lower += c.to_lowercase().map(char::len_utf8).sum::<usize>();
+            self.orig += c.len_utf8();
+        }
+        (self.lower == target).then_some(self.orig)
     }
 }
 
@@ -4199,6 +4237,42 @@ mod tests {
         // Surrounding case (Hello, !) preserved; matched substring
         // replaced.
         assert_eq!(m.cell(0, 0), "Hello there!");
+    }
+
+    #[test]
+    fn replace_case_insensitive_long_non_ascii_cell_finishes() {
+        // Lower-casing the rest of the cell once per char was quadratic:
+        // a 40k-char non-ASCII cell took tens of seconds.
+        let tail = "É".repeat(10);
+        let cell = format!("{}X{tail}", "é".repeat(40_000));
+        let mut m = replace_model(&format!("h\n{cell}\n"));
+        m.find_case_sensitive = false;
+        m.update_find_query("x".to_string());
+        m.replace_text = "y".to_string();
+        let started = std::time::Instant::now();
+        assert_eq!(m.replace_all(), 1);
+        let elapsed = started.elapsed();
+        assert!(elapsed < std::time::Duration::from_secs(2), "replace_all took {elapsed:?}");
+        assert_eq!(m.cell(0, 0), format!("{}y{tail}", "é".repeat(40_000)));
+    }
+
+    #[test]
+    fn replace_case_insensitive_non_ascii_keeps_surrounding_text() {
+        let mut m = replace_model("h\nCafé CAFÉ café\n");
+        m.find_case_sensitive = false;
+        m.update_find_query("CAFÉ".to_string());
+        m.replace_text = "bar".to_string();
+        assert_eq!(m.replace_all(), 1);
+        assert_eq!(m.cell(0, 0), "bar bar bar");
+
+        // 'İ' lower-cases to two chars ("i\u{307}"), so lowered and
+        // original offsets drift apart after it.
+        let mut m = replace_model("h\nİx İX\n");
+        m.find_case_sensitive = false;
+        m.update_find_query("x".to_string());
+        m.replace_text = "-".to_string();
+        assert_eq!(m.replace_all(), 1);
+        assert_eq!(m.cell(0, 0), "İ- İ-");
     }
 
     // ---- AutoFilter tests --------------------------------------------------

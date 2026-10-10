@@ -1570,15 +1570,14 @@ fn read_inline_runs_until<F: Fn(&TagEnd) -> bool>(
                 // scheme so the cmd/ctrl-click handler in
                 // `markdown_preview_pane` routes through
                 // `Workspace::preview_jump_to_footnote_def` instead of
-                // `cx.open_url`. Push/pop on `link_stack` so the
-                // generated `InlineRun` inherits the link via the normal
-                // `emit_text` path.
+                // `cx.open_url`. `emit_text` reads only the top of the
+                // link stack, so a one-entry stack carries the link
+                // without copying every open `<a>` for each reference.
                 let rendered = format!("[^{}]", label);
-                let mut style = *style_stack.last().unwrap();
+                let mut style = style_stack.last().copied().unwrap_or(base);
                 style.code = true;
                 let synthetic_stack = vec![style];
-                let mut synthetic_links = link_stack.clone();
-                synthetic_links.push(format!("notepad-fn:def:{}", label));
+                let synthetic_links = vec![format!("notepad-fn:def:{}", label)];
                 emit_text(
                     rendered,
                     range.clone(),
@@ -3895,6 +3894,25 @@ mod hostile_input_tests {
     #[test]
     fn deeply_nested_footnote_definitions() {
         assert_nesting_bounded(&format!("{}deep\n", "[^a]: > ".repeat(5_000)));
+    }
+
+    #[test]
+    fn footnote_refs_inside_many_open_html_links() {
+        // Each reference used to copy the whole stack of open `<a>` links.
+        let source = format!(
+            "{}{}\n\n[^1]: note\n",
+            "<a href=\"u\">".repeat(60_000),
+            "[^1] ".repeat(60_000)
+        );
+        let blocks = parse(&source);
+        let mut lines = Vec::new();
+        collect_lines(&blocks, &mut lines);
+        let refs = lines
+            .iter()
+            .flat_map(|(runs, _)| runs.iter())
+            .filter(|r| r.link.as_deref() == Some("notepad-fn:def:1"))
+            .count();
+        assert_eq!(refs, 60_000);
     }
 
     #[test]

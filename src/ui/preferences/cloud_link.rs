@@ -108,7 +108,7 @@ pub(super) fn render(
         div()
             .flex()
             .flex_col()
-            .gap(rems(16. / 16.))
+            .gap(rems(1.))
             .child(clickable_group)
             .child(cloud_group),
     )

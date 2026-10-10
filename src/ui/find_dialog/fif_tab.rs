@@ -517,7 +517,7 @@ fn transparency_group(
                 });
             },
         ))
-        .child(div().pl(rems(16. / 16.)).child(radio(
+        .child(div().pl(rems(1.)).child(radio(
             theme,
             "On losing focus",
             on_focus_loss_selected,
@@ -532,7 +532,7 @@ fn transparency_group(
                 });
             },
         )))
-        .child(div().pl(rems(16. / 16.)).child(radio(
+        .child(div().pl(rems(1.)).child(radio(
             theme,
             "Always",
             always_selected,
@@ -543,6 +543,6 @@ fn transparency_group(
                 });
             },
         )))
-        .child(div().pl(rems(16. / 16.)).pt(rems(2. / 16.)).child(slider))
+        .child(div().pl(rems(1.)).pt(rems(2. / 16.)).child(slider))
         .into_any_element()
 }

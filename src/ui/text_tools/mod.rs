@@ -1379,7 +1379,7 @@ impl Render for TextToolsDialog {
                 .min_h(px(0.))
                 .overflow_y_scroll()
                 .px(rems(20. / 16.))
-                .py(rems(16. / 16.))
+                .py(rems(1.))
                 .child(body),
         )
         .child(footer)

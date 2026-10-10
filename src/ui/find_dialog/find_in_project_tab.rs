@@ -263,7 +263,7 @@ pub(super) fn render(
     let body = div()
         .flex()
         .flex_row()
-        .gap(rems(16. / 16.))
+        .gap(rems(1.))
         .px(pad_x)
         .py(rems(8. / 16.))
         .child(left_column);

@@ -2403,7 +2403,7 @@ impl PreferencesDialog {
             .flex()
             .flex_row()
             .items_center()
-            .px(rems(16. / 16.))
+            .px(rems(1.))
             .child(
                 div()
                     .flex_1()

@@ -290,7 +290,7 @@ pub(super) fn render(
         div()
             .flex()
             .flex_col()
-            .gap(rems(16. / 16.))
+            .gap(rems(1.))
             .child(smart_group)
             .child(mark_group)
             .child(tags_group),

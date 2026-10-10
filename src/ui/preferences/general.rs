@@ -83,12 +83,12 @@ pub(super) fn render(
             .flex()
             .flex_row()
             .items_start()
-            .gap(rems(16. / 16.))
+            .gap(rems(1.))
             .child(
                 div()
                     .flex()
                     .flex_col()
-                    .gap(rems(16. / 16.))
+                    .gap(rems(1.))
                     .child(status_bar_group)
                     .child(toolbar_group),
             )

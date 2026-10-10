@@ -126,7 +126,7 @@ pub(crate) fn csv_format_bar(
     let separator = |color: u32| {
         div()
             .w(px(1.))
-            .h(rems(16. / 16.))
+            .h(rems(1.))
             .mx(px(6.))
             .bg(rgb(color))
     };

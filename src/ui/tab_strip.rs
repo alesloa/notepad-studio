@@ -284,7 +284,7 @@ pub(crate) fn tab_strip(
         .h(strip_height)
         .w(rems(28. / 16.))
         .text_color(rgb(theme.chrome_text))
-        .text_size(rems(16. / 16.))
+        .text_size(rems(1.))
         .child("+")
         .on_mouse_down(MouseButton::Left, move |_e, _w, cx| {
             new_handle.update(cx, |w, cx| w.new_tab(cx));
@@ -487,7 +487,7 @@ pub(crate) fn tab_strip_vertical(
         .w_full()
         .h(cell_height)
         .text_color(rgb(theme.chrome_text))
-        .text_size(rems(16. / 16.))
+        .text_size(rems(1.))
         .child("+")
         .on_mouse_down(MouseButton::Left, move |_e, _w, cx| {
             new_handle.update(cx, |w, cx| w.new_tab(cx));

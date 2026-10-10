@@ -187,7 +187,7 @@ fn render_tones_group(
             div()
                 .flex()
                 .flex_row()
-                .gap(rems(16. / 16.))
+                .gap(rems(1.))
                 .children(SLOT_LABELS[start..end].iter().map(|(slot, label)| {
                     let color = slot_color(*slot, &preview_palette);
                     div().flex_1().child(slot_swatch(

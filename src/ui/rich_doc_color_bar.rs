@@ -215,7 +215,7 @@ fn swatch_box(theme: &Theme, color: Option<u32>, label: &'static str) -> impl In
         .child(
             div()
                 .w(rems(28. / 16.))
-                .h(rems(16. / 16.))
+                .h(rems(1.))
                 .bg(rgb(bg))
                 .border_1()
                 .border_color(rgb(theme.border)),

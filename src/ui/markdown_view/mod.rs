@@ -1967,7 +1967,7 @@ pub(crate) fn markdown_preview_pane(
         // scrollbar so the last word of long lines doesn't slide under
         // the thumb when the user scrolls.
         .pr(px(MD_PREVIEW_SCROLLBAR_THICKNESS + 8.))
-        .py(rems(16. / 16.))
+        .py(rems(1.))
         .bg(rgb(theme.bg))
         .text_color(rgb(theme.text))
         .on_mouse_down(MouseButton::Left, move |event: &MouseDownEvent, window, cx| {

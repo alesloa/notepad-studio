@@ -823,10 +823,15 @@ fn run_leaf_action(
             LeafAction::Close => w.close_tab_at(target, window, cx),
             LeafAction::Save => w.save_tab_at(target, cx),
             LeafAction::SaveAs => {
-                let prev = w.active;
-                w.active = target;
-                w.save_active_as(&crate::actions::FileSaveAs, window, cx);
-                w.active = prev;
+                // Notepad++ selects the right-clicked tab (TabBar.cpp:894
+                // "rightclick selects tab as well"), so Save As runs on the
+                // active tab. `save_active_as` resolves the tab again after
+                // its async dialog, so restoring the previous active tab here
+                // would write the wrong document to the chosen path.
+                if target < w.tabs.len() {
+                    w.set_active_tab(target, cx);
+                    w.save_active_as(&crate::actions::FileSaveAs, window, cx);
+                }
             }
             LeafAction::Rename => w.open_tab_rename(target, cx),
             LeafAction::MoveToTrash => w.move_tab_to_trash(target, window, cx),

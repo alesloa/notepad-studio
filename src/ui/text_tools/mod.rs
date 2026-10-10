@@ -36,6 +36,7 @@ use crate::actions::{
     EditCopy, EditCut, EditPaste, EditSelectAll, ViewZoomIn, ViewZoomOut, ViewZoomReset,
 };
 use crate::consts::{ZOOM_DEFAULT, ZOOM_REM_BASE};
+use crate::edit_ops::util::floor_str_boundary;
 use crate::text::utf16::{
     input_selection_range_utf16, replace_input_utf16, slice_str_chars_utf16,
 };
@@ -179,6 +180,10 @@ impl MultiFieldId {
     }
 }
 
+/// Text, caret and anchor of one input. The caret and anchor are byte
+/// offsets into `text`. Edits keep them on char boundaries, and every read
+/// clamps and floors them again, since a slice or `replace_range` off a
+/// boundary panics.
 #[derive(Default, Clone)]
 pub(super) struct FieldState {
     pub(super) text: String,
@@ -193,15 +198,62 @@ impl FieldState {
     }
 
     pub(super) fn collapse_to(&mut self, byte: usize) {
-        let b = byte.min(self.text.len());
+        let b = floor_str_boundary(&self.text, byte);
         self.cursor = b;
         self.anchor = b;
     }
 
+    /// The caret, clamped and floored to a char boundary.
+    fn caret(&self) -> usize {
+        floor_str_boundary(&self.text, self.cursor)
+    }
+
+    /// The selection, ordered, clamped and floored to char boundaries.
     fn ordered(&self) -> Range<usize> {
-        let lo = self.cursor.min(self.anchor);
-        let hi = self.cursor.max(self.anchor);
-        lo..hi
+        let a = self.caret();
+        let b = floor_str_boundary(&self.text, self.anchor);
+        a.min(b)..a.max(b)
+    }
+
+    fn selected(&self) -> &str {
+        self.text.get(self.ordered()).unwrap_or("")
+    }
+
+    /// Replace the selection with `new` and put the caret after it.
+    fn replace_selection(&mut self, new: &str) {
+        let r = self.ordered();
+        self.text.replace_range(r.clone(), new);
+        self.collapse_to(r.start.saturating_add(new.len()));
+    }
+
+    /// Cut: remove the selection and return it; `None` when it is empty.
+    fn take_selection(&mut self) -> Option<String> {
+        let sel = self.selected().to_string();
+        if sel.is_empty() {
+            return None;
+        }
+        self.replace_selection("");
+        Some(sel)
+    }
+
+    /// Backspace: delete the selection, or the char before the caret.
+    fn delete_backward(&mut self) {
+        let r = self.ordered();
+        if r.is_empty() {
+            self.anchor = prev_grapheme(&self.text, r.start);
+            self.cursor = r.start;
+        }
+        self.replace_selection("");
+    }
+
+    /// Delete: delete the selection, or the char after the caret.
+    fn delete_forward(&mut self) {
+        let r = self.ordered();
+        if r.is_empty() {
+            self.anchor = next_grapheme(&self.text, r.start);
+            self.cursor = r.start;
+        }
+        self.replace_selection("");
     }
 }
 
@@ -256,31 +308,9 @@ impl Fields {
     }
 }
 
-#[derive(Default, Clone)]
-pub(super) struct MultiFieldState {
-    pub(super) text: String,
-    pub(super) cursor: usize,
-    pub(super) anchor: usize,
-}
-
-impl MultiFieldState {
-    pub(super) fn select_all(&mut self) {
-        self.anchor = 0;
-        self.cursor = self.text.len();
-    }
-
-    pub(super) fn collapse_to(&mut self, byte: usize) {
-        let b = byte.min(self.text.len());
-        self.cursor = b;
-        self.anchor = b;
-    }
-
-    fn ordered(&self) -> Range<usize> {
-        let lo = self.cursor.min(self.anchor);
-        let hi = self.cursor.max(self.anchor);
-        lo..hi
-    }
-}
+/// A multi-line input holds the same state as a single-line one; its text
+/// is LF-separated.
+pub(super) type MultiFieldState = FieldState;
 
 #[derive(Default, Clone)]
 pub(super) struct MultiFields {
@@ -695,49 +725,29 @@ impl TextToolsDialog {
     // own `handle_key_down` matchers never fire.
 
     fn copy_focused_selection(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if let Some(id) = self.focused_single(window) {
-            let f = self.fields.get(id);
-            let sel = f.text[f.ordered()].to_string();
-            if !sel.is_empty() {
-                cx.write_to_clipboard(gpui::ClipboardItem::new_string(sel));
-            }
+        let f = if let Some(id) = self.focused_single(window) {
+            self.fields.get(id)
+        } else if let Some(id) = self.focused_multi(window) {
+            self.multi_fields.get(id)
+        } else {
             return;
-        }
-        if let Some(id) = self.focused_multi(window) {
-            let f = self.multi_fields.get(id);
-            let sel = f.text[f.ordered()].to_string();
-            if !sel.is_empty() {
-                cx.write_to_clipboard(gpui::ClipboardItem::new_string(sel));
-            }
+        };
+        let sel = f.selected();
+        if !sel.is_empty() {
+            cx.write_to_clipboard(gpui::ClipboardItem::new_string(sel.to_string()));
         }
     }
 
     fn cut_focused_selection(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if let Some(id) = self.focused_single(window) {
-            let f = self.fields.get_mut(id);
-            let r = f.ordered();
-            if r.is_empty() {
-                return;
-            }
-            let sel = f.text[r.clone()].to_string();
-            cx.write_to_clipboard(gpui::ClipboardItem::new_string(sel));
-            f.text.replace_range(r.clone(), "");
-            f.cursor = r.start;
-            f.anchor = r.start;
-            cx.notify();
+        let f = if let Some(id) = self.focused_single(window) {
+            self.fields.get_mut(id)
+        } else if let Some(id) = self.focused_multi(window) {
+            self.multi_fields.get_mut(id)
+        } else {
             return;
-        }
-        if let Some(id) = self.focused_multi(window) {
-            let f = self.multi_fields.get_mut(id);
-            let r = f.ordered();
-            if r.is_empty() {
-                return;
-            }
-            let sel = f.text[r.clone()].to_string();
+        };
+        if let Some(sel) = f.take_selection() {
             cx.write_to_clipboard(gpui::ClipboardItem::new_string(sel));
-            f.text.replace_range(r.clone(), "");
-            f.cursor = r.start;
-            f.anchor = r.start;
             cx.notify();
         }
     }
@@ -756,22 +766,12 @@ impl TextToolsDialog {
             // Single-line: collapse newlines so paste matches a real
             // single-line input — most OS controls strip newlines on paste.
             let cleaned: String = text.replace(['\r', '\n'], " ");
-            let f = self.fields.get_mut(id);
-            let r = f.ordered();
-            f.text.replace_range(r.clone(), &cleaned);
-            let new_cursor = r.start + cleaned.len();
-            f.cursor = new_cursor;
-            f.anchor = new_cursor;
+            self.fields.get_mut(id).replace_selection(&cleaned);
             cx.notify();
             return;
         }
         if let Some(id) = self.focused_multi(window) {
-            let f = self.multi_fields.get_mut(id);
-            let r = f.ordered();
-            f.text.replace_range(r.clone(), &text);
-            let new_cursor = r.start + text.len();
-            f.cursor = new_cursor;
-            f.anchor = new_cursor;
+            self.multi_fields.get_mut(id).replace_selection(&lf_line_ends(&text));
             cx.notify();
         }
     }
@@ -850,37 +850,28 @@ impl EntityInputHandler for TextToolsDialog {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if let Some(id) = self.focused_single(window) {
-            let f = self.fields.get_mut(id);
-            let cursor = f.cursor;
-            let anchor = f.anchor;
-            replace_input_utf16(
-                &mut f.text,
-                &mut f.cursor,
-                &mut f.anchor,
-                cursor,
-                anchor,
-                range_utf16,
-                new_text,
-            );
-            cx.notify();
+        // Single-line inputs drop line ends, multi-line ones store LF only.
+        let (f, text) = if let Some(id) = self.focused_single(window) {
+            let text: String = new_text.chars().filter(|c| !matches!(c, '\r' | '\n')).collect();
+            (self.fields.get_mut(id), text)
+        } else if let Some(id) = self.focused_multi(window) {
+            (self.multi_fields.get_mut(id), lf_line_ends(new_text))
+        } else {
             return;
-        }
-        if let Some(id) = self.focused_multi(window) {
-            let f = self.multi_fields.get_mut(id);
-            let cursor = f.cursor;
-            let anchor = f.anchor;
-            replace_input_utf16(
-                &mut f.text,
-                &mut f.cursor,
-                &mut f.anchor,
-                cursor,
-                anchor,
-                range_utf16,
-                new_text,
-            );
-            cx.notify();
-        }
+        };
+        // `replace_input_utf16` slices with the live selection when the OS
+        // sends no range; hand it one that is on char boundaries.
+        let sel = f.ordered();
+        replace_input_utf16(
+            &mut f.text,
+            &mut f.cursor,
+            &mut f.anchor,
+            sel.start,
+            sel.end,
+            range_utf16,
+            &text,
+        );
+        cx.notify();
     }
 
     fn replace_and_mark_text_in_range(
@@ -913,38 +904,43 @@ impl EntityInputHandler for TextToolsDialog {
     }
 }
 
+/// `s` with CRLF and lone CR turned into LF. The multi-line inputs keep LF
+/// only, so their line and caret maths sees one kind of line end.
+fn lf_line_ends(s: &str) -> String {
+    s.replace("\r\n", "\n").replace('\r', "\n")
+}
+
 // --- keyboard ------------------------------------------------------------
 
+/// Start of the char before `byte` (floored to a boundary first).
 fn prev_grapheme(s: &str, byte: usize) -> usize {
-    if byte == 0 {
-        return 0;
-    }
-    let mut i = byte - 1;
-    while !s.is_char_boundary(i) && i > 0 {
-        i -= 1;
-    }
-    i
+    let byte = floor_str_boundary(s, byte);
+    s.get(..byte)
+        .and_then(|head| head.char_indices().next_back())
+        .map_or(0, |(i, _)| i)
 }
 
+/// End of the char at `byte` (floored to a boundary first).
 fn next_grapheme(s: &str, byte: usize) -> usize {
-    if byte >= s.len() {
-        return s.len();
-    }
-    let mut i = byte + 1;
-    while i < s.len() && !s.is_char_boundary(i) {
-        i += 1;
-    }
-    i
+    let byte = floor_str_boundary(s, byte);
+    s.get(byte..)
+        .and_then(|tail| tail.chars().next())
+        .map_or(s.len(), |c| byte + c.len_utf8())
 }
 
+/// `(start, end)` of the line holding `byte`, excluding its `\n`.
 fn line_bounds(s: &str, byte: usize) -> (usize, usize) {
-    let byte = byte.min(s.len());
-    let start = s[..byte].rfind('\n').map(|i| i + 1).unwrap_or(0);
-    let end = s[byte..].find('\n').map(|i| byte + i).unwrap_or(s.len());
+    let byte = floor_str_boundary(s, byte);
+    let Some((head, tail)) = s.split_at_checked(byte) else {
+        return (0, s.len());
+    };
+    let start = head.rfind('\n').map_or(0, |i| i + 1);
+    let end = tail.find('\n').map_or(s.len(), |i| byte + i);
     (start, end)
 }
 
 fn move_line_vertical(s: &str, byte: usize, down: bool) -> usize {
+    let byte = floor_str_boundary(s, byte);
     let (cur_start, cur_end) = line_bounds(s, byte);
     let col = byte - cur_start;
     if down {
@@ -1041,52 +1037,19 @@ impl TextToolsDialog {
                     f.anchor = n;
                 }
             }
-            "backspace" => {
-                if f.ordered().is_empty() {
-                    let cur = f.cursor;
-                    let prev = prev_grapheme(&f.text, cur);
-                    if prev < cur {
-                        f.text.replace_range(prev..cur, "");
-                        f.cursor = prev;
-                        f.anchor = prev;
-                    }
-                } else {
-                    let r = f.ordered();
-                    f.text.replace_range(r.clone(), "");
-                    f.cursor = r.start;
-                    f.anchor = r.start;
-                }
-            }
-            "delete" => {
-                if f.ordered().is_empty() {
-                    let cur = f.cursor;
-                    let nxt = next_grapheme(&f.text, cur);
-                    if nxt > cur {
-                        f.text.replace_range(cur..nxt, "");
-                    }
-                } else {
-                    let r = f.ordered();
-                    f.text.replace_range(r.clone(), "");
-                    f.cursor = r.start;
-                    f.anchor = r.start;
-                }
-            }
+            "backspace" => f.delete_backward(),
+            "delete" => f.delete_forward(),
             "a" if cmd_or_ctrl => f.select_all(),
             "c" if cmd_or_ctrl => {
-                let sel = f.text[f.ordered()].to_string();
+                let sel = f.selected();
                 if !sel.is_empty() {
-                    cx.write_to_clipboard(gpui::ClipboardItem::new_string(sel));
+                    cx.write_to_clipboard(gpui::ClipboardItem::new_string(sel.to_string()));
                 }
                 return;
             }
             "x" if cmd_or_ctrl => {
-                let r = f.ordered();
-                if !r.is_empty() {
-                    let sel = f.text[r.clone()].to_string();
+                if let Some(sel) = f.take_selection() {
                     cx.write_to_clipboard(gpui::ClipboardItem::new_string(sel));
-                    f.text.replace_range(r.clone(), "");
-                    f.cursor = r.start;
-                    f.anchor = r.start;
                 }
             }
             _ => return,
@@ -1146,58 +1109,20 @@ impl TextToolsDialog {
                     f.anchor = end;
                 }
             }
-            "enter" => {
-                let r = f.ordered();
-                f.text.replace_range(r.clone(), "\n");
-                f.cursor = r.start + 1;
-                f.anchor = f.cursor;
-            }
-            "backspace" => {
-                if f.ordered().is_empty() {
-                    let cur = f.cursor;
-                    let prev = prev_grapheme(&f.text, cur);
-                    if prev < cur {
-                        f.text.replace_range(prev..cur, "");
-                        f.cursor = prev;
-                        f.anchor = prev;
-                    }
-                } else {
-                    let r = f.ordered();
-                    f.text.replace_range(r.clone(), "");
-                    f.cursor = r.start;
-                    f.anchor = r.start;
-                }
-            }
-            "delete" => {
-                if f.ordered().is_empty() {
-                    let cur = f.cursor;
-                    let nxt = next_grapheme(&f.text, cur);
-                    if nxt > cur {
-                        f.text.replace_range(cur..nxt, "");
-                    }
-                } else {
-                    let r = f.ordered();
-                    f.text.replace_range(r.clone(), "");
-                    f.cursor = r.start;
-                    f.anchor = r.start;
-                }
-            }
+            "enter" => f.replace_selection("\n"),
+            "backspace" => f.delete_backward(),
+            "delete" => f.delete_forward(),
             "a" if cmd_or_ctrl => f.select_all(),
             "c" if cmd_or_ctrl => {
-                let sel = f.text[f.ordered()].to_string();
+                let sel = f.selected();
                 if !sel.is_empty() {
-                    cx.write_to_clipboard(gpui::ClipboardItem::new_string(sel));
+                    cx.write_to_clipboard(gpui::ClipboardItem::new_string(sel.to_string()));
                 }
                 return;
             }
             "x" if cmd_or_ctrl => {
-                let r = f.ordered();
-                if !r.is_empty() {
-                    let sel = f.text[r.clone()].to_string();
+                if let Some(sel) = f.take_selection() {
                     cx.write_to_clipboard(gpui::ClipboardItem::new_string(sel));
-                    f.text.replace_range(r.clone(), "");
-                    f.cursor = r.start;
-                    f.anchor = r.start;
                 }
             }
             _ => return,
@@ -1630,4 +1555,99 @@ fn render_footer(
         row = row.child(b);
     }
     row.child(copy_btn).child(cancel_btn).into_any_element()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn field(text: &str, cursor: usize, anchor: usize) -> FieldState {
+        FieldState { text: text.to_string(), cursor, anchor }
+    }
+
+    #[test]
+    fn stale_or_mid_char_caret_slices_on_char_boundaries() {
+        // a=0, é=1..3, 中=3..6
+        let cases: &[(usize, usize, &str)] = &[
+            (2, 9, "é中"),
+            (9, 2, "é中"),
+            (4, 2, "é"),
+            (6, 6, ""),
+            (99, 99, ""),
+        ];
+        for &(cursor, anchor, want) in cases {
+            let f = field("aé中", cursor, anchor);
+            assert_eq!(&f.text[f.ordered()], want, "cursor {cursor} anchor {anchor}");
+        }
+    }
+
+    #[test]
+    fn line_bounds_and_vertical_moves_floor_mid_char_offsets() {
+        // é=0..2, \n=2, x=3, \n=4, 中=5..8
+        let s = "é\nx\n中";
+        assert_eq!(line_bounds(s, 1), (0, 2));
+        assert_eq!(line_bounds(s, 6), (5, 8));
+        assert_eq!(line_bounds(s, 99), (5, 8));
+        assert_eq!(move_line_vertical(s, 1, true), 3);
+        assert_eq!(move_line_vertical(s, 7, false), 3);
+        assert_eq!(move_line_vertical(s, 99, false), 4);
+    }
+
+    #[test]
+    fn field_edits_with_stale_or_mid_char_carets_stay_valid() {
+        // a=0, é=1..3, 中=3..6, 👨‍👩‍👧=6..24
+        let text = "aé中👨‍👩‍👧";
+        let backspace: &[(usize, usize, &str, usize)] = &[
+            (2, 2, "é中👨‍👩‍👧", 0),
+            (4, 4, "a中👨‍👩‍👧", 1),
+            (99, 99, "aé中👨‍👩‍", 20),
+            (0, 0, text, 0),
+            (2, 99, "a", 1),
+        ];
+        for &(cursor, anchor, want, caret) in backspace {
+            let mut f = field(text, cursor, anchor);
+            f.delete_backward();
+            assert_eq!((f.text.as_str(), f.cursor, f.anchor), (want, caret, caret), "backspace {cursor}/{anchor}");
+        }
+        let delete: &[(usize, usize, &str, usize)] = &[
+            (2, 2, "a中👨‍👩‍👧", 1),
+            (5, 5, "aé👨‍👩‍👧", 3),
+            (99, 99, text, 24),
+            (7, 0, "👨‍👩‍👧", 0),
+        ];
+        for &(cursor, anchor, want, caret) in delete {
+            let mut f = field(text, cursor, anchor);
+            f.delete_forward();
+            assert_eq!((f.text.as_str(), f.cursor, f.anchor), (want, caret, caret), "delete {cursor}/{anchor}");
+        }
+
+        let mut f = field(text, 4, 2);
+        assert_eq!(f.selected(), "é");
+        f.replace_selection("\n");
+        assert_eq!((f.text.as_str(), f.cursor), ("a\n中👨‍👩‍👧", 2));
+
+        let mut f = field(text, 99, 5);
+        assert_eq!(f.take_selection().as_deref(), Some("中👨‍👩‍👧"));
+        assert_eq!((f.text.as_str(), f.cursor, f.anchor), ("aé", 3, 3));
+        assert_eq!(f.take_selection(), None);
+
+        let mut f = field("", 7, 3);
+        f.delete_backward();
+        f.delete_forward();
+        f.replace_selection("x");
+        assert_eq!((f.text.as_str(), f.cursor), ("x", 1));
+    }
+
+    #[test]
+    fn multi_line_input_stores_lf_only() {
+        let cases: &[(&str, &str)] = &[
+            ("", ""),
+            ("a\r\nb\rc\nd", "a\nb\nc\nd"),
+            ("\r\r\n\n", "\n\n\n"),
+            ("é\r\n中", "é\n中"),
+        ];
+        for (input, want) in cases {
+            assert_eq!(lf_line_ends(input), *want, "input {input:?}");
+        }
+    }
 }

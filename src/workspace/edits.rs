@@ -932,20 +932,8 @@ impl Workspace {
         let Some((target, cursor, anchor)) = self.input_field_mut(focus) else {
             return;
         };
-        if *anchor != *cursor {
-            let lo = (*cursor).min(*anchor);
-            let hi = (*cursor).max(*anchor);
-            target.replace_range(lo..hi, "");
-            *cursor = lo;
-            *anchor = lo;
-        } else {
-            if *cursor == 0 {
-                return;
-            }
-            let prev = prev_char_byte_in_str(target, *cursor);
-            target.replace_range(prev..*cursor, "");
-            *cursor = prev;
-            *anchor = prev;
+        if !input_field_backspace(target, cursor, anchor) {
+            return;
         }
         if focus == InputFocus::FindQuery {
             self.refresh_matches();
@@ -957,18 +945,8 @@ impl Workspace {
         let Some((target, cursor, anchor)) = self.input_field_mut(focus) else {
             return;
         };
-        if *anchor != *cursor {
-            let lo = (*cursor).min(*anchor);
-            let hi = (*cursor).max(*anchor);
-            target.replace_range(lo..hi, "");
-            *cursor = lo;
-            *anchor = lo;
-        } else {
-            if *cursor >= target.len() {
-                return;
-            }
-            let next = next_char_byte_in_str(target, *cursor);
-            target.replace_range(*cursor..next, "");
+        if !input_field_delete(target, cursor, anchor) {
+            return;
         }
         if focus == InputFocus::FindQuery {
             self.refresh_matches();
@@ -980,25 +958,7 @@ impl Workspace {
         let Some((target, cursor, anchor)) = self.input_field_mut(focus) else {
             return;
         };
-        if !extend && *anchor != *cursor {
-            // Collapsing arrow over a selection: jump to the appropriate
-            // endpoint instead of moving past it.
-            *cursor = if delta < 0 {
-                (*cursor).min(*anchor)
-            } else {
-                (*cursor).max(*anchor)
-            };
-            *anchor = *cursor;
-            return;
-        }
-        if delta < 0 {
-            *cursor = prev_char_byte_in_str(target, *cursor);
-        } else {
-            *cursor = next_char_byte_in_str(target, *cursor);
-        }
-        if !extend {
-            *anchor = *cursor;
-        }
+        input_field_step(target, cursor, anchor, delta, extend);
     }
 
     pub(crate) fn input_jump(&mut self, window: &Window, to_end: bool, extend: bool) {
@@ -1021,6 +981,7 @@ impl Workspace {
             return;
         };
         let s: &str = target;
+        snap_input_caret(s, cursor, anchor);
         let new = if delta < 0 {
             input_prev_word_boundary(s, *cursor)
         } else {
@@ -1047,12 +1008,7 @@ impl Workspace {
     pub(crate) fn input_selection_text(&self, window: &Window) -> Option<String> {
         let focus = self.input_focus(window);
         let (target, cursor, anchor) = self.input_field_ref(focus)?;
-        if cursor == anchor {
-            return Some(String::new());
-        }
-        let lo = cursor.min(anchor);
-        let hi = cursor.max(anchor);
-        Some(target[lo..hi].to_string())
+        Some(input_field_selection(target, cursor, anchor))
     }
 
     /// Replace the current selection (or insert at cursor when collapsed)
@@ -1062,11 +1018,7 @@ impl Workspace {
         let Some((target, cursor, anchor)) = self.input_field_mut(focus) else {
             return;
         };
-        let lo = (*cursor).min(*anchor);
-        let hi = (*cursor).max(*anchor);
-        target.replace_range(lo..hi, new_text);
-        *cursor = lo + new_text.len();
-        *anchor = *cursor;
+        input_field_replace(target, cursor, anchor, new_text);
         if focus == InputFocus::FindQuery {
             self.refresh_matches();
         }
@@ -1080,7 +1032,7 @@ impl Workspace {
         let Some((target, cursor, anchor)) = self.input_field_mut(focus) else {
             return;
         };
-        let clamped = byte.min(target.len());
+        let clamped = floor_char_boundary_in(target, byte);
         *cursor = clamped;
         if !extend {
             *anchor = clamped;
@@ -1196,6 +1148,7 @@ impl Workspace {
         self.goto_state.open = false;
         self.goto_state.text.clear();
         self.goto_state.text_cursor = 0;
+        self.goto_state.text_anchor = 0;
         self.commit_caret(cx);
     }
 
@@ -4080,6 +4033,101 @@ pub(crate) fn floor_char_boundary_in(s: &str, byte: usize) -> usize {
     b
 }
 
+/// Pull an input's cursor and anchor back inside `target`, onto char starts.
+/// Some openers replace the text and reset only the cursor (Ctrl+F prefill,
+/// Go To reopen), so the anchor can be left past the end or inside a
+/// multi-byte char.
+fn snap_input_caret(target: &str, cursor: &mut usize, anchor: &mut usize) {
+    *cursor = floor_char_boundary_in(target, *cursor);
+    *anchor = floor_char_boundary_in(target, *anchor);
+}
+
+/// Backspace inside a single-line input: delete the selection, or the char
+/// before the caret. Returns false when there was nothing to delete.
+fn input_field_backspace(target: &mut String, cursor: &mut usize, anchor: &mut usize) -> bool {
+    snap_input_caret(target, cursor, anchor);
+    if *anchor != *cursor {
+        let lo = (*cursor).min(*anchor);
+        let hi = (*cursor).max(*anchor);
+        target.replace_range(lo..hi, "");
+        *cursor = lo;
+        *anchor = lo;
+    } else {
+        if *cursor == 0 {
+            return false;
+        }
+        let prev = prev_char_byte_in_str(target, *cursor);
+        target.replace_range(prev..*cursor, "");
+        *cursor = prev;
+        *anchor = prev;
+    }
+    true
+}
+
+/// Forward delete inside a single-line input: delete the selection, or the
+/// char after the caret. Returns false when there was nothing to delete.
+fn input_field_delete(target: &mut String, cursor: &mut usize, anchor: &mut usize) -> bool {
+    snap_input_caret(target, cursor, anchor);
+    if *anchor != *cursor {
+        let lo = (*cursor).min(*anchor);
+        let hi = (*cursor).max(*anchor);
+        target.replace_range(lo..hi, "");
+        *cursor = lo;
+        *anchor = lo;
+    } else {
+        if *cursor >= target.len() {
+            return false;
+        }
+        let next = next_char_byte_in_str(target, *cursor);
+        target.replace_range(*cursor..next, "");
+    }
+    true
+}
+
+/// Left/Right arrow inside a single-line input.
+fn input_field_step(target: &str, cursor: &mut usize, anchor: &mut usize, delta: i32, extend: bool) {
+    snap_input_caret(target, cursor, anchor);
+    if !extend && *anchor != *cursor {
+        // Collapsing arrow over a selection: jump to the appropriate
+        // endpoint instead of moving past it.
+        *cursor = if delta < 0 {
+            (*cursor).min(*anchor)
+        } else {
+            (*cursor).max(*anchor)
+        };
+        *anchor = *cursor;
+        return;
+    }
+    if delta < 0 {
+        *cursor = prev_char_byte_in_str(target, *cursor);
+    } else {
+        *cursor = next_char_byte_in_str(target, *cursor);
+    }
+    if !extend {
+        *anchor = *cursor;
+    }
+}
+
+/// Selected text of a single-line input (empty when collapsed).
+fn input_field_selection(target: &str, cursor: usize, anchor: usize) -> String {
+    let (mut cursor, mut anchor) = (cursor, anchor);
+    snap_input_caret(target, &mut cursor, &mut anchor);
+    let lo = cursor.min(anchor);
+    let hi = cursor.max(anchor);
+    target.get(lo..hi).unwrap_or_default().to_string()
+}
+
+/// Replace the selection of a single-line input (or insert at the caret
+/// when collapsed) and leave a collapsed caret after the new text.
+fn input_field_replace(target: &mut String, cursor: &mut usize, anchor: &mut usize, new_text: &str) {
+    snap_input_caret(target, cursor, anchor);
+    let lo = (*cursor).min(*anchor);
+    let hi = (*cursor).max(*anchor);
+    target.replace_range(lo..hi, new_text);
+    *cursor = lo + new_text.len();
+    *anchor = *cursor;
+}
+
 /// Walk a `&str` left-to-right looking for the previous word boundary, mirror
 /// of `Workspace::prev_word_boundary` on a single-line input. Whitespace before
 /// the cursor is skipped, then the run of word characters is consumed; the
@@ -4448,5 +4496,90 @@ mod input_word_tests {
         }
         assert_eq!(input_prev_word_boundary("héllo", 2), 0);
         assert_eq!(input_next_word_boundary("héllo", 2), 6);
+    }
+}
+
+#[cfg(test)]
+mod input_field_tests {
+    use super::{
+        input_field_backspace, input_field_delete, input_field_replace, input_field_selection,
+        input_field_step,
+    };
+
+    const TEXTS: &[&str] = &["", "abc", "é", "héllo", "中文", "a👍b", "👨‍👩‍👧", "🇫🇷x"];
+
+    fn assert_caret_ok(text: &str, cursor: usize, anchor: usize, what: &str) {
+        assert!(cursor <= text.len() && text.is_char_boundary(cursor), "{what}: cursor {cursor} in {text:?}");
+        assert!(anchor <= text.len() && text.is_char_boundary(anchor), "{what}: anchor {anchor} in {text:?}");
+    }
+
+    #[test]
+    fn goto_reopen_stale_anchor_does_not_panic() {
+        // Go To Line clears its text and resets only the cursor, so the
+        // anchor from the previous entry ("12") points past the end.
+        let mut text = String::new();
+        let (mut cursor, mut anchor) = (0usize, 2usize);
+        assert_eq!(input_field_selection(&text, cursor, anchor), "");
+        assert!(!input_field_backspace(&mut text, &mut cursor, &mut anchor));
+        input_field_replace(&mut text, &mut cursor, &mut anchor, "5");
+        assert_eq!((text.as_str(), cursor, anchor), ("5", 1, 1));
+    }
+
+    #[test]
+    fn find_prefill_stale_anchor_mid_char_does_not_panic() {
+        // Ctrl+F prefills the query from the selection ("é") and moves only
+        // the cursor; an anchor of 1 left over from a previous query sits
+        // inside the 2-byte char.
+        let mut text = String::from("é");
+        let (mut cursor, mut anchor) = (2usize, 1usize);
+        let _ = input_field_selection(&text, cursor, anchor);
+        input_field_replace(&mut text, &mut cursor, &mut anchor, "x");
+        assert_caret_ok(&text, cursor, anchor, "replace");
+    }
+
+    #[test]
+    fn every_input_op_survives_any_cursor_and_anchor() {
+        for &base in TEXTS {
+            for c in 0..=base.len() + 2 {
+                for a in 0..=base.len() + 2 {
+                    let ctx = format!("{base:?} cursor={c} anchor={a}");
+                    let _ = input_field_selection(base, c, a);
+
+                    let (mut t, mut cc, mut aa) = (base.to_string(), c, a);
+                    input_field_backspace(&mut t, &mut cc, &mut aa);
+                    assert_caret_ok(&t, cc, aa, &format!("backspace {ctx}"));
+
+                    let (mut t, mut cc, mut aa) = (base.to_string(), c, a);
+                    input_field_delete(&mut t, &mut cc, &mut aa);
+                    assert_caret_ok(&t, cc, aa, &format!("delete {ctx}"));
+
+                    let (mut t, mut cc, mut aa) = (base.to_string(), c, a);
+                    input_field_replace(&mut t, &mut cc, &mut aa, "中");
+                    assert_caret_ok(&t, cc, aa, &format!("replace {ctx}"));
+
+                    for (delta, extend) in [(-1, false), (1, false), (-1, true), (1, true)] {
+                        let (mut cc, mut aa) = (c, a);
+                        input_field_step(base, &mut cc, &mut aa, delta, extend);
+                        assert_caret_ok(base, cc, aa, &format!("step {delta} {extend} {ctx}"));
+                    }
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn input_ops_on_valid_carets_keep_behaviour() {
+        let mut t = String::from("héllo");
+        let (mut c, mut a) = (3usize, 3usize);
+        assert!(input_field_backspace(&mut t, &mut c, &mut a));
+        assert_eq!((t.as_str(), c, a), ("hllo", 1, 1));
+        assert!(input_field_delete(&mut t, &mut c, &mut a));
+        assert_eq!((t.as_str(), c, a), ("hlo", 1, 1));
+        let (mut c, mut a) = (0usize, 3usize);
+        assert_eq!(input_field_selection(&t, c, a), "hlo");
+        input_field_replace(&mut t, &mut c, &mut a, "é");
+        assert_eq!((t.as_str(), c, a), ("é", 2, 2));
+        input_field_step(&t, &mut c, &mut a, -1, false);
+        assert_eq!((c, a), (0, 0));
     }
 }

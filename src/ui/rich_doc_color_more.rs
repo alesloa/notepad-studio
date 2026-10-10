@@ -154,7 +154,9 @@ fn build_grid(theme: &Theme, workspace: &Entity<Workspace>) -> gpui::AnyElement 
         }
         grid = grid.child(row);
     }
-    // Trailing pure-black cell aligned under the greyscale column.
+    // Trailing pure-black cell aligned under the greyscale column. The
+    // array pattern is checked at compile time, so no runtime unwrap.
+    let [.., grey_last] = GREYS;
     let trailing = div()
         .flex()
         .flex_row()
@@ -163,7 +165,7 @@ fn build_grid(theme: &Theme, workspace: &Entity<Workspace>) -> gpui::AnyElement 
             theme,
             workspace,
             "rd-more-grey-last".to_string(),
-            *GREYS.last().unwrap(),
+            grey_last,
         ));
     grid = grid.child(trailing);
     grid.into_any_element()

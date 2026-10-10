@@ -52,6 +52,24 @@ v0.0.5 — current
        INS / OVR. Messages no longer hide the other fields. Col counts
        tabs to the next tab stop, and length and Pos count a Windows line
        ending as two. Double-click Ln / Col to go to a line.
+   15. Crash fixes across editing: typing, Backspace, Delete, IME input,
+       column mode, autocomplete and line commands no longer crash next to
+       multi-byte characters or after tabs close during a save prompt.
+       Backspace and Delete remove a Windows line ending as one unit. A
+       misbehaving plugin can no longer take the app down.
+   16. Find and Find in Files: in-selection search, result jumps and
+       result rows stay on character boundaries, regex replace in files
+       keeps Windows line endings, replace-in-files text is literal
+       outside regex mode, and very long lines and huge folders no longer
+       stall or crash the search.
+   17. Markdown preview: deeply nested quotes and lists, long runs of
+       closing parentheses, footnotes inside many links and long nested
+       emphasis no longer crash or freeze it. Formatting commands work in
+       CR and CRLF files and next to multi-byte text.
+   18. CSV grid: hostile or ragged CSV files, non-ASCII find and replace,
+       and very large fill-series numbers are handled. A CSV that can't be
+       written back as UTF-8 is refused instead of blanking the file.
+   19. View ▸ Word Wrap and Show Whitespace show a checkmark when on.
 
   v0.1.0 — syntax & language:
 

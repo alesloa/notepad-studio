@@ -4070,12 +4070,22 @@ impl Workspace {
     }
 }
 
+/// Clamp `byte` to `s.len()` and move it back to the start of the char it
+/// falls in, so it is always safe to slice `s` at the result.
+pub(crate) fn floor_char_boundary_in(s: &str, byte: usize) -> usize {
+    let mut b = byte.min(s.len());
+    while b > 0 && !s.is_char_boundary(b) {
+        b -= 1;
+    }
+    b
+}
+
 /// Walk a `&str` left-to-right looking for the previous word boundary, mirror
 /// of `Workspace::prev_word_boundary` on a single-line input. Whitespace before
 /// the cursor is skipped, then the run of word characters is consumed; the
 /// landing offset is the last byte index that started a word.
 fn input_prev_word_boundary(s: &str, byte: usize) -> usize {
-    let byte = byte.min(s.len());
+    let byte = floor_char_boundary_in(s, byte);
     if byte == 0 {
         return 0;
     }
@@ -4102,6 +4112,7 @@ fn input_next_word_boundary(s: &str, byte: usize) -> usize {
     if byte >= s.len() {
         return s.len();
     }
+    let byte = floor_char_boundary_in(s, byte);
     let mut entered_word = false;
     for (i, c) in s[byte..].char_indices() {
         if c.is_whitespace() {
@@ -4256,12 +4267,11 @@ fn word_bounds_at(text: &str, byte: usize) -> (usize, usize) {
     if text.is_empty() || byte > text.len() {
         return (text.len(), text.len());
     }
+    // The pivot must start a char: at the end of the text it is the last
+    // char's first byte, and a mid-char offset floors to its char start.
+    let byte = floor_char_boundary_in(text, byte);
     let pivot = if byte == text.len() {
-        let mut b = byte;
-        while b > 0 && !text.is_char_boundary(b) {
-            b -= 1;
-        }
-        if b > 0 { b - 1 } else { 0 }
+        floor_char_boundary_in(text, byte.saturating_sub(1))
     } else {
         byte
     };
@@ -4366,5 +4376,77 @@ mod rich_doc_word_tests {
         // From end (12) back to start of "wörld" at byte 7 ("h é l l o   w ö ...").
         // Bytes: h(0) é(1-2) l(3) l(4) o(5) ' '(6) w(7) ö(8-9) r(10) l(11) d(12)
         assert_eq!(prev_word_boundary_in(text, 12), 7);
+    }
+
+    #[test]
+    fn word_bounds_at_end_after_multibyte_char() {
+        // Double-click past the last char of a block whose final char is
+        // multi-byte: the pivot used to land inside that char.
+        let cases: &[(&str, usize, (usize, usize))] = &[
+            ("é", 2, (0, 2)),
+            ("aé", 3, (0, 3)),
+            ("中文", 6, (0, 6)),
+            ("ab 👍", 7, (7, 7)),
+            ("👨‍👩‍👧", 18, (18, 18)),
+            ("🇫🇷", 8, (8, 8)),
+        ];
+        for &(text, byte, want) in cases {
+            assert_eq!(word_bounds_at(text, byte), want, "{text:?} @ {byte}");
+        }
+    }
+
+    #[test]
+    fn word_bounds_mid_char_snaps_to_char_start() {
+        let cases: &[(&str, usize, (usize, usize))] = &[
+            ("héllo", 2, (0, 6)),
+            ("x 中 y", 3, (2, 5)),
+            ("a👍b", 3, (1, 1)),
+        ];
+        for &(text, byte, want) in cases {
+            assert_eq!(word_bounds_at(text, byte), want, "{text:?} @ {byte}");
+        }
+    }
+
+    #[test]
+    fn word_bounds_past_end_is_collapsed_at_end() {
+        assert_eq!(word_bounds_at("abc", 99), (3, 3));
+    }
+}
+
+#[cfg(test)]
+mod input_word_tests {
+    use super::{input_next_word_boundary, input_prev_word_boundary};
+
+    #[test]
+    fn input_word_boundaries_ascii() {
+        assert_eq!(input_prev_word_boundary("foo bar", 7), 4);
+        assert_eq!(input_prev_word_boundary("foo bar", 4), 0);
+        assert_eq!(input_next_word_boundary("foo bar", 0), 3);
+        assert_eq!(input_next_word_boundary("foo bar", 3), 7);
+    }
+
+    #[test]
+    fn input_word_boundaries_clamp_past_end() {
+        assert_eq!(input_prev_word_boundary("foo", 99), 0);
+        assert_eq!(input_next_word_boundary("foo", 99), 3);
+        assert_eq!(input_prev_word_boundary("", 5), 0);
+        assert_eq!(input_next_word_boundary("", 5), 0);
+    }
+
+    #[test]
+    fn input_word_boundaries_mid_char_do_not_panic() {
+        // A stale or mid-char cursor must snap, never slice inside a char.
+        let texts = ["héllo wörld", "中文 字", "a👍 b", "👨‍👩‍👧 x", "🇫🇷🇩🇪 y"];
+        for text in texts {
+            for byte in 0..=text.len() + 2 {
+                let p = input_prev_word_boundary(text, byte);
+                let n = input_next_word_boundary(text, byte);
+                assert!(text.is_char_boundary(p), "{text:?} prev @ {byte} -> {p}");
+                assert!(text.is_char_boundary(n), "{text:?} next @ {byte} -> {n}");
+                assert!(p <= byte.min(text.len()));
+            }
+        }
+        assert_eq!(input_prev_word_boundary("héllo", 2), 0);
+        assert_eq!(input_next_word_boundary("héllo", 2), 6);
     }
 }

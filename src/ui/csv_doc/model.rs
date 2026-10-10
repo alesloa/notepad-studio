@@ -1780,6 +1780,10 @@ impl CsvModel {
                 if extend_down {
                     let start_row = src.max_row() + 1;
                     for (i, v) in projected.into_iter().enumerate() {
+                        // None: the pattern has no value for this cell (a
+                        // date past chrono's calendar, a non-finite
+                        // number), so the cell keeps what it had.
+                        let Some(v) = v else { continue };
                         if self.write_cell_raw(start_row + i, col, &v) {
                             changed = true;
                         }
@@ -1787,6 +1791,7 @@ impl CsvModel {
                 } else {
                     let start_row = target.min_row();
                     for (i, v) in projected.into_iter().enumerate() {
+                        let Some(v) = v else { continue };
                         if self.write_cell_raw(start_row + i, col, &v) {
                             changed = true;
                         }
@@ -1814,6 +1819,7 @@ impl CsvModel {
                 if extend_right {
                     let start_col = src.max_col() + 1;
                     for (i, v) in projected.into_iter().enumerate() {
+                        let Some(v) = v else { continue };
                         if self.write_cell_raw(row, start_col + i, &v) {
                             changed = true;
                         }
@@ -1821,6 +1827,7 @@ impl CsvModel {
                 } else {
                     let start_col = target.min_col();
                     for (i, v) in projected.into_iter().enumerate() {
+                        let Some(v) = v else { continue };
                         if self.write_cell_raw(row, start_col + i, &v) {
                             changed = true;
                         }
@@ -4702,5 +4709,20 @@ mod tests {
         assert_eq!(m.cell(3, 0), "4");
         assert_eq!(m.cell(2, 1), "30");
         assert_eq!(m.cell(3, 1), "40");
+    }
+
+    #[test]
+    fn fill_drag_without_a_value_keeps_cells() {
+        // The step overflows f64, so the pattern has no value for the
+        // target cells; they keep their text and no undo grain is left.
+        let mut m = fresh("n\n-1e308\n1.7e308\nkeep\nkeep\n");
+        let before = m.undo_stack.len();
+        m.cell_range = Some(CellRange::new((0, 0), (1, 0)));
+        assert!(m.begin_fill_drag(gpui::point(px(0.), px(0.))));
+        m.update_fill_drag((3, 0), 0.0, 100.0);
+        assert!(!m.commit_fill_drag());
+        assert_eq!(m.cell(2, 0), "keep");
+        assert_eq!(m.cell(3, 0), "keep");
+        assert_eq!(m.undo_stack.len(), before);
     }
 }

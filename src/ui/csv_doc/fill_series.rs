@@ -1,9 +1,9 @@
 // Excel-style fill-series pattern detection + projection.
 //
 // `detect` walks a slice of source values and picks the most specific
-// pattern that matches the whole sequence. `project` extends that
-// pattern by `count` cells either forward (drag down / right) or
-// backward (drag up / left). The two functions stay pure — they
+// pattern that matches the whole sequence. `project_with_source_len`
+// extends that pattern by `count` cells either forward (drag down /
+// right) or backward (drag up / left). The two functions stay pure — they
 // operate on plain strings and never touch the CSV model — so the
 // behaviour is exercised by simple unit tests.
 
@@ -102,149 +102,7 @@ pub(crate) fn detect(source: &[String]) -> Pattern {
     Pattern::CyclicCopy(source.to_vec())
 }
 
-/// Project `count` cells from the pattern. `reverse=false` extends
-/// forward (drag down / right), `reverse=true` extends backward (drag
-/// up / left). Reverse output is returned top-to-bottom (i.e. the
-/// caller writes it directly into the cells ABOVE the source without
-/// re-reversing).
-pub(crate) fn project(pattern: &Pattern, count: usize, reverse: bool) -> Vec<String> {
-    if count == 0 {
-        return Vec::new();
-    }
-    match pattern {
-        Pattern::Constant(v) => vec![v.clone(); count],
-        Pattern::NumericLinear { start, step, format } => {
-            let src_len_offset = source_len_from_pattern(pattern);
-            let mut out = Vec::with_capacity(count);
-            if !reverse {
-                for i in 0..count {
-                    let n = start + step * (src_len_offset as f64 + i as f64);
-                    out.push(format_numeric(n, *format));
-                }
-            } else {
-                // Top-to-bottom order: cell[0] is the FARTHEST back.
-                for i in 0..count {
-                    let n = start - step * (count - i) as f64;
-                    out.push(format_numeric(n, *format));
-                }
-            }
-            out
-        }
-        Pattern::DateLinear { start, step_days, format } => {
-            let src_len_offset = source_len_from_pattern(pattern);
-            let mut out = Vec::with_capacity(count);
-            if !reverse {
-                for i in 0..count {
-                    let offset = step_days * (src_len_offset as i64 + i as i64);
-                    let d = start
-                        .checked_add_signed(chrono::Duration::days(offset))
-                        .unwrap_or(*start);
-                    out.push(format_date(d, *format));
-                }
-            } else {
-                for i in 0..count {
-                    let offset = -step_days * (count as i64 - i as i64);
-                    let d = start
-                        .checked_add_signed(chrono::Duration::days(offset))
-                        .unwrap_or(*start);
-                    out.push(format_date(d, *format));
-                }
-            }
-            out
-        }
-        Pattern::WeekdayCycle { start_idx, case, abbreviated } => {
-            let src_len_offset = source_len_from_pattern(pattern) as i64;
-            let mut out = Vec::with_capacity(count);
-            for i in 0..count {
-                let raw = if !reverse {
-                    *start_idx as i64 + src_len_offset + i as i64
-                } else {
-                    *start_idx as i64 - (count as i64 - i as i64)
-                };
-                let idx = raw.rem_euclid(7) as usize;
-                out.push(format_text_case(weekday_name(idx, *abbreviated), *case));
-            }
-            out
-        }
-        Pattern::MonthCycle { start_idx, case, abbreviated } => {
-            let src_len_offset = source_len_from_pattern(pattern) as i64;
-            let mut out = Vec::with_capacity(count);
-            for i in 0..count {
-                let raw = if !reverse {
-                    *start_idx as i64 + src_len_offset + i as i64
-                } else {
-                    *start_idx as i64 - (count as i64 - i as i64)
-                };
-                let idx = raw.rem_euclid(12) as usize;
-                out.push(format_text_case(month_name(idx, *abbreviated), *case));
-            }
-            out
-        }
-        Pattern::TextNumber { prefix, start, step, width } => {
-            let src_len_offset = source_len_from_pattern(pattern) as i64;
-            let mut out = Vec::with_capacity(count);
-            for i in 0..count {
-                let n = if !reverse {
-                    start + step * (src_len_offset + i as i64)
-                } else {
-                    start - step * (count as i64 - i as i64)
-                };
-                out.push(format_text_number(prefix, n, *width));
-            }
-            out
-        }
-        Pattern::CyclicCopy(items) => {
-            if items.is_empty() {
-                return vec![String::new(); count];
-            }
-            let mut out = Vec::with_capacity(count);
-            if !reverse {
-                for i in 0..count {
-                    out.push(items[i % items.len()].clone());
-                }
-            } else {
-                // Reverse cycle: the cell immediately above source is
-                // items[len-1], next up is items[len-2], etc. Output
-                // top-to-bottom.
-                for i in 0..count {
-                    // distance back from the source's first cell.
-                    let back = (count - i) as i64;
-                    let n = items.len() as i64;
-                    let raw = -back;
-                    let idx = raw.rem_euclid(n) as usize;
-                    out.push(items[idx].clone());
-                }
-            }
-            out
-        }
-    }
-}
-
 // Internal helpers --------------------------------------------------------
-
-/// Number of source cells that produced this pattern. Used by `project`
-/// to compute the "after the source" offset when extending forward.
-fn source_len_from_pattern(p: &Pattern) -> usize {
-    match p {
-        Pattern::Constant(_) => 1,
-        // The detection routines below all enforce that the pattern was
-        // detected from a source of at least 2 cells, so this matches.
-        // We re-derive from the pattern fields rather than carrying the
-        // length, to keep the Pattern enum compact.
-        // For arithmetic / date patterns the projection uses
-        // (src_len + i) as the index relative to start, so any
-        // consistent src_len works as long as detect uses the same one.
-        // We standardize on 2 here — detect computes start = source[0],
-        // step = source[1] - source[0], so cell index 0 = start, cell
-        // index 1 = start + step, ..., cell index N-1 = start + step*(N-1).
-        // For projection forward, after N source cells, the next index
-        // is N. So src_len_offset MUST equal the actual source length.
-        // We patch this by overriding via callers below — but in fact
-        // detect only knows the source length at detection time; we
-        // need to carry it explicitly. Override below.
-        _ => 0,
-    }
-}
 
 fn detect_numeric_linear(source: &[String]) -> Option<Pattern> {
     let parsed: Vec<f64> = source.iter().map(|s| parse_loose_number(s)).collect::<Option<_>>()?;
@@ -551,7 +409,7 @@ fn split_trailing_number(s: &str) -> Option<(String, i64, usize)> {
     Some((prefix.to_string(), n, digits.len()))
 }
 
-fn format_text_number(prefix: &str, n: i64, width: usize) -> String {
+fn format_text_number(prefix: &str, n: i128, width: usize) -> String {
     if n < 0 {
         return format!("{}{}", prefix, n);
     }
@@ -615,126 +473,81 @@ fn insert_thousands(s: &str) -> String {
     result
 }
 
-// Helper for the projection routines — extract source length from
-// the source slice that produced the pattern. Pattern enum doesn't
-// carry the source length; the projection code calls this on the
-// pattern + source-length contextually. We keep it as a stand-alone
-// function to make tests easier.
+/// Project `count` cells from `pattern`, which was detected from
+/// `source_len` cells. `reverse = false` extends forward (drag down or
+/// right); `reverse = true` extends backward (drag up or left) and
+/// returns the cells top-to-bottom, so the caller writes them straight
+/// into the cells above or left of the source.
+///
+/// A `None` entry is a value the pattern can't represent: a date outside
+/// chrono's calendar, or a number that isn't finite. The caller leaves
+/// that cell as it is rather than writing a wrong value into it.
 pub(crate) fn project_with_source_len(
     pattern: &Pattern,
     source_len: usize,
     count: usize,
     reverse: bool,
-) -> Vec<String> {
-    // Re-implement the forward offset using actual source_len, so the
-    // arithmetic doesn't depend on the hard-coded `2` in
-    // `source_len_from_pattern`. We do this by adjusting the start /
-    // step interpretation only where it matters.
-    if count == 0 {
-        return Vec::new();
-    }
-    match pattern {
-        Pattern::Constant(v) => vec![v.clone(); count],
-        Pattern::NumericLinear { start, step, format } => {
-            let mut out = Vec::with_capacity(count);
-            if !reverse {
-                for i in 0..count {
-                    let n = start + step * (source_len as f64 + i as f64);
-                    out.push(format_numeric(n, *format));
-                }
+) -> Vec<Option<String>> {
+    (0..count)
+        .map(|i| {
+            // Position of the projected cell counted from the first
+            // source cell: source_len, source_len + 1, .. forward and
+            // -count, .., -1 backward. i128 holds either for any usize,
+            // and a step times it for any i64 step.
+            let k = if reverse {
+                -(i128::try_from(count - i).ok()?)
             } else {
-                for i in 0..count {
-                    let n = start - step * (count - i) as f64;
-                    out.push(format_numeric(n, *format));
-                }
-            }
-            out
+                i128::try_from(source_len).ok()?.checked_add(i128::try_from(i).ok()?)?
+            };
+            project_cell(pattern, k)
+        })
+        .collect()
+}
+
+/// The value `k` cells after the first source cell (before it when `k`
+/// is negative).
+fn project_cell(pattern: &Pattern, k: i128) -> Option<String> {
+    match pattern {
+        Pattern::Constant(v) => Some(v.clone()),
+        Pattern::NumericLinear { start, step, format } => {
+            let n = start + step * k as f64;
+            n.is_finite().then(|| format_numeric(n, *format))
         }
         Pattern::DateLinear { start, step_days, format } => {
-            let mut out = Vec::with_capacity(count);
-            if !reverse {
-                for i in 0..count {
-                    let offset = step_days * (source_len as i64 + i as i64);
-                    let d = start
-                        .checked_add_signed(chrono::Duration::days(offset))
-                        .unwrap_or(*start);
-                    out.push(format_date(d, *format));
-                }
-            } else {
-                for i in 0..count {
-                    let offset = -step_days * (count as i64 - i as i64);
-                    let d = start
-                        .checked_add_signed(chrono::Duration::days(offset))
-                        .unwrap_or(*start);
-                    out.push(format_date(d, *format));
-                }
-            }
-            out
+            let days = i64::try_from(i128::from(*step_days).checked_mul(k)?).ok()?;
+            let d = start.checked_add_signed(chrono::TimeDelta::try_days(days)?)?;
+            Some(format_date(d, *format))
         }
         Pattern::WeekdayCycle { start_idx, case, abbreviated } => {
-            let mut out = Vec::with_capacity(count);
-            for i in 0..count {
-                let raw = if !reverse {
-                    *start_idx as i64 + source_len as i64 + i as i64
-                } else {
-                    *start_idx as i64 - (count as i64 - i as i64)
-                };
-                let idx = raw.rem_euclid(7) as usize;
-                out.push(format_text_case(weekday_name(idx, *abbreviated), *case));
-            }
-            out
+            let idx = cycle_index(*start_idx, k, 7)?;
+            Some(format_text_case(weekday_name(idx, *abbreviated), *case))
         }
         Pattern::MonthCycle { start_idx, case, abbreviated } => {
-            let mut out = Vec::with_capacity(count);
-            for i in 0..count {
-                let raw = if !reverse {
-                    *start_idx as i64 + source_len as i64 + i as i64
-                } else {
-                    *start_idx as i64 - (count as i64 - i as i64)
-                };
-                let idx = raw.rem_euclid(12) as usize;
-                out.push(format_text_case(month_name(idx, *abbreviated), *case));
-            }
-            out
+            let idx = cycle_index(*start_idx, k, 12)?;
+            Some(format_text_case(month_name(idx, *abbreviated), *case))
         }
         Pattern::TextNumber { prefix, start, step, width } => {
-            let mut out = Vec::with_capacity(count);
-            for i in 0..count {
-                let n = if !reverse {
-                    start + step * (source_len as i64 + i as i64)
-                } else {
-                    start - step * (count as i64 - i as i64)
-                };
-                out.push(format_text_number(prefix, n, *width));
-            }
-            out
+            let n = i128::from(*start).checked_add(i128::from(*step).checked_mul(k)?)?;
+            Some(format_text_number(prefix, n, *width))
         }
         Pattern::CyclicCopy(items) => {
             if items.is_empty() {
-                return vec![String::new(); count];
+                return Some(String::new());
             }
-            let mut out = Vec::with_capacity(count);
-            if !reverse {
-                for i in 0..count {
-                    out.push(items[(source_len + i) % items.len()].clone());
-                }
-            } else {
-                let n = items.len() as i64;
-                for i in 0..count {
-                    let back = (count - i) as i64;
-                    let idx = (-back).rem_euclid(n) as usize;
-                    out.push(items[idx].clone());
-                }
-            }
-            out
+            items.get(cycle_index(0, k, items.len())?).cloned()
         }
     }
 }
 
-/// Use the source-length-aware variant by default. `project` calls into
-/// this with the inferred length for compatibility tests.
+/// `(start + k) mod len`, never negative.
+fn cycle_index(start: usize, k: i128, len: usize) -> Option<usize> {
+    let len = i128::try_from(len).ok().filter(|&l| l > 0)?;
+    let raw = i128::try_from(start).ok()?.checked_add(k)?;
+    usize::try_from(raw.rem_euclid(len)).ok()
+}
+
 #[cfg(test)]
-fn project_default(pattern: &Pattern, count: usize, reverse: bool) -> Vec<String> {
+fn project_default(pattern: &Pattern, count: usize, reverse: bool) -> Vec<Option<String>> {
     project_with_source_len(pattern, default_source_len(pattern), count, reverse)
 }
 
@@ -746,19 +559,16 @@ fn default_source_len(pattern: &Pattern) -> usize {
     }
 }
 
-// Mark `project` as referenced even when callers go through
-// `project_with_source_len` — the public surface keeps it for tests.
-#[allow(dead_code)]
-fn _project_keepalive(p: &Pattern, count: usize, reverse: bool) -> Vec<String> {
-    project(p, count, reverse)
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
 
     fn s(items: &[&str]) -> Vec<String> {
         items.iter().map(|s| s.to_string()).collect()
+    }
+
+    fn some(items: &[&str]) -> Vec<Option<String>> {
+        items.iter().map(|s| Some(s.to_string())).collect()
     }
 
     #[test]
@@ -897,70 +707,70 @@ mod tests {
     #[test]
     fn project_constant_extends() {
         let p = Pattern::Constant("7".into());
-        assert_eq!(project_default(&p, 3, false), vec!["7", "7", "7"]);
+        assert_eq!(project_default(&p, 3, false), some(&["7", "7", "7"]));
     }
 
     #[test]
     fn project_numeric_forward() {
         let p = detect(&s(&["1", "2"]));
         let out = project_with_source_len(&p, 2, 3, false);
-        assert_eq!(out, vec!["3", "4", "5"]);
+        assert_eq!(out, some(&["3", "4", "5"]));
     }
 
     #[test]
     fn project_numeric_backward() {
         let p = detect(&s(&["1", "2"]));
         let out = project_with_source_len(&p, 2, 3, true);
-        assert_eq!(out, vec!["-2", "-1", "0"]);
+        assert_eq!(out, some(&["-2", "-1", "0"]));
     }
 
     #[test]
     fn project_numeric_step_ten() {
         let p = detect(&s(&["10", "20", "30"]));
         let out = project_with_source_len(&p, 3, 2, false);
-        assert_eq!(out, vec!["40", "50"]);
+        assert_eq!(out, some(&["40", "50"]));
     }
 
     #[test]
     fn project_weekday_wraps_past_sun() {
         let p = detect(&s(&["Fri", "Sat"]));
         let out = project_with_source_len(&p, 2, 3, false);
-        assert_eq!(out, vec!["Sun", "Mon", "Tue"]);
+        assert_eq!(out, some(&["Sun", "Mon", "Tue"]));
     }
 
     #[test]
     fn project_month_wraps_past_dec() {
         let p = detect(&s(&["Nov", "Dec"]));
         let out = project_with_source_len(&p, 2, 3, false);
-        assert_eq!(out, vec!["Jan", "Feb", "Mar"]);
+        assert_eq!(out, some(&["Jan", "Feb", "Mar"]));
     }
 
     #[test]
     fn project_text_number_padding() {
         let p = detect(&s(&["Item 09", "Item 10"]));
         let out = project_with_source_len(&p, 2, 2, false);
-        assert_eq!(out, vec!["Item 11", "Item 12"]);
+        assert_eq!(out, some(&["Item 11", "Item 12"]));
     }
 
     #[test]
     fn project_cyclic_copy_wraps() {
         let p = Pattern::CyclicCopy(vec!["a".into(), "b".into(), "c".into()]);
         let out = project_with_source_len(&p, 3, 5, false);
-        assert_eq!(out, vec!["a", "b", "c", "a", "b"]);
+        assert_eq!(out, some(&["a", "b", "c", "a", "b"]));
     }
 
     #[test]
     fn project_date_forward_iso() {
         let p = detect(&s(&["2025-01-01", "2025-01-02"]));
         let out = project_with_source_len(&p, 2, 2, false);
-        assert_eq!(out, vec!["2025-01-03", "2025-01-04"]);
+        assert_eq!(out, some(&["2025-01-03", "2025-01-04"]));
     }
 
     #[test]
     fn project_date_backward_slashed() {
         let p = detect(&s(&["01/05/2025", "01/06/2025"]));
         let out = project_with_source_len(&p, 2, 2, true);
-        assert_eq!(out, vec!["01/03/2025", "01/04/2025"]);
+        assert_eq!(out, some(&["01/03/2025", "01/04/2025"]));
     }
 
     #[test]
@@ -968,7 +778,7 @@ mod tests {
         let p = detect(&s(&["Wed", "Thu"]));
         let out = project_with_source_len(&p, 2, 3, true);
         // Going back 3 cells from Wed: Sun, Mon, Tue (top-to-bottom).
-        assert_eq!(out, vec!["Sun", "Mon", "Tue"]);
+        assert_eq!(out, some(&["Sun", "Mon", "Tue"]));
     }
 
     #[test]
@@ -983,7 +793,7 @@ mod tests {
     fn project_numeric_with_decimals() {
         let p = detect(&s(&["1.5", "2.5"]));
         let out = project_with_source_len(&p, 2, 2, false);
-        assert_eq!(out, vec!["3.5", "4.5"]);
+        assert_eq!(out, some(&["3.5", "4.5"]));
     }
 
     #[test]
@@ -998,12 +808,54 @@ mod tests {
             p => panic!("expected TextNumber, got {p:?}"),
         }
         let p = detect(&s(&["中9", "中10"]));
-        assert_eq!(project_with_source_len(&p, 2, 2, false), vec!["中11", "中12"]);
+        assert_eq!(project_with_source_len(&p, 2, 2, false), some(&["中11", "中12"]));
         let family = "\u{1F468}\u{200D}\u{1F469}\u{200D}\u{1F467}";
         let p = detect(&[format!("{family}1"), format!("{family}2")]);
         assert_eq!(
             project_with_source_len(&p, 2, 1, false),
-            vec![format!("{family}3")]
+            vec![Some(format!("{family}3"))]
         );
+    }
+
+    #[test]
+    fn project_text_number_past_i64_max() {
+        let p = detect(&s(&["x0", "x9223372036854775807"]));
+        assert_eq!(
+            project_with_source_len(&p, 2, 2, false),
+            some(&["x18446744073709551614", "x27670116110564327421"])
+        );
+        assert_eq!(
+            project_with_source_len(&p, 2, 2, true),
+            some(&["x-18446744073709551614", "x-9223372036854775807"])
+        );
+    }
+
+    #[test]
+    fn project_date_past_chrono_range() {
+        // Step is 3,652,058 days. Chrono's calendar ends near year
+        // 262,000, about 26 steps out, and the 29,220th cell's offset is
+        // past what a `TimeDelta` can hold at all.
+        let p = detect(&s(&["0001-01-01", "9999-12-31"]));
+        let fwd = project_with_source_len(&p, 2, 30_000, false);
+        assert_eq!(fwd.len(), 30_000);
+        assert!(fwd.iter().take(20).all(Option::is_some));
+        assert!(fwd.iter().skip(100).all(Option::is_none));
+        let back = project_with_source_len(&p, 2, 30_000, true);
+        assert_eq!(back.len(), 30_000);
+        assert!(back.iter().rev().take(20).all(Option::is_some));
+        assert!(back.iter().take(29_900).all(Option::is_none));
+        // The cells past the range are left alone; none is refilled
+        // with the start date.
+        assert!(!fwd.contains(&Some("0001-01-01".to_string())));
+        assert!(!back.contains(&Some("0001-01-01".to_string())));
+    }
+
+    #[test]
+    fn project_numeric_step_past_f64_leaves_cells() {
+        // 1.7e308 - (-1e308) is infinite, so every projected value is
+        // NaN or infinite and has no text to write.
+        let p = detect(&s(&["-1e308", "1.7e308"]));
+        assert_eq!(project_with_source_len(&p, 2, 2, false), vec![None, None]);
+        assert_eq!(project_with_source_len(&p, 2, 2, true), vec![None, None]);
     }
 }

@@ -10,7 +10,7 @@ use gpui::{
 };
 
 use crate::buffer::LineGeo;
-use crate::consts::CARET_WIDTH_PX;
+use crate::consts::{CARET_WIDTH_PX, OVERSTRIKE_CARET_HEIGHT_PX, OVERSTRIKE_CARET_MIN_WIDTH_PX};
 use crate::syntax::{self, HighlightKind, HighlightSpan};
 use crate::text::{url_scan, wrap};
 use crate::theme::SyntaxTheme;
@@ -1039,6 +1039,7 @@ impl gpui::Element for EditorElement {
         let head = selection.head;
         let selection_empty = selection.is_empty();
         let caret_visible = workspace.caret_visible;
+        let overtype = workspace.overtype;
         let scroll_top = workspace.scroll_top();
         let scroll_left = if word_wrap { px(0.) } else { workspace.scroll_left() };
         // Notepad++ column-mode (block) selection. When `Some` AND wrap
@@ -1287,9 +1288,10 @@ impl gpui::Element for EditorElement {
         let line_left_base = bounds.left() - scroll_left;
 
         // Width of one virtual-column space — needed when a column-mode
-        // block extends past a line's printable end. Shape once outside
-        // the row loop. Costs nothing when block isn't active.
-        let virtual_space_width: Pixels = if block_active.is_some() {
+        // block extends past a line's printable end, and as the overtype
+        // caret's width at a line end. Shape once outside the row loop.
+        // Costs nothing when neither is active.
+        let virtual_space_width: Pixels = if block_active.is_some() || overtype {
             let space_runs = vec![TextRun {
                 len: 1,
                 font: font.clone(),
@@ -1623,12 +1625,24 @@ impl gpui::Element for EditorElement {
                     head_at_seg_end && row_continues_line && !head_at_logical_end;
                 if !skip_for_wrap_handoff {
                     let local_x = head - seg_start;
-                    let cx_pos = line_left_base + shaped.x_for_index(local_x);
+                    let head_x = shaped.x_for_index(local_x);
+                    let cx_pos = line_left_base + head_x;
+                    // The overtype bar spans the character a keystroke will
+                    // replace; at a row end Scintilla falls back to an
+                    // average character width.
+                    let overstrike_width = overtype.then(|| {
+                        if head < seg_end {
+                            let rope = &buffer.rope;
+                            let next = rope
+                                .char_to_byte(rope.byte_to_char(head) + 1)
+                                .min(seg_end);
+                            shaped.x_for_index(next - seg_start) - head_x
+                        } else {
+                            virtual_space_width
+                        }
+                    });
                     caret = Some(fill(
-                        Bounds::new(
-                            point(cx_pos, line_top),
-                            size(px(CARET_WIDTH_PX), line_height),
-                        ),
+                        caret_bounds(cx_pos, line_top, line_height, overstrike_width),
                         caret_color,
                     ));
                 }
@@ -1655,9 +1669,11 @@ impl gpui::Element for EditorElement {
                 let cx_pos = line_left_base + last.shaped.x_for_index(0);
                 let line_top = last.bounds.top() + line_height;
                 caret = Some(fill(
-                    Bounds::new(
-                        point(cx_pos, line_top),
-                        size(px(CARET_WIDTH_PX), line_height),
+                    caret_bounds(
+                        cx_pos,
+                        line_top,
+                        line_height,
+                        overtype.then_some(virtual_space_width),
                     ),
                     caret_color,
                 ));
@@ -2150,5 +2166,46 @@ impl gpui::Element for EditorElement {
                 }
             });
         });
+    }
+}
+
+/// The caret rectangle at `x` on the row that starts at `line_top`. In
+/// overtype, `overstrike_width` is the width of the character the next
+/// keystroke replaces, and the caret becomes Scintilla's overstrike bar:
+/// 2px tall at the row bottom, 1px right of the caret, as wide as that
+/// character (at least 3px) less 1px (scintilla/src/EditView.cxx:1533-1551).
+fn caret_bounds(
+    x: Pixels,
+    line_top: Pixels,
+    line_height: Pixels,
+    overstrike_width: Option<Pixels>,
+) -> Bounds<Pixels> {
+    let Some(width) = overstrike_width else {
+        return Bounds::new(point(x, line_top), size(px(CARET_WIDTH_PX), line_height));
+    };
+    let width = width.max(px(OVERSTRIKE_CARET_MIN_WIDTH_PX)) - px(1.);
+    let height = px(OVERSTRIKE_CARET_HEIGHT_PX);
+    Bounds::new(point(x + px(1.), line_top + line_height - height), size(width, height))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn insert_mode_caret_is_a_full_height_bar() {
+        let b = caret_bounds(px(10.), px(40.), px(20.), None);
+        assert_eq!(b.origin, point(px(10.), px(40.)));
+        assert_eq!(b.size, size(px(CARET_WIDTH_PX), px(20.)));
+    }
+
+    #[test]
+    fn overtype_caret_underlines_the_next_character() {
+        let b = caret_bounds(px(10.), px(40.), px(20.), Some(px(8.)));
+        assert_eq!(b.origin, point(px(11.), px(58.)));
+        assert_eq!(b.size, size(px(7.), px(2.)));
+        // A zero-width or narrow character still gets a visible bar.
+        let b = caret_bounds(px(10.), px(40.), px(20.), Some(px(0.)));
+        assert_eq!(b.size, size(px(2.), px(2.)));
     }
 }

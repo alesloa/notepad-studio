@@ -3191,7 +3191,7 @@ impl Workspace {
     /// input editing helpers above can do their work without each one
     /// repeating the eight-arm match. Returns `None` when the editor is
     /// focused.
-    fn input_field_mut(
+    pub(crate) fn input_field_mut(
         &mut self,
         focus: InputFocus,
     ) -> Option<(&mut String, &mut usize, &mut usize)> {

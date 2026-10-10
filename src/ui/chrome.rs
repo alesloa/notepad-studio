@@ -24,6 +24,7 @@ pub(crate) fn status_bar(
     encoding: &str,
     line_ending: &str,
     syntax: &str,
+    overtype: bool,
     message: Option<&str>,
     loading: Option<LoadingChip>,
     workspace: Entity<Workspace>,
@@ -74,7 +75,8 @@ pub(crate) fn status_bar(
     // clickable: a left-click cycles each through its mode list, mirroring
     // Notepad++'s status-bar behaviour.
     let encoding_handle = workspace.clone();
-    let eol_handle = workspace;
+    let eol_handle = workspace.clone();
+    let typing_mode_handle = workspace;
 
     let segment = |label: SharedString| {
         div()
@@ -101,7 +103,32 @@ pub(crate) fn status_bar(
                 }),
         )
         .child(div().px(rems(4. / 16.)).child("·"))
-        .child(segment(syntax.to_string().into()));
+        .child(segment(syntax.to_string().into()))
+        .child(div().px(rems(4. / 16.)).child("·"))
+        // Notepad++'s typing-mode field (Notepad_plus.cpp:4615); a click
+        // flips it, as NppNotification.cpp:941 does.
+        .child(
+            segment(typing_mode_label(overtype).into())
+                .on_mouse_down(MouseButton::Left, move |_e, _window, cx| {
+                    typing_mode_handle.update(cx, |w, cx| w.set_overtype(!w.overtype, cx));
+                }),
+        );
 
     bar.child(right)
+}
+
+/// Notepad++'s status-bar text for the typing mode.
+fn typing_mode_label(overtype: bool) -> &'static str {
+    if overtype { "OVR" } else { "INS" }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn typing_mode_label_matches_notepad_plus_plus() {
+        assert_eq!(typing_mode_label(false), "INS");
+        assert_eq!(typing_mode_label(true), "OVR");
+    }
 }

@@ -141,6 +141,17 @@ static CATALOG: &[ActionEntry] = &[
     row!(EditSelectAll,     "Select All",         Some("SCI_SELECTALL"),          W, ["ctrl-a"],                          ["cmd-a"]),
     row!(EditBackspace,     "Backspace",          Some("SCI_DELETEBACK"),         W, ["backspace", "shift-backspace"],    ["backspace", "shift-backspace"]),
     row!(EditDelete,        "Delete",             Some("SCI_CLEAR"),              W, ["delete"],                          ["delete"]),
+    // Scintilla editor keys (Parameters.cpp scintKeyDefs[]). macOS takes the
+    // Cocoa text conventions: Option+Delete for words, Cmd+Delete for the
+    // line. Ctrl+Up/Down are Mission Control there and Mac keyboards have no
+    // Insert key, so those three have no Mac default.
+    row!(EditDeleteWordLeft,  "Delete Word Left",     Some("SCI_DELWORDLEFT"),        W, ["ctrl-backspace"],                  ["alt-backspace"]),
+    row!(EditDeleteWordRight, "Delete Word Right",    Some("SCI_DELWORDRIGHT"),       W, ["ctrl-delete"],                     ["alt-delete"]),
+    row!(EditDeleteLineLeft,  "Delete to Line Start", Some("SCI_DELLINELEFT"),        W, ["ctrl-shift-backspace"],            ["cmd-backspace"]),
+    row!(EditDeleteLineRight, "Delete to Line End",   Some("SCI_DELLINERIGHT"),       W, ["ctrl-shift-delete"],               ["cmd-delete"]),
+    row!(EditScrollLineUp,    "Scroll Line Up",       Some("SCI_LINESCROLLUP"),       W, ["ctrl-up"],                         []),
+    row!(EditScrollLineDown,  "Scroll Line Down",     Some("SCI_LINESCROLLDOWN"),     W, ["ctrl-down"],                       []),
+    row!(EditToggleOvertype,  "Toggle Overtype",      Some("SCI_EDITTOGGLEOVERTYPE"), W, ["insert"],                          []),
     // Shift+Enter is a plain newline in the editor (SCI_NEWLINE); in the
     // find bar and the CSV grid `insert_newline` routes it backwards.
     row!(EditInsertNewline, "Insert Newline",     Some("SCI_NEWLINE"),            W, ["enter", "shift-enter"],            ["enter", "shift-enter"]),

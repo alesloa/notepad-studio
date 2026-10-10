@@ -89,6 +89,10 @@ pub(crate) struct Workspace {
     /// and vertical caret movement.
     pub(crate) last_lines: Vec<LineGeo>,
     pub(crate) caret_visible: bool,
+    /// Overtype (Scintilla "overstrike") mode, toggled by Insert. Typed
+    /// characters replace the ones after the caret instead of pushing them
+    /// right. Per window, like Scintilla's per-view flag; not persisted.
+    pub(crate) overtype: bool,
     /// When true, `apply_edit` suppresses its per-edit flush (reparse, scroll,
     /// repaint, session + autosave disk writes) so a batched run does that
     /// work once at the end. Set during undo/redo replay of a composite group;
@@ -630,6 +634,7 @@ impl Workspace {
             mark_focus: None,
             last_lines: Vec::new(),
             caret_visible: true,
+            overtype: false,
             bulk_edit: false,
             status_message: None,
             find_state: FindState::new(),

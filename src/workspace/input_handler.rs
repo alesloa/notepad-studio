@@ -1046,7 +1046,10 @@ impl EntityInputHandler for Workspace {
                                 crate::macros::record(
                                     crate::macros::MacroEvent::InsertText(payload.clone()),
                                 );
-                                self.replace_byte_range(cursor..cursor, &payload, cx);
+                                // Only the typed `/` overtypes; Notepad++
+                                // inserts the tag name after it.
+                                let end = self.overtype_end(cursor, "/");
+                                self.replace_byte_range(cursor..end, &payload, cx);
                                 if self.find_state.open
                                     && !self.find_state.query.is_empty()
                                 {
@@ -1097,7 +1100,10 @@ impl EntityInputHandler for Workspace {
                             crate::macros::record(crate::macros::MacroEvent::InsertText(
                                 payload.clone(),
                             ));
-                            self.replace_byte_range(cursor..cursor, &payload, cx);
+                            // Only the typed opener overtypes; Notepad++
+                            // inserts the closer after it.
+                            let end = self.overtype_end(cursor, open.encode_utf8(&mut [0; 4]));
+                            self.replace_byte_range(cursor..end, &payload, cx);
                             // `replace_byte_range` collapsed the cursor to
                             // `cursor + payload.len()`. Move it back between
                             // the two pair chars.
@@ -1208,12 +1214,17 @@ impl EntityInputHandler for Workspace {
                 let plain_point_insert = range_utf16.is_none()
                     && self.selection().is_empty()
                     && !self.has_block_selection();
-                let byte_range = if let Some(ru) = range_utf16 {
+                let mut byte_range = if let Some(ru) = range_utf16 {
                     let rope = &self.buffer().rope;
                     rope_utf16_to_byte(rope, ru.start)..rope_utf16_to_byte(rope, ru.end)
                 } else {
                     self.selection().ordered()
                 };
+                // Overtype (Insert key): a typed character replaces the next
+                // one. Selection replaces and IME edits never overtype.
+                if plain_point_insert {
+                    byte_range.end = self.overtype_end(byte_range.start, new_text);
+                }
                 if !new_text.is_empty() {
                     crate::macros::record(crate::macros::MacroEvent::InsertText(new_text.to_string()));
                 }

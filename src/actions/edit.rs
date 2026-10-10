@@ -72,3 +72,19 @@ gpui::actions!(
         EditAutocompleteFuncParams,
     ]
 );
+
+// Scintilla editor keys Notepad++ binds without a menu item
+// (PowerEditor/src/Parameters.cpp `scintKeyDefs[]`). Handlers live in
+// `edit_ops::editor_keys`.
+gpui::actions!(
+    notepad_studio,
+    [
+        EditDeleteWordLeft,
+        EditDeleteWordRight,
+        EditDeleteLineLeft,
+        EditDeleteLineRight,
+        EditScrollLineUp,
+        EditScrollLineDown,
+        EditToggleOvertype,
+    ]
+);

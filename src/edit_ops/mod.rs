@@ -9,6 +9,7 @@ pub(crate) mod case_ops;
 pub(crate) mod clipboard_ops;
 pub(crate) mod comment_ops;
 pub(crate) mod delimiter_select;
+pub(crate) mod editor_keys;
 pub(crate) mod indent_ops;
 pub(crate) mod insert;
 pub(crate) mod line_ops;

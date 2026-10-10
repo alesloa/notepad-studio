@@ -14,11 +14,13 @@ use gpui::{Context, Window};
 
 use crate::actions::{
     EditBackspace, EditBlockComment, EditCopy, EditCut, EditDelete, EditDeleteLine,
+    EditDeleteLineLeft, EditDeleteLineRight, EditDeleteWordLeft, EditDeleteWordRight,
     EditDuplicateLine, EditInsertBlankLineAbove, EditInsertBlankLineBelow,
     EditInsertDateTimeCustomized, EditInsertDateTimeLong, EditInsertDateTimeShort,
     EditInsertNewline, EditInsertTab, EditLowercase, EditMoveLineDown, EditMoveLineUp,
-    EditPageDown, EditPageUp, EditPaste, EditRedo, EditSelectAll, EditStreamComment,
-    EditTrimTrailingWs, EditUndo, EditUppercase, MacroPlayback, MacroRunMultipleTimes,
+    EditPageDown, EditPageUp, EditPaste, EditRedo, EditScrollLineDown, EditScrollLineUp,
+    EditSelectAll, EditStreamComment, EditToggleOvertype, EditTrimTrailingWs, EditUndo,
+    EditUppercase, MacroPlayback, MacroRunMultipleTimes,
     MacroRunSaved, MacroSaveCurrent, MacroStartRecording, MacroStartStopRecording,
     MacroStopRecording, MoveDocEnd, MoveDocStart, MoveDown, MoveLeft, MoveLineEnd, MoveLineStart,
     MoveRight, MoveUp, MoveWordLeft, MoveWordRight, SelectDocEnd, SelectDocStart, SelectDown,
@@ -126,6 +128,13 @@ impl Workspace {
             MacroEvent::InsertDateTimeCustomized => {
                 self.insert_datetime_customized(&EditInsertDateTimeCustomized, window, cx)
             }
+            MacroEvent::DeleteWordLeft => self.delete_word_left(&EditDeleteWordLeft, window, cx),
+            MacroEvent::DeleteWordRight => self.delete_word_right(&EditDeleteWordRight, window, cx),
+            MacroEvent::DeleteLineLeft => self.delete_line_left(&EditDeleteLineLeft, window, cx),
+            MacroEvent::DeleteLineRight => self.delete_line_right(&EditDeleteLineRight, window, cx),
+            MacroEvent::ScrollLineUp => self.scroll_line_up(&EditScrollLineUp, window, cx),
+            MacroEvent::ScrollLineDown => self.scroll_line_down(&EditScrollLineDown, window, cx),
+            MacroEvent::ToggleOvertype => self.toggle_overtype(&EditToggleOvertype, window, cx),
         }
     }
 

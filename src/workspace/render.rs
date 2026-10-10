@@ -205,6 +205,13 @@ impl Render for Workspace {
             .on_action(cx.listener(Self::md_horizontal_rule_action))
             .on_action(cx.listener(Self::backspace))
             .on_action(cx.listener(Self::delete))
+            .on_action(cx.listener(Self::delete_word_left))
+            .on_action(cx.listener(Self::delete_word_right))
+            .on_action(cx.listener(Self::delete_line_left))
+            .on_action(cx.listener(Self::delete_line_right))
+            .on_action(cx.listener(Self::scroll_line_up))
+            .on_action(cx.listener(Self::scroll_line_down))
+            .on_action(cx.listener(Self::toggle_overtype))
             .on_action(cx.listener(Self::insert_newline))
             .on_action(cx.listener(Self::insert_tab))
             .on_action(cx.listener(Self::move_left))
@@ -679,6 +686,7 @@ impl Render for Workspace {
                     encoding,
                     line_ending,
                     syntax,
+                    self.overtype,
                     status_message.as_deref(),
                     loading_chip,
                     cx.entity().clone(),

@@ -91,6 +91,15 @@ pub(crate) enum MacroEvent {
     /// is used — same as NPP, where the menu item itself reads the current
     /// preference each invocation.
     InsertDateTimeCustomized,
+    /// Scintilla editor keys (`edit_ops::editor_keys`): Ctrl+Backspace,
+    /// Ctrl+Delete, Ctrl+Shift+Backspace / Delete, Ctrl+Up / Down, Insert.
+    DeleteWordLeft,
+    DeleteWordRight,
+    DeleteLineLeft,
+    DeleteLineRight,
+    ScrollLineUp,
+    ScrollLineDown,
+    ToggleOvertype,
 }
 
 #[derive(Default)]

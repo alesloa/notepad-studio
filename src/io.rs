@@ -387,12 +387,35 @@ impl Workspace {
     /// Write the active tab's rope to its `file_path`, returning whether the
     /// write succeeded. Caller is expected to have ensured `file_path` is
     /// already set (via Save As if needed).
+    ///
+    /// A tab flagged read-only is refused, as Notepad++'s `fileSave` does
+    /// (NppIO.cpp:1777 "The file is read-only and cannot be saved"). Save As
+    /// goes through `write_active_to_disk_as`, which writes a new file and
+    /// so is allowed.
     pub(crate) fn write_active_to_disk(&mut self) -> Result<(), String> {
+        self.write_active_inner(false)
+    }
+
+    /// `write_active_to_disk` for Save As: the target is a path the user
+    /// just picked, so the tab's read-only flag doesn't block it.
+    pub(crate) fn write_active_to_disk_as(&mut self) -> Result<(), String> {
+        self.write_active_inner(true)
+    }
+
+    fn write_active_inner(&mut self, save_as: bool) -> Result<(), String> {
         let active = self.active;
-        let tab = &mut self.tabs[active];
+        let Some(tab) = self.tabs.get_mut(active) else {
+            return Err("no active tab".to_string());
+        };
         let Some(path) = tab.buffer.file_path.clone() else {
             return Err("no path".to_string());
         };
+        if tab.buffer.read_only && !save_as {
+            return Err(format!(
+                "{} is read-only in Notepad Studio; clear Read-Only or use Save As",
+                path.display()
+            ));
+        }
         // Rich-doc buffers go through their native save path (e.g. zip
         // container preservation for DOCX). Falling through to the rope
         // serializer would write `word/document.xml` (the raw-view text)
@@ -408,10 +431,12 @@ impl Workspace {
                 } else {
                     None
                 };
+            if path.is_file() {
+                run_save_backup(&path);
+            }
             match crate::rich_doc::save(payload, &path, raw_override.as_deref()) {
                 Ok(()) => {
                     tab.buffer.dirty = false;
-                    run_save_backup(&path);
                     return Ok(());
                 }
                 Err(err) => return Err(format!("rich-doc save failed: {err}")),
@@ -421,19 +446,35 @@ impl Workspace {
         // UTF-8 bytes → encoded bytes per the buffer's chosen encoding (with
         // BOM where applicable).
         let eol_bytes = rope_to_bytes(&tab.buffer.rope, tab.buffer.line_ending);
-        let utf8 = match std::str::from_utf8(&eol_bytes) {
-            Ok(s) => s,
-            Err(err) => return Err(format!("internal: rope was not valid UTF-8: {err}")),
+        let bytes = if tab.buffer.encoding == Encoding::Utf8 {
+            eol_bytes
+        } else {
+            let utf8 = match std::str::from_utf8(&eol_bytes) {
+                Ok(s) => s,
+                Err(err) => return Err(format!("internal: rope was not valid UTF-8: {err}")),
+            };
+            encoding::encode_checked(utf8, tab.buffer.encoding).map_err(|e| e.to_string())?
         };
-        let bytes = encoding::encode(utf8, tab.buffer.encoding);
-        match std::fs::write(&path, &bytes) {
-            Ok(()) => {
-                tab.buffer.dirty = false;
-                run_save_backup(&path);
-                Ok(())
-            }
-            Err(err) => Err(err.to_string()),
+        save_bytes_with_backup(&path, &bytes, run_save_backup).map_err(|e| e.to_string())?;
+        tab.buffer.dirty = false;
+        Ok(())
+    }
+
+    /// Save As core: point the active tab at `path` and write it. If the
+    /// write fails the old path and "new N" label go back, so the tab never
+    /// claims a file that was not written.
+    fn save_active_to_new_path(&mut self, path: PathBuf) -> Result<(), String> {
+        let (old_path, old_label) = {
+            let buf = &mut self.active_tab_mut().buffer;
+            (buf.file_path.replace(path), buf.new_label.take())
+        };
+        let result = self.write_active_to_disk_as();
+        if result.is_err() {
+            let buf = &mut self.active_tab_mut().buffer;
+            buf.file_path = old_path;
+            buf.new_label = old_label;
         }
+        result
     }
 
     pub(crate) fn save_active(&mut self, _: &FileSave, window: &mut Window, cx: &mut Context<Self>) {
@@ -509,10 +550,7 @@ impl Workspace {
                 return;
             }
             this.update(cx, |w, cx| {
-                let buf = &mut w.active_tab_mut().buffer;
-                buf.file_path = Some(path.clone());
-                buf.new_label = None;
-                let saved = match w.write_active_to_disk() {
+                let saved = match w.save_active_to_new_path(path.clone()) {
                     Ok(()) => {
                         let name = w.buffer().display_short_name().to_string();
                         w.set_status(format!("Saved {name}"));
@@ -592,14 +630,23 @@ impl Workspace {
         let mut failures: Vec<String> = Vec::new();
         let prev_active = self.active;
         for idx in 0..self.tabs.len() {
-            if self.tabs[idx].buffer.file_path.is_none() {
+            // Notepad++'s Save All saves only modified documents
+            // (`fileSaveAll` → `fileSave`, which returns early unless
+            // `isDirty()`). Rewriting clean files would bump their mtime and
+            // overwrite any change made on disk since they were opened.
+            let Some(tab) = self.tabs.get(idx) else { continue };
+            if tab.buffer.file_path.is_none() || !tab.buffer.dirty {
                 continue;
             }
             self.active = idx;
             match self.write_active_to_disk() {
                 Ok(()) => saved += 1,
                 Err(err) => {
-                    let name = self.tabs[idx].buffer.display_short_name().to_string();
+                    let name = self
+                        .tabs
+                        .get(idx)
+                        .map(|t| t.buffer.display_short_name().to_string())
+                        .unwrap_or_default();
                     failures.push(format!("{name}: {err}"));
                 }
             }
@@ -619,6 +666,257 @@ impl Workspace {
         self.save_session();
         cx.notify();
     }
+}
+
+/// Why `write_file_safely` didn't write. Every variant leaves the original
+/// file as it was, except `NotRestored`, which names where its copy is.
+#[derive(Debug, thiserror::Error)]
+pub(crate) enum SaveError {
+    #[error("{} is read-only; clear the read-only attribute or use Save As", path.display())]
+    ReadOnly { path: PathBuf },
+    #[error("{} is a folder", path.display())]
+    IsDirectory { path: PathBuf },
+    #[error("{}: {source}", path.display())]
+    Io {
+        path: PathBuf,
+        #[source]
+        source: std::io::Error,
+    },
+    #[error(
+        "{}: couldn't keep a copy of the file before writing ({source}); nothing was changed",
+        path.display()
+    )]
+    NoSafetyCopy {
+        path: PathBuf,
+        #[source]
+        source: std::io::Error,
+    },
+    #[error("writing {} failed ({source}); the file on disk was left as it was", path.display())]
+    Restored {
+        path: PathBuf,
+        #[source]
+        source: std::io::Error,
+    },
+    #[error(
+        "writing {} failed ({source}) and putting the original back also failed ({restore}); {}",
+        path.display(),
+        match copy {
+            Some(c) => format!("the original is saved at {}", c.display()),
+            None => "the original could not be kept".to_string(),
+        }
+    )]
+    NotRestored {
+        path: PathBuf,
+        #[source]
+        source: std::io::Error,
+        restore: std::io::Error,
+        copy: Option<PathBuf>,
+    },
+}
+
+/// Save `bytes` to `path`, handing the file's previous version to `backup`
+/// first. Backup ▸ Backup on save copies the version about to be
+/// overwritten (NppIO.cpp:1863, `CopyFileEx(fn, fn_bak)` runs ahead of the
+/// save); copying afterwards would back up the new content instead.
+fn save_bytes_with_backup(
+    path: &Path,
+    bytes: &[u8],
+    backup: impl FnOnce(&Path),
+) -> Result<(), SaveError> {
+    if path.is_file() {
+        backup(path);
+    }
+    write_file_safely(path, bytes)
+}
+
+/// Write `bytes` to `path` without ever leaving it half-written.
+///
+/// The file is rewritten in place, as Notepad++ does (Buffer.cpp
+/// `FileManager::saveBuffer` opens the existing file and writes over it),
+/// so hard links, ACLs, ownership, extended attributes and the Windows
+/// hidden attribute all survive. Writing to a temp file and renaming it
+/// over the original would lose those, and on Unix would also write
+/// through a read-only file's permissions.
+///
+/// Before the first byte changes, the original is copied next to itself
+/// (`<name>.notepad-studio-save`), or held in memory if that copy can't be
+/// made. If the write fails part-way (disk full, device gone, I/O error)
+/// the original bytes go back and the copy is removed. Only when putting
+/// them back also fails does the copy stay, and the error names it.
+pub(crate) fn write_file_safely(path: &Path, bytes: &[u8]) -> Result<(), SaveError> {
+    write_file_safely_with(path, bytes, |file, data| {
+        use std::io::Write;
+        file.write_all(data)
+    })
+}
+
+/// `write_file_safely` with the data write injectable, so tests can make
+/// it fail part-way.
+fn write_file_safely_with(
+    path: &Path,
+    bytes: &[u8],
+    write: impl Fn(&mut std::fs::File, &[u8]) -> std::io::Result<()>,
+) -> Result<(), SaveError> {
+    use std::io::{Seek, SeekFrom, Write};
+
+    let io_err = |source: std::io::Error| SaveError::Io {
+        path: path.to_path_buf(),
+        source,
+    };
+    let meta = match std::fs::metadata(path) {
+        Ok(m) => Some(m),
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => None,
+        Err(e) => return Err(io_err(e)),
+    };
+    let new_len = u64::try_from(bytes.len()).map_err(|_| {
+        io_err(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "document too large to save on this platform",
+        ))
+    })?;
+
+    let Some(meta) = meta else {
+        // New file: nothing to protect. Don't leave a partial file behind.
+        let mut file = std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(path)
+            .map_err(io_err)?;
+        let result = write(&mut file, bytes).and_then(|()| file.sync_all());
+        drop(file);
+        return match result {
+            Ok(()) => Ok(()),
+            Err(e) => {
+                let _ = std::fs::remove_file(path);
+                Err(io_err(e))
+            }
+        };
+    };
+    if meta.is_dir() {
+        return Err(SaveError::IsDirectory {
+            path: path.to_path_buf(),
+        });
+    }
+    if meta.permissions().readonly() {
+        return Err(SaveError::ReadOnly {
+            path: path.to_path_buf(),
+        });
+    }
+
+    // Keep the original before touching it.
+    let (copy, in_memory) = match make_safety_copy(path) {
+        Ok(copy) => (Some(copy), None),
+        Err(copy_err) => match std::fs::read(path) {
+            Ok(original) => (None, Some(original)),
+            Err(_) => {
+                return Err(SaveError::NoSafetyCopy {
+                    path: path.to_path_buf(),
+                    source: copy_err,
+                })
+            }
+        },
+    };
+    let discard_copy = |copy: &Option<PathBuf>| {
+        if let Some(c) = copy {
+            let _ = std::fs::remove_file(c);
+        }
+    };
+
+    // Open without truncating: the new bytes overwrite the old ones in
+    // place and `set_len` trims any tail, so a save that doesn't grow the
+    // file never needs more disk space.
+    let mut file = match std::fs::OpenOptions::new().write(true).open(path) {
+        Ok(f) => f,
+        Err(e) => {
+            discard_copy(&copy);
+            return Err(io_err(e));
+        }
+    };
+    let result = write(&mut file, bytes)
+        .and_then(|()| file.set_len(new_len))
+        .and_then(|()| file.sync_all());
+    let Err(source) = result else {
+        drop(file);
+        discard_copy(&copy);
+        return Ok(());
+    };
+
+    // Put the original back.
+    let original = match (&in_memory, &copy) {
+        (Some(bytes), _) => Ok(bytes.clone()),
+        (None, Some(c)) => std::fs::read(c),
+        (None, None) => Err(std::io::Error::new(
+            std::io::ErrorKind::NotFound,
+            "no copy of the original",
+        )),
+    };
+    let restored = original.and_then(|orig| {
+        let len = u64::try_from(orig.len()).map_err(|_| {
+            std::io::Error::new(std::io::ErrorKind::InvalidData, "original too large")
+        })?;
+        file.seek(SeekFrom::Start(0))?;
+        file.write_all(&orig)?;
+        file.set_len(len)?;
+        file.sync_all()
+    });
+    drop(file);
+    match restored {
+        Ok(()) => {
+            discard_copy(&copy);
+            Err(SaveError::Restored {
+                path: path.to_path_buf(),
+                source,
+            })
+        }
+        Err(restore) => Err(SaveError::NotRestored {
+            path: path.to_path_buf(),
+            source,
+            restore,
+            copy,
+        }),
+    }
+}
+
+/// Copy `path` to an unused `<name>.notepad-studio-save[.N]` beside it and
+/// return the copy's path. An existing copy is never overwritten: it may be
+/// the only good version left by a save that crashed half-way.
+fn make_safety_copy(path: &Path) -> std::io::Result<PathBuf> {
+    let Some(name) = path.file_name() else {
+        return Err(std::io::Error::new(
+            std::io::ErrorKind::InvalidInput,
+            "path has no file name",
+        ));
+    };
+    let dir = path.parent().unwrap_or_else(|| Path::new("."));
+    for n in 0u32..100 {
+        let mut candidate = name.to_os_string();
+        candidate.push(".notepad-studio-save");
+        if n > 0 {
+            candidate.push(format!(".{n}"));
+        }
+        let target = dir.join(candidate);
+        // `create_new` reserves the name atomically; then copy into it.
+        match std::fs::OpenOptions::new()
+            .write(true)
+            .create_new(true)
+            .open(&target)
+        {
+            Ok(f) => {
+                drop(f);
+                if let Err(e) = std::fs::copy(path, &target) {
+                    let _ = std::fs::remove_file(&target);
+                    return Err(e);
+                }
+                return Ok(target);
+            }
+            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => continue,
+            Err(e) => return Err(e),
+        }
+    }
+    Err(std::io::Error::new(
+        std::io::ErrorKind::AlreadyExists,
+        "too many leftover .notepad-studio-save copies",
+    ))
 }
 
 /// Status line for a file whose bytes didn't decode cleanly. Shared by the
@@ -732,6 +1030,9 @@ pub(crate) async fn save_tab_for_close(
 
     workspace
         .update(cx, |w, cx| {
+            if idx >= w.tabs.len() {
+                return Err("tab gone".to_string());
+            }
             if let Some(p) = new_path.as_deref() {
                 if w.open_tab_index_for(p).is_some_and(|other| other != idx) {
                     return Err(crate::workspace::already_open_message());
@@ -739,15 +1040,11 @@ pub(crate) async fn save_tab_for_close(
             }
             let prev = w.active;
             w.active = idx;
-            let recorded = if let Some(p) = new_path {
-                let buf = &mut w.active_tab_mut().buffer;
-                buf.file_path = Some(p.clone());
-                buf.new_label = None;
-                Some(p)
-            } else {
-                None
+            let recorded = new_path.clone();
+            let r = match new_path {
+                Some(p) => w.save_active_to_new_path(p),
+                None => w.write_active_to_disk(),
             };
-            let r = w.write_active_to_disk();
             w.active = prev;
             if r.is_ok() {
                 if let Some(p) = recorded {
@@ -758,4 +1055,165 @@ pub(crate) async fn save_tab_for_close(
             r
         })
         .map_err(|e| e.to_string())?
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::persist::TempDir;
+
+    fn leftovers(dir: &Path) -> Vec<String> {
+        std::fs::read_dir(dir)
+            .map(|it| {
+                it.filter_map(|e| e.ok())
+                    .map(|e| e.file_name().to_string_lossy().into_owned())
+                    .filter(|n| n.contains(".notepad-studio-save"))
+                    .collect()
+            })
+            .unwrap_or_default()
+    }
+
+    #[test]
+    fn writes_a_new_file() {
+        let dir = TempDir::new("save-new");
+        let p = dir.join("new.txt");
+        assert!(write_file_safely(&p, b"hello").is_ok());
+        assert_eq!(std::fs::read(&p).ok(), Some(b"hello".to_vec()));
+        assert!(leftovers(dir.path()).is_empty());
+    }
+
+    #[test]
+    fn overwrites_shorter_and_longer_without_leftovers() {
+        let dir = TempDir::new("save-overwrite");
+        let p = dir.join("f.txt");
+        let _ = std::fs::write(&p, b"0123456789");
+        assert!(write_file_safely(&p, b"abc").is_ok());
+        assert_eq!(std::fs::read(&p).ok(), Some(b"abc".to_vec()));
+        assert!(write_file_safely(&p, b"a much longer body").is_ok());
+        assert_eq!(std::fs::read(&p).ok(), Some(b"a much longer body".to_vec()));
+        assert!(write_file_safely(&p, b"").is_ok());
+        assert_eq!(std::fs::read(&p).ok(), Some(Vec::new()));
+        assert!(leftovers(dir.path()).is_empty());
+    }
+
+    #[test]
+    fn failed_write_puts_the_original_back() {
+        // Regression: `fs::write` truncated the file before writing, so an
+        // error part-way through (disk full, device unplugged) left the
+        // user's file empty or half-written.
+        let dir = TempDir::new("save-fail");
+        let p = dir.join("f.txt");
+        let original = b"original contents\r\nline two\r\n".repeat(100);
+        let _ = std::fs::write(&p, &original);
+        let r = write_file_safely_with(&p, &b"new".repeat(5000), |file, data| {
+            use std::io::Write;
+            let half = data.get(..data.len() / 2).unwrap_or(data);
+            file.write_all(half)?;
+            Err(std::io::Error::other("disk full"))
+        });
+        assert!(matches!(r, Err(SaveError::Restored { .. })), "{r:?}");
+        assert_eq!(std::fs::read(&p).ok(), Some(original));
+        assert!(leftovers(dir.path()).is_empty());
+    }
+
+    #[test]
+    fn backup_on_save_sees_the_previous_version() {
+        // Regression: the backup ran after the write, so `.bak` held the
+        // new content and the previous version was lost.
+        let dir = TempDir::new("save-backup");
+        let p = dir.join("f.txt");
+        let _ = std::fs::write(&p, b"version 1");
+        let mut seen = None;
+        let r = save_bytes_with_backup(&p, b"version 2", |path| {
+            seen = std::fs::read(path).ok();
+        });
+        assert!(r.is_ok());
+        assert_eq!(seen, Some(b"version 1".to_vec()));
+        assert_eq!(std::fs::read(&p).ok(), Some(b"version 2".to_vec()));
+        // A new file has no previous version to back up.
+        let mut called = false;
+        let r = save_bytes_with_backup(&dir.join("new.txt"), b"x", |_| called = true);
+        assert!(r.is_ok());
+        assert!(!called);
+    }
+
+    #[test]
+    fn failed_new_file_is_not_left_behind() {
+        let dir = TempDir::new("save-fail-new");
+        let p = dir.join("new.txt");
+        let r = write_file_safely_with(&p, b"data", |_, _| Err(std::io::Error::other("boom")));
+        assert!(matches!(r, Err(SaveError::Io { .. })), "{r:?}");
+        assert!(!p.exists());
+    }
+
+    #[test]
+    fn read_only_file_is_refused_and_untouched() {
+        let dir = TempDir::new("save-ro");
+        let p = dir.join("ro.txt");
+        let _ = std::fs::write(&p, b"keep me");
+        let Ok(meta) = std::fs::metadata(&p) else {
+            panic!("metadata");
+        };
+        let mut perms = meta.permissions();
+        perms.set_readonly(true);
+        let _ = std::fs::set_permissions(&p, perms.clone());
+        let r = write_file_safely(&p, b"overwrite");
+        #[allow(clippy::permissions_set_readonly_false)]
+        perms.set_readonly(false);
+        let _ = std::fs::set_permissions(&p, perms);
+        assert!(matches!(r, Err(SaveError::ReadOnly { .. })), "{r:?}");
+        assert_eq!(std::fs::read(&p).ok(), Some(b"keep me".to_vec()));
+        assert!(leftovers(dir.path()).is_empty());
+    }
+
+    #[test]
+    fn directory_and_vanished_parent_are_errors() {
+        let dir = TempDir::new("save-dir");
+        let sub = dir.join("sub");
+        let _ = std::fs::create_dir(&sub);
+        assert!(matches!(
+            write_file_safely(&sub, b"x"),
+            Err(SaveError::IsDirectory { .. })
+        ));
+        let gone = dir.join("gone").join("f.txt");
+        let r = write_file_safely(&gone, b"x");
+        assert!(matches!(r, Err(SaveError::Io { .. })), "{r:?}");
+        assert!(!r.err().map(|e| e.to_string()).unwrap_or_default().is_empty());
+    }
+
+    #[test]
+    fn an_existing_safety_copy_is_never_overwritten() {
+        // A copy left by an earlier save that could not restore may be the
+        // only good version of the file.
+        let dir = TempDir::new("save-keep");
+        let p = dir.join("f.txt");
+        let stale = dir.join("f.txt.notepad-studio-save");
+        let _ = std::fs::write(&p, b"current");
+        let _ = std::fs::write(&stale, b"older rescue copy");
+        let r = write_file_safely_with(&p, b"next", |_, _| Err(std::io::Error::other("boom")));
+        assert!(matches!(r, Err(SaveError::Restored { .. })), "{r:?}");
+        assert_eq!(std::fs::read(&stale).ok(), Some(b"older rescue copy".to_vec()));
+        assert_eq!(std::fs::read(&p).ok(), Some(b"current".to_vec()));
+        assert!(write_file_safely(&p, b"next").is_ok());
+        assert_eq!(std::fs::read(&p).ok(), Some(b"next".to_vec()));
+        assert_eq!(leftovers(dir.path()), vec!["f.txt.notepad-studio-save".to_string()]);
+    }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn hidden_file_on_windows_saves() {
+        // Windows refuses CREATE_ALWAYS on a file with the hidden
+        // attribute; the in-place open must not trip over it.
+        let dir = TempDir::new("save-hidden");
+        let p = dir.join("hidden.txt");
+        let _ = std::fs::write(&p, b"old");
+        let status = std::process::Command::new("attrib")
+            .arg("+h")
+            .arg(&p)
+            .status();
+        assert!(matches!(status, Ok(s) if s.success()));
+        assert!(write_file_safely(&p, b"new").is_ok());
+        assert_eq!(std::fs::read(&p).ok(), Some(b"new".to_vec()));
+        let _ = std::process::Command::new("attrib").arg("-h").arg(&p).status();
+    }
 }

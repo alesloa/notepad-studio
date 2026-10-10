@@ -31,6 +31,7 @@ mod io_stream;
 mod locale_date;
 mod macros;
 mod panic_log;
+mod persist;
 mod plugins;
 mod print;
 mod recent;

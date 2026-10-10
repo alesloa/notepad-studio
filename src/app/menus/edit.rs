@@ -14,7 +14,7 @@ use crate::actions::*;
 
 pub(crate) fn build() -> Menu {
     Menu {
-        name: "Edit".into(),
+        name: "&Edit".into(),
         items: vec![
             MenuItem::action("Undo", EditUndo),
             MenuItem::action("Redo", EditRedo),

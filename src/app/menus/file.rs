@@ -4,6 +4,7 @@ use gpui::{Menu, MenuItem};
 
 use crate::actions::*;
 use crate::recent;
+use crate::ui::menu_bar::mnemonic;
 use crate::settings;
 
 pub(crate) fn build() -> Menu {
@@ -28,7 +29,10 @@ pub(crate) fn build() -> Menu {
             items.push(MenuItem::action("Open Recent (Empty)", FileClearRecent));
         } else {
             for path in &snapshot {
-                let label = recent::display_label(path, snap.recent_files_show_full_path);
+                let label = mnemonic::escape(&recent::display_label(
+                    path,
+                    snap.recent_files_show_full_path,
+                ));
                 items.push(MenuItem::action(
                     label,
                     FileOpenRecent { path: path.clone() },
@@ -53,7 +57,7 @@ pub(crate) fn build() -> Menu {
     ]);
 
     Menu {
-        name: "File".into(),
+        name: "&File".into(),
         items,
     }
 }
@@ -72,7 +76,7 @@ fn build_open_recent_submenu(full_path: bool) -> Menu {
     let mut items: Vec<MenuItem> = snapshot
         .iter()
         .map(|path| {
-            let label = recent::display_label(path, full_path);
+            let label = mnemonic::escape(&recent::display_label(path, full_path));
             MenuItem::action(label, FileOpenRecent { path: path.clone() })
         })
         .collect();

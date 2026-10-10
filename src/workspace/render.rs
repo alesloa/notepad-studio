@@ -50,6 +50,7 @@ impl Render for Workspace {
                 self.last_window_title = Some(next);
             }
         }
+        let menu_bar = self.menu_bar_view(theme, window, cx);
         let (line, col) = self.cursor_position();
         let buffer = self.buffer();
         let active_tab = &self.tabs[self.active];
@@ -428,6 +429,10 @@ impl Render for Workspace {
             .on_action(cx.listener(Self::macro_run_saved))
             // Plugins.
             .on_action(cx.listener(Self::plugin_run_command))
+            // Menu bar keys (Windows and Linux).
+            .on_action(cx.listener(Self::menu_bar_alt_tap))
+            .on_action(cx.listener(Self::menu_bar_activate))
+            .on_action(cx.listener(Self::menu_bar_open))
             .flex()
             .flex_col()
             .size_full()
@@ -438,6 +443,7 @@ impl Render for Workspace {
             // (zoom) flow through automatically.
             .text_size(rems(13.5 / 16.))
             .line_height(rems(20. / 16.))
+            .when_some(menu_bar, |this, bar| this.child(bar))
             .when(!prefs.toolbar_hidden, |this| {
                 this.child(toolbar(&theme, toolbar_flags, cx.entity().clone()))
             })
@@ -702,12 +708,13 @@ impl Render for Workspace {
                 }
             })
             .when(self.about_dialog_open, |this| {
-                this.child(about_dialog(&theme, cx.entity().clone()))
+                this.child(about_dialog(&theme, cx.entity().clone(), window.viewport_size()))
             })
             .when(self.paste_format_pending.is_some(), |this| {
                 this.child(crate::ui::paste_format_dialog::paste_format_dialog(
                     &theme,
                     cx.entity().clone(),
+                    window.viewport_size(),
                 ))
             })
             .when_some(self.folder_panel.context_menu.clone(), |this, state| {

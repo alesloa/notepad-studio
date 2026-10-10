@@ -8,7 +8,7 @@ use crate::actions::*;
 
 pub(crate) fn build() -> Menu {
     Menu {
-        name: "Settings".into(),
+        name: "Se&ttings".into(),
         items: vec![
             MenuItem::action("Preferences\u{200B}…", OpenPreferences),
             MenuItem::action("Style Configurator…", OpenStyleConfigurator),

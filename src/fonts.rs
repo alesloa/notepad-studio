@@ -20,6 +20,7 @@ use gpui::{App, SharedString};
 
 static INSTALLED: OnceLock<Vec<String>> = OnceLock::new();
 static MONO: OnceLock<SharedString> = OnceLock::new();
+static UI: OnceLock<SharedString> = OnceLock::new();
 
 /// Candidates in preference order. The last entry is the answer when the
 /// enumerator returned nothing (headless runs, tests): it is the family most
@@ -40,13 +41,31 @@ const MONO_CANDIDATES: &[&str] = &[
     "monospace",
 ];
 
+/// Proportional face for the menu bar. Windows (Segoe UI) and macOS resolve
+/// gpui's `.SystemUIFont` to the system menu font; on Linux gpui maps it to
+/// IBM Plex Sans, which few systems ship, so pick an installed desktop face.
+#[cfg(any(target_os = "macos", target_os = "windows"))]
+const UI_CANDIDATES: &[&str] = &[".SystemUIFont"];
+#[cfg(not(any(target_os = "macos", target_os = "windows")))]
+const UI_CANDIDATES: &[&str] = &[
+    "Ubuntu",
+    "Cantarell",
+    "Noto Sans",
+    "DejaVu Sans",
+    "Liberation Sans",
+    "FreeSans",
+    ".SystemUIFont",
+];
+
 /// Capture installed font families. Call once from `App::run`, before the
 /// first window renders. Later calls are no-ops.
 pub(crate) fn init(cx: &App) {
     let names = cx.text_system().all_font_names();
     let mono = SharedString::from(pick(MONO_CANDIDATES, &names).to_string());
+    let ui = SharedString::from(pick(UI_CANDIDATES, &names).to_string());
     let _ = INSTALLED.set(names);
     let _ = MONO.set(mono);
+    let _ = UI.set(ui);
 }
 
 /// The platform monospace family for UI text and the editor.
@@ -54,6 +73,13 @@ pub(crate) fn mono() -> SharedString {
     MONO.get()
         .cloned()
         .unwrap_or_else(|| SharedString::from(fallback(MONO_CANDIDATES)))
+}
+
+/// The platform menu face, for the in-window menu bar.
+pub(crate) fn ui() -> SharedString {
+    UI.get()
+        .cloned()
+        .unwrap_or_else(|| SharedString::from(fallback(UI_CANDIDATES)))
 }
 
 /// `name` as spelled by the font enumerator, when that family is installed.

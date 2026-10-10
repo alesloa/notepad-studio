@@ -6,7 +6,7 @@ use crate::actions::*;
 
 pub(crate) fn build() -> Menu {
     Menu {
-        name: "Search".into(),
+        name: "&Search".into(),
         items: vec![
             MenuItem::action("Find…", EditFind),
             MenuItem::action("Find Next", EditFindNext),

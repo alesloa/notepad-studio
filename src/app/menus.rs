@@ -14,25 +14,63 @@ mod search;
 mod settings;
 mod view;
 
-use gpui::App;
+use gpui::{App, Menu, MenuItem};
 
 use crate::actions::*;
 use crate::app::window::open_editor_window;
+use crate::ui::menu_bar::mnemonic;
 use crate::workspace::Workspace;
 
+/// Top-level order follows Notepad++ (PowerEditor/src/Notepad_plus.rc,
+/// IDR_M30_MENU): File, Edit, Search, View, Encoding, Language, Settings,
+/// Tools, Macro, Run, Plugins, Window, ?. Labels carry Win32 `&` access keys
+/// for the in-window bar; macOS gets them stripped and keeps its app menu.
 pub(crate) fn install_menus(cx: &mut App) {
-    cx.set_menus(vec![
-        app_menu::build(),
+    let mut menus = Vec::new();
+    if cfg!(target_os = "macos") {
+        menus.push(app_menu::build());
+    }
+    menus.extend([
         file::build(),
         edit::build(),
         search::build(),
         view::build(),
         encoding::build(),
+        settings::build(),
         macros::build(),
         plugins::build(),
-        settings::build(),
         help::build(),
     ]);
+    if cfg!(target_os = "macos") {
+        menus = menus.into_iter().map(strip_mnemonics).collect();
+    }
+    cx.set_menus(menus);
+}
+
+/// Drop `&` access-key markers for a menu system that has none (macOS).
+fn strip_mnemonics(menu: Menu) -> Menu {
+    Menu {
+        name: mnemonic::strip(&menu.name).into(),
+        items: menu
+            .items
+            .into_iter()
+            .map(|item| match item {
+                MenuItem::Action {
+                    name,
+                    action,
+                    os_action,
+                    checked,
+                } => MenuItem::Action {
+                    name: mnemonic::strip(&name).into(),
+                    action,
+                    os_action,
+                    checked,
+                },
+                MenuItem::Submenu(sub) => MenuItem::Submenu(strip_mnemonics(sub)),
+                other => other,
+            })
+            .collect(),
+    }
 }
 
 /// Re-emit the full menu tree. Call after any state change that affects
@@ -44,35 +82,42 @@ pub(crate) fn rebuild_menus(cx: &mut App) {
 }
 
 pub(crate) fn install_global_actions(cx: &mut App) {
+    // A global handler fired from a key chord or the in-window menu bar runs
+    // while gpui holds the dispatching window, so updating that window fails
+    // (`WindowHandle::update` errors): About opened a spare window and
+    // dialogs lost their centre-on-workspace bounds. Handlers that touch a
+    // window run deferred, after dispatch hands the window back.
     cx.on_action(|_: &Quit, cx: &mut App| cx.quit());
-    cx.on_action(|_: &FileNewWindow, cx: &mut App| open_editor_window(cx));
+    cx.on_action(|_: &FileNewWindow, cx: &mut App| cx.defer(open_editor_window));
     // Help ▸ About — route into the focused (or any open) workspace so the
     // modal mounts on a real window. If no workspace exists (rare: macOS
     // dock-icon menu after every window has been closed), spawn a fresh
     // editor window first, then show the dialog inside it.
     cx.on_action(|_: &HelpAbout, cx: &mut App| {
-        if !show_about_in_active_window(cx) {
-            open_editor_window(cx);
-            show_about_in_active_window(cx);
-        }
+        cx.defer(|cx| {
+            if !show_about_in_active_window(cx) {
+                open_editor_window(cx);
+                show_about_in_active_window(cx);
+            }
+        })
     });
     cx.on_action(|_: &OpenShortcutMapper, cx: &mut App| {
-        crate::ui::shortcut_mapper::open_or_focus(cx);
+        cx.defer(crate::ui::shortcut_mapper::open_or_focus);
     });
     cx.on_action(|_: &OpenPreferences, cx: &mut App| {
-        crate::ui::preferences::open_or_focus(cx);
+        cx.defer(crate::ui::preferences::open_or_focus);
     });
     cx.on_action(|_: &OpenStyleConfigurator, cx: &mut App| {
-        crate::ui::style_configurator::open_or_focus(cx);
+        cx.defer(crate::ui::style_configurator::open_or_focus);
     });
     cx.on_action(|_: &EditOpenTextTools, cx: &mut App| {
-        crate::ui::text_tools::open_or_focus(cx);
+        cx.defer(crate::ui::text_tools::open_or_focus);
     });
     cx.on_action(|_: &EditOpenClipboardHistory, cx: &mut App| {
-        crate::ui::clipboard_history_panel::open_or_focus(cx);
+        cx.defer(crate::ui::clipboard_history_panel::open_or_focus);
     });
     cx.on_action(|_: &EditOpenCharacterPanel, cx: &mut App| {
-        crate::ui::character_panel::open_or_focus(cx);
+        cx.defer(crate::ui::character_panel::open_or_focus);
     });
 
     // Open Recent: dispatch into the focused window's Workspace via
@@ -90,7 +135,7 @@ pub(crate) fn install_global_actions(cx: &mut App) {
     cx.on_action(|action: &FileOpenRecent, cx: &mut App| {
         let path = action.path.clone();
         if path.exists() {
-            crate::app::window::open_path_in_active_or_new_window(path, cx);
+            cx.defer(move |cx| crate::app::window::open_path_in_active_or_new_window(path, cx));
             return;
         }
         let path_for_async = path.clone();

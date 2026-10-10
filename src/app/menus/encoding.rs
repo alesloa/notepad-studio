@@ -6,7 +6,7 @@ use crate::actions::*;
 
 pub(crate) fn build() -> Menu {
     Menu {
-        name: "Encoding".into(),
+        name: "E&ncoding".into(),
         items: vec![
             MenuItem::action("UTF-8", EncodingUtf8),
             MenuItem::action("UTF-8 BOM", EncodingUtf8Bom),

@@ -12,6 +12,7 @@ pub(crate) mod folder_panel;
 pub(crate) mod goto_bar;
 pub(crate) mod macro_prompt_bar;
 pub(crate) mod markdown_view;
+pub(crate) mod menu_bar;
 pub(crate) mod paste_format_dialog;
 pub(crate) mod preferences;
 pub(crate) mod rich_doc_color_bar;

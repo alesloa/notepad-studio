@@ -7,8 +7,8 @@
 // scrim's `on_mouse_down`. The OK button is the only in-panel dismiss.
 
 use gpui::{
-    Entity, FontWeight, IntoElement, MouseButton, ParentElement, anchored, deferred, div,
-    prelude::*, px, rems, rgb,
+    Entity, FontWeight, IntoElement, MouseButton, ParentElement, Pixels, Size, anchored, deferred,
+    div, point, prelude::*, px, rems, rgb,
 };
 
 use crate::consts::{APP_NAME, VERSION};
@@ -23,7 +23,11 @@ const CREDIT: &str = "Built with gpui by Zed Industries";
 const LICENSE: &str = "Apache-2.0";
 const REPO: &str = "github.com/alesloa/notepad-studio";
 
-pub(crate) fn about_dialog(theme: &Theme, workspace: Entity<Workspace>) -> impl IntoElement {
+pub(crate) fn about_dialog(
+    theme: &Theme,
+    workspace: Entity<Workspace>,
+    viewport: Size<Pixels>,
+) -> impl IntoElement {
     let scrim_workspace = workspace.clone();
     let ok_workspace = workspace.clone();
 
@@ -42,7 +46,9 @@ pub(crate) fn about_dialog(theme: &Theme, workspace: Entity<Workspace>) -> impl 
     // Centered panel — anchored to the window center via `anchored`.
     let panel = div()
         .w(px(PANEL_WIDTH_PX))
-        .h(px(PANEL_HEIGHT_PX))
+        // A floor, not a fixed height: the tagline wraps, and a fixed
+        // height pushed the OK button out through the bottom border.
+        .min_h(px(PANEL_HEIGHT_PX))
         .bg(rgb(theme.bg))
         .border_1()
         .border_color(rgb(theme.border))
@@ -62,13 +68,13 @@ pub(crate) fn about_dialog(theme: &Theme, workspace: Entity<Workspace>) -> impl 
     // `deferred(...).with_priority(2)` matches the tab context menu — paints
     // after every other layer so the modal floats above the toolbar / tab
     // strip / find dialog overlay.
+    // `anchored` has no size of its own, so the layer takes the viewport's;
+    // `size_full` here collapsed to zero and centred the panel on (0, 0).
     deferred(
-        anchored().child(
+        anchored().position(point(px(0.), px(0.))).child(
             div()
-                .absolute()
-                .top_0()
-                .left_0()
-                .size_full()
+                .w(viewport.width)
+                .h(viewport.height)
                 .child(scrim)
                 .child(centered),
         ),

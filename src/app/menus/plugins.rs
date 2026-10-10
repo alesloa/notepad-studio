@@ -12,6 +12,7 @@ use gpui::{Menu, MenuItem};
 
 use crate::actions::*;
 use crate::plugins;
+use crate::ui::menu_bar::mnemonic;
 
 pub(crate) fn build() -> Menu {
     let entries = plugins::snapshot();
@@ -31,7 +32,7 @@ pub(crate) fn build() -> Menu {
             )],
         }));
         return Menu {
-            name: "Plugins".into(),
+            name: "&Plugins".into(),
             items,
         };
     }
@@ -41,7 +42,7 @@ pub(crate) fn build() -> Menu {
         let mut sub_items: Vec<MenuItem> = Vec::with_capacity(entry.commands.len());
         for cmd in entry.commands {
             sub_items.push(MenuItem::action(
-                cmd.name,
+                mnemonic::escape(&cmd.name),
                 PluginRunCommand {
                     plugin: plugin_name.clone(),
                     command_id: cmd.id,
@@ -49,13 +50,13 @@ pub(crate) fn build() -> Menu {
             ));
         }
         items.push(MenuItem::submenu(Menu {
-            name: entry.name.into(),
+            name: mnemonic::escape(&entry.name).into(),
             items: sub_items,
         }));
     }
 
     Menu {
-        name: "Plugins".into(),
+        name: "&Plugins".into(),
         items,
     }
 }

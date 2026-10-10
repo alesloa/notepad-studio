@@ -13,8 +13,8 @@
 //! by `workspace/render.rs` when that field is `Some(_)`.
 
 use gpui::{
-    Entity, FontWeight, IntoElement, MouseButton, ParentElement, anchored, deferred, div,
-    prelude::*, px, rems, rgb,
+    Entity, FontWeight, IntoElement, MouseButton, ParentElement, Pixels, Size, anchored, deferred,
+    div, point, prelude::*, px, rems, rgb,
 };
 
 use crate::theme::Theme;
@@ -25,7 +25,11 @@ const PANEL_HEIGHT_PX: f32 = 220.;
 const BUTTON_HEIGHT_PX: f32 = 28.;
 const BUTTON_MIN_WIDTH_PX: f32 = 130.;
 
-pub(crate) fn paste_format_dialog(theme: &Theme, workspace: Entity<Workspace>) -> impl IntoElement {
+pub(crate) fn paste_format_dialog(
+    theme: &Theme,
+    workspace: Entity<Workspace>,
+    viewport: Size<Pixels>,
+) -> impl IntoElement {
     let scrim_ws = workspace.clone();
     let cancel_ws = workspace.clone();
     let plain_ws = workspace.clone();
@@ -66,13 +70,13 @@ pub(crate) fn paste_format_dialog(theme: &Theme, workspace: Entity<Workspace>) -
         .justify_center()
         .child(panel);
 
+    // `anchored` has no size of its own, so the layer takes the viewport's;
+    // `size_full` here collapsed to zero and centred the panel on (0, 0).
     deferred(
-        anchored().child(
+        anchored().position(point(px(0.), px(0.))).child(
             div()
-                .absolute()
-                .top_0()
-                .left_0()
-                .size_full()
+                .w(viewport.width)
+                .h(viewport.height)
                 .child(scrim)
                 .child(centered),
         ),

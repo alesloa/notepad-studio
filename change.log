@@ -25,6 +25,17 @@ v0.0.5 — current
     5. Find dialog "Backward direction" and "In selection" toggles wired
        through to the search engine.
     6. change.log auto-opens on first launch and on every version update.
+    7. Windows and Linux: a menu bar inside the window, in Notepad++'s
+       order (File, Edit, Search, View, Encoding, Settings, Macro,
+       Plugins, ?). Alt or F10 selects it, Alt+<letter> opens a menu,
+       arrows, Enter, Esc and access keys work as in Win32 menus, and
+       each item shows its shortcut.
+    8. Windows: shortcuts that use Shift with a digit or punctuation key
+       (Ctrl+Shift+=, Ctrl+Shift+1, Ctrl+Shift+; and others) now fire.
+    9. Windows and Linux: picks an installed monospace font instead of
+       falling back to a proportional one.
+   10. Help ▸ About opens centred in the current window. It used to land
+       off-screen, and from a menu or shortcut it opened a second window.
 
   v0.1.0 — syntax & language:
 

@@ -352,7 +352,7 @@ pub(crate) fn register_catalog(cx: &mut App, overrides: &Overrides) {
                 continue;
             }
             let binding = (entry.bind)(&keystr, entry.context);
-            cx.bind_keys([binding]);
+            crate::app::keymap::bind_mapped(cx, [binding]);
         }
     }
 }
@@ -362,6 +362,7 @@ pub(crate) fn register_catalog(cx: &mut App, overrides: &Overrides) {
 /// the new chord set takes effect without restarting.
 pub(crate) fn reload_keymap(cx: &mut App, overrides: &Overrides) {
     cx.clear_key_bindings();
+    crate::app::keymap::register_menu_bar_keys(cx);
     register_catalog(cx, overrides);
     crate::app::keymap::register_dialog_only(cx);
 }

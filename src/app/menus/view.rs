@@ -6,7 +6,7 @@ use crate::actions::*;
 
 pub(crate) fn build() -> Menu {
     Menu {
-        name: "View".into(),
+        name: "&View".into(),
         items: vec![
             MenuItem::action("Toggle Theme", ViewToggleTheme),
             MenuItem::separator(),

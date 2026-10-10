@@ -18,6 +18,7 @@ mod format;
 mod input_handler;
 mod macros;
 mod markdown_format;
+mod menu_bar;
 mod mouse;
 mod movement;
 mod plugins;
@@ -379,6 +380,9 @@ pub(crate) struct Workspace {
     /// Anchor position for the CSV delimiter dropdown rendered by the
     /// format bar. `Some` mounts the deferred dropdown; `None` hides it.
     pub(crate) csv_delimiter_menu: Option<Point<Pixels>>,
+    /// In-window menu bar, created on first render. Stays `None` on macOS,
+    /// where the menus are native.
+    pub(crate) menu_bar: Option<gpui::Entity<crate::ui::menu_bar::MenuBar>>,
 }
 
 /// Snapshot of the clipboard's plain + formatted flavors captured at the
@@ -691,6 +695,7 @@ impl Workspace {
             csv_grid_blur_subscriptions: std::collections::HashMap::new(),
             csv_context_menu: None,
             csv_delimiter_menu: None,
+            menu_bar: None,
         }
     }
 

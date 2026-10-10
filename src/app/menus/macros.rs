@@ -8,6 +8,7 @@ use gpui::{Menu, MenuItem};
 
 use crate::actions::*;
 use crate::macros;
+use crate::ui::menu_bar::mnemonic;
 
 pub(crate) fn build() -> Menu {
     let saved = macros::saved_snapshot();
@@ -20,7 +21,7 @@ pub(crate) fn build() -> Menu {
     if !saved.is_empty() {
         items.push(MenuItem::separator());
         for (name, _count) in saved {
-            let label = name.clone();
+            let label = mnemonic::escape(&name);
             items.push(MenuItem::action(
                 label,
                 MacroRunSaved { name },
@@ -28,7 +29,7 @@ pub(crate) fn build() -> Menu {
         }
     }
     Menu {
-        name: "Macro".into(),
+        name: "&Macro".into(),
         items,
     }
 }

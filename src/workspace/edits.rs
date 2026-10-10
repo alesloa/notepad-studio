@@ -4542,22 +4542,33 @@ fn cut_line_range(rope: &ropey::Rope, head: usize) -> std::ops::Range<usize> {
 }
 
 /// Bytes Backspace removes with an empty selection at `head`: the char
-/// before the caret. A head inside a char or past EOF is snapped first.
+/// before the caret, or the whole CRLF pair as Scintilla does
+/// (`Document::DelCharBack`). A head inside a char or past EOF is snapped
+/// first.
 fn backspace_range(rope: &ropey::Rope, head: usize) -> Option<std::ops::Range<usize>> {
     let head = floor_rope_char_boundary(rope, head);
-    let prev = rope.byte_to_char(head).checked_sub(1)?;
+    let mut prev = rope.byte_to_char(head).checked_sub(1)?;
+    if rope.get_char(prev) == Some('\n')
+        && prev.checked_sub(1).and_then(|i| rope.get_char(i)) == Some('\r')
+    {
+        prev -= 1;
+    }
     Some(rope.char_to_byte(prev)..head)
 }
 
 /// Bytes Delete removes with an empty selection at `head`: the char after
-/// the caret. A head inside a char or past EOF is snapped first.
+/// the caret, or the whole CRLF pair as Scintilla does
+/// (`Document::LenChar`). A head inside a char or past EOF is snapped
+/// first.
 fn delete_forward_range(rope: &ropey::Rope, head: usize) -> Option<std::ops::Range<usize>> {
     let head = floor_rope_char_boundary(rope, head);
     let char_idx = rope.byte_to_char(head);
     if char_idx >= rope.len_chars() {
         return None;
     }
-    Some(head..rope.char_to_byte(char_idx + 1))
+    let crlf = rope.get_char(char_idx) == Some('\r') && rope.get_char(char_idx + 1) == Some('\n');
+    let end = if crlf { char_idx + 2 } else { char_idx + 1 };
+    Some(head..rope.char_to_byte(end))
 }
 
 /// Auto-indent inputs for Enter at `caret`: the leading whitespace the new
@@ -4666,6 +4677,24 @@ mod line_command_tests {
         assert_eq!(delete_forward_range(&rope, 5), Some(3..7));
     }
 
+    #[test]
+    fn backspace_and_delete_treat_crlf_as_one_char() {
+        // Scintilla deletes a CRLF pair as one unit (Document::DelCharBack,
+        // Document::LenChar); deleting half left a lone CR or LF behind.
+        let rope = Rope::from_str("a\r\nb");
+        assert_eq!(backspace_range(&rope, 3), Some(1..3));
+        assert_eq!(delete_forward_range(&rope, 1), Some(1..3));
+        // Caret between CR and LF: only the neighbouring code unit goes.
+        assert_eq!(backspace_range(&rope, 2), Some(1..2));
+        assert_eq!(delete_forward_range(&rope, 2), Some(2..3));
+        let rope = Rope::from_str("\r\n\r\n");
+        assert_eq!(backspace_range(&rope, 4), Some(2..4));
+        assert_eq!(delete_forward_range(&rope, 0), Some(0..2));
+        // Lone CR and LF stay single.
+        let rope = Rope::from_str("\n\r");
+        assert_eq!(backspace_range(&rope, 2), Some(1..2));
+        assert_eq!(delete_forward_range(&rope, 0), Some(0..1));
+    }
     #[test]
     fn auto_indent_inherits_leading_whitespace_up_to_caret() {
         let rope = Rope::from_str("\tfoo {\r\n  bar");

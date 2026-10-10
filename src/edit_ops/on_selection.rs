@@ -10,12 +10,15 @@
 // the action operates on the word under the caret (`word_range_at` — the
 // same classifier used for double-click word select).
 
+use std::ops::Range;
 use std::path::{Path, PathBuf};
 use std::process::Command;
 
 use gpui::{Context, Window};
+use ropey::Rope;
 
 use crate::actions::*;
+use crate::edit_ops::util::clamp_byte_range;
 use crate::settings::{self, SearchEngineChoice};
 use crate::workspace::Workspace;
 
@@ -182,23 +185,13 @@ impl Workspace {
     /// target"). Trims whitespace and surrounding `< >` / `" "` so things
     /// like `<https://example.com>` and `"path/to/file"` work.
     fn selection_or_word_text(&self) -> Option<String> {
-        let buffer = self.buffer();
         let sel = self.selection();
         let range = if sel.is_empty() {
             self.word_range_at(sel.head)
         } else {
             sel.ordered()
         };
-        if range.is_empty() {
-            return None;
-        }
-        let raw = buffer.rope.byte_slice(range).to_string();
-        let trimmed = raw
-            .trim()
-            .trim_matches(|c: char| matches!(c, '<' | '>' | '"' | '\'' | '`' | '(' | ')'))
-            .trim()
-            .to_string();
-        (!trimmed.is_empty()).then_some(trimmed)
+        target_text(&self.buffer().rope, range)
     }
 
     /// Turn the selection text into a real path. Absolute paths pass through.
@@ -226,6 +219,39 @@ impl Workspace {
             .or_else(|| std::env::current_dir().ok())?;
         Some(base.join(candidate))
     }
+}
+
+/// Longest target Notepad++ hands on, in UTF-16 units: `CURRENTWORD_MAXLENGTH`
+/// (RunDlg.h:25) is 2048 wide chars including the terminator, and the
+/// selected text is cut to fit (`wcsncpy_s(.., _TRUNCATE)`,
+/// NppBigSwitch.cpp:1065).
+const TARGET_MAX_UTF16: usize = 2047;
+
+/// The text in `range`, cut to `TARGET_MAX_UTF16` and trimmed of
+/// whitespace and surrounding brackets and quotes. The range comes from the
+/// selection, so it is clamped and floored to char boundaries before
+/// slicing; only the kept prefix is copied, never the whole selection.
+fn target_text(rope: &Rope, range: Range<usize>) -> Option<String> {
+    let range = clamp_byte_range(rope, range);
+    if range.is_empty() {
+        return None;
+    }
+    let slice = rope.get_byte_slice(range)?;
+    let mut raw = String::new();
+    let mut units = 0usize;
+    for ch in slice.chars() {
+        units = units.saturating_add(ch.len_utf16());
+        if units > TARGET_MAX_UTF16 {
+            break;
+        }
+        raw.push(ch);
+    }
+    let trimmed = raw
+        .trim()
+        .trim_matches(|c: char| matches!(c, '<' | '>' | '"' | '\'' | '`' | '(' | ')'))
+        .trim()
+        .to_string();
+    (!trimmed.is_empty()).then_some(trimmed)
 }
 
 // --- Per-platform launchers ---------------------------------------------
@@ -397,4 +423,55 @@ fn encode_uri_component(s: &str) -> String {
         }
     }
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn text(s: &str, range: Range<usize>) -> Option<String> {
+        target_text(&Rope::from_str(s), range)
+    }
+
+    #[test]
+    fn target_text_clamps_stale_and_mid_char_ranges() {
+        // a=0, é=1..3, 中=3..6
+        assert_eq!(text("aé中", 2..5).as_deref(), Some("é"));
+        assert_eq!(text("aé中", 4..99).as_deref(), Some("中"));
+        assert_eq!(text("aé中", Range { start: 5, end: 2 }).as_deref(), Some("é"));
+        assert_eq!(text("", 0..4), None);
+        assert_eq!(text("ab", 7..9), None);
+    }
+
+    #[test]
+    fn target_text_trims_space_line_ends_and_brackets() {
+        let cases: &[(&str, Option<&str>)] = &[
+            ("", None),
+            ("   ", None),
+            ("\r\n", None),
+            ("  \t\r", None),
+            ("<https://example.com>", Some("https://example.com")),
+            ("\"C:\\dir\\é.txt\"\r\n", Some("C:\\dir\\é.txt")),
+            ("  ~/notes/中.md\r", Some("~/notes/中.md")),
+            ("(👨‍👩‍👧 🇯🇵)\n", Some("👨‍👩‍👧 🇯🇵")),
+            ("a\r\nb\rc\n", Some("a\r\nb\rc")),
+        ];
+        for (input, want) in cases {
+            let got = text(input, 0..input.len());
+            assert_eq!(got.as_deref(), *want, "input {input:?}");
+        }
+    }
+
+    #[test]
+    fn target_text_is_cut_to_the_notepad_plus_plus_word_length() {
+        let long = "a".repeat(3000);
+        assert_eq!(text(&long, 0..long.len()).map(|s| s.len()), Some(2047));
+        // 😀 is two UTF-16 units: 1023 of them fill 2046, a 1024th would
+        // pass 2047.
+        let wide = "😀".repeat(1500);
+        let got = text(&wide, 0..wide.len()).unwrap_or_default();
+        assert_eq!(got.chars().count(), 1023);
+        let short = "é".repeat(10);
+        assert_eq!(text(&short, 0..short.len()), Some(short));
+    }
 }

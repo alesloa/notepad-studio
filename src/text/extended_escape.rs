@@ -26,8 +26,10 @@ pub(crate) fn interpret_extended(input: &str) -> String {
         let c = bytes[i];
         if c != b'\\' {
             // Multi-byte UTF-8 char outside an escape — copy whole codepoint.
-            let rest = &input[i..];
-            let ch = rest.chars().next().expect("non-empty");
+            // `i` only ever lands on a char boundary, so this always yields.
+            let Some(ch) = input.get(i..).and_then(|rest| rest.chars().next()) else {
+                break;
+            };
             out.push(ch);
             i += ch.len_utf8();
             continue;
@@ -78,9 +80,11 @@ pub(crate) fn interpret_extended(input: &str) -> String {
                 }
             }
             _ => {
+                // Unknown escape: keep the backslash and let the next pass
+                // copy whatever follows as a whole char. Stepping over one
+                // byte here split `\é` mid-codepoint and panicked.
                 out.push('\\');
-                out.push(next as char);
-                i += 2;
+                i += 1;
             }
         }
     }
@@ -189,6 +193,13 @@ mod tests {
     #[test]
     fn decimal_out_of_range_passes_through() {
         assert_eq!(interpret_extended(r"\d999"), r"\d999");
+    }
+
+    #[test]
+    fn backslash_before_a_multibyte_char_passes_through() {
+        assert_eq!(interpret_extended("\\é"), "\\é");
+        assert_eq!(interpret_extended("a\\😀b\\n"), "a\\😀b\n");
+        assert_eq!(interpret_extended("\\x\u{e9}\\d\u{e9}\\o\u{e9}"), "\\x\u{e9}\\d\u{e9}\\o\u{e9}");
     }
 
     #[test]

@@ -348,7 +348,7 @@ fn parse_html_attrs(s: &str) -> Vec<(String, String)> {
                 chars.next();
             }
             let quote = match chars.peek() {
-                Some(&'"') | Some(&'\'') => Some(chars.next().unwrap()),
+                Some(&'"') | Some(&'\'') => chars.next(),
                 _ => None,
             };
             let mut val = String::new();
@@ -813,10 +813,12 @@ fn read_paragraph_segments(
         // (no End to match against in the slice that ended there).
         let mut url = String::new();
         let mut alt = String::new();
-        let mut image_range = events[*idx].1.clone();
-        if let (Event::Start(Tag::Image { dest_url, .. }), r) = (&events[*idx].0, &events[*idx].1) {
+        let Some((image_event, image_range)) = events.get(*idx) else {
+            return segments;
+        };
+        let image_range = image_range.clone();
+        if let Event::Start(Tag::Image { dest_url, .. }) = image_event {
             url = dest_url.to_string();
-            image_range = r.clone();
         }
         *idx += 1;
         while *idx < events.len() {
@@ -1431,7 +1433,7 @@ fn read_inline_runs_until<F: Fn(&TagEnd) -> bool>(
                 return (out, tags);
             }
             Event::Start(tag) => {
-                let cur = *style_stack.last().unwrap();
+                let cur = style_stack.last().copied().unwrap_or(base);
                 // Track tag_stack alongside style_stack so the matching
                 // End event can pop the right pending entry and emit
                 // its marker ranges.
@@ -1635,7 +1637,7 @@ fn read_inline_runs_until<F: Fn(&TagEnd) -> bool>(
                             }
                         } else if let Some(href) = attr(&tag.attrs, "href") {
                             link_stack.push(href.to_string());
-                            let cur = *style_stack.last().unwrap();
+                            let cur = style_stack.last().copied().unwrap_or(base);
                             style_stack.push(cur);
                         }
                     } else {
@@ -1664,7 +1666,7 @@ fn apply_inline_html_style(stack: &mut Vec<InlineStyle>, tag: &ParsedTag) {
         }
         return;
     }
-    let cur = *stack.last().unwrap();
+    let cur = stack.last().copied().unwrap_or_default();
     let next = match tag.name.as_str() {
         "b" | "strong" => InlineStyle { bold: true, ..cur },
         "i" | "em" => InlineStyle { italic: true, ..cur },
@@ -3208,9 +3210,9 @@ fn build_runs_with_selection(
             RenderStep::Run(r) => {
                 let rendered_len = r.text.len();
                 let source_len = r.source_range.end.saturating_sub(r.source_range.start);
-                let in_selection = selection
-                    .map(|s| s.start < r.source_range.end && s.end > r.source_range.start)
-                    .unwrap_or(false);
+                let hit_selection = selection
+                    .filter(|s| s.start < r.source_range.end && s.end > r.source_range.start);
+                let in_selection = hit_selection.is_some();
 
                 // Source-aligned 1:1 case: split the run into pre / sel / post on
                 // matching text-byte boundaries so selection paints exactly under
@@ -3218,8 +3220,7 @@ fn build_runs_with_selection(
                 // bytes. The is_char_boundary check guards against splitting
                 // multi-byte UTF-8 codepoints — if either edge lands inside a
                 // codepoint we fall through to the all-or-nothing branch.
-                if in_selection && rendered_len == source_len {
-                    let sel = selection.unwrap();
+                if let Some(sel) = hit_selection.filter(|_| rendered_len == source_len) {
                     let local_start = sel
                         .start
                         .saturating_sub(r.source_range.start)
@@ -3228,7 +3229,8 @@ fn build_runs_with_selection(
                         .end
                         .saturating_sub(r.source_range.start)
                         .min(rendered_len);
-                    if r.text.is_char_boundary(local_start)
+                    if local_start <= local_end
+                        && r.text.is_char_boundary(local_start)
                         && r.text.is_char_boundary(local_end)
                     {
                         let pre = &r.text[..local_start];
@@ -3679,18 +3681,22 @@ impl gpui::Element for CaretOverlay {
             w.preview_block_targets.push(target);
         });
 
-        let (focused, sel_anchor, sel_head, blink_on, scroll_pending) = {
+        let Some((focused, sel_anchor, sel_head, blink_on, scroll_pending)) = ({
             let w = self.workspace.read(cx);
             let focus_handle = w.focus_handle.clone();
             let focused = focus_handle.is_focused(window);
-            let sel = w.tabs[w.active].selection;
-            (
-                focused,
-                sel.anchor,
-                sel.head,
-                w.caret_visible,
-                w.preview_caret_scroll_pending,
-            )
+            w.tabs.get(w.active).map(|tab| {
+                let sel = tab.selection;
+                (
+                    focused,
+                    sel.anchor,
+                    sel.head,
+                    w.caret_visible,
+                    w.preview_caret_scroll_pending,
+                )
+            })
+        }) else {
+            return;
         };
         if !focused {
             return;

@@ -310,15 +310,14 @@ fn render_header(
             SharedString::from(label)
         };
 
-        let label_child: AnyElement = if is_editing_header {
+        // Every path that sets `editing_cell` sets `cell_input` with it;
+        // if they ever disagree the header shows its label.
+        let editor_handle = snap.cell_input_handle.clone().filter(|_| is_editing_header);
+        let label_child: AnyElement = if let Some(handle) = editor_handle {
             // Inline editor mounted over the header label. Same widget as
             // a body-cell edit; the row == usize::MAX sentinel in
             // editing_cell tells commit_cell_edit to route the buffer
             // back into model.headers rather than model.rows.
-            let handle = snap
-                .cell_input_handle
-                .clone()
-                .expect("editing_cell set but cell_input missing");
             div()
                 .w(width)
                 .h_full()
@@ -788,11 +787,9 @@ fn render_body(
                 .unwrap_or(false);
             let any_selected = row_selected || col_selected || in_range;
 
-            let cell = if is_editing {
-                let handle = snap
-                    .cell_input_handle
-                    .clone()
-                    .expect("editing_cell set but cell_input missing");
+            // As in the header: without an input the cell renders static.
+            let editor_handle = snap.cell_input_handle.clone().filter(|_| is_editing);
+            let cell = if let Some(handle) = editor_handle {
                 div()
                     .w(width)
                     .h_full()

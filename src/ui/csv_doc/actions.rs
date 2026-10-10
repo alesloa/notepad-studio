@@ -808,13 +808,10 @@ pub(crate) fn open_find_bar(
     let Some(model) = w.csv_models.get_mut(&tab_id) else {
         return;
     };
-    if model.find_input_handle.is_none() {
-        model.find_input_handle = Some(cx.focus_handle());
-    }
     let handle = model
         .find_input_handle
-        .clone()
-        .expect("just allocated above");
+        .get_or_insert_with(|| cx.focus_handle())
+        .clone();
     let seed = model.find_query.clone();
     let input = CsvCellInput::new(handle.clone(), seed);
     model.find_input = Some(input);
@@ -866,13 +863,10 @@ pub(crate) fn open_replace_bar(
         return;
     };
     model.find_show_replace = true;
-    if model.replace_input_handle.is_none() {
-        model.replace_input_handle = Some(cx.focus_handle());
-    }
     let handle = model
         .replace_input_handle
-        .clone()
-        .expect("just allocated above");
+        .get_or_insert_with(|| cx.focus_handle())
+        .clone();
     let seed = model.replace_text.clone();
     let input = CsvCellInput::new(handle.clone(), seed);
     model.replace_input = Some(input);
@@ -904,13 +898,10 @@ pub(crate) fn focus_replace_input(
         return;
     }
     if model.replace_input.is_none() {
-        if model.replace_input_handle.is_none() {
-            model.replace_input_handle = Some(cx.focus_handle());
-        }
         let handle = model
             .replace_input_handle
-            .clone()
-            .expect("just allocated above");
+            .get_or_insert_with(|| cx.focus_handle())
+            .clone();
         let seed = model.replace_text.clone();
         model.replace_input = Some(CsvCellInput::new(handle, seed));
     }
@@ -1476,17 +1467,17 @@ pub(crate) fn paste_into_grid(w: &mut Workspace, cx: &mut Context<Workspace>) {
         };
         if let Some(range) = model.cell_range {
             ((range.min_row(), range.min_col()), Some(range))
-        } else if !model.selected_rows.is_empty() {
+        } else if let (Some(&first_row), Some(&last_row)) =
+            (model.selected_rows.first(), model.selected_rows.last())
+        {
             // Paste against the first selected row, col 0 — the rows
             // act as the fill target so a 1×1 source broadcasts.
-            let first_row = *model.selected_rows.iter().next().unwrap();
-            let last_row = *model.selected_rows.iter().next_back().unwrap();
             let last_col = model.col_count().saturating_sub(1);
             let range = CellRange::new((first_row, 0), (last_row, last_col));
             ((first_row, 0), Some(range))
-        } else if !model.selected_cols.is_empty() {
-            let first_col = *model.selected_cols.iter().next().unwrap();
-            let last_col = *model.selected_cols.iter().next_back().unwrap();
+        } else if let (Some(&first_col), Some(&last_col)) =
+            (model.selected_cols.first(), model.selected_cols.last())
+        {
             let last_row = model.row_count().saturating_sub(1);
             let range = CellRange::new((0, first_col), (last_row, last_col));
             ((0, first_col), Some(range))
@@ -1523,10 +1514,10 @@ pub(crate) fn fill_down_grid(w: &mut Workspace, cx: &mut Context<Workspace>) {
         };
         if let Some(range) = model.cell_range {
             FillTarget::Range(range)
-        } else if !model.selected_rows.is_empty() {
+        } else if let (Some(&first_row), Some(&last_row)) =
+            (model.selected_rows.first(), model.selected_rows.last())
+        {
             // Whole-row selection — fill across all columns of the rows.
-            let first_row = *model.selected_rows.iter().next().unwrap();
-            let last_row = *model.selected_rows.iter().next_back().unwrap();
             let last_col = model.col_count().saturating_sub(1);
             FillTarget::Range(CellRange::new((first_row, 0), (last_row, last_col)))
         } else if let Some((r, c)) = model.active_cell {
@@ -1569,9 +1560,9 @@ pub(crate) fn fill_right_grid(w: &mut Workspace, cx: &mut Context<Workspace>) {
         };
         if let Some(range) = model.cell_range {
             FillTarget::Range(range)
-        } else if !model.selected_cols.is_empty() {
-            let first_col = *model.selected_cols.iter().next().unwrap();
-            let last_col = *model.selected_cols.iter().next_back().unwrap();
+        } else if let (Some(&first_col), Some(&last_col)) =
+            (model.selected_cols.first(), model.selected_cols.last())
+        {
             let last_row = model.row_count().saturating_sub(1);
             FillTarget::Range(CellRange::new((0, first_col), (last_row, last_col)))
         } else if let Some((r, c)) = model.active_cell {

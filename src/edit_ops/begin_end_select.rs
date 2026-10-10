@@ -18,8 +18,10 @@
 // visible to the user.
 
 use gpui::{Context, Window};
+use ropey::Rope;
 
 use crate::actions::*;
+use crate::edit_ops::util::floor_char_boundary;
 use crate::workspace::Workspace;
 
 impl Workspace {
@@ -43,8 +45,7 @@ impl Workspace {
 
     fn toggle_begin_end_select(&mut self, column_mode: bool, cx: &mut Context<Self>) {
         let head = self.tabs[self.active].selection.head;
-        let total = self.tabs[self.active].buffer.rope.len_bytes();
-        let head = head.min(total);
+        let head = snap(&self.tabs[self.active].buffer.rope, head);
 
         let tab = &mut self.tabs[self.active];
         match tab.begin_select_marker.take() {
@@ -64,7 +65,7 @@ impl Workspace {
                     );
                 }
                 let tab = &mut self.tabs[self.active];
-                let anchor = marker.min(total);
+                let anchor = snap(&tab.buffer.rope, marker);
                 tab.selection.anchor = anchor;
                 tab.selection.head = head;
                 tab.selection.is_dragging = false;
@@ -79,5 +80,30 @@ impl Workspace {
             }
         }
         cx.notify();
+    }
+}
+
+/// Clamp a stored marker or caret offset to the rope and floor it to a char
+/// boundary. Edits keep the marker on its char (`Workspace::apply_edit`),
+/// but File ▸ Reload swaps the rope and leaves the marker as it was.
+fn snap(rope: &Rope, byte: usize) -> usize {
+    floor_char_boundary(rope, byte)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn stale_marker_lands_on_a_char_boundary() {
+        // A reload replaces the rope but keeps the marker, so byte 2 can end
+        // up inside `中` (0..3); a selection anchored there panics on copy.
+        let rope = Rope::from_str("中\r\né");
+        assert_eq!(rope.byte_slice(snap(&rope, 2)..snap(&rope, 6)).to_string(), "中\r\n");
+        assert_eq!(snap(&rope, 2), 0);
+        assert_eq!(snap(&rope, 3), 3);
+        assert_eq!(snap(&rope, 6), 5);
+        assert_eq!(snap(&rope, 99), 7);
+        assert_eq!(snap(&Rope::new(), 4), 0);
     }
 }

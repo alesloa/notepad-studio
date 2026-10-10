@@ -1556,4 +1556,75 @@ mod format_plan_tests {
         assert_eq!(append_image("abc\r\n", "\r\n"), "abc\r\n![i](p)\r\n");
         assert_eq!(append_image("abc\r", "\r"), "abc\r![i](p)\r");
     }
+
+    #[test]
+    fn edge_case_selections() {
+        // Selection ending at column 0 leaves that line alone.
+        assert_eq!(prefix("a\nb\n", 0..2, "# "), "# a\nb\n");
+        assert_eq!(ordered("a\r\nb\r\n", 0..3), "1. a\r\nb\r\n");
+        // Whole document, no trailing newline.
+        assert_eq!(prefix("a\nb", 0..3, "> "), "> a\n> b");
+        assert_eq!(wrap("a\nb", 0..3), ("**a\nb**".into(), "a\nb".into()));
+        // Caret at EOF after a trailing newline: an empty line, no change.
+        assert_eq!(prefix("a\n", 2..2, "# "), "a\n");
+        assert_eq!(code_block("a\n", 2..2, "\n"), "a\n```\n\n```\n");
+        // Empty buffer.
+        assert_eq!(prefix("", 0..0, "# "), "");
+        assert_eq!(ordered("", 0..0), "");
+        assert_eq!(code_block("", 0..0, "\r\n"), "```\r\n\r\n```\r\n");
+        assert_eq!(rule("", 0..0, "\n"), "---\n");
+        assert_eq!(append_image("", "\n"), "![i](p)\n");
+        // Multi-byte lines, including a ZWJ emoji sequence.
+        assert_eq!(prefix("中文\n👩‍💻", 0..14, "- "), "- 中文\n- 👩‍💻");
+        assert_eq!(wrap("x 👩‍💻 y", 2..13).0, "x **👩‍💻** y");
+    }
+
+    /// Runs every command over every selection of each sample, ends past
+    /// the buffer and inside chars included. Each edit must replace a
+    /// char-aligned range of the text and leave a char-aligned selection
+    /// inside the result.
+    #[test]
+    fn every_command_on_every_selection() {
+        let samples = [
+            "",
+            "a",
+            "# héllo",
+            "a\r\nb\r\n",
+            "a\rb\r\r中",
+            "**é**\n\n- 👩‍💻\n",
+            "1. x\n2. y",
+            "> 中文\r\n\r\n`c`",
+        ];
+        for text in samples {
+            let rope = Rope::from_str(text);
+            let len = text.len();
+            for start in 0..=len + 2 {
+                for end in start..=len + 2 {
+                    let r = start..end;
+                    let mut edits = vec![
+                        plan_wrap_inline(&rope, r.clone(), "**", "**", "bold text"),
+                        plan_wrap_inline(&rope, r.clone(), "`", "`", "code"),
+                        plan_code_block(&rope, r.clone(), "\r\n"),
+                        plan_link_or_image(&rope, r.clone(), false),
+                        plan_link_or_image(&rope, r.clone(), true),
+                        plan_horizontal_rule(&rope, r.clone(), "\r"),
+                        plan_insert_image(&rope, start, "![i](p)".into()),
+                        plan_append_image(&rope, "![i](p)", "\n"),
+                    ];
+                    edits.extend(plan_line_prefix(&rope, r.clone(), "- [ ] "));
+                    edits.extend(plan_ordered_list(&rope, r.clone()));
+                    for edit in &edits {
+                        assert!(edit.range.end <= len, "{text:?} {r:?}: {edit:?}");
+                        let (after, _) = apply(text, edit);
+                        for at in [edit.anchor, edit.head] {
+                            assert!(
+                                after.is_char_boundary(at),
+                                "{text:?} {r:?}: selection {at} off {after:?}"
+                            );
+                        }
+                    }
+                }
+            }
+        }
+    }
 }

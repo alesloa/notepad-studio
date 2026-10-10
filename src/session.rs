@@ -388,7 +388,9 @@ pub(crate) fn snapshot_tab_with_policy(tab: &Tab, bak_policy: BakPolicy) -> Sess
             .as_ref()
             .and_then(|p| mtime_unix(p)),
         new_label: buffer.new_label.as_ref().map(|s| s.to_string()),
-        read_only: buffer.read_only,
+        // A streaming load holds the tab read-only until the file is in;
+        // that is not the user's flag.
+        read_only: buffer.read_only && buffer.loading.is_none(),
         tab_color: buffer.tab_color,
         is_changelog: buffer.is_changelog,
         markdown_preview: matches!(tab.view_mode, crate::tab::TabViewMode::MarkdownPreview),

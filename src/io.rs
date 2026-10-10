@@ -82,8 +82,13 @@ impl Workspace {
 
         // Stat first — files larger than the streaming threshold go through
         // `io_stream` so the UI never waits on a multi-hundred-MB read.
+        // Rich documents (DOCX, ODT, RTF) are containers, not text: they
+        // always take the parser below, whatever their size.
         if let Ok(meta) = std::fs::metadata(&path) {
-            if meta.is_file() && meta.len() > crate::io_stream::STREAM_THRESHOLD_BYTES {
+            if meta.is_file()
+                && meta.len() > crate::io_stream::STREAM_THRESHOLD_BYTES
+                && crate::rich_doc::detect_format(&path).is_none()
+            {
                 crate::io_stream::open_path_streaming(self, path, meta.len(), cx);
                 cx.notify();
                 return;
@@ -410,6 +415,11 @@ impl Workspace {
         let Some(path) = tab.buffer.file_path.clone() else {
             return Err("no path".to_string());
         };
+        // A file still streaming in is only partly in the rope; writing it
+        // would cut the file short.
+        if tab.buffer.loading.is_some() {
+            return Err(format!("{} is still loading", path.display()));
+        }
         if tab.buffer.read_only && !save_as {
             return Err(format!(
                 "{} is read-only in Notepad Studio; clear Read-Only or use Save As",

@@ -53,6 +53,9 @@ mod macos {
     const NS_UTF8_STRING_ENCODING: u64 = 4;
 
     pub fn format_short_now() -> Option<String> {
+        // SAFETY: Foundation calls on a formatter this function owns; it is
+        // nil-checked before use and released once, and the returned string
+        // is nil-checked before `ns_string_to_rust` reads it.
         unsafe {
             let formatter: id = msg_send![class!(NSDateFormatter), alloc];
             let formatter: id = msg_send![formatter, init];
@@ -76,6 +79,9 @@ mod macos {
     /// string is nil or doesn't fit UTF-8 (NSDateFormatter output always does
     /// in practice, but we don't want to panic on adversarial locale data).
     unsafe fn ns_string_to_rust(ns_str: id) -> Option<String> {
+        // SAFETY: `ns_str` is non-nil (checked by the caller). `UTF8String`
+        // points at a buffer of `lengthOfBytesUsingEncoding:` UTF-8 bytes
+        // that lives as long as `ns_str`; the bytes are copied out here.
         unsafe {
             let utf8_ptr: *const c_void = msg_send![ns_str, UTF8String];
             if utf8_ptr.is_null() {
@@ -115,6 +121,9 @@ mod linux {
     }
 
     fn read_langinfo(item: libc::nl_item) -> Option<String> {
+        // SAFETY: `nl_langinfo` returns a NUL-terminated string owned by libc
+        // (or null, checked). It is copied out before any other locale call
+        // could overwrite it.
         unsafe {
             let ptr = libc::nl_langinfo(item);
             if ptr.is_null() {

@@ -66,6 +66,9 @@ mod macos {
     /// Build an autoreleased `NSString` from a Rust `&str`. Mirrors
     /// `gpui::platform::mac::ns_string` so the symbol footprint matches.
     unsafe fn ns_string(string: &str) -> id {
+        // SAFETY: `bytes`/`len` describe the live `&str` for the whole call;
+        // `initWithBytes:length:encoding:` copies them, and a nil from
+        // `alloc`/`init` is a valid receiver for `autorelease` (no-op).
         unsafe {
             let cls = class!(NSString);
             let bytes = string.as_ptr() as *const c_void;
@@ -83,6 +86,9 @@ mod macos {
 
     pub fn read() -> RichClipboard {
         let mut out = RichClipboard::default();
+        // SAFETY: AppKit calls on the general pasteboard; both returned
+        // objects are nil-checked before use, and `read_string_flavor`
+        // nil-checks everything it derives from them.
         unsafe {
             let pb: id = NSPasteboard::generalPasteboard(nil);
             if pb == nil {
@@ -104,6 +110,9 @@ mod macos {
     /// blobs in practice — even RTF, which is ASCII-with-control-words, parses
     /// cleanly as UTF-8 since RTF restricts itself to 7-bit + escape sequences.
     unsafe fn read_string_flavor(pb: id, types: id, uti: &str) -> Option<String> {
+        // SAFETY: `pb` and `types` are non-nil (checked by the caller). The
+        // slice is built from `NSData`'s own non-null `bytes`/`length` pair
+        // and copied into a `String` before `data` can be released.
         unsafe {
             let uti_id = ns_string(uti);
             let contains: bool = msg_send![types, containsObject: uti_id];

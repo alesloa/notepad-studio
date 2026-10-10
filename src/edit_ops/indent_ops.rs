@@ -194,6 +194,36 @@ mod tests {
     }
 
     #[test]
+    fn outdent_survives_every_selection_and_line_end() {
+        // ropey also breaks lines on VT, FF, NEL, LS and PS, which
+        // `split_lines_eol` keeps inside a line.
+        let inputs = [
+            "",
+            "  a",
+            "\ta\r\n  b\r  c\n",
+            "  é\n\t👨‍👩‍👧\r\n  🇯🇵",
+            "  a\u{2028}  b\n\tc\u{85}\td\u{b} e\u{c}  f\u{2029}\tg\n",
+            "\u{2028}\r\n\u{85}  ",
+        ];
+        let eols = |s: &str| -> Vec<String> {
+            split_lines_eol(s).into_iter().map(|p| p.1.to_string()).collect()
+        };
+        for text in inputs {
+            let len = text.len();
+            for a in 0..=len + 2 {
+                for b in [0, a, len, len + 2] {
+                    let ctx = format!("{text:?} sel {a}..{b}");
+                    let Some(out) = outdent(text, a..b, 4) else { continue };
+                    assert_eq!(eols(&out), eols(text), "{ctx}");
+                    let strip = |s: &str| s.replace([' ', '\t'], "");
+                    assert_eq!(strip(&out), strip(text), "{ctx}");
+                    assert_eq!(Rope::from_str(&out).len_lines(), Rope::from_str(text).len_lines(), "{ctx}");
+                }
+            }
+        }
+    }
+
+    #[test]
     fn outdent_maps_offsets_onto_char_boundaries() {
         // Caret after the first `中` of "  中中" (byte 5). The old mapping kept
         // the in-block offset, landing inside the second `中` (bytes 3..6 of

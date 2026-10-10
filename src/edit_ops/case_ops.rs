@@ -421,6 +421,7 @@ mod tests {
         "it's a test. ok! fine? i think so\n\nnew para",
         "   \t ",
         "ΣΑΣ σας",
+        "a\u{2028}b. c\u{85}d\u{b}e\u{c}f\u{2029}g",
     ];
 
     type Transform = fn(&str) -> String;
@@ -519,5 +520,17 @@ mod tests {
             is_dragging: false,
         };
         assert!(block_case_edits(&Rope::from_str(text), &block, &invert_case).is_empty());
+
+        // ropey rows also end at LS and NEL; those stay in place.
+        let text = "ab\u{2028}cd\u{85}ef\ngh";
+        let block = BlockSelection {
+            anchor_line: 0,
+            anchor_col: 1,
+            head_line: 3,
+            head_col: 9,
+            is_dragging: false,
+        };
+        let edits = block_case_edits(&Rope::from_str(text), &block, &invert_case);
+        assert_eq!(apply(text, edits), "aB\u{2028}cD\u{85}eF\ngH");
     }
 }

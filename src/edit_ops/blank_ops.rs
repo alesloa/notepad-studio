@@ -437,6 +437,8 @@ mod tests {
             "é\t中 \n 👨‍👩‍👧\t🇯🇵\r\n  ß İ  ",
             "\t   \n    \n",
             "x",
+            // ropey also breaks lines on VT, FF, NEL, LS and PS.
+            " a\u{2028}\tb\n c\u{85} d\u{b}e\u{c}f\u{2029} g\n",
         ];
         let eols = |s: &str| -> Vec<String> {
             split_lines_eol(s).into_iter().map(|p| p.1.to_string()).collect()

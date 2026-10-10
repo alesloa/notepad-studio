@@ -51,7 +51,6 @@ impl Render for Workspace {
             }
         }
         let menu_bar = self.menu_bar_view(theme, window, cx);
-        let (line, col) = self.cursor_position();
         let buffer = self.buffer();
         let active_tab = &self.tabs[self.active];
         let active_is_markdown = is_markdown_path(active_tab.buffer.file_path.as_deref());
@@ -138,9 +137,7 @@ impl Render for Workspace {
             rich_doc_block_list: rd_list,
             rich_doc_block_heading_level: rd_heading_level,
         };
-        let encoding = buffer.encoding_label();
-        let line_ending = buffer.line_ending_status_label();
-        let syntax = buffer.syntax_label();
+        let status_fields = self.status_fields();
         let total_lines = buffer.rope.len_lines().max(1);
 
         let active = self.active;
@@ -681,11 +678,7 @@ impl Render for Workspace {
             .when(!prefs.status_bar_hidden, |this| {
                 this.child(status_bar(
                     &theme,
-                    line,
-                    col,
-                    encoding,
-                    line_ending,
-                    syntax,
+                    status_fields,
                     self.overtype,
                     status_message.as_deref(),
                     loading_chip,

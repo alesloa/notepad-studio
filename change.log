@@ -47,6 +47,11 @@ v0.0.5 — current
        Ctrl+Down scroll one line.
    13. Insert toggles overtype. The status bar shows INS or OVR (click it
        to switch) and the caret becomes an underline while overtyping.
+   14. The status bar has Notepad++'s six fields: document type, length
+       and lines, Ln / Col with Pos or Sel, line ending, encoding and
+       INS / OVR. Messages no longer hide the other fields. Col counts
+       tabs to the next tab stop, and length and Pos count a Windows line
+       ending as two. Double-click Ln / Col to go to a line.
 
   v0.1.0 — syntax & language:
 

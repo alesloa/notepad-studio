@@ -20,6 +20,7 @@ pub(crate) mod rich_doc_color_more;
 pub(crate) mod rich_doc_link_bar;
 pub(crate) mod rich_doc_view;
 pub(crate) mod shortcut_mapper;
+pub(crate) mod status_text;
 pub(crate) mod style_configurator;
 pub(crate) mod tab_context_menu;
 pub(crate) mod tab_rename_bar;

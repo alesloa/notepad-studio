@@ -301,17 +301,6 @@ impl Buffer {
         self.line_ending.status_label()
     }
 
-    pub(crate) fn encoding_label(&self) -> &'static str {
-        self.encoding.label()
-    }
-
-    pub(crate) fn syntax_label(&self) -> &'static str {
-        match self.language {
-            Some(lang) => lang.label(),
-            None => "Plain Text",
-        }
-    }
-
     /// Returns `Some(format)` when this buffer was loaded from a rich-document format.
     pub(crate) fn rich_doc_format(&self) -> Option<crate::rich_doc::DocFormat> {
         self.rich_doc.as_ref().map(|p| p.format)

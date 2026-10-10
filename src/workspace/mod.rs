@@ -23,6 +23,7 @@ mod mouse;
 mod movement;
 mod plugins;
 mod render;
+mod status;
 mod tabs;
 
 use gpui::{
@@ -1550,20 +1551,6 @@ impl Workspace {
         self.md_preview_scroll_handle.set_offset(offset);
         cx.notify();
         true
-    }
-
-    pub(crate) fn cursor_position(&self) -> (usize, usize) {
-        let buffer = self.buffer();
-        let head = self.selection().head.min(buffer.rope.len_bytes());
-        let line = buffer.rope.byte_to_line(head);
-        let line_start = buffer.rope.line_to_byte(line);
-        let col_bytes = head - line_start;
-        let line_slice = buffer.rope.line(line);
-        let col = line_slice
-            .byte_slice(0..col_bytes.min(line_slice.len_bytes()))
-            .chars()
-            .count();
-        (line + 1, col + 1)
     }
 
     pub(crate) fn offset_at_position(&self, pos: Point<Pixels>) -> usize {

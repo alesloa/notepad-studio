@@ -2587,8 +2587,14 @@ fn split_runs_with_highlights(
         let mut probe = span_idx;
         while probe < spans.len() && spans[probe].range.start < run_end {
             let span = &spans[probe];
-            let span_start_local = span.range.start.saturating_sub(run_start);
-            let span_end_local = span.range.end.min(run_end) - run_start;
+            // Clamp to the uncoloured remainder so an overlapping or
+            // nested span can neither underflow nor repeat text.
+            let span_start_local = span.range.start.saturating_sub(run_start).max(local_cursor);
+            let span_end_local = span.range.end.min(run_end).saturating_sub(run_start);
+            if span_end_local < span_start_local {
+                probe += 1;
+                continue;
+            }
 
             // UTF-8 safety — if either edge lands mid-codepoint we can't
             // safely slice. Emit the rest of the run uncolored and bail
@@ -3926,6 +3932,40 @@ mod hostile_input_tests {
             .filter(|r| r.link.as_deref() == Some("notepad-fn:def:1"))
             .count();
         assert_eq!(refs, 60_000);
+    }
+
+    #[test]
+    fn overlapping_highlight_spans() {
+        // `syntax::highlight` returns disjoint spans; a nested span ending
+        // before the current run used to underflow the run-local end.
+        use crate::syntax::{HighlightKind, HighlightSpan};
+        let run = |text: &str, start: usize| InlineRun {
+            text: text.to_string(),
+            source_range: start..start + text.len(),
+            bold: false,
+            italic: false,
+            strike: false,
+            underline: false,
+            mark: false,
+            code: false,
+            link: None,
+            color_override: None,
+        };
+        let runs = [run("abc", 10), run("def", 13), run("é", 16)];
+        let spans = [
+            HighlightSpan { range: 0..5, kind: HighlightKind::String },
+            HighlightSpan { range: 1..2, kind: HighlightKind::Keyword },
+            HighlightSpan { range: 5..8, kind: HighlightKind::Comment },
+        ];
+        let theme = Theme::for_mode(crate::theme::ThemeMode::Dark);
+        let out = split_runs_with_highlights(&runs, &spans, &theme.syntax);
+        let text: String = out.iter().map(|r| r.text.as_str()).collect();
+        assert_eq!(text, "abcdefé");
+        let mut at = 10;
+        for r in &out {
+            assert_eq!(r.source_range, at..at + r.text.len());
+            at = r.source_range.end;
+        }
     }
 
     #[test]

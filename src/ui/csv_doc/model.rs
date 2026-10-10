@@ -2415,10 +2415,12 @@ impl CsvModel {
             return None;
         }
         if self.find_whole_cell {
+            // Same comparison `update_find_query` used to list the match,
+            // so every whole-cell match it found can be replaced.
             let matches = if self.find_case_sensitive {
                 original == self.find_query
             } else {
-                original.eq_ignore_ascii_case(self.find_query.as_str())
+                original.to_lowercase() == self.find_query.to_lowercase()
             };
             if matches {
                 Some(self.replace_text.clone())
@@ -4747,6 +4749,21 @@ mod tests {
         assert_eq!(m.cell(2, 0), "keep");
         assert_eq!(m.cell(3, 0), "keep");
         assert_eq!(m.undo_stack.len(), before);
+    }
+
+    #[test]
+    fn replace_whole_cell_case_insensitive_non_ascii() {
+        // Find lowers with `to_lowercase`, so "CAFÉ" is a whole-cell
+        // match for "café"; replace has to agree and rewrite it.
+        let mut m = replace_model("h\nCAFÉ\ncafé x\n");
+        m.find_case_sensitive = false;
+        m.find_whole_cell = true;
+        m.update_find_query("café".to_string());
+        assert_eq!(m.find_matches, vec![(0, 0)]);
+        m.replace_text = "tea".to_string();
+        assert_eq!(m.replace_all(), 1);
+        assert_eq!(m.cell(0, 0), "tea");
+        assert_eq!(m.cell(1, 0), "café x");
     }
 
     // ---- Out-of-range indices -----------------------------------------------

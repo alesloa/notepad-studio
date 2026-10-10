@@ -428,14 +428,18 @@ fn result_row(
 /// the text after. The whole line is trimmed of any leading whitespace
 /// uniformly (so very-indented lines don't push the match off-screen),
 /// preserving the relative offsets.
+///
+/// `span` is measured on the full line while `line` may be cut short
+/// (`RESULT_LINE_TEXT_MAX_BYTES`), so both ends are clamped and floored to
+/// char boundaries rather than trusted.
 fn split_match(line: &str, span: &std::ops::Range<usize>) -> (String, String, String) {
-    let lead = line.len() - line.trim_start().len();
-    let trimmed = &line[lead..];
-    let s = span.start.saturating_sub(lead).min(trimmed.len());
-    let e = span.end.saturating_sub(lead).min(trimmed.len()).max(s);
-    let pre = trimmed[..s].to_string();
-    let hit = trimmed[s..e].to_string();
-    let post = trimmed[e..].to_string();
+    let trimmed = line.trim_start();
+    let lead = line.len() - trimmed.len();
+    let s = trimmed.floor_char_boundary(span.start.saturating_sub(lead));
+    let e = trimmed.floor_char_boundary(span.end.saturating_sub(lead)).max(s);
+    let pre = trimmed.get(..s).unwrap_or_default().to_string();
+    let hit = trimmed.get(s..e).unwrap_or_default().to_string();
+    let post = trimmed.get(e..).unwrap_or_default().to_string();
     (clamp_chars(pre, 100), hit, clamp_chars(post, 200))
 }
 
@@ -448,3 +452,31 @@ fn clamp_chars(s: String, max: usize) -> String {
     out
 }
 
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn split_match_survives_spans_off_char_boundaries() {
+        // Spans come from the full line; a span that disagrees with the
+        // stored text (cut line, mid-char offsets) must not panic.
+        let cases: [(&str, std::ops::Range<usize>); 4] = [
+            ("中x", 1..2),
+            ("  é😀", 3..5),
+            ("ab", 5..9),
+            ("ab", 2..1),
+        ];
+        for (line, span) in cases {
+            let (pre, hit, post) = split_match(line, &span);
+            assert!(line.trim_start().starts_with(pre.trim_end_matches('…')));
+            let _ = (hit, post);
+        }
+    }
+
+    #[test]
+    fn split_match_splits_around_the_hit() {
+        let (pre, hit, post) = split_match("   let é = 1;", &(7..9));
+        assert_eq!((pre.as_str(), hit.as_str(), post.as_str()), ("let ", "é", " = 1;"));
+    }
+}

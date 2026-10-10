@@ -126,7 +126,7 @@ pub(crate) fn build_pattern(q: &FindInFilesQuery) -> Result<Regex, regex::Error>
         .build()
 }
 
-fn matches_filter(filename: &str, filter: &str) -> bool {
+pub(crate) fn matches_filter(filename: &str, filter: &str) -> bool {
     let trimmed = filter.trim();
     if trimmed.is_empty() || trimmed == "*" || trimmed == "*.*" {
         return true;
@@ -145,26 +145,39 @@ fn matches_filter(filename: &str, filter: &str) -> bool {
 
 /// Tiny glob matcher: `*` (any run, including empty) and `?` (single char).
 /// Case-insensitive — matches Notepad++ filter behavior.
+///
+/// Iterative, remembering only the last `*`: O(pattern × name) time and no
+/// recursion, so a long pasted filter can neither overflow the stack nor
+/// backtrack exponentially.
 fn glob_match(pattern: &str, name: &str) -> bool {
     let p: Vec<char> = pattern.chars().flat_map(|c| c.to_lowercase()).collect();
     let n: Vec<char> = name.chars().flat_map(|c| c.to_lowercase()).collect();
-    glob_recurse(&p, &n)
-}
-
-fn glob_recurse(p: &[char], n: &[char]) -> bool {
-    match (p.first(), n.first()) {
-        (None, None) => true,
-        (None, Some(_)) => false,
-        (Some('*'), _) => {
-            if glob_recurse(&p[1..], n) {
-                return true;
+    let (mut pi, mut ni) = (0usize, 0usize);
+    // Pattern index just past the last `*` seen, and the name index that
+    // star currently stops before.
+    let mut star: Option<(usize, usize)> = None;
+    while let Some(&nc) = n.get(ni) {
+        match p.get(pi) {
+            Some('*') => {
+                star = Some((pi + 1, ni));
+                pi += 1;
             }
-            !n.is_empty() && glob_recurse(p, &n[1..])
+            Some(&pc) if pc == '?' || pc == nc => {
+                pi += 1;
+                ni += 1;
+            }
+            _ => match star {
+                // Let the last star swallow one more name char and retry.
+                Some((sp, sn)) => {
+                    star = Some((sp, sn + 1));
+                    pi = sp;
+                    ni = sn + 1;
+                }
+                None => return false,
+            },
         }
-        (Some('?'), Some(_)) => glob_recurse(&p[1..], &n[1..]),
-        (Some(pc), Some(nc)) if pc == nc => glob_recurse(&p[1..], &n[1..]),
-        _ => false,
     }
+    p.get(pi..).unwrap_or(&[]).iter().all(|&c| c == '*')
 }
 
 /// Walker filter that respects the "in sub-folders" / "in hidden folders"
@@ -433,5 +446,96 @@ impl FindInFilesState {
             last_search_mode: String::new(),
             last_search_files_searched: 0,
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// Run `f` on its own thread and fail if it takes longer than `secs`,
+    /// so a matcher that hangs fails the test instead of stalling the run.
+    fn within<T: Send + 'static>(secs: u64, f: impl FnOnce() -> T + Send + 'static) -> T {
+        let (tx, rx) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            let _ = tx.send(f());
+        });
+        rx.recv_timeout(std::time::Duration::from_secs(secs))
+            .expect("timed out")
+    }
+
+    #[test]
+    fn glob_basics() {
+        assert!(matches_filter("main.rs", "*.rs"));
+        assert!(matches_filter("MAIN.RS", "*.rs"));
+        assert!(matches_filter("a.txt", "*.rs; *.txt"));
+        assert!(matches_filter("ab.c", "a?.c"));
+        assert!(!matches_filter("abc.c", "a?.c"));
+        assert!(matches_filter("anything", ""));
+        assert!(matches_filter("anything", "*.*"));
+        assert!(!matches_filter("main.rs", "*.txt"));
+        assert!(matches_filter("é中.md", "?中.*"));
+        assert!(matches_filter("x", "**x**"));
+    }
+
+    /// Every string over `alphabet` up to `max` chars long.
+    fn all_strings(alphabet: &[char], max: usize) -> Vec<String> {
+        let mut out = vec![String::new()];
+        let mut layer = vec![String::new()];
+        for _ in 0..max {
+            layer = layer
+                .iter()
+                .flat_map(|s| alphabet.iter().map(move |c| format!("{s}{c}")))
+                .collect();
+            out.extend(layer.iter().cloned());
+        }
+        out
+    }
+
+    /// Textbook dynamic-programming glob, the reference for `glob_match`.
+    fn glob_reference(p: &str, n: &str) -> bool {
+        let p: Vec<char> = p.chars().collect();
+        let n: Vec<char> = n.chars().collect();
+        let mut dp = vec![vec![false; n.len() + 1]; p.len() + 1];
+        dp[0][0] = true;
+        for i in 1..=p.len() {
+            for j in 0..=n.len() {
+                dp[i][j] = match p[i - 1] {
+                    '*' => dp[i - 1][j] || (j > 0 && dp[i][j - 1]),
+                    '?' => j > 0 && dp[i - 1][j - 1],
+                    c => j > 0 && n[j - 1] == c && dp[i - 1][j - 1],
+                };
+            }
+        }
+        dp[p.len()][n.len()]
+    }
+
+    #[test]
+    fn glob_agrees_with_reference_on_small_inputs() {
+        let patterns = all_strings(&['a', 'b', '*', '?'], 5);
+        let names = all_strings(&['a', 'b'], 5);
+        for p in &patterns {
+            for n in &names {
+                assert_eq!(glob_match(p, n), glob_reference(p, n), "pattern {p:?} name {n:?}");
+            }
+        }
+    }
+
+    #[test]
+    fn glob_many_stars_does_not_hang() {
+        // "*a*a*a…b" against "aaaa…" backtracks exponentially in a naive
+        // recursive matcher.
+        let pattern = format!("{}b", "*a".repeat(40));
+        let name = "a".repeat(80);
+        assert!(!within(10, move || glob_match(&pattern, &name)));
+    }
+
+    #[test]
+    fn glob_long_pattern_does_not_overflow_stack() {
+        // A pasted filter tens of thousands of chars long recursed once per
+        // char and overflowed the stack.
+        let pattern = "?".repeat(300_000);
+        let name = "a".repeat(300_000);
+        assert!(within(10, move || glob_match(&pattern, &name)));
     }
 }

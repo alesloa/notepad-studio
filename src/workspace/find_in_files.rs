@@ -1115,7 +1115,7 @@ fn run_replace_in_files(
         let Some(filename) = path.file_name().and_then(|s| s.to_str()) else {
             continue;
         };
-        if !matches_glob_filter(filename, &query.filter) {
+        if !crate::find_in_files::matches_filter(filename, &query.filter) {
             continue;
         }
         let metadata = match entry.metadata() {
@@ -1157,44 +1157,5 @@ fn run_replace_in_files(
         replacements,
         failures,
     })
-}
-
-fn matches_glob_filter(filename: &str, filter: &str) -> bool {
-    let trimmed = filter.trim();
-    if trimmed.is_empty() || trimmed == "*" || trimmed == "*.*" {
-        return true;
-    }
-    for raw in trimmed.split(|c: char| c == ';' || c.is_whitespace()) {
-        let p = raw.trim();
-        if p.is_empty() {
-            continue;
-        }
-        if glob_match(p, filename) {
-            return true;
-        }
-    }
-    false
-}
-
-fn glob_match(pattern: &str, name: &str) -> bool {
-    let p: Vec<char> = pattern.chars().flat_map(|c| c.to_lowercase()).collect();
-    let n: Vec<char> = name.chars().flat_map(|c| c.to_lowercase()).collect();
-    glob_recurse(&p, &n)
-}
-
-fn glob_recurse(p: &[char], n: &[char]) -> bool {
-    match (p.first(), n.first()) {
-        (None, None) => true,
-        (None, Some(_)) => false,
-        (Some('*'), _) => {
-            if glob_recurse(&p[1..], n) {
-                return true;
-            }
-            !n.is_empty() && glob_recurse(p, &n[1..])
-        }
-        (Some('?'), Some(_)) => glob_recurse(&p[1..], &n[1..]),
-        (Some(pc), Some(nc)) if pc == nc => glob_recurse(&p[1..], &n[1..]),
-        _ => false,
-    }
 }
 

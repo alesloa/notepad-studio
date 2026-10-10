@@ -36,6 +36,17 @@ v0.0.5 — current
        falling back to a proportional one.
    10. Help ▸ About opens centred in the current window. It used to land
        off-screen, and from a menu or shortcut it opened a second window.
+   11. Default shortcuts are now per platform. Windows and Linux use
+       Notepad++'s chords; macOS uses the Cmd equivalents or the Mac
+       convention. Alt+Shift+Arrow is column selection on Windows/Linux,
+       and Ctrl+Shift+L only deletes the line. Saved custom shortcuts
+       still load.
+   12. Notepad++ editor keys: Ctrl+Backspace / Ctrl+Delete delete a word,
+       Ctrl+Shift+Backspace / Ctrl+Shift+Delete delete to the line start
+       or end (Option+Delete and Cmd+Delete on macOS), and Ctrl+Up /
+       Ctrl+Down scroll one line.
+   13. Insert toggles overtype. The status bar shows INS or OVR (click it
+       to switch) and the caret becomes an underline while overtyping.
 
   v0.1.0 — syntax & language:
 

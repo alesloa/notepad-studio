@@ -668,6 +668,9 @@ const UNDO_FILE_VERSION: u32 = 1;
 /// the persisted copy gets the haircut so a buffer with 50k keystrokes still
 /// undoes to within ~2k operations after restart.
 pub(crate) const UNDO_PERSIST_CAP: usize = 2000;
+/// Smallest possible encoded `EditOp`: start, two empty strings, two
+/// selection offsets.
+const MIN_ENCODED_OP_LEN: usize = 8 + 4 + 4 + 8 + 8;
 
 fn write_u32_le(out: &mut Vec<u8>, v: u32) {
     out.extend_from_slice(&v.to_le_bytes());
@@ -681,10 +684,6 @@ fn write_bytes_with_len(out: &mut Vec<u8>, bytes: &[u8]) {
     write_u32_le(out, bytes.len() as u32);
     out.extend_from_slice(bytes);
 }
-
-/// Smallest encoded `EditOp`: `byte_start` (u64), two empty length-prefixed
-/// strings (u32 each) and the two selection offsets (u64 each).
-const EDIT_OP_MIN_BYTES: usize = 8 + 4 + 4 + 8 + 8;
 
 fn write_edit_op(out: &mut Vec<u8>, op: &EditOp) {
     write_u64_le(out, op.byte_start as u64);
@@ -774,12 +773,21 @@ impl<'a> UndoReader<'a> {
         Some(s)
     }
 
+    /// A u64 offset as `usize`; `None` if it doesn't fit (32-bit targets).
+    fn read_offset(&mut self) -> Option<usize> {
+        usize::try_from(self.read_u64()?).ok()
+    }
+
+    fn remaining(&self) -> usize {
+        self.bytes.len().saturating_sub(self.pos)
+    }
+
     fn read_edit_op(&mut self) -> Option<EditOp> {
-        let byte_start = self.read_u64()? as usize;
+        let byte_start = self.read_offset()?;
         let removed = self.read_string()?;
         let inserted = self.read_string()?;
-        let sel_before_anchor = self.read_u64()? as usize;
-        let sel_before_head = self.read_u64()? as usize;
+        let sel_before_anchor = self.read_offset()?;
+        let sel_before_head = self.read_offset()?;
         Some(EditOp {
             byte_start,
             removed,
@@ -809,10 +817,9 @@ pub(crate) fn deserialize_undo_stack(bytes: &[u8]) -> Vec<UndoEntry> {
     let Some(n) = r.read_u32() else {
         return Vec::new();
     };
-    // `n` and `n_ops` come from the file: a corrupt count must not size an
-    // allocation. The writer never stores more than UNDO_PERSIST_CAP entries,
-    // and every op takes at least EDIT_OP_MIN_BYTES of the remaining input.
-    let mut out = Vec::with_capacity((n as usize).min(UNDO_PERSIST_CAP));
+    // Counts come from the file: size the vectors by what the remaining
+    // bytes could actually hold, never by the count alone.
+    let mut out = Vec::with_capacity((n as usize).min(r.remaining() / MIN_ENCODED_OP_LEN));
     for _ in 0..n {
         let Some(tag) = r.read_u8() else {
             return out;
@@ -825,18 +832,17 @@ pub(crate) fn deserialize_undo_stack(bytes: &[u8]) -> Vec<UndoEntry> {
                 out.push(UndoEntry::Single(op));
             }
             1 => {
-                let Some(sel_before_anchor) = r.read_u64() else {
+                let Some(sel_before_anchor) = r.read_offset() else {
                     return out;
                 };
-                let Some(sel_before_head) = r.read_u64() else {
+                let Some(sel_before_head) = r.read_offset() else {
                     return out;
                 };
                 let Some(n_ops) = r.read_u32() else {
                     return out;
                 };
-                let remaining = r.bytes.len().saturating_sub(r.pos);
                 let mut ops =
-                    Vec::with_capacity((n_ops as usize).min(remaining / EDIT_OP_MIN_BYTES));
+                    Vec::with_capacity((n_ops as usize).min(r.remaining() / MIN_ENCODED_OP_LEN));
                 for _ in 0..n_ops {
                     let Some(op) = r.read_edit_op() else {
                         return out;
@@ -845,14 +851,90 @@ pub(crate) fn deserialize_undo_stack(bytes: &[u8]) -> Vec<UndoEntry> {
                 }
                 out.push(UndoEntry::Group {
                     ops,
-                    sel_before_anchor: sel_before_anchor as usize,
-                    sel_before_head: sel_before_head as usize,
+                    sel_before_anchor,
+                    sel_before_head,
                 });
             }
             _ => return out,
         }
     }
     out
+}
+
+/// Trim a restored undo stack to the newest entries that really undo
+/// against `rope`, and pull their saved carets onto char boundaries.
+///
+/// The `.undo` file is written next to the `.bak` but read back against
+/// whatever the tab restores from, which can be a file that changed on
+/// disk, a `.bak` from another write, or a damaged file. Undo replays an
+/// op by replacing `byte_start..byte_start + inserted.len()`, and the rope
+/// panics on a range that is out of bounds or splits a character. Each
+/// entry is undone on a scratch copy of the rope, newest first; the first
+/// one whose inserted text isn't where it says ends the walk, and it and
+/// everything older are dropped.
+pub(crate) fn retain_replayable_undo(
+    mut stack: Vec<UndoEntry>,
+    rope: &ropey::Rope,
+) -> Vec<UndoEntry> {
+    let mut scratch = rope.clone();
+    let mut keep_from = stack.len();
+    for entry in stack.iter_mut().rev() {
+        if !undo_entry_on(&mut scratch, entry) {
+            break;
+        }
+        keep_from -= 1;
+    }
+    stack.split_off(keep_from)
+}
+
+/// Undo `entry` on `rope` the way `Workspace::replay_undo_entry` will.
+/// False (with `rope` partly modified) if any op doesn't apply.
+fn undo_entry_on(rope: &mut ropey::Rope, entry: &mut UndoEntry) -> bool {
+    match entry {
+        UndoEntry::Single(op) => undo_op_on(rope, op),
+        UndoEntry::Group {
+            ops,
+            sel_before_anchor,
+            sel_before_head,
+        } => {
+            for op in ops.iter_mut().rev() {
+                if !undo_op_on(rope, op) {
+                    return false;
+                }
+            }
+            *sel_before_anchor = floor_char_boundary(rope, *sel_before_anchor);
+            *sel_before_head = floor_char_boundary(rope, *sel_before_head);
+            true
+        }
+    }
+}
+
+fn undo_op_on(rope: &mut ropey::Rope, op: &mut EditOp) -> bool {
+    let Some(end) = op.byte_start.checked_add(op.inserted.len()) else {
+        return false;
+    };
+    let Some(slice) = rope.get_byte_slice(op.byte_start..end) else {
+        return false;
+    };
+    if slice != op.inserted.as_str() {
+        return false;
+    }
+    let start_char = rope.byte_to_char(op.byte_start);
+    let end_char = rope.byte_to_char(end);
+    rope.remove(start_char..end_char);
+    rope.insert(start_char, &op.removed);
+    // The rope now holds the text from before this op, which is what the
+    // saved caret indexes into.
+    op.sel_before_anchor = floor_char_boundary(rope, op.sel_before_anchor);
+    op.sel_before_head = floor_char_boundary(rope, op.sel_before_head);
+    true
+}
+
+/// `byte` clamped to the rope and moved back to the start of the character
+/// it lands in.
+pub(crate) fn floor_char_boundary(rope: &ropey::Rope, byte: usize) -> usize {
+    let byte = byte.min(rope.len_bytes());
+    rope.char_to_byte(rope.byte_to_char(byte))
 }
 
 /// First non-empty line of the rope, trimmed and truncated to 30 chars
@@ -966,5 +1048,167 @@ mod tests {
             UndoEntry::Group { ops, .. } => assert_eq!(ops.len(), 2),
             UndoEntry::Single(_) => panic!("expected a group"),
         }
+    }
+}
+
+    fn undo_header(n_entries: u32) -> Vec<u8> {
+        let mut bytes = Vec::new();
+        bytes.extend_from_slice(UNDO_FILE_MAGIC);
+        bytes.extend_from_slice(&UNDO_FILE_VERSION.to_le_bytes());
+        bytes.extend_from_slice(&n_entries.to_le_bytes());
+        bytes
+    }
+
+    #[test]
+    fn corrupt_undo_counts_do_not_allocate_the_world() {
+        // Regression: the entry and op counts came straight from the file
+        // into `Vec::with_capacity`, so a corrupt `.undo` asked for hundreds
+        // of gigabytes and the allocator aborted the app at startup.
+        assert!(deserialize_undo_stack(&undo_header(u32::MAX)).is_empty());
+
+        let mut group = undo_header(1);
+        group.push(1);
+        group.extend_from_slice(&0u64.to_le_bytes());
+        group.extend_from_slice(&0u64.to_le_bytes());
+        group.extend_from_slice(&u32::MAX.to_le_bytes());
+        assert!(deserialize_undo_stack(&group).is_empty());
+    }
+
+    fn op(start: usize, removed: &str, inserted: &str, sel: usize) -> EditOp {
+        EditOp {
+            byte_start: start,
+            removed: removed.into(),
+            inserted: inserted.into(),
+            sel_before_anchor: sel,
+            sel_before_head: sel,
+        }
+    }
+
+    /// What `Workspace::replay_undo_op` does to the rope, minus the window.
+    /// Panics exactly where the editor would.
+    fn undo_like_the_editor(rope: &mut ropey::Rope, entry: &UndoEntry) {
+        let ops: Vec<&EditOp> = match entry {
+            UndoEntry::Single(op) => vec![op],
+            UndoEntry::Group { ops, .. } => ops.iter().rev().collect(),
+        };
+        for op in ops {
+            let total = rope.len_bytes();
+            let start = op.byte_start.min(total);
+            let end = (op.byte_start + op.inserted.len()).min(total).max(start);
+            let _removed = rope.byte_slice(start..end).to_string();
+            let (cs, ce) = (rope.byte_to_char(start), rope.byte_to_char(end));
+            rope.remove(cs..ce);
+            rope.insert(cs, &op.removed);
+        }
+    }
+
+    // "añb" typed one char at a time, then "ñ" replaced by "é" in a group.
+    fn history() -> (ropey::Rope, Vec<UndoEntry>) {
+        let stack = vec![
+            UndoEntry::Single(op(0, "", "a", 0)),
+            UndoEntry::Single(op(1, "", "ñ", 1)),
+            UndoEntry::Single(op(3, "", "b", 3)),
+            UndoEntry::Group {
+                ops: vec![op(1, "ñ", "", 1), op(1, "", "é", 1)],
+                sel_before_anchor: 1,
+                sel_before_head: 3,
+            },
+        ];
+        (ropey::Rope::from_str("aéb"), stack)
+    }
+
+    #[test]
+    fn undo_stack_round_trips_through_the_codec() {
+        let (_, stack) = history();
+        let back = deserialize_undo_stack(&serialize_undo_stack(&stack));
+        assert_eq!(back.len(), stack.len());
+        let Some(UndoEntry::Group { ops, sel_before_head, .. }) = back.last() else {
+            panic!("group lost");
+        };
+        assert_eq!(*sel_before_head, 3);
+        assert_eq!(ops.len(), 2);
+        assert_eq!(ops.get(1).map(|o| o.inserted.as_str()), Some("é"));
+    }
+
+    #[test]
+    fn matching_history_is_kept_and_undoes_to_empty() {
+        let (rope, stack) = history();
+        let kept = retain_replayable_undo(stack, &rope);
+        assert_eq!(kept.len(), 4);
+        let mut r = rope.clone();
+        for entry in kept.iter().rev() {
+            undo_like_the_editor(&mut r, entry);
+        }
+        assert_eq!(r.to_string(), "");
+    }
+
+    #[test]
+    fn history_for_other_text_is_dropped_from_the_first_mismatch() {
+        // Regression: a `.undo` restored against text it wasn't recorded on
+        // (file changed on disk, damaged `.bak`) put a mid-character range
+        // into `byte_slice`, which panics and takes every window with it.
+        let (_, stack) = history();
+        let other = ropey::Rope::from_str("éé");
+        let crashes = std::panic::catch_unwind(|| {
+            let mut r = other.clone();
+            for entry in stack.iter().rev() {
+                undo_like_the_editor(&mut r, entry);
+            }
+        });
+        assert!(crashes.is_err(), "fixture should hit the old crash");
+
+        let kept = retain_replayable_undo(stack.clone(), &other);
+        assert!(kept.is_empty());
+
+        // Newest entry fits, older ones were recorded on other text: keep
+        // only the newest.
+        let mut mixed = stack;
+        if let Some(first) = mixed.get_mut(1) {
+            *first = UndoEntry::Single(op(9, "", "zz", 9));
+        }
+        let rope = ropey::Rope::from_str("aéb");
+        let kept = retain_replayable_undo(mixed, &rope);
+        assert_eq!(kept.len(), 2);
+        let mut r = rope.clone();
+        for entry in kept.iter().rev() {
+            undo_like_the_editor(&mut r, entry);
+        }
+        assert_eq!(r.to_string(), "añ");
+    }
+
+    #[test]
+    fn saved_carets_land_on_char_boundaries() {
+        let rope = ropey::Rope::from_str("aé");
+        let stack = vec![UndoEntry::Single(op(1, "ñ", "é", 99))];
+        let kept = retain_replayable_undo(stack, &rope);
+        let Some(UndoEntry::Single(op)) = kept.first() else {
+            panic!("entry dropped");
+        };
+        assert_eq!(op.sel_before_head, 3);
+        let stack = vec![UndoEntry::Single(op_at_mid_char())];
+        let kept = retain_replayable_undo(stack, &rope);
+        let Some(UndoEntry::Single(op)) = kept.first() else {
+            panic!("entry dropped");
+        };
+        assert_eq!(op.sel_before_anchor, 1);
+    }
+
+    fn op_at_mid_char() -> EditOp {
+        // Inserting "é" after "a" with the caret saved inside the "ñ" that
+        // was there before.
+        EditOp {
+            byte_start: 1,
+            removed: "ñ".into(),
+            inserted: "é".into(),
+            sel_before_anchor: 2,
+            sel_before_head: 2,
+        }
+    }
+
+    #[test]
+    fn offsets_near_usize_max_are_rejected() {
+        let rope = ropey::Rope::from_str("abc");
+        let stack = vec![UndoEntry::Single(op(usize::MAX, "", "x", 0))];
+        assert!(retain_replayable_undo(stack, &rope).is_empty());
     }
 }

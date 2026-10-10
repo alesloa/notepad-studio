@@ -1062,6 +1062,14 @@ fn run_replace_in_files(
         return Err("Directory not found".to_string());
     }
     let re = build_pattern(query).map_err(|e| format!("Invalid regex: {e}"))?;
+    // Only Regular expression mode expands `$1` / `${name}` / `$$`. Normal
+    // and Extended insert the text as typed (Extended after decoding its
+    // escapes, as the Find tab does); expanding there turned `$5` into "".
+    let replacement = if query.extended && !query.regex {
+        crate::text::extended_escape::interpret_extended(replacement)
+    } else {
+        replacement.to_string()
+    };
 
     let mut files_changed = 0usize;
     let mut replacements = 0usize;
@@ -1122,11 +1130,15 @@ fn run_replace_in_files(
             Ok(m) => m,
             Err(_) => continue,
         };
-        if metadata.len() > crate::find_in_files::FIND_IN_FILES_FILE_SIZE_LIMIT {
+        let limit = crate::find_in_files::FIND_IN_FILES_FILE_SIZE_LIMIT;
+        if metadata.len() > limit {
             continue;
         }
-        let bytes = match std::fs::read(path) {
-            Ok(b) => b,
+        // Bounded read: a file that grew past the limit since the stat is
+        // skipped whole, never rewritten from a truncated copy.
+        let bytes = match crate::find_in_files::read_capped(path, limit) {
+            Ok(Some(b)) => b,
+            Ok(None) => continue,
             Err(_) => {
                 failures += 1;
                 continue;
@@ -1136,11 +1148,22 @@ fn run_replace_in_files(
             Ok(s) => s,
             Err(_) => continue,
         };
+        // Match on the text after a UTF-8 BOM, as the search does, and put
+        // the BOM back on write.
+        let (bom, content) = match content.strip_prefix('\u{FEFF}') {
+            Some(rest) => ("\u{FEFF}", rest),
+            None => ("", content),
+        };
         let count_in_file = re.find_iter(content).count();
         if count_in_file == 0 {
             continue;
         }
-        let new_content = re.replace_all(content, replacement).into_owned();
+        let replaced = if query.regex {
+            re.replace_all(content, replacement.as_str())
+        } else {
+            re.replace_all(content, regex::NoExpand(&replacement))
+        };
+        let new_content = format!("{bom}{replaced}");
         match std::fs::write(path, new_content.as_bytes()) {
             Ok(()) => {
                 files_changed += 1;
@@ -1159,3 +1182,93 @@ fn run_replace_in_files(
     })
 }
 
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::path::Path;
+
+    fn temp_dir() -> PathBuf {
+        let dir = std::env::temp_dir().join(format!("notepad-studio-fif-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    fn query(dir: &Path, text: &str, regex: bool, extended: bool) -> FindInFilesQuery {
+        FindInFilesQuery {
+            text: text.to_string(),
+            directory: dir.to_path_buf(),
+            filter: "*".to_string(),
+            match_case: true,
+            whole_word: false,
+            regex,
+            extended,
+            dot_matches_newline: false,
+            in_subfolders: true,
+            in_hidden_folders: false,
+        }
+    }
+
+    /// Write `content` to a fresh file, run Replace in Files over its
+    /// directory and return the file's new bytes.
+    fn replace_in(content: &[u8], text: &str, regex: bool, extended: bool, replacement: &str) -> Vec<u8> {
+        let dir = temp_dir();
+        let path = dir.join("f.txt");
+        std::fs::write(&path, content).unwrap();
+        let report = run_replace_in_files(&query(&dir, text, regex, extended), replacement);
+        let out = std::fs::read(&path).unwrap();
+        let _ = std::fs::remove_dir_all(&dir);
+        assert!(report.is_ok());
+        out
+    }
+
+    #[test]
+    fn normal_mode_replacement_is_literal() {
+        // `$5` names a group that doesn't exist; expanding it wrote "".
+        assert_eq!(replace_in(b"a-b", "-", false, false, "$5"), b"a$5b");
+        assert_eq!(replace_in(b"a-b", "-", false, false, "$$"), b"a$$b");
+        assert_eq!(replace_in(b"a-b", "-", false, false, "${x}"), b"a${x}b");
+    }
+
+    #[test]
+    fn extended_mode_decodes_replacement_escapes() {
+        assert_eq!(replace_in(b"a-b", "-", false, true, r"\t"), b"a\tb");
+        assert_eq!(replace_in(b"a-b", "-", false, true, "$1"), b"a$1b");
+    }
+
+    #[test]
+    fn regex_mode_expands_groups() {
+        assert_eq!(replace_in(b"ab", "(a)(?<n>b)", true, false, "${n}$1"), b"ba");
+        assert_eq!(replace_in(b"ab", "(a)b", true, false, "[$2]"), b"[]");
+        assert_eq!(replace_in(b"ab", "(a)b", true, false, "$$"), b"$");
+        assert_eq!(replace_in(b"ab", "(a)b", true, false, r"\1"), br"\1");
+    }
+
+    #[test]
+    fn replacement_containing_the_query_runs_once() {
+        assert_eq!(replace_in(b"aa", "a", false, false, "aa"), b"aaaa");
+    }
+
+    #[test]
+    fn bom_and_crlf_survive_a_replace() {
+        let out = replace_in("\u{FEFF}x\r\ny".as_bytes(), "y", false, false, "z");
+        assert_eq!(out, "\u{FEFF}x\r\nz".as_bytes());
+        // Find in Files skips the BOM, so `^x` matches the first line here too.
+        let out = replace_in("\u{FEFF}x".as_bytes(), "^x", true, false, "z");
+        assert_eq!(out, "\u{FEFF}z".as_bytes());
+    }
+
+    #[test]
+    fn oversize_and_binary_files_are_left_alone() {
+        let dir = temp_dir();
+        let big = "x".repeat(crate::find_in_files::FIND_IN_FILES_FILE_SIZE_LIMIT as usize + 1);
+        std::fs::write(dir.join("big.txt"), &big).unwrap();
+        std::fs::write(dir.join("bin.dat"), [b'x', 0xFF, 0xFE]).unwrap();
+        let report = run_replace_in_files(&query(&dir, "x", false, false), "y").ok().unwrap();
+        let big_after = std::fs::read(dir.join("big.txt")).unwrap();
+        let bin_after = std::fs::read(dir.join("bin.dat")).unwrap();
+        let _ = std::fs::remove_dir_all(&dir);
+        assert_eq!(report.files_changed, 0);
+        assert_eq!(big_after.len(), big.len());
+        assert_eq!(bin_after, [b'x', 0xFF, 0xFE]);
+    }
+}

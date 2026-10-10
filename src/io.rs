@@ -21,7 +21,7 @@ use crate::consts::APP_NAME;
 use crate::recent;
 use crate::tab::{CloseDecision, Tab, TabViewMode};
 use crate::text::encoding::{self, Encoding};
-use crate::text::line_ending::{LineEnding, normalize_to_lf, rope_to_bytes};
+use crate::text::line_ending::{rope_to_bytes, split_line_endings};
 use crate::workspace::Workspace;
 
 impl Workspace {
@@ -107,11 +107,10 @@ impl Workspace {
             None
         };
 
+        let mut lossy_decode = false;
         let (rope, line_ending, enc, language) = if let Some(p) = rich_doc_payload.as_ref() {
             // Raw View shows the extracted XML — already UTF-8, no BOM sniff needed.
-            let raw = p.raw_view_text.clone();
-            let le = LineEnding::detect(&raw);
-            let normalized = normalize_to_lf(raw, le);
+            let (le, normalized) = split_line_endings(p.raw_view_text.clone());
             (
                 ropey::Rope::from_str(&normalized),
                 le,
@@ -129,9 +128,11 @@ impl Workspace {
             };
             // Sniff BOM and decode into a UTF-8 String, recording which encoding
             // the bytes came from so subsequent saves round-trip correctly.
-            let (enc, raw) = encoding::decode(&raw_bytes);
-            let le = LineEnding::detect(&raw);
-            let normalized = normalize_to_lf(raw, le);
+            let decoded = encoding::decode_bytes(&raw_bytes);
+            drop(raw_bytes);
+            lossy_decode = decoded.lossy;
+            let enc = decoded.encoding;
+            let (le, normalized) = split_line_endings(decoded.text);
             let language = crate::syntax::language_for_path(&path)
                 .or_else(|| crate::syntax::language_for_shebang(&normalized));
             (ropey::Rope::from_str(&normalized), le, enc, language)
@@ -150,7 +151,9 @@ impl Workspace {
             highlights: Vec::new(),
             loading: None,
             new_label: None,
-            read_only: false,
+            // A lossy decode can't be saved back without rewriting the bad
+            // bytes; open read-only so that takes a deliberate step.
+            read_only: lossy_decode,
             tab_color: None,
             is_changelog: false,
             rich_doc: rich_doc_payload,
@@ -176,7 +179,11 @@ impl Workspace {
             }
         }
 
-        self.set_status(format!("Opened {basename}"));
+        if lossy_decode {
+            self.set_status(lossy_decode_status(&basename, enc));
+        } else {
+            self.set_status(format!("Opened {basename}"));
+        }
         self.last_lines.clear();
         self.caret_visible = true;
         self.save_session();
@@ -207,8 +214,7 @@ impl Workspace {
             }
         };
         let (enc, raw) = encoding::decode(&raw_bytes);
-        let line_ending = LineEnding::detect(&raw);
-        let normalized = normalize_to_lf(raw, line_ending);
+        let (line_ending, normalized) = split_line_endings(raw);
         let rope = ropey::Rope::from_str(&normalized);
 
         let buffer = Buffer {
@@ -613,6 +619,16 @@ impl Workspace {
         self.save_session();
         cx.notify();
     }
+}
+
+/// Status line for a file whose bytes didn't decode cleanly. Shared by the
+/// synchronous and streaming open paths.
+pub(crate) fn lossy_decode_status(name: &str, enc: Encoding) -> String {
+    format!(
+        "Opened {name} read-only: it has malformed {} data, shown as U+FFFD. \
+         Saving would replace those bytes; clear Read-Only to edit anyway.",
+        enc.label()
+    )
 }
 
 /// Hook for `Backup ▸ Backup on save`. Reads the current settings snapshot,

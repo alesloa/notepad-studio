@@ -19,6 +19,32 @@ use crate::workspace::Workspace;
 /// content still pastes as a normal multi-line string.
 pub(crate) const BLOCK_CLIPBOARD_SENTINEL: &str = "\u{0001}NOTEPAD_STUDIO_BLOCK\u{0001}\n";
 
+/// Char column of byte offset `local` inside one rope line (`line_text`
+/// still carries its CR/LF terminator). Offsets on or past the terminator
+/// map to the printable end of the line; an offset inside a multi-byte char
+/// counts as that char's start.
+fn char_col_in_line(line_text: &str, local: usize) -> usize {
+    let trimmed = line_text.trim_end_matches(['\n', '\r']);
+    let max_local = super::edits::floor_char_boundary_in(trimmed, local);
+    trimmed.get(..max_local).map_or(0, |s| s.chars().count())
+}
+
+/// Move a block's head corner by `delta_line` rows and `delta_col` chars,
+/// keeping the row inside `0..total_lines` and the column at or above 0.
+fn step_block_head(
+    line: usize,
+    col: usize,
+    delta_line: i32,
+    delta_col: i32,
+    total_lines: usize,
+) -> (usize, usize) {
+    let new_line = line
+        .saturating_add_signed(delta_line as isize)
+        .min(total_lines.saturating_sub(1));
+    let new_col = col.saturating_add_signed(delta_col as isize);
+    (new_line, new_col)
+}
+
 impl Workspace {
     /// Total char count of `line_idx` in the active buffer (excluding
     /// CR/LF). Used by every block helper that needs to know how far a
@@ -69,13 +95,9 @@ impl Workspace {
         let clamped = byte.min(total);
         let line = rope.byte_to_line(clamped);
         let line_start = rope.line_to_byte(line);
-        let local = clamped - line_start;
-        let line_slice = rope.line(line);
-        let raw = line_slice.to_string();
-        let trimmed = raw.trim_end_matches(['\n', '\r']);
-        let max_local = local.min(trimmed.len());
-        let col = trimmed[..max_local].chars().count();
-        (line, col)
+        let local = clamped.saturating_sub(line_start);
+        let raw = rope.line(line).to_string();
+        (line, char_col_in_line(&raw, local))
     }
 
     /// True when the active tab has a non-empty block selection.
@@ -121,7 +143,7 @@ impl Workspace {
 
         // Snapshot the original head/anchor cols so we can rebuild the
         // post-edit thin block at the correct end-corner.
-        let post_col = min_col + insert.chars().count();
+        let post_col = min_col.saturating_add(insert.chars().count());
 
         self.begin_edit_group();
 
@@ -432,10 +454,8 @@ impl Workspace {
                 is_dragging: false,
             }
         });
-        let new_line = (block.head_line as i32 + delta_line)
-            .max(0)
-            .min(total_lines.saturating_sub(1) as i32) as usize;
-        let new_col = (block.head_col as i32 + delta_col).max(0) as usize;
+        let (new_line, new_col) =
+            step_block_head(block.head_line, block.head_col, delta_line, delta_col, total_lines);
         block.head_line = new_line;
         block.head_col = new_col;
         if block.is_empty() {
@@ -456,5 +476,58 @@ impl Workspace {
         self.caret_visible = true;
         self.ensure_cursor_visible(cx);
         cx.notify();
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{char_col_in_line, step_block_head};
+
+    #[test]
+    fn char_col_counts_chars_not_bytes() {
+        let cases: &[(&str, usize, usize)] = &[
+            ("", 0, 0),
+            ("abc\n", 2, 2),
+            ("abc\r\n", 3, 3),
+            ("abc\r\n", 4, 3),
+            ("abc\r", 9, 3),
+            ("héllo\n", 3, 2),
+            ("中文", 6, 2),
+            ("a👍b", 5, 2),
+            ("👨‍👩‍👧\n", 18, 5),
+        ];
+        for &(line, local, want) in cases {
+            assert_eq!(char_col_in_line(line, local), want, "{line:?} @ {local}");
+        }
+    }
+
+    #[test]
+    fn char_col_mid_char_offset_does_not_panic() {
+        // A hit-test or stale caret byte that lands inside a multi-byte
+        // char used to slice the line there.
+        let cases: &[(&str, usize, usize)] = &[
+            ("é\n", 1, 0),
+            ("中文", 4, 1),
+            ("a👍b", 2, 1),
+            ("🇫🇷\r\n", 6, 1),
+        ];
+        for &(line, local, want) in cases {
+            assert_eq!(char_col_in_line(line, local), want, "{line:?} @ {local}");
+        }
+    }
+
+    #[test]
+    fn step_block_head_clamps() {
+        assert_eq!(step_block_head(0, 0, -1, -1, 5), (0, 0));
+        assert_eq!(step_block_head(4, 3, 1, 1, 5), (4, 4));
+        assert_eq!(step_block_head(2, 0, 0, 0, 0), (0, 0));
+        assert_eq!(step_block_head(1, 7, 1, -1, 5), (2, 6));
+    }
+
+    #[test]
+    fn step_block_head_large_values_do_not_overflow() {
+        let big = i32::MAX as usize;
+        assert_eq!(step_block_head(big, big, 1, 1, usize::MAX), (big + 1, big + 1));
+        assert_eq!(step_block_head(usize::MAX, usize::MAX, 1, 1, usize::MAX), (usize::MAX - 1, usize::MAX));
     }
 }

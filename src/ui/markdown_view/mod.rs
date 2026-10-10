@@ -2211,19 +2211,45 @@ fn render_md_image(
             return render_md_image_placeholder(theme, url, alt, "unsaved document");
         }
     };
-    let bytes = match std::fs::read(&path) {
-        Ok(b) => b,
-        Err(_) => return render_md_image_placeholder(theme, url, alt, "file not found"),
-    };
+    // Format first, so a path without an image extension is never read.
     let mime = mime_for_extension(&path);
     let Some(format) = mime.and_then(gpui::ImageFormat::from_mime_type) else {
         return render_md_image_placeholder(theme, url, alt, "unsupported format");
+    };
+    let bytes = match read_image_file(&path) {
+        Ok(b) => b,
+        Err(reason) => return render_md_image_placeholder(theme, url, alt, reason),
     };
     let image = std::sync::Arc::new(gpui::Image::from_bytes(format, bytes));
     div()
         .py(px(4.))
         .child(gpui::img(image))
         .into_any_element()
+}
+
+/// Reads a local image for the preview. Only regular files are read, and
+/// no more than the length the open file reports, so a path that resolves
+/// to `/dev/zero`, a FIFO or another device shows the placeholder instead
+/// of hanging the preview or filling memory. The error is the placeholder
+/// reason.
+fn read_image_file(path: &std::path::Path) -> Result<Vec<u8>, &'static str> {
+    use std::io::Read;
+    // Checked before opening: opening a FIFO for reading blocks until a
+    // writer appears.
+    let meta = std::fs::metadata(path).map_err(|_| "file not found")?;
+    if !meta.is_file() {
+        return Err("not a file");
+    }
+    let file = std::fs::File::open(path).map_err(|_| "file not found")?;
+    let meta = file.metadata().map_err(|_| "file not found")?;
+    if !meta.is_file() {
+        return Err("not a file");
+    }
+    let mut bytes = Vec::new();
+    file.take(meta.len())
+        .read_to_end(&mut bytes)
+        .map_err(|_| "file not found")?;
+    Ok(bytes)
 }
 
 /// Render a paragraph that mixes text segments and inline images.
@@ -3938,6 +3964,27 @@ mod hostile_input_tests {
             .filter(|r| r.link.as_deref() == Some("notepad-fn:def:1"))
             .count();
         assert_eq!(refs, 60_000);
+    }
+
+    #[test]
+    fn image_reads_only_regular_files() {
+        let dir = std::env::temp_dir().join(format!("notepad-studio-md-image-{}", std::process::id()));
+        std::fs::create_dir_all(&dir).unwrap();
+        let png = dir.join("a.png");
+        std::fs::write(&png, b"\x89PNG bytes").unwrap();
+        assert_eq!(read_image_file(&png), Ok(b"\x89PNG bytes".to_vec()));
+        assert_eq!(read_image_file(&dir), Err("not a file"));
+        assert_eq!(read_image_file(&dir.join("missing.png")), Err("file not found"));
+        #[cfg(unix)]
+        {
+            // Reading this to the end used to fill memory until the
+            // process died.
+            let zero = dir.join("zero.png");
+            let _ = std::fs::remove_file(&zero);
+            std::os::unix::fs::symlink("/dev/zero", &zero).unwrap();
+            assert_eq!(read_image_file(&zero), Err("not a file"));
+        }
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]

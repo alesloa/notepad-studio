@@ -871,6 +871,13 @@ fn slice_bytes(rope: &Rope, range: Range<usize>) -> String {
     rope.byte_slice(start..end).to_string()
 }
 
+/// Whether the rope holds exactly the bytes of `s` starting at `start`.
+fn bytes_at(rope: &Rope, start: usize, s: &str) -> bool {
+    s.bytes()
+        .enumerate()
+        .all(|(i, b)| start.checked_add(i).and_then(|at| rope.get_byte(at)) == Some(b))
+}
+
 /// Bold / italic / strike / inline-code: wrap the selection in
 /// `prefix`/`suffix`, or unwrap it when the markers are already there.
 fn plan_wrap_inline(
@@ -901,23 +908,23 @@ fn plan_wrap_inline(
     // "**foo**" (preview-mode selection covers the rendered "foo", not
     // the asterisks). Strip the surrounding markers and keep the same
     // visible text selected.
+    // Compared byte by byte: the byte before the selection can be the
+    // tail of a multi-byte char, which a rope slice can't start at.
     if has_selection
         && r.start >= prefix.len()
         && r.end + suffix.len() <= total
+        && bytes_at(rope, r.start - prefix.len(), prefix)
+        && bytes_at(rope, r.end, suffix)
     {
-        let pre_bytes = slice_bytes(rope, r.start - prefix.len()..r.start);
-        let suf_bytes = slice_bytes(rope, r.end..r.end + suffix.len());
-        if pre_bytes == prefix && suf_bytes == suffix {
-            let outer_start = r.start - prefix.len();
-            let outer_end = r.end + suffix.len();
-            let head = outer_start + selected.len();
-            return MdEdit {
-                range: outer_start..outer_end,
-                text: selected,
-                anchor: outer_start,
-                head,
-            };
-        }
+        let outer_start = r.start - prefix.len();
+        let outer_end = r.end + suffix.len();
+        let head = outer_start + selected.len();
+        return MdEdit {
+            range: outer_start..outer_end,
+            text: selected,
+            anchor: outer_start,
+            head,
+        };
     }
 
     if !has_selection {
@@ -1127,14 +1134,8 @@ fn plan_ordered_list(rope: &Rope, r: Range<usize>) -> Option<MdEdit> {
 /// doesn't start a line) and after it (more text follows on the line).
 fn block_insert_breaks(rope: &Rope, r: &Range<usize>) -> (bool, bool) {
     let total = rope.len_bytes();
-    let needs_lead = r.start > 0
-        && slice_bytes(rope, r.start.saturating_sub(1)..r.start) != "\n";
-    let after = if r.end < total {
-        slice_bytes(rope, r.end..(r.end + 1).min(total))
-    } else {
-        String::new()
-    };
-    let needs_tail = !after.is_empty() && after != "\n";
+    let needs_lead = r.start > 0 && !bytes_at(rope, r.start - 1, "\n");
+    let needs_tail = r.end < total && !bytes_at(rope, r.end, "\n");
     (needs_lead, needs_tail)
 }
 
@@ -1219,12 +1220,7 @@ fn plan_insert_image(rope: &Rope, source_byte: usize, snippet: String) -> MdEdit
 /// Image markup appended on its own line at the end of the buffer.
 fn plan_append_image(rope: &Rope, snippet: &str) -> MdEdit {
     let total = rope.len_bytes();
-    let needs_lead = if total == 0 {
-        false
-    } else {
-        let last = slice_bytes(rope, total.saturating_sub(1)..total);
-        !last.ends_with('\n')
-    };
+    let needs_lead = total > 0 && !bytes_at(rope, total - 1, "\n");
     let text = if needs_lead {
         format!("\n{snippet}\n")
     } else {
@@ -1359,6 +1355,11 @@ mod format_plan_tests {
 
     /// `text` after `edit`, and the text the edit leaves selected.
     fn apply(text: &str, edit: &MdEdit) -> (String, String) {
+        assert!(
+            text.is_char_boundary(edit.range.start) && text.is_char_boundary(edit.range.end),
+            "edit range {:?} is off a char boundary of {text:?}",
+            edit.range
+        );
         let mut rope = Rope::from_str(text);
         let start = rope.byte_to_char(edit.range.start);
         let end = rope.byte_to_char(edit.range.end);
@@ -1428,5 +1429,22 @@ mod format_plan_tests {
         assert_eq!(apply("abc", &edit).0, "abc\n![i](p)\n");
         let edit = plan_insert_image(&Rope::from_str("abc"), 1, "![i](p)".into());
         assert_eq!(apply("abc", &edit).0, "a![i](p)bc");
+    }
+
+    #[test]
+    fn formatting_next_to_multibyte_chars() {
+        // The byte before / after the selection is the tail / head of a
+        // multi-byte char.
+        assert_eq!(wrap("中x中", 3..4), ("中**x**中".into(), "x".into()));
+        assert_eq!(wrap("aax中", 2..3), ("aa**x**中".into(), "x".into()));
+        assert_eq!(wrap("é**x**👍", 4..5), ("éx👍".into(), "x".into()));
+        let edit = plan_code_block(&Rope::from_str("café"), 5..5);
+        assert_eq!(apply("café", &edit).0, "café\n```\n\n```\n");
+        let edit = plan_code_block(&Rope::from_str("é"), 0..0);
+        assert_eq!(apply("é", &edit).0, "```\n\n```\n\né");
+        let edit = plan_horizontal_rule(&Rope::from_str("👍x👍"), 4..5);
+        assert_eq!(apply("👍x👍", &edit).0, "👍\n---\n\n👍");
+        let edit = plan_append_image(&Rope::from_str("café"), "![i](p)");
+        assert_eq!(apply("café", &edit).0, "café\n![i](p)\n");
     }
 }

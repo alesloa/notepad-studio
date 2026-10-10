@@ -1513,10 +1513,9 @@ impl Workspace {
         &mut self,
         cx: &mut Context<Self>,
     ) -> gpui::FocusHandle {
-        if self.rich_doc_body_focus.is_none() {
-            self.rich_doc_body_focus = Some(cx.focus_handle());
-        }
-        self.rich_doc_body_focus.as_ref().unwrap().clone()
+        self.rich_doc_body_focus
+            .get_or_insert_with(|| cx.focus_handle())
+            .clone()
     }
 
     /// Set the rich-doc selection cursor + anchor inside the active payload.
@@ -2892,10 +2891,7 @@ impl Workspace {
         // text changes). Otherwise fall back to whole-block toggling on
         // active_block (existing behavior: user clicks somewhere and presses
         // B → bolds the paragraph, useful for headings / one-liners).
-        let selection = payload.selection;
-        let has_selection = selection.map(|s| !s.is_collapsed()).unwrap_or(false);
-        if has_selection {
-            let sel = selection.unwrap();
+        if let Some(sel) = payload.selection.filter(|s| !s.is_collapsed()) {
             let (lo, hi) = sel.range_full();
             let predicate: fn(&crate::rich_doc::ast::InlineStyle) -> bool = match axis {
                 RichDocStyleAxis::Bold => |s| s.bold,

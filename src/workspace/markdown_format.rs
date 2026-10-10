@@ -44,8 +44,7 @@ impl Workspace {
         start_drag: bool,
         cx: &mut gpui::Context<Self>,
     ) {
-        let total = self.buffer().rope.len_bytes();
-        let byte = source_byte.min(total);
+        let byte = snap_byte(&self.buffer().rope, source_byte);
         let tab = self.active_tab_mut();
         if extend {
             tab.selection.head = byte;
@@ -86,8 +85,7 @@ impl Workspace {
         source_byte: usize,
         cx: &mut gpui::Context<Self>,
     ) {
-        let total = self.buffer().rope.len_bytes();
-        let byte = source_byte.min(total);
+        let byte = snap_byte(&self.buffer().rope, source_byte);
         let range = self.word_range_at(byte);
         let tab = self.active_tab_mut();
         tab.selection.anchor = range.start;
@@ -104,8 +102,7 @@ impl Workspace {
         source_byte: usize,
         cx: &mut gpui::Context<Self>,
     ) {
-        let total = self.buffer().rope.len_bytes();
-        let byte = source_byte.min(total);
+        let byte = snap_byte(&self.buffer().rope, source_byte);
         let range = self.line_range_at(byte);
         let tab = self.active_tab_mut();
         tab.selection.anchor = range.start;
@@ -555,8 +552,7 @@ impl Workspace {
         };
 
         let Some(byte) = chosen_byte else { return false; };
-        let total = self.buffer().rope.len_bytes();
-        let new_byte = byte.min(total);
+        let new_byte = snap_byte(&self.buffer().rope, byte);
         let tab = self.active_tab_mut();
         if extend {
             tab.selection.head = new_byte;
@@ -593,9 +589,15 @@ impl Workspace {
     }
 
     /// Replace the planned range and select the planned result. Every
-    /// formatting command and image drop goes through here.
+    /// formatting command and image drop goes through here. A read-only
+    /// buffer refuses the edit, so its selection stays put rather than
+    /// pointing into text that was never inserted.
     fn apply_md_edit(&mut self, edit: MdEdit, cx: &mut Context<Self>) {
+        let read_only = self.buffer().read_only;
         self.replace_byte_range(edit.range, &edit.text, cx);
+        if read_only {
+            return;
+        }
         let tab = self.active_tab_mut();
         if edit.anchor == edit.head {
             tab.selection.collapse_to(edit.head);
@@ -871,6 +873,18 @@ fn slice_bytes(rope: &Rope, range: Range<usize>) -> String {
     rope.byte_slice(start..end).to_string()
 }
 
+/// `byte` clamped to the rope and moved back to the start of the char it
+/// falls inside. Selections and preview hit-tests can point past the end
+/// or into a multi-byte char, and ropey panics on either.
+fn snap_byte(rope: &Rope, byte: usize) -> usize {
+    let byte = byte.min(rope.len_bytes());
+    rope.char_to_byte(rope.byte_to_char(byte))
+}
+
+fn snap_range(rope: &Rope, r: Range<usize>) -> Range<usize> {
+    snap_byte(rope, r.start)..snap_byte(rope, r.end)
+}
+
 /// Whether the rope holds exactly the bytes of `s` starting at `start`.
 fn bytes_at(rope: &Rope, start: usize, s: &str) -> bool {
     s.bytes()
@@ -887,6 +901,7 @@ fn plan_wrap_inline(
     suffix: &str,
     placeholder: &str,
 ) -> MdEdit {
+    let r = snap_range(rope, r);
     let selected = slice_bytes(rope, r.clone());
     let total = rope.len_bytes();
     let has_selection = r.start != r.end;
@@ -991,6 +1006,7 @@ fn line_block_range(rope: &Rope, r: Range<usize>) -> Option<Range<usize>> {
     if total_lines == 0 {
         return None;
     }
+    let r = snap_range(rope, r);
     let first = rope.byte_to_line(r.start);
     let last_raw = rope.byte_to_line(r.end);
     let last = if r.end > r.start
@@ -1142,6 +1158,7 @@ fn block_insert_breaks(rope: &Rope, r: &Range<usize>) -> (bool, bool) {
 /// Fenced code block around the selection, or an empty one with the
 /// caret inside.
 fn plan_code_block(rope: &Rope, r: Range<usize>) -> MdEdit {
+    let r = snap_range(rope, r);
     let selected = slice_bytes(rope, r.clone());
     let (needs_lead, needs_tail) = block_insert_breaks(rope, &r);
     let lead = if needs_lead { "\n" } else { "" };
@@ -1169,6 +1186,7 @@ fn plan_code_block(rope: &Rope, r: Range<usize>) -> MdEdit {
 
 /// `[text](url)` / `![alt](url)`, selecting the part to type next.
 fn plan_link_or_image(rope: &Rope, r: Range<usize>, image: bool) -> MdEdit {
+    let r = snap_range(rope, r);
     let selected = slice_bytes(rope, r.clone());
     let bracket_open = if image { "![" } else { "[" };
     let url_placeholder = "url";
@@ -1197,6 +1215,7 @@ fn plan_link_or_image(rope: &Rope, r: Range<usize>, image: bool) -> MdEdit {
 
 /// `---` on its own line, caret after it.
 fn plan_horizontal_rule(rope: &Rope, r: Range<usize>) -> MdEdit {
+    let r = snap_range(rope, r);
     let (needs_lead, needs_tail) = block_insert_breaks(rope, &r);
     let mut text = String::new();
     if needs_lead {
@@ -1212,7 +1231,7 @@ fn plan_horizontal_rule(rope: &Rope, r: Range<usize>) -> MdEdit {
 
 /// Image markup dropped onto the preview at `source_byte`, caret after it.
 fn plan_insert_image(rope: &Rope, source_byte: usize, snippet: String) -> MdEdit {
-    let byte = source_byte.min(rope.len_bytes());
+    let byte = snap_byte(rope, source_byte);
     let caret = byte + snippet.len();
     MdEdit { range: byte..byte, text: snippet, anchor: caret, head: caret }
 }
@@ -1446,5 +1465,32 @@ mod format_plan_tests {
         assert_eq!(apply("👍x👍", &edit).0, "👍\n---\n\n👍");
         let edit = plan_append_image(&Rope::from_str("café"), "![i](p)");
         assert_eq!(apply("café", &edit).0, "café\n![i](p)\n");
+    }
+
+    #[test]
+    fn selection_past_end_or_inside_a_char() {
+        // Past the end: the selection snaps to the end of the buffer.
+        assert_eq!(prefix("ab", 10..10, "# "), "# ab");
+        assert_eq!(ordered("ab", 5..9), "1. ab");
+        assert_eq!(wrap("ab", 5..7), ("ab**bold text**".into(), "bold text".into()));
+        let edit = plan_code_block(&Rope::from_str("ab"), 9..9);
+        assert_eq!(apply("ab", &edit).0, "ab\n```\n\n```\n");
+        let edit = plan_horizontal_rule(&Rope::from_str("ab"), 3..4);
+        assert_eq!(apply("ab", &edit).0, "ab\n---\n");
+        let edit = plan_link_or_image(&Rope::from_str(""), 1..3, false);
+        assert_eq!(apply("", &edit), ("[text](url)".into(), "text".into()));
+        let edit = plan_insert_image(&Rope::from_str("ab"), 7, "![i](p)".into());
+        assert_eq!(apply("ab", &edit).0, "ab![i](p)");
+
+        // Inside a char: each end snaps back to the start of its char.
+        assert_eq!(wrap("é", 1..2), ("**é**".into(), "é".into()));
+        assert_eq!(wrap("é", 1..1), ("**bold text**é".into(), "bold text".into()));
+        assert_eq!(prefix("中", 2..2, "> "), "> 中");
+        let edit = plan_code_block(&Rope::from_str("é"), 1..1);
+        assert_eq!(apply("é", &edit).0, "```\n\n```\n\né");
+        let edit = plan_link_or_image(&Rope::from_str("👍"), 1..3, true);
+        assert_eq!(apply("👍", &edit).0, "![alt](url)👍");
+        let edit = plan_insert_image(&Rope::from_str("👍"), 2, "![i](p)".into());
+        assert_eq!(apply("👍", &edit).0, "![i](p)👍");
     }
 }

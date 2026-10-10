@@ -14,6 +14,7 @@
 
 mod add_prefix_suffix;
 mod column_extractor;
+mod eol;
 mod join_merge;
 mod lists_comparison;
 mod remove_duplicates;
@@ -574,9 +575,10 @@ impl TextToolsDialog {
     }
 
     /// Compute the transformed text for the current tool from the
-    /// in-modal multi-line input(s) plus single-line control fields.
-    pub(super) fn compute(&self, target: Option<CompareResult>) -> String {
-        match self.active_tool {
+    /// in-modal multi-line input(s) plus single-line control fields. `Err`
+    /// holds the status to show when there is no safe result.
+    pub(super) fn compute(&self, target: Option<CompareResult>) -> Result<String, &'static str> {
+        let out = match self.active_tool {
             Some(Tool::AddPrefixSuffix) => add_prefix_suffix::transform(
                 &self.fields.prefix.text,
                 &self.fields.suffix.text,
@@ -600,14 +602,18 @@ impl TextToolsDialog {
                 &self.fields.columns.text,
                 self.input_text_str(),
             ),
-            Some(Tool::RemoveDuplicates) => remove_duplicates::transform(self.input_text_str()).0,
-            Some(Tool::RemoveEmptyLines) => remove_empty_lines::transform(self.input_text_str()).0,
+            Some(Tool::RemoveDuplicates) => {
+                remove_duplicates::transform(self.input_text_str()).map(|(s, _)| s)
+            }
+            Some(Tool::RemoveEmptyLines) => {
+                remove_empty_lines::transform(self.input_text_str()).map(|(s, _)| s)
+            }
             Some(Tool::RemoveLinesContaining) => {
                 remove_lines_containing::transform(
                     &self.fields.pattern.text,
                     self.input_text_str(),
                 )
-                .0
+                .map(|(s, _)| s)
             }
             Some(Tool::ListsComparison) => {
                 let (a, b, both) = lists_comparison::transform(
@@ -622,8 +628,9 @@ impl TextToolsDialog {
                 }
             }
             Some(Tool::ReverseText) => reverse_text::transform(self.input_text_str()),
-            None => String::new(),
-        }
+            None => Some(String::new()),
+        };
+        out.ok_or(eol::MERGED_LINES)
     }
 
     pub(super) fn enter_tool(&mut self, tool: Tool, _cx: &mut Context<Self>) {
@@ -666,7 +673,14 @@ impl TextToolsDialog {
     }
 
     fn apply_result(&mut self, target: Option<CompareResult>, cx: &mut Context<Self>) {
-        let new_text = self.compute(target);
+        let new_text = match self.compute(target) {
+            Ok(text) => text,
+            Err(why) => {
+                self.status = Some(why.into());
+                cx.notify();
+                return;
+            }
+        };
         let Some(workspace) = self.workspace.clone() else {
             self.status = Some("No workspace — open Notepad Studio first.".into());
             cx.notify();
@@ -708,9 +722,13 @@ impl TextToolsDialog {
     }
 
     fn copy_to_clipboard(&mut self, cx: &mut Context<Self>) {
-        let text = self.compute(None);
-        cx.write_to_clipboard(gpui::ClipboardItem::new_string(text));
-        self.status = Some("Result copied to clipboard.".into());
+        self.status = Some(match self.compute(None) {
+            Ok(text) => {
+                cx.write_to_clipboard(gpui::ClipboardItem::new_string(text));
+                "Result copied to clipboard.".into()
+            }
+            Err(why) => why.into(),
+        });
         cx.notify();
     }
 

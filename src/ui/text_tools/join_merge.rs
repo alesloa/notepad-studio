@@ -14,8 +14,10 @@
 
 use gpui::{IntoElement, ParentElement, Styled, WeakEntity, div, rems};
 
+use crate::edit_ops::util::split_lines_eol;
 use crate::theme::Theme;
 
+use super::eol::LineWriter;
 use super::widgets::{
     caption_text, label_text, npp_button, npp_button_disabled, render_inline_text_field,
     render_text_area, render_text_field,
@@ -27,13 +29,16 @@ use super::{FieldId, MultiFieldId, TextToolsDialog};
 pub(super) const MAX_COLUMNS: usize = 4;
 pub(super) const MIN_COLUMNS: usize = 2;
 
-pub(super) fn transform(prefix: &str, columns: &[&str], delims: &[&str]) -> String {
+/// Row `i` of the result joins line `i` of every column and ends with the
+/// first line end the columns had at that row; the last row gets none.
+/// `None` when the result would merge two lines (`eol::LineWriter`).
+pub(super) fn transform(prefix: &str, columns: &[&str], delims: &[&str]) -> Option<String> {
     if columns.len() < 2 {
-        return String::new();
+        return Some(String::new());
     }
-    let split: Vec<Vec<&str>> = columns.iter().map(|c| c.split('\n').collect()).collect();
+    let split: Vec<Vec<(&str, &str)>> = columns.iter().map(|c| split_lines_eol(c)).collect();
     let max_lines = split.iter().map(|c| c.len()).max().unwrap_or(0);
-    let mut out_lines: Vec<String> = Vec::with_capacity(max_lines);
+    let mut w = LineWriter::default();
     for i in 0..max_lines {
         let mut line = String::from(prefix);
         for (c, col) in split.iter().enumerate() {
@@ -41,12 +46,24 @@ pub(super) fn transform(prefix: &str, columns: &[&str], delims: &[&str]) -> Stri
                 let d = delims.get(c - 1).copied().unwrap_or("");
                 line.push_str(d);
             }
-            let cell = col.get(i).copied().unwrap_or("");
+            let cell = col.get(i).map_or("", |&(body, _)| body);
             line.push_str(cell);
         }
-        out_lines.push(line);
+        // Every row but the last has a column with a line after it, so
+        // one of them has a line end here; LF only guards the impossible.
+        let eol = if i + 1 == max_lines {
+            ""
+        } else {
+            split
+                .iter()
+                .filter_map(|col| col.get(i))
+                .map(|&(_, eol)| eol)
+                .find(|eol| !eol.is_empty())
+                .unwrap_or("\n")
+        };
+        w.line(&line, eol);
     }
-    out_lines.join("\n")
+    w.finish()
 }
 
 pub(super) fn render(
@@ -211,29 +228,50 @@ mod tests {
     #[test]
     fn two_columns_basic() {
         let out = transform("", &["a\nb\nc", "1\n2\n3"], &[","]);
-        assert_eq!(out, "a,1\nb,2\nc,3");
+        assert_eq!(out.as_deref(), Some("a,1\nb,2\nc,3"));
     }
 
     #[test]
     fn shorter_padded_empty() {
         let out = transform("", &["a\nb\nc", "1"], &[","]);
-        assert_eq!(out, "a,1\nb,\nc,");
+        assert_eq!(out.as_deref(), Some("a,1\nb,\nc,"));
     }
 
     #[test]
     fn three_columns_two_delims() {
         let out = transform("", &["a", "b", "c"], &["-", "+"]);
-        assert_eq!(out, "a-b+c");
+        assert_eq!(out.as_deref(), Some("a-b+c"));
     }
 
     #[test]
     fn line_prefix_applied_per_row() {
         let out = transform("> ", &["a\nb", "1\n2"], &[" "]);
-        assert_eq!(out, "> a 1\n> b 2");
+        assert_eq!(out.as_deref(), Some("> a 1\n> b 2"));
     }
 
     #[test]
     fn fewer_than_two_columns_empty() {
-        assert_eq!(transform("", &["a"], &[]), "");
+        assert_eq!(transform("", &["a"], &[]).as_deref(), Some(""));
+    }
+
+    #[test]
+    fn rows_keep_the_columns_line_ends() {
+        let cases: &[(&str, &str, Option<&str>)] = &[
+            ("", "", Some(",")),
+            ("a", "1", Some("a,1")),
+            ("a\n", "1", Some("a,1\n,")),
+            ("a\r\nb\r\n", "1\n2", Some("a,1\r\nb,2\r\n,")),
+            ("a\rb", "1\r2", Some("a,1\rb,2")),
+            // Column 1 is shorter: rows past it take column 2's line end.
+            ("a", "1\r\n2\r3", Some("a,1\r\n,2\r,3")),
+            ("é\r\n中", "👨‍👩‍👧\n🇯🇵", Some("é,👨‍👩‍👧\r\n中,🇯🇵")),
+            ("  \r\n\t", "x", Some("  ,x\r\n\t,")),
+        ];
+        for (a, b, want) in cases {
+            assert_eq!(transform("", &[a, b], &[","]).as_deref(), *want, "columns {a:?} {b:?}");
+        }
+        // With no delimiter and empty cells, a CR row end meets an empty
+        // LF row: the result would read back as one CRLF line.
+        assert_eq!(transform("", &["a\r", "\n\nx"], &[""]), None);
     }
 }

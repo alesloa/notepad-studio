@@ -14,8 +14,10 @@ use gpui::{
     rgb,
 };
 
+use crate::edit_ops::util::split_lines_eol;
 use crate::theme::Theme;
 
+use super::eol::join_kept;
 use super::widgets::{caption_text, label_text, render_text_area};
 use super::{MultiFieldId, TextToolsDialog};
 
@@ -32,20 +34,36 @@ impl Default for CompareResult {
     }
 }
 
-pub(super) fn transform(list_a: &str, list_b: &str) -> (String, String, String) {
-    let set_a: HashSet<&str> = list_a
-        .split('\n')
-        .filter(|l| !l.trim().is_empty())
-        .collect();
-    let set_b: HashSet<&str> = list_b
-        .split('\n')
-        .filter(|l| !l.trim().is_empty())
-        .collect();
-    let only_a: Vec<&&str> = set_a.difference(&set_b).collect();
-    let only_b: Vec<&&str> = set_b.difference(&set_a).collect();
-    let both: Vec<&&str> = set_a.intersection(&set_b).collect();
-    let join = |v: Vec<&&str>| v.iter().map(|s| **s).collect::<Vec<&str>>().join("\n");
-    (join(only_a), join(only_b), join(both))
+/// Lines of `list` that hold text, the first occurrence of each only, with
+/// their line ends. Lines compare without their line end.
+fn distinct_lines(list: &str) -> Vec<(&str, &str)> {
+    let mut seen: HashSet<&str> = HashSet::new();
+    split_lines_eol(list)
+        .into_iter()
+        .filter(|&(body, _)| !body.trim().is_empty() && seen.insert(body))
+        .collect()
+}
+
+/// `(only in A, only in B, in both)`, each in the order its lines first
+/// appear (A's order for "in both") and keeping their line ends. A part is
+/// `None` when it would merge two lines (`eol::join_kept`).
+pub(super) fn transform(
+    list_a: &str,
+    list_b: &str,
+) -> (Option<String>, Option<String>, Option<String>) {
+    let a = distinct_lines(list_a);
+    let b = distinct_lines(list_b);
+    let in_a: HashSet<&str> = a.iter().map(|&(body, _)| body).collect();
+    let in_b: HashSet<&str> = b.iter().map(|&(body, _)| body).collect();
+    let pick = |lines: &[(&str, &str)], other: &HashSet<&str>, want_in_other: bool| {
+        let kept: Vec<(&str, &str)> = lines
+            .iter()
+            .copied()
+            .filter(|(body, _)| other.contains(body) == want_in_other)
+            .collect();
+        join_kept(&kept)
+    };
+    (pick(&a, &in_b, false), pick(&b, &in_a, false), pick(&a, &in_b, true))
 }
 
 pub(super) fn render(
@@ -164,7 +182,7 @@ pub(super) fn render(
         )
         .child(caption_text(
             theme,
-            "Set semantics — duplicates within a list collapse. Output order is hash-iteration (not stable).",
+            "Set semantics — duplicates within a list collapse. Lines come out in the order they first appear.",
         ))
         .child(lists)
         .into_any_element()
@@ -175,29 +193,57 @@ mod tests {
     use super::transform;
     use std::collections::HashSet;
 
-    fn set(s: &str) -> HashSet<String> {
-        s.split('\n').filter(|x| !x.is_empty()).map(String::from).collect()
+    fn set(s: &Option<String>) -> HashSet<String> {
+        s.as_deref()
+            .unwrap_or_default()
+            .split('\n')
+            .filter(|x| !x.is_empty())
+            .map(String::from)
+            .collect()
+    }
+
+    fn some(s: &str) -> Option<String> {
+        Some(s.to_string())
     }
 
     #[test]
     fn basic_diff() {
         let (a, b, both) = transform("apple\nbanana\ncherry", "banana\ncherry\ndate");
-        assert_eq!(set(&a), set("apple"));
-        assert_eq!(set(&b), set("date"));
-        assert_eq!(set(&both), set("banana\ncherry"));
+        assert_eq!(set(&a), set(&some("apple")));
+        assert_eq!(set(&b), set(&some("date")));
+        assert_eq!(set(&both), set(&some("banana\ncherry")));
     }
 
     #[test]
     fn drops_blank_lines() {
         let (a, b, both) = transform("x\n\n  \ny", "y");
-        assert_eq!(set(&a), set("x"));
+        assert_eq!(set(&a), set(&some("x")));
         assert_eq!(set(&b), HashSet::new());
-        assert_eq!(set(&both), set("y"));
+        assert_eq!(set(&both), set(&some("y")));
     }
 
     #[test]
     fn duplicates_collapse() {
         let (_, _, both) = transform("a\na\nb", "a\na");
-        assert_eq!(set(&both), set("a"));
+        assert_eq!(set(&both), set(&some("a")));
+    }
+
+    #[test]
+    fn keeps_first_appearance_order_and_line_ends() {
+        let cases: &[(&str, &str, (&str, &str, &str))] = &[
+            ("", "", ("", "", "")),
+            ("c\nb\na", "a", ("c\nb", "", "a")),
+            ("x\r\ny\r\nz\r\n", "y\n", ("x\r\nz", "", "y")),
+            ("x\ry\rz", "z\r\nw", ("x\ry", "w", "z")),
+            // Lines compare without their line end.
+            ("k\r\nk\nj", "k", ("j", "", "k")),
+            ("é\r\n中\n👨‍👩‍👧\r🇯🇵", "中\r\n🇯🇵", ("é\r\n👨‍👩‍👧", "", "中\n🇯🇵")),
+            ("  \r\n\t\nq", "", ("q", "", "")),
+        ];
+        for (a, b, (only_a, only_b, both)) in cases {
+            let got = transform(a, b);
+            let want = (some(only_a), some(only_b), some(both));
+            assert_eq!(got, want, "lists {a:?} {b:?}");
+        }
     }
 }

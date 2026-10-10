@@ -8,8 +8,10 @@
 
 use gpui::{IntoElement, ParentElement, Styled, WeakEntity, div, rems};
 
+use crate::edit_ops::util::split_lines_eol;
 use crate::theme::Theme;
 
+use super::eol::LineWriter;
 use super::widgets::{caption_text, label_text, render_inline_text_field, render_text_area};
 use super::{FieldId, MultiFieldId, TextToolsDialog};
 
@@ -32,23 +34,25 @@ pub(super) fn parse_columns(spec: &str) -> Option<Vec<usize>> {
     }
 }
 
-pub(super) fn transform(delimiter: &str, columns_spec: &str, input: &str) -> String {
+/// The picked columns of every line, each line keeping its own line end.
+/// `None` when an emptied line would merge two lines (`eol::LineWriter`).
+pub(super) fn transform(delimiter: &str, columns_spec: &str, input: &str) -> Option<String> {
     if delimiter.is_empty() {
-        return input.to_string();
+        return Some(input.to_string());
     }
     let Some(indices) = parse_columns(columns_spec) else {
-        return input.to_string();
+        return Some(input.to_string());
     };
-    let mut out_lines: Vec<String> = Vec::new();
-    for line in input.split('\n') {
-        let parts: Vec<&str> = line.split(delimiter).collect();
+    let mut w = LineWriter::default();
+    for (body, eol) in split_lines_eol(input) {
+        let parts: Vec<&str> = body.split(delimiter).collect();
         let picked: Vec<&str> = indices
             .iter()
             .filter_map(|&i| parts.get(i).copied())
             .collect();
-        out_lines.push(picked.join(delimiter));
+        w.line(&picked.join(delimiter), eol);
     }
-    out_lines.join("\n")
+    w.finish()
 }
 
 pub(super) fn render(
@@ -123,18 +127,38 @@ mod tests {
     #[test]
     fn extract_basic() {
         let out = transform(",", "0,2", "a,b,c\n1,2,3");
-        assert_eq!(out, "a,c\n1,3");
+        assert_eq!(out.as_deref(), Some("a,c\n1,3"));
     }
 
     #[test]
     fn empty_delim_noop() {
         let out = transform("", "0", "a,b\nc,d");
-        assert_eq!(out, "a,b\nc,d");
+        assert_eq!(out.as_deref(), Some("a,b\nc,d"));
     }
 
     #[test]
     fn out_of_range_skipped() {
         let out = transform(",", "0,5", "a,b,c");
-        assert_eq!(out, "a");
+        assert_eq!(out.as_deref(), Some("a"));
+    }
+
+    #[test]
+    fn keeps_every_line_end() {
+        let cases: &[(&str, Option<&str>)] = &[
+            ("", Some("")),
+            ("a,b", Some("b")),
+            ("a,b\n", Some("b\n")),
+            ("a,b\r\nc,d\r\n", Some("b\r\nd\r\n")),
+            ("a,b\rc,d\r", Some("b\rd\r")),
+            ("a,b\r\nc,d\ne,f\rg,h", Some("b\r\nd\nf\rh")),
+            ("é,中\r\n👨‍👩‍👧,🇯🇵", Some("中\r\n🇯🇵")),
+            ("  \r\n,x", Some("\r\nx")),
+            // The second line has no column 1, so "a\r" meets the empty
+            // LF line and the result would read as one CRLF line.
+            ("x,a\rb\nc,d", None),
+        ];
+        for (input, want) in cases {
+            assert_eq!(transform(",", "1", input).as_deref(), *want, "input {input:?}");
+        }
     }
 }

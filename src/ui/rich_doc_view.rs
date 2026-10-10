@@ -28,7 +28,7 @@ use crate::theme::Theme;
 use crate::workspace::Workspace;
 
 fn body_font_family() -> SharedString {
-    SharedString::from("Menlo")
+    crate::fonts::mono()
 }
 
 /// Returns `true` when `path` is a rich-document extension Phase 1 understands.

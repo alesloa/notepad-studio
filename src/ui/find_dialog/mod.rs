@@ -574,7 +574,7 @@ impl Render for FindDialog {
             .size_full()
             .bg(body_bg)
             .text_color(rgb(theme.text))
-            .font_family("Menlo")
+            .font_family(crate::fonts::mono())
             .text_size(rems(13. / 16.))
             .line_height(rems(20. / 16.))
             .child(tab_bar(&theme, active, workspace.clone()))

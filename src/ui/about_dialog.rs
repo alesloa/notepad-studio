@@ -47,7 +47,7 @@ pub(crate) fn about_dialog(theme: &Theme, workspace: Entity<Workspace>) -> impl 
         .border_1()
         .border_color(rgb(theme.border))
         .text_color(rgb(theme.text))
-        .font_family("Menlo")
+        .font_family(crate::fonts::mono())
         .text_size(rems(13. / 16.))
         // Stop click propagation so a click inside the panel doesn't reach
         // the scrim's dismiss handler.

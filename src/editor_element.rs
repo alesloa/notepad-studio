@@ -171,6 +171,7 @@ fn rebuild_wrap_cache(
     WrapCache {
         viewport_width: max_width,
         rem_size,
+        font_family: font.family.clone(),
         total_rows: rows.len() as u32,
         byte_len: total_bytes,
         rows,
@@ -941,7 +942,7 @@ impl gpui::Element for EditorElement {
         // compute the wrap cache in a separate `update` borrow without a
         // double-borrow conflict on the workspace entity.
         let style = window.text_style();
-        let font: Font = style.font();
+        let mut font: Font = style.font();
         let font_size: Pixels = style.font_size.to_pixels(window.rem_size());
         let line_height: Pixels = window.line_height();
         let rem_size: Pixels = window.rem_size();
@@ -972,6 +973,7 @@ impl gpui::Element for EditorElement {
                 workspace.word_wrap,
             )
         };
+        font.family = crate::fonts::editor_family(theme.editor_font);
 
         // Clickable-URL underline colour. Resolved once so per-line paint can
         // splice an underline overlay without re-reading settings or theme.
@@ -1005,6 +1007,7 @@ impl gpui::Element for EditorElement {
                 .is_none_or(|c| {
                     c.viewport_width != wrap_max_width
                         || c.rem_size != rem_size
+                        || c.font_family != font.family
                 });
             if needs_rebuild {
                 // Snapshot rope into a temporary so the cache builder can

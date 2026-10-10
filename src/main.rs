@@ -23,6 +23,7 @@ mod edit_ops;
 mod editor_element;
 mod find_in_files;
 mod find_state;
+mod fonts;
 mod gutter;
 mod input_field;
 mod io;
@@ -105,6 +106,8 @@ fn main() {
 
     app.run(|cx: &mut App| {
         cx.activate(true);
+        // Resolve the platform monospace face before any window renders.
+        fonts::init(cx);
         // QuitMode::Default keeps macOS apps alive after the last window closes
         // (use the dock icon to reopen) and exits Linux/Windows when the last
         // window closes. Set explicitly so the choice is visible.

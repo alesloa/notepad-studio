@@ -119,7 +119,7 @@ fn preview_strip(theme: &Theme, dialog: &StyleConfiguratorDialog) -> AnyElement 
         .and_then(|s| s.font_name.as_ref())
         .filter(|n| !n.is_empty())
         .cloned()
-        .unwrap_or_else(|| "Menlo".to_string());
+        .unwrap_or_else(|| crate::fonts::mono().to_string());
     let font_size = style
         .and_then(|s| s.font_size)
         .filter(|n| *n > 0)

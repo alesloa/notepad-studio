@@ -554,6 +554,9 @@ pub(crate) struct WrapCache {
     /// rem size at build time — used as a proxy for "font size changed"
     /// (zoom in/out triggers `Window::set_rem_size`, so this catches it).
     pub(crate) rem_size: Pixels,
+    /// Font family at build time — a theme switch can change the editor
+    /// face, and with it every row's width.
+    pub(crate) font_family: gpui::SharedString,
     /// Total visual-row count. Equals `rows.len()` but stashed for
     /// convenience so `max_scroll_top` doesn't have to .len() each call.
     pub(crate) total_rows: u32,

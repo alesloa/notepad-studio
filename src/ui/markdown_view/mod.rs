@@ -3162,7 +3162,7 @@ fn emit_marker_run(
     text_runs.push(TextRun {
         len: rendered_len,
         font: gpui::Font {
-            family: "Menlo".into(),
+            family: crate::fonts::mono(),
             features: Default::default(),
             fallbacks: None,
             weight: FontWeight::NORMAL,
@@ -3286,7 +3286,7 @@ fn make_run(
     } else {
         gpui::FontStyle::Normal
     };
-    let family: SharedString = "Menlo".into();
+    let family: SharedString = crate::fonts::mono();
     // Color priority: link > syntax highlight override > inline `code`
     // chrome > body text. Links win because cmd-click affordances need to
     // read as links even inside a highlighted fence. Highlight overrides

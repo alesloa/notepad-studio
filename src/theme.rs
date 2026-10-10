@@ -170,6 +170,10 @@ pub(crate) struct Theme {
     /// a "Link" slot (`SLOT_LINK`) — `dark_with_palette` plumbs the resolved
     /// palette value through here so per-tone customizations apply.
     pub(crate) link: u32,
+    /// Editor font family from the theme XML's Default Style `fontName`, set
+    /// only when that family is installed (`crate::fonts::installed`). `None`
+    /// means the platform monospace (`crate::fonts::mono`).
+    pub(crate) editor_font: Option<&'static str>,
     pub(crate) syntax: SyntaxTheme,
 }
 
@@ -434,6 +438,7 @@ impl Theme {
         tab_color_5: 0xd96aac,
         // NPP `SLOT_LINK` default for Black tone — bright yellow on dark.
         link: 0xFFFF00,
+        editor_font: None,
         syntax: SyntaxTheme {
             keyword: 0xcf8e6d,
             string: 0xa5d6a7,
@@ -500,6 +505,7 @@ impl Theme {
         // against the lighter editor background. NPP doesn't expose a Tones
         // palette in light mode; this constant is the only source.
         link: 0x1a73e8,
+        editor_font: None,
         syntax: SyntaxTheme {
             keyword: 0x0033b3,
             string: 0x067d17,
@@ -596,7 +602,7 @@ impl Theme {
     /// base theme. Maps the Notepad++ schema's GlobalStyles + cpp lexer
     /// entries onto Notepad Studio's `Theme` slots:
     ///
-    /// * `Default Style`           → `bg`, `gutter_bg`, `text`
+    /// * `Default Style`           → `bg`, `gutter_bg`, `text`, `editor_font`
     /// * `Selected text colour`    → `selection` (RGB only — alpha kept
     ///                                from base so the existing translucency
     ///                                survives a theme swap)
@@ -630,6 +636,7 @@ impl Theme {
             if let Some(fg) = default.fg_color {
                 self.text = fg;
             }
+            self.editor_font = default.font_name.as_deref().and_then(crate::fonts::installed);
         }
         if let Some(sel) = global("Selected text colour") {
             if let Some(bg) = sel.bg_color {

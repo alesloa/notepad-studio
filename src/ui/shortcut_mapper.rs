@@ -203,7 +203,7 @@ impl Render for ShortcutMapper {
             .size_full()
             .bg(rgb(theme.bg))
             .text_color(rgb(theme.text))
-            .font_family("Menlo")
+            .font_family(crate::fonts::mono())
             .text_size(rems(13. / 16.))
             .line_height(rems(20. / 16.));
         // Capture mode does NOT install an `on_key_down`-style listener

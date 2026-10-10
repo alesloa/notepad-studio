@@ -433,7 +433,7 @@ impl Render for Workspace {
             .size_full()
             .bg(rgb(theme.bg))
             .text_color(rgb(theme.text))
-            .font_family("Menlo")
+            .font_family(crate::fonts::mono())
             // Editor body sizes are in rems so window-level rem_size changes
             // (zoom) flow through automatically.
             .text_size(rems(13.5 / 16.))

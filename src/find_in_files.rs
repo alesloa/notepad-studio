@@ -260,14 +260,16 @@ pub(crate) fn run_search(query: &FindInFilesQuery) -> FindInFilesOutcome {
         if metadata.len() > FIND_IN_FILES_FILE_SIZE_LIMIT {
             continue;
         }
-        let bytes = match std::fs::read(path) {
-            Ok(b) => b,
-            Err(_) => continue,
+        let Ok(Some(bytes)) = read_capped(path, FIND_IN_FILES_FILE_SIZE_LIMIT) else {
+            continue;
         };
         let content = match std::str::from_utf8(&bytes) {
             Ok(s) => s,
             Err(_) => continue,
         };
+        // The editor drops a UTF-8 BOM on load; offsets that counted it
+        // would land 3 bytes late in the opened rope.
+        let content = content.strip_prefix('\u{FEFF}').unwrap_or(content);
         searched_files += 1;
         match_file(path, content, &re, &mut results);
         if results.len() >= FIND_IN_FILES_RESULT_CAP {
@@ -284,6 +286,20 @@ pub(crate) fn run_search(query: &FindInFilesQuery) -> FindInFilesOutcome {
         truncated,
         elapsed_ms,
     }
+}
+
+/// Read at most `limit` bytes of `path`. `Ok(None)` when it holds more than
+/// `limit` bytes. The size check on the directory entry can go stale before
+/// the read (a log still being written), so the read itself is bounded too.
+pub(crate) fn read_capped(path: &Path, limit: u64) -> std::io::Result<Option<Vec<u8>>> {
+    use std::io::Read;
+    let file = std::fs::File::open(path)?;
+    let mut bytes = Vec::new();
+    file.take(limit.saturating_add(1)).read_to_end(&mut bytes)?;
+    if bytes.len() as u64 > limit {
+        return Ok(None);
+    }
+    Ok(Some(bytes))
 }
 
 fn match_file(path: &Path, content: &str, re: &Regex, out: &mut Vec<FindResult>) {
@@ -680,6 +696,73 @@ mod tests {
             assert!(text.is_char_boundary(r.match_in_line.start));
             assert_eq!(&text[r.match_in_line.clone()], "hit");
         }
+    }
+
+    /// Fresh empty directory under the system temp dir.
+    fn temp_dir() -> PathBuf {
+        let dir = std::env::temp_dir().join(format!("notepad-studio-fif-{}", uuid::Uuid::new_v4()));
+        std::fs::create_dir_all(&dir).unwrap();
+        dir
+    }
+
+    fn query(dir: &Path, text: &str) -> FindInFilesQuery {
+        FindInFilesQuery {
+            text: text.to_string(),
+            directory: dir.to_path_buf(),
+            filter: "*".to_string(),
+            match_case: true,
+            whole_word: false,
+            regex: false,
+            extended: false,
+            dot_matches_newline: false,
+            in_subfolders: true,
+            in_hidden_folders: false,
+        }
+    }
+
+    fn search(q: &FindInFilesQuery) -> Vec<FindResult> {
+        match run_search(q) {
+            FindInFilesOutcome::Ok { results, .. } => results,
+            FindInFilesOutcome::InvalidRegex(e) => panic!("{e}"),
+            FindInFilesOutcome::DirectoryMissing => panic!("directory missing"),
+        }
+    }
+
+    #[test]
+    fn bom_is_not_counted_in_result_offsets() {
+        // The editor strips the BOM on load, so offsets that count it land
+        // 3 bytes late, here inside "é" of the opened rope.
+        let dir = temp_dir();
+        std::fs::write(dir.join("bom.txt"), "\u{FEFF}é x\r\n").unwrap();
+        let results = search(&query(&dir, "x"));
+        let _ = std::fs::remove_dir_all(&dir);
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].match_in_line, 3..4);
+        assert_eq!(results[0].line_text, "é x");
+    }
+
+    #[test]
+    fn binary_and_oversize_files_are_skipped() {
+        let dir = temp_dir();
+        std::fs::write(dir.join("bin.dat"), [0xFFu8, 0xFE, b'x', 0x00, 0xC3]).unwrap();
+        let big = "x".repeat(FIND_IN_FILES_FILE_SIZE_LIMIT as usize + 1);
+        std::fs::write(dir.join("big.txt"), &big).unwrap();
+        std::fs::write(dir.join("ok.txt"), "x").unwrap();
+        let results = search(&query(&dir, "x"));
+        let _ = std::fs::remove_dir_all(&dir);
+        assert_eq!(results.len(), 1);
+        assert!(results[0].path.ends_with("ok.txt"));
+    }
+
+    #[test]
+    fn read_capped_refuses_files_over_the_limit() {
+        let dir = temp_dir();
+        let path = dir.join("f.txt");
+        std::fs::write(&path, "12345").unwrap();
+        assert_eq!(read_capped(&path, 5).unwrap().as_deref(), Some(&b"12345"[..]));
+        assert_eq!(read_capped(&path, 4).unwrap(), None);
+        assert!(read_capped(&dir.join("missing.txt"), 5).is_err());
+        let _ = std::fs::remove_dir_all(&dir);
     }
 
     #[test]

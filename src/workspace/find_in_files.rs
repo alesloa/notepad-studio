@@ -855,14 +855,12 @@ impl Workspace {
                             }
                         }
                     }
-                    if total.files_changed == 0
+                    let nothing_done = total.files_changed == 0
                         && total.replacements == 0
-                        && total.failures == 0
-                        && last_err.is_some()
-                    {
-                        Err(last_err.unwrap())
-                    } else {
-                        Ok(total)
+                        && total.failures == 0;
+                    match last_err {
+                        Some(msg) if nothing_done => Err(msg),
+                        _ => Ok(total),
                     }
                 })
                 .await;

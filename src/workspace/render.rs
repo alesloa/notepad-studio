@@ -50,6 +50,9 @@ impl Render for Workspace {
                 self.last_window_title = Some(next);
             }
         }
+        if window.is_window_active() {
+            self.publish_menu_state(cx);
+        }
         let menu_bar = self.menu_bar_view(theme, window, cx);
         let buffer = self.buffer();
         let active_tab = &self.tabs[self.active];

@@ -11,10 +11,11 @@
 use gpui::{Menu, MenuItem};
 
 use crate::actions::*;
+use super::MenuState;
 use crate::plugins;
 use crate::ui::menu_bar::mnemonic;
 
-pub(crate) fn build() -> Menu {
+pub(crate) fn build(_state: &MenuState) -> Menu {
     let entries = plugins::snapshot();
     let mut items: Vec<MenuItem> = Vec::with_capacity(2 + entries.len());
     items.push(MenuItem::action("Open Plugins Folder", PluginsOpenFolder));

@@ -7,10 +7,11 @@
 use gpui::{Menu, MenuItem};
 
 use crate::actions::*;
+use super::MenuState;
 use crate::macros;
 use crate::ui::menu_bar::mnemonic;
 
-pub(crate) fn build() -> Menu {
+pub(crate) fn build(_state: &MenuState) -> Menu {
     let saved = macros::saved_snapshot();
     let mut items: Vec<MenuItem> = vec![
         MenuItem::action("Start/Stop Recording", MacroStartStopRecording),

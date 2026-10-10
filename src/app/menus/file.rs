@@ -3,11 +3,12 @@
 use gpui::{Menu, MenuItem};
 
 use crate::actions::*;
+use super::MenuState;
 use crate::recent;
 use crate::ui::menu_bar::mnemonic;
 use crate::settings;
 
-pub(crate) fn build() -> Menu {
+pub(crate) fn build(_state: &MenuState) -> Menu {
     let snap = settings::snapshot();
     let mut items: Vec<MenuItem> = vec![
         MenuItem::action("New Window", FileNewWindow),

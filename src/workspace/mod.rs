@@ -24,6 +24,7 @@ mod movement;
 mod plugins;
 mod render;
 mod status;
+mod menu_state;
 mod tabs;
 
 use gpui::{

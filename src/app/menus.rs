@@ -12,7 +12,10 @@ mod macros;
 mod plugins;
 mod search;
 mod settings;
+mod state;
 mod view;
+
+pub(crate) use state::{publish as publish_menu_state, MenuState};
 
 use gpui::{App, Menu, MenuItem};
 
@@ -30,16 +33,17 @@ pub(crate) fn install_menus(cx: &mut App) {
     if cfg!(target_os = "macos") {
         menus.push(app_menu::build());
     }
+    let state = state::current();
     menus.extend([
-        file::build(),
-        edit::build(),
-        search::build(),
-        view::build(),
-        encoding::build(),
-        settings::build(),
-        macros::build(),
-        plugins::build(),
-        help::build(),
+        file::build(&state),
+        edit::build(&state),
+        search::build(&state),
+        view::build(&state),
+        encoding::build(&state),
+        settings::build(&state),
+        macros::build(&state),
+        plugins::build(&state),
+        help::build(&state),
     ]);
     if cfg!(target_os = "macos") {
         menus = menus.into_iter().map(strip_mnemonics).collect();

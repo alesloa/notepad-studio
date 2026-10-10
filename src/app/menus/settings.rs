@@ -5,8 +5,9 @@
 use gpui::{Menu, MenuItem};
 
 use crate::actions::*;
+use super::MenuState;
 
-pub(crate) fn build() -> Menu {
+pub(crate) fn build(_state: &MenuState) -> Menu {
     Menu {
         name: "Se&ttings".into(),
         items: vec![

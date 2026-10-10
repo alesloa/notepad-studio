@@ -201,7 +201,7 @@ impl Workspace {
         if lh <= px(0.) {
             return 1;
         }
-        let raw = (self.viewport.bounds.size.height / lh).floor() as i32 - 1;
+        let raw = ((self.viewport.bounds.size.height / lh).floor() as i32).saturating_sub(1);
         raw.max(1)
     }
 
@@ -210,10 +210,9 @@ impl Workspace {
         let lines = self.page_size_lines();
         let head = self.selection().head;
         let rope = &self.buffer().rope;
-        let total_lines = rope.len_lines().max(1) as i32;
-        let cur_line = rope.byte_to_line(head) as i32;
-        let target_line = (cur_line + dir * lines).clamp(0, total_lines - 1);
-        let target_byte = rope.line_to_byte(target_line as usize);
+        let cur_line = line_at_byte(rope, head);
+        let target_line = page_target_line(cur_line, dir, lines, rope.len_lines());
+        let target_byte = rope.line_to_byte(target_line);
         // Scroll the viewport by the same number of lines so the cursor's
         // relative position is preserved (matches Notepad++ behavior).
         let lh = self.viewport.line_height;
@@ -547,7 +546,7 @@ impl Workspace {
         }
         let head = self.selection().head;
         let buffer = self.buffer();
-        let cur_line = buffer.rope.byte_to_line(head);
+        let cur_line = line_at_byte(&buffer.rope, head);
         let Some(target_line) = buffer.next_bookmark_line_after(cur_line) else {
             return;
         };
@@ -567,7 +566,7 @@ impl Workspace {
         }
         let head = self.selection().head;
         let buffer = self.buffer();
-        let cur_line = buffer.rope.byte_to_line(head);
+        let cur_line = line_at_byte(&buffer.rope, head);
         let Some(target_line) = buffer.prev_bookmark_line_before(cur_line) else {
             return;
         };
@@ -591,5 +590,59 @@ impl Workspace {
         }
         self.tabs[active].buffer.clear_bookmarks();
         cx.notify();
+    }
+}
+
+/// Line holding byte `byte`, with a stale offset past EOF clamped to the
+/// last line.
+fn line_at_byte(rope: &ropey::Rope, byte: usize) -> usize {
+    rope.byte_to_line(byte.min(rope.len_bytes()))
+}
+
+/// Line a page move lands on: `lines` lines from `cur_line` in direction
+/// `dir`, kept inside a buffer of `total_lines` lines.
+fn page_target_line(cur_line: usize, dir: i32, lines: i32, total_lines: usize) -> usize {
+    let delta = dir.saturating_mul(lines) as isize;
+    cur_line
+        .saturating_add_signed(delta)
+        .min(total_lines.saturating_sub(1))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{line_at_byte, page_target_line};
+    use ropey::Rope;
+
+    #[test]
+    fn line_at_byte_clamps_stale_offsets() {
+        let rope = Rope::from_str("a\r\nb\rc\n");
+        assert_eq!(line_at_byte(&rope, 0), 0);
+        assert_eq!(line_at_byte(&rope, 3), 1);
+        assert_eq!(line_at_byte(&rope, 5), 2);
+        assert_eq!(line_at_byte(&rope, rope.len_bytes()), 3);
+        // A head past EOF used to panic in `byte_to_line`.
+        assert_eq!(line_at_byte(&rope, 99), 3);
+        assert_eq!(line_at_byte(&Rope::new(), 5), 0);
+        assert_eq!(line_at_byte(&Rope::from_str("é中"), 2), 0);
+    }
+
+    #[test]
+    fn page_target_stays_in_buffer() {
+        assert_eq!(page_target_line(0, -1, 30, 100), 0);
+        assert_eq!(page_target_line(50, -1, 30, 100), 20);
+        assert_eq!(page_target_line(50, 1, 30, 100), 80);
+        assert_eq!(page_target_line(90, 1, 30, 100), 99);
+        assert_eq!(page_target_line(0, 1, 30, 0), 0);
+        assert_eq!(page_target_line(0, 1, 30, 1), 0);
+    }
+
+    #[test]
+    fn page_target_extreme_values_do_not_overflow() {
+        // `cur + dir * lines` overflowed i32, and a line count above
+        // i32::MAX cast to a negative bound so `clamp(0, neg)` panicked.
+        assert_eq!(page_target_line(5, 1, i32::MAX, 10), 9);
+        assert_eq!(page_target_line(5, -1, i32::MAX, 10), 0);
+        assert_eq!(page_target_line(0, 1, 30, 3_000_000_000), 30);
+        assert_eq!(page_target_line(2_999_999_990, 1, 30, 3_000_000_000), 2_999_999_999);
     }
 }

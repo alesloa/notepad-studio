@@ -682,6 +682,10 @@ fn write_bytes_with_len(out: &mut Vec<u8>, bytes: &[u8]) {
     out.extend_from_slice(bytes);
 }
 
+/// Smallest encoded `EditOp`: `byte_start` (u64), two empty length-prefixed
+/// strings (u32 each) and the two selection offsets (u64 each).
+const EDIT_OP_MIN_BYTES: usize = 8 + 4 + 4 + 8 + 8;
+
 fn write_edit_op(out: &mut Vec<u8>, op: &EditOp) {
     write_u64_le(out, op.byte_start as u64);
     write_bytes_with_len(out, op.removed.as_bytes());
@@ -805,7 +809,10 @@ pub(crate) fn deserialize_undo_stack(bytes: &[u8]) -> Vec<UndoEntry> {
     let Some(n) = r.read_u32() else {
         return Vec::new();
     };
-    let mut out = Vec::with_capacity(n as usize);
+    // `n` and `n_ops` come from the file: a corrupt count must not size an
+    // allocation. The writer never stores more than UNDO_PERSIST_CAP entries,
+    // and every op takes at least EDIT_OP_MIN_BYTES of the remaining input.
+    let mut out = Vec::with_capacity((n as usize).min(UNDO_PERSIST_CAP));
     for _ in 0..n {
         let Some(tag) = r.read_u8() else {
             return out;
@@ -827,7 +834,9 @@ pub(crate) fn deserialize_undo_stack(bytes: &[u8]) -> Vec<UndoEntry> {
                 let Some(n_ops) = r.read_u32() else {
                     return out;
                 };
-                let mut ops = Vec::with_capacity(n_ops as usize);
+                let remaining = r.bytes.len().saturating_sub(r.pos);
+                let mut ops =
+                    Vec::with_capacity((n_ops as usize).min(remaining / EDIT_OP_MIN_BYTES));
                 for _ in 0..n_ops {
                     let Some(op) = r.read_edit_op() else {
                         return out;
@@ -919,4 +928,42 @@ mod tests {
         assert_eq!(buf.bookmark_lines(), vec![1, 1]);
     }
 
+    #[test]
+    fn undo_file_with_huge_counts_is_rejected_without_allocating() {
+        // Header claims u32::MAX entries; the old code reserved capacity for
+        // all of them and aborted the process on allocation failure.
+        let mut bytes = Vec::new();
+        bytes.extend_from_slice(UNDO_FILE_MAGIC);
+        bytes.extend_from_slice(&UNDO_FILE_VERSION.to_le_bytes());
+        bytes.extend_from_slice(&u32::MAX.to_le_bytes());
+        assert!(deserialize_undo_stack(&bytes).is_empty());
+
+        // A group entry claiming u32::MAX ops.
+        bytes.push(1);
+        bytes.extend_from_slice(&0u64.to_le_bytes());
+        bytes.extend_from_slice(&0u64.to_le_bytes());
+        bytes.extend_from_slice(&u32::MAX.to_le_bytes());
+        assert!(deserialize_undo_stack(&bytes).is_empty());
+    }
+
+    #[test]
+    fn undo_round_trip_still_works() {
+        let op = EditOp {
+            byte_start: 3,
+            removed: "é".into(),
+            inserted: "中".into(),
+            sel_before_anchor: 3,
+            sel_before_head: 5,
+        };
+        let stack = vec![
+            UndoEntry::Single(op.clone()),
+            UndoEntry::Group { ops: vec![op.clone(), op], sel_before_anchor: 1, sel_before_head: 2 },
+        ];
+        let back = deserialize_undo_stack(&serialize_undo_stack(&stack));
+        assert_eq!(back.len(), 2);
+        match &back[1] {
+            UndoEntry::Group { ops, .. } => assert_eq!(ops.len(), 2),
+            UndoEntry::Single(_) => panic!("expected a group"),
+        }
+    }
 }

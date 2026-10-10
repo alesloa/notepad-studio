@@ -23,6 +23,13 @@ pub(crate) const FIND_IN_FILES_RESULT_CAP: usize = 1000;
 /// a content search.
 pub(crate) const FIND_IN_FILES_FILE_SIZE_LIMIT: u64 = 1_000_000;
 
+/// Longest slice of a line a result row keeps, in bytes from the line
+/// start. Notepad++ cuts result lines at `SC_SEARCHRESULT_LINEBUFFERMAXLENGTH
+/// - 4` (scintilla/include/Scintilla.h:1358, PowerEditor/src/
+/// ScintillaComponent/FindReplaceDlg.cpp:3581). Without a cap, 1000 hits on
+/// a 1 MB minified line hold 1000 copies of it.
+pub(crate) const RESULT_LINE_TEXT_MAX_BYTES: usize = 2048 - 4;
+
 /// Subdirectory names skipped at any depth. A user can still search inside
 /// one of these by setting it as the search root explicitly.
 const SKIP_DIRS: &[&str] = &[
@@ -280,45 +287,126 @@ pub(crate) fn run_search(query: &FindInFilesQuery) -> FindInFilesOutcome {
 }
 
 fn match_file(path: &Path, content: &str, re: &Regex, out: &mut Vec<FindResult>) {
-    // Pre-compute line-start byte offsets so each match resolves to its
-    // (line index, line start) in O(log n) — beats re-scanning per match.
-    let mut line_starts: Vec<usize> = vec![0];
-    for (i, b) in content.bytes().enumerate() {
-        if b == b'\n' {
-            line_starts.push(i + 1);
-        }
-    }
+    collect_results(content, re, path, None, None, out);
+}
 
-    for m in re.find_iter(content) {
+/// Append a `FindResult` for every non-empty match of `re` in `text`,
+/// stopping once `out` holds `FIND_IN_FILES_RESULT_CAP` results. Shared by
+/// Find in Files and the Find All in Current / All Opened Documents
+/// commands. Returns how many results it added.
+///
+/// `line` and `match_in_line` are relative to the whole line, so a click
+/// lands on the match even when `line_text` is cut at
+/// `RESULT_LINE_TEXT_MAX_BYTES`. A match running past its line is clipped
+/// to the line end.
+pub(crate) fn collect_results(
+    text: &str,
+    re: &Regex,
+    path: &Path,
+    tab_idx: Option<usize>,
+    display_label: Option<&str>,
+    out: &mut Vec<FindResult>,
+) -> usize {
+    let mut lines = LineWalker::new(text);
+    let mut added = 0usize;
+    for m in re.find_iter(text) {
+        if out.len() >= FIND_IN_FILES_RESULT_CAP {
+            break;
+        }
         // Skip zero-length matches (e.g. `^`, `\b`) — they'd otherwise spam
         // a result on every line for a pattern like `\b`.
         if m.start() == m.end() {
             continue;
         }
-        let byte = m.start();
-        let line = match line_starts.binary_search(&byte) {
-            Ok(i) => i,
-            Err(i) => i.saturating_sub(1),
-        };
-        let line_start = line_starts[line];
-        let line_end = line_starts
-            .get(line + 1)
-            .map(|p| p.saturating_sub(1))
-            .unwrap_or(content.len());
-        let line_text = content[line_start..line_end].to_string();
-        let local_start = byte - line_start;
-        let local_end = (m.end() - line_start).min(line_text.len());
+        let (line, line_start) = lines.seek(m.start());
+        let content_len = lines.content_end().saturating_sub(line_start);
+        let shown_end = text.floor_char_boundary(
+            line_start.saturating_add(content_len.min(RESULT_LINE_TEXT_MAX_BYTES)),
+        );
+        let line_text = text.get(line_start..shown_end).unwrap_or_default().to_string();
+        let local_start = m.start().saturating_sub(line_start).min(content_len);
+        let local_end = m.end().saturating_sub(line_start).min(content_len).max(local_start);
         out.push(FindResult {
             path: path.to_path_buf(),
             line,
             line_text,
             match_in_line: local_start..local_end,
-            tab_idx: None,
-            display_label: None,
+            tab_idx,
+            display_label: display_label.map(str::to_string),
         });
-        if out.len() >= FIND_IN_FILES_RESULT_CAP {
-            break;
+        added += 1;
+    }
+    added
+}
+
+/// Length of the line break starting at `bytes[i]`, or 0. The breaks are
+/// the ones ropey counts: LF, VT, FF, CR, CRLF (one break), NEL, LS, PS.
+fn line_break_len(bytes: &[u8], i: usize) -> usize {
+    match bytes.get(i..).unwrap_or_default() {
+        [b'\r', b'\n', ..] => 2,
+        [b'\n' | 0x0B | 0x0C | b'\r', ..] => 1,
+        [0xC2, 0x85, ..] => 2,
+        [0xE2, 0x80, 0xA8 | 0xA9, ..] => 3,
+        _ => 0,
+    }
+}
+
+/// Walks a text forward, tracking the line a byte offset sits on and where
+/// that line's content ends, with lines split where ropey splits them so a
+/// result's line number is the rope line it lands on once the file is
+/// open. Offsets must come in non-decreasing order, as `find_iter` yields
+/// them; the whole walk is O(text) with no per-line allocation.
+struct LineWalker<'a> {
+    bytes: &'a [u8],
+    line: usize,
+    start: usize,
+    pos: usize,
+    end: Option<usize>,
+}
+
+impl<'a> LineWalker<'a> {
+    fn new(text: &'a str) -> Self {
+        Self {
+            bytes: text.as_bytes(),
+            line: 0,
+            start: 0,
+            pos: 0,
+            end: None,
         }
+    }
+
+    /// Line index and line start byte of the line holding byte `to`. A byte
+    /// inside a line break belongs to the line the break ends.
+    fn seek(&mut self, to: usize) -> (usize, usize) {
+        let to = to.min(self.bytes.len());
+        while self.pos < to {
+            let brk = line_break_len(self.bytes, self.pos);
+            if brk == 0 {
+                self.pos += 1;
+                continue;
+            }
+            if self.pos + brk > to {
+                break;
+            }
+            self.pos += brk;
+            self.line += 1;
+            self.start = self.pos;
+            self.end = None;
+        }
+        (self.line, self.start)
+    }
+
+    /// Byte where the current line's content ends (its break excluded).
+    fn content_end(&mut self) -> usize {
+        if let Some(end) = self.end {
+            return end;
+        }
+        let mut i = self.pos;
+        while i < self.bytes.len() && line_break_len(self.bytes, i) == 0 {
+            i += 1;
+        }
+        self.end = Some(i);
+        i
     }
 }
 
@@ -528,6 +616,70 @@ mod tests {
         let pattern = format!("{}b", "*a".repeat(40));
         let name = "a".repeat(80);
         assert!(!within(10, move || glob_match(&pattern, &name)));
+    }
+
+    fn results_for(text: &str, pattern: &str) -> Vec<FindResult> {
+        let re = Regex::new(pattern).unwrap();
+        let mut out = Vec::new();
+        match_file(Path::new("x.txt"), text, &re, &mut out);
+        out
+    }
+
+    #[test]
+    fn result_lines_follow_rope_line_breaks() {
+        // Every break ropey counts: LF, VT, FF, CR, CRLF, NEL, LS, PS.
+        let text = "x0\nx1\u{0B}x2\u{0C}x3\rx4\r\nx5\u{85}x6\u{2028}x7\u{2029}x8 中x9";
+        let rope = ropey::Rope::from_str(text);
+        let results = results_for(text, "x[0-9]");
+        assert_eq!(results.len(), 10);
+        for (r, m) in results.iter().zip(Regex::new("x[0-9]").unwrap().find_iter(text)) {
+            let line = rope.byte_to_line(m.start());
+            assert_eq!(r.line, line, "match {:?}", m.as_str());
+            assert_eq!(rope.line_to_byte(line) + r.match_in_line.start, m.start());
+            assert!(!r.line_text.contains(['\r', '\n', '\u{0B}', '\u{0C}', '\u{85}', '\u{2028}', '\u{2029}']));
+        }
+    }
+
+    #[test]
+    fn line_walker_agrees_with_rope_at_every_offset() {
+        let texts = [
+            "",
+            "\n",
+            "\r\n\r\n",
+            "a\r\rb\n\nc",
+            "é\u{2028}中\u{2029}😀\u{85}👨‍👩‍👧\u{0B}x\u{0C}",
+            "tail without newline",
+            "\u{FEFF}bom\r\nline",
+        ];
+        for text in texts {
+            let rope = ropey::Rope::from_str(text);
+            let mut walker = LineWalker::new(text);
+            for (b, _) in text.char_indices().chain(std::iter::once((text.len(), ' '))) {
+                let (line, start) = walker.seek(b);
+                assert_eq!(line, rope.byte_to_line(b), "{text:?} @ {b}");
+                assert_eq!(start, rope.line_to_byte(line), "{text:?} @ {b}");
+                let slice = rope.line(line);
+                let content = slice.to_string();
+                let trimmed = content
+                    .strip_suffix("\r\n")
+                    .or_else(|| content.strip_suffix(['\n', '\r', '\u{0B}', '\u{0C}', '\u{85}', '\u{2028}', '\u{2029}']))
+                    .unwrap_or(&content);
+                assert_eq!(walker.content_end(), start + trimmed.len(), "{text:?} @ {b}");
+            }
+        }
+    }
+
+    #[test]
+    fn result_line_text_is_capped_on_long_lines() {
+        // 1000 hits on a 1 MB line kept 1000 copies of the line (1 GB).
+        let text = format!("{}{}", "中".repeat(200_000), "hit ".repeat(1000));
+        let results = results_for(&text, "hit");
+        assert_eq!(results.len(), FIND_IN_FILES_RESULT_CAP);
+        for r in &results {
+            assert!(r.line_text.len() <= RESULT_LINE_TEXT_MAX_BYTES);
+            assert!(text.is_char_boundary(r.match_in_line.start));
+            assert_eq!(&text[r.match_in_line.clone()], "hit");
+        }
     }
 
     #[test]

@@ -1162,13 +1162,6 @@ impl Workspace {
         let buffer = &self.tabs[tab_idx].buffer;
         let content = buffer.rope.to_string();
 
-        let mut line_starts: Vec<usize> = vec![0];
-        for (i, b) in content.bytes().enumerate() {
-            if b == b'\n' {
-                line_starts.push(i + 1);
-            }
-        }
-
         let display_label = buffer
             .file_path
             .as_ref()
@@ -1184,35 +1177,14 @@ impl Workspace {
         let path = buffer.file_path.clone().unwrap_or_default();
 
         let mut results: Vec<FindResult> = Vec::new();
-        for m in re.find_iter(&content) {
-            if m.start() == m.end() {
-                continue;
-            }
-            let byte = m.start();
-            let line = match line_starts.binary_search(&byte) {
-                Ok(i) => i,
-                Err(i) => i.saturating_sub(1),
-            };
-            let line_start = line_starts[line];
-            let line_end = line_starts
-                .get(line + 1)
-                .map(|p| p.saturating_sub(1))
-                .unwrap_or(content.len());
-            let line_text = content[line_start..line_end].to_string();
-            let local_start = byte - line_start;
-            let local_end = (m.end() - line_start).min(line_text.len());
-            results.push(FindResult {
-                path: path.clone(),
-                line,
-                line_text,
-                match_in_line: local_start..local_end,
-                tab_idx: Some(tab_idx),
-                display_label: Some(display_label.clone()),
-            });
-            if results.len() >= crate::find_in_files::FIND_IN_FILES_RESULT_CAP {
-                break;
-            }
-        }
+        crate::find_in_files::collect_results(
+            &content,
+            &re,
+            &path,
+            Some(tab_idx),
+            Some(&display_label),
+            &mut results,
+        );
 
         let total = results.len();
         let truncated = total >= crate::find_in_files::FIND_IN_FILES_RESULT_CAP;
@@ -1490,15 +1462,6 @@ impl Workspace {
         for (tab_idx, tab) in self.tabs.iter().enumerate() {
             let buffer = &tab.buffer;
             let content = buffer.rope.to_string();
-            // Pre-compute line-start byte offsets — same approach as the
-            // FIF engine's `match_file`. Keeps the inner per-match resolve
-            // O(log n).
-            let mut line_starts: Vec<usize> = vec![0];
-            for (i, b) in content.bytes().enumerate() {
-                if b == b'\n' {
-                    line_starts.push(i + 1);
-                }
-            }
 
             let display_label = buffer
                 .file_path
@@ -1516,38 +1479,15 @@ impl Workspace {
                 });
             let path = buffer.file_path.clone().unwrap_or_default();
 
-            let mut had_match = false;
-            for m in re.find_iter(&content) {
-                if m.start() == m.end() {
-                    continue;
-                }
-                let byte = m.start();
-                let line = match line_starts.binary_search(&byte) {
-                    Ok(i) => i,
-                    Err(i) => i.saturating_sub(1),
-                };
-                let line_start = line_starts[line];
-                let line_end = line_starts
-                    .get(line + 1)
-                    .map(|p| p.saturating_sub(1))
-                    .unwrap_or(content.len());
-                let line_text = content[line_start..line_end].to_string();
-                let local_start = byte - line_start;
-                let local_end = (m.end() - line_start).min(line_text.len());
-                results.push(FindResult {
-                    path: path.clone(),
-                    line,
-                    line_text,
-                    match_in_line: local_start..local_end,
-                    tab_idx: Some(tab_idx),
-                    display_label: Some(display_label.clone()),
-                });
-                had_match = true;
-                if results.len() >= crate::find_in_files::FIND_IN_FILES_RESULT_CAP {
-                    break;
-                }
-            }
-            if had_match {
+            let added = crate::find_in_files::collect_results(
+                &content,
+                &re,
+                &path,
+                Some(tab_idx),
+                Some(&display_label),
+                &mut results,
+            );
+            if added > 0 {
                 docs_with_hits += 1;
             }
             if results.len() >= crate::find_in_files::FIND_IN_FILES_RESULT_CAP {

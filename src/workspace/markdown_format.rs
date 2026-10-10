@@ -19,8 +19,13 @@
 // focused, the active tab's file to be a markdown file, and the view mode
 // to be `Edit` (the formatting toolbar is hidden in preview anyway, but
 // a stray keyboard chord or accessibility dispatch shouldn't bypass that).
+//
+// Each helper plans its edit with a pure `plan_*` function over the rope
+// (tested at the bottom of this file) and applies it with `apply_md_edit`.
 
 use gpui::{Context, Window, px};
+use ropey::Rope;
+use std::ops::Range;
 use std::time::Duration;
 
 use crate::actions::*;
@@ -121,16 +126,8 @@ impl Workspace {
         snippet: String,
         cx: &mut gpui::Context<Self>,
     ) {
-        let total = self.buffer().rope.len_bytes();
-        let byte = source_byte.min(total);
-        self.replace_byte_range(byte..byte, &snippet, cx);
-        let tab = self.active_tab_mut();
-        let new_pos = byte + snippet.len();
-        tab.selection.anchor = new_pos;
-        tab.selection.head = new_pos;
-        tab.selection.is_dragging = false;
-        tab.desired_col_x = None;
-        cx.notify();
+        let edit = plan_insert_image(&self.buffer().rope, source_byte, snippet);
+        self.apply_md_edit(edit, cx);
     }
 
     /// Append image markup at the end of the buffer, preceded by a
@@ -142,26 +139,8 @@ impl Workspace {
         snippet: String,
         cx: &mut gpui::Context<Self>,
     ) {
-        let total = self.buffer().rope.len_bytes();
-        let needs_lead = if total == 0 {
-            false
-        } else {
-            let last = self.buffer().slice_bytes(total.saturating_sub(1)..total);
-            !last.ends_with('\n')
-        };
-        let final_snippet = if needs_lead {
-            format!("\n{snippet}\n")
-        } else {
-            format!("{snippet}\n")
-        };
-        self.replace_byte_range(total..total, &final_snippet, cx);
-        let tab = self.active_tab_mut();
-        let new_pos = total + final_snippet.len();
-        tab.selection.anchor = new_pos;
-        tab.selection.head = new_pos;
-        tab.selection.is_dragging = false;
-        tab.desired_col_x = None;
-        cx.notify();
+        let edit = plan_append_image(&self.buffer().rope, &snippet);
+        self.apply_md_edit(edit, cx);
     }
 
     /// Jump the preview viewport to the footnote definition matching
@@ -613,6 +592,21 @@ impl Workspace {
         crate::ui::markdown_view::is_markdown_path(tab.buffer.file_path.as_deref())
     }
 
+    /// Replace the planned range and select the planned result. Every
+    /// formatting command and image drop goes through here.
+    fn apply_md_edit(&mut self, edit: MdEdit, cx: &mut Context<Self>) {
+        self.replace_byte_range(edit.range, &edit.text, cx);
+        let tab = self.active_tab_mut();
+        if edit.anchor == edit.head {
+            tab.selection.collapse_to(edit.head);
+        } else {
+            tab.selection.anchor = edit.anchor;
+            tab.selection.head = edit.head;
+        }
+        tab.desired_col_x = None;
+        cx.notify();
+    }
+
     /// Wrap the current selection (or insert at the caret) with `prefix`/`suffix`.
     /// Toggles off when the selection is already exactly `prefix..suffix`.
     fn md_wrap_inline(
@@ -622,354 +616,36 @@ impl Workspace {
         placeholder: &str,
         cx: &mut Context<Self>,
     ) {
-        let sel = self.selection();
-        let r = sel.ordered();
-        let selected = self.buffer().slice_bytes(r.clone());
-        let total = self.buffer().rope.len_bytes();
-
-        // Toggle off, case A: selection itself includes the markers — the
-        // user picked "**foo**" wholesale.
-        if !sel.is_empty()
-            && selected.starts_with(prefix)
-            && selected.ends_with(suffix)
-            && selected.len() >= prefix.len() + suffix.len()
-        {
-            let inner = &selected[prefix.len()..selected.len() - suffix.len()];
-            let inner_owned = inner.to_string();
-            let inner_len = inner_owned.len();
-            self.replace_byte_range(r.clone(), &inner_owned, cx);
-            let tab = self.active_tab_mut();
-            tab.selection.anchor = r.start;
-            tab.selection.head = r.start + inner_len;
-            tab.desired_col_x = None;
-            cx.notify();
-            return;
-        }
-
-        // Toggle off, case B: selection is the inner text between existing
-        // markers — happens when the user double-clicks a word inside
-        // "**foo**" (preview-mode selection covers the rendered "foo", not
-        // the asterisks). Strip the surrounding markers and keep the same
-        // visible text selected.
-        if !sel.is_empty()
-            && r.start >= prefix.len()
-            && r.end + suffix.len() <= total
-        {
-            let pre_bytes = self
-                .buffer()
-                .slice_bytes(r.start - prefix.len()..r.start);
-            let suf_bytes = self
-                .buffer()
-                .slice_bytes(r.end..r.end + suffix.len());
-            if pre_bytes == prefix && suf_bytes == suffix {
-                let outer_start = r.start - prefix.len();
-                let outer_end = r.end + suffix.len();
-                let inner_owned = selected.clone();
-                let inner_len = inner_owned.len();
-                self.replace_byte_range(outer_start..outer_end, &inner_owned, cx);
-                let tab = self.active_tab_mut();
-                tab.selection.anchor = outer_start;
-                tab.selection.head = outer_start + inner_len;
-                tab.desired_col_x = None;
-                cx.notify();
-                return;
-            }
-        }
-
-        if sel.is_empty() {
-            // Insert placeholder so a fresh `Bold` click lands selecting the
-            // word "bold text" (or whatever the placeholder is) for the user
-            // to type over.
-            let new_text = format!("{prefix}{placeholder}{suffix}");
-            self.replace_byte_range(r.clone(), &new_text, cx);
-            let tab = self.active_tab_mut();
-            let inner_start = r.start + prefix.len();
-            let inner_end = inner_start + placeholder.len();
-            tab.selection.anchor = inner_start;
-            tab.selection.head = inner_end;
-            tab.desired_col_x = None;
-            cx.notify();
-            return;
-        }
-
-        // Multi-paragraph wrap: selection spans a blank-line gap, which
-        // pulldown-cmark reads as separate paragraphs. A naive
-        // `{prefix}{selected}{suffix}` would put markers around the whole
-        // span, breaking across the gap (the blank line closes the first
-        // paragraph's bold, the prefix on para 2 looks like an unrelated
-        // start). Wrap each paragraph individually instead, preserving
-        // the original blank-line gaps verbatim.
-        let paragraphs = paragraph_ranges_in(&selected);
-        if paragraphs.len() > 1 {
-            let mut out = String::with_capacity(
-                selected.len() + paragraphs.len() * (prefix.len() + suffix.len()),
-            );
-            let mut cursor = 0usize;
-            for p in &paragraphs {
-                if p.start > cursor {
-                    out.push_str(&selected[cursor..p.start]);
-                }
-                out.push_str(prefix);
-                out.push_str(&selected[p.start..p.end]);
-                out.push_str(suffix);
-                cursor = p.end;
-            }
-            if cursor < selected.len() {
-                out.push_str(&selected[cursor..]);
-            }
-            let new_len = out.len();
-            self.replace_byte_range(r.clone(), &out, cx);
-            let tab = self.active_tab_mut();
-            tab.selection.anchor = r.start;
-            tab.selection.head = r.start + new_len;
-            tab.desired_col_x = None;
-            cx.notify();
-            return;
-        }
-
-        // Single-paragraph wrap (or selection with no recognisable content
-        // — fall back to wrap-whole for safety).
-        let new_text = format!("{prefix}{selected}{suffix}");
-        let inner_start = r.start + prefix.len();
-        let inner_end = inner_start + selected.len();
-        self.replace_byte_range(r.clone(), &new_text, cx);
-        let tab = self.active_tab_mut();
-        tab.selection.anchor = inner_start;
-        tab.selection.head = inner_end;
-        tab.desired_col_x = None;
-        cx.notify();
-    }
-
-    /// Range of bytes covering the lines touched by the current selection.
-    /// Mirrors the line-block math used by `apply_line_comment` so the two
-    /// behave the same: a selection that ends exactly on a line boundary
-    /// excludes the trailing blank line, matching NPP's "current line range"
-    /// convention.
-    fn line_block_range(&self) -> Option<(std::ops::Range<usize>, usize)> {
-        let sel = self.selection();
-        let r = sel.ordered();
-        let rope = &self.buffer().rope;
-        let total_lines = rope.len_lines();
-        if total_lines == 0 {
-            return None;
-        }
-        let first = rope.byte_to_line(r.start);
-        let last_raw = rope.byte_to_line(r.end);
-        let last = if r.end > r.start
-            && last_raw > first
-            && rope.line_to_byte(last_raw) == r.end
-        {
-            last_raw - 1
-        } else {
-            last_raw
-        };
-        let block_start = rope.line_to_byte(first);
-        let block_end = if last + 1 < total_lines {
-            rope.line_to_byte(last + 1)
-        } else {
-            rope.len_bytes()
-        };
-        Some((block_start..block_end, total_lines))
+        let r = self.selection().ordered();
+        let edit = plan_wrap_inline(&self.buffer().rope, r, prefix, suffix, placeholder);
+        self.apply_md_edit(edit, cx);
     }
 
     /// Add or remove `prefix` from the start of every non-empty line in the
     /// selection's line block. Toggles off only when every non-empty line
     /// already begins with the prefix.
     fn md_line_prefix(&mut self, prefix: &str, cx: &mut Context<Self>) {
-        let Some((range, _)) = self.line_block_range() else {
-            return;
-        };
-        let block = self
-            .buffer()
-            .rope
-            .byte_slice(range.clone())
-            .to_string();
-
-        let all_prefixed = block
-            .split_inclusive('\n')
-            .filter(|l| !l.trim_end_matches(['\n', '\r']).is_empty())
-            .all(|l| {
-                let body = l.trim_end_matches(['\n', '\r']);
-                body.starts_with(prefix)
-            });
-        let any_non_empty = block
-            .split_inclusive('\n')
-            .any(|l| !l.trim_end_matches(['\n', '\r']).is_empty());
-
-        let new_block: String = if all_prefixed && any_non_empty {
-            let mut out = String::new();
-            for line in block.split_inclusive('\n') {
-                let body = line.trim_end_matches(['\n', '\r']);
-                if body.is_empty() {
-                    out.push_str(line);
-                } else if let Some(stripped) = line.strip_prefix(prefix) {
-                    out.push_str(stripped);
-                } else {
-                    out.push_str(line);
-                }
-            }
-            out
-        } else {
-            let mut out = String::new();
-            for line in block.split_inclusive('\n') {
-                let body = line.trim_end_matches(['\n', '\r']);
-                if body.is_empty() {
-                    out.push_str(line);
-                } else {
-                    out.push_str(prefix);
-                    out.push_str(line);
-                }
-            }
-            out
-        };
-
-        if new_block == block {
-            return;
+        let r = self.selection().ordered();
+        if let Some(edit) = plan_line_prefix(&self.buffer().rope, r, prefix) {
+            self.apply_md_edit(edit, cx);
         }
-        let new_len = new_block.len();
-        let block_start = range.start;
-        self.replace_byte_range(range, &new_block, cx);
-        let tab = self.active_tab_mut();
-        tab.selection.anchor = block_start;
-        tab.selection.head = block_start + new_len;
-        tab.desired_col_x = None;
-        cx.notify();
     }
 
     /// Number every non-empty line in the selection block (`1. `, `2. `, …).
     /// Toggles off when every non-empty line already begins with `\d+\. `.
     fn md_ordered_list(&mut self, cx: &mut Context<Self>) {
-        let Some((range, _)) = self.line_block_range() else {
-            return;
-        };
-        let block = self
-            .buffer()
-            .rope
-            .byte_slice(range.clone())
-            .to_string();
-
-        fn strip_ordered_prefix(line: &str) -> Option<&str> {
-            let body = line;
-            let bytes = body.as_bytes();
-            let mut i = 0;
-            while i < bytes.len() && bytes[i].is_ascii_digit() {
-                i += 1;
-            }
-            if i == 0 {
-                return None;
-            }
-            if i + 1 >= bytes.len() {
-                return None;
-            }
-            if bytes[i] != b'.' || bytes[i + 1] != b' ' {
-                return None;
-            }
-            Some(&body[i + 2..])
+        let r = self.selection().ordered();
+        if let Some(edit) = plan_ordered_list(&self.buffer().rope, r) {
+            self.apply_md_edit(edit, cx);
         }
-
-        let all_numbered = block
-            .split_inclusive('\n')
-            .filter(|l| !l.trim_end_matches(['\n', '\r']).is_empty())
-            .all(|l| strip_ordered_prefix(l).is_some());
-        let any_non_empty = block
-            .split_inclusive('\n')
-            .any(|l| !l.trim_end_matches(['\n', '\r']).is_empty());
-
-        let new_block: String = if all_numbered && any_non_empty {
-            let mut out = String::new();
-            for line in block.split_inclusive('\n') {
-                let body = line.trim_end_matches(['\n', '\r']);
-                if body.is_empty() {
-                    out.push_str(line);
-                } else if let Some(stripped) = strip_ordered_prefix(line) {
-                    out.push_str(stripped);
-                } else {
-                    out.push_str(line);
-                }
-            }
-            out
-        } else {
-            let mut out = String::new();
-            let mut n: u32 = 1;
-            for line in block.split_inclusive('\n') {
-                let body = line.trim_end_matches(['\n', '\r']);
-                if body.is_empty() {
-                    out.push_str(line);
-                } else {
-                    out.push_str(&format!("{n}. "));
-                    out.push_str(line);
-                    n += 1;
-                }
-            }
-            out
-        };
-
-        if new_block == block {
-            return;
-        }
-        let new_len = new_block.len();
-        let block_start = range.start;
-        self.replace_byte_range(range, &new_block, cx);
-        let tab = self.active_tab_mut();
-        tab.selection.anchor = block_start;
-        tab.selection.head = block_start + new_len;
-        tab.desired_col_x = None;
-        cx.notify();
     }
 
     /// Wrap the selection (or insert at the caret) with a fenced code block.
     /// Always lands on its own lines.
     fn md_code_block(&mut self, cx: &mut Context<Self>) {
-        let sel = self.selection();
-        let r = sel.ordered();
-        let selected = self.buffer().slice_bytes(r.clone());
-        let buf = self.buffer();
-        let total = buf.rope.len_bytes();
-
-        // Insert leading `\n` only if we aren't already at the start of a line.
-        let needs_lead = r.start > 0
-            && self
-                .buffer()
-                .slice_bytes(r.start.saturating_sub(1)..r.start)
-                != "\n";
-        // Insert trailing `\n` only if we aren't already followed by `\n`.
-        let after = if r.end < total {
-            self.buffer()
-                .slice_bytes(r.end..(r.end + 1).min(total))
-        } else {
-            String::new()
-        };
-        let needs_tail = !after.is_empty() && after != "\n";
-
-        let lead = if needs_lead { "\n" } else { "" };
-        let tail = if needs_tail { "\n" } else { "" };
-
-        let new_text;
-        let caret_at;
-        if selected.is_empty() {
-            new_text = format!("{lead}```\n\n```\n{tail}");
-            // Place caret on the empty line between the fences.
-            caret_at = r.start + lead.len() + "```\n".len();
-        } else {
-            let body = if selected.ends_with('\n') {
-                selected.clone()
-            } else {
-                format!("{selected}\n")
-            };
-            new_text = format!("{lead}```\n{body}```\n{tail}");
-            caret_at = r.start + new_text.len();
-        }
-        let new_len = new_text.len();
-        self.replace_byte_range(r.clone(), &new_text, cx);
-        let tab = self.active_tab_mut();
-        if selected.is_empty() {
-            tab.selection.collapse_to(caret_at);
-        } else {
-            tab.selection.anchor = r.start;
-            tab.selection.head = r.start + new_len;
-        }
-        tab.desired_col_x = None;
-        cx.notify();
+        let r = self.selection().ordered();
+        let edit = plan_code_block(&self.buffer().rope, r);
+        self.apply_md_edit(edit, cx);
     }
 
     /// Insert / wrap a markdown link or image.
@@ -977,73 +653,16 @@ impl Workspace {
     /// * Selection: `[selected](url)` with the `url` placeholder selected so
     ///   the user can paste / type the URL straight away.
     fn md_link_or_image(&mut self, image: bool, cx: &mut Context<Self>) {
-        let sel = self.selection();
-        let r = sel.ordered();
-        let selected = self.buffer().slice_bytes(r.clone());
-        let bracket_open = if image { "![" } else { "[" };
-        let url_placeholder = "url";
-        let label_placeholder = if image { "alt" } else { "text" };
-
-        if sel.is_empty() {
-            let new_text = format!(
-                "{bracket_open}{label_placeholder}]({url_placeholder})"
-            );
-            self.replace_byte_range(r.clone(), &new_text, cx);
-            let tab = self.active_tab_mut();
-            let label_start = r.start + bracket_open.len();
-            let label_end = label_start + label_placeholder.len();
-            tab.selection.anchor = label_start;
-            tab.selection.head = label_end;
-            tab.desired_col_x = None;
-            cx.notify();
-        } else {
-            let new_text = format!("{bracket_open}{selected}]({url_placeholder})");
-            // After insertion, the URL placeholder lives at:
-            //   r.start + bracket_open.len() + selected.len() + "](".len()
-            // and runs for `url_placeholder.len()` bytes.
-            let url_start = r.start + bracket_open.len() + selected.len() + "](".len();
-            let url_end = url_start + url_placeholder.len();
-            self.replace_byte_range(r.clone(), &new_text, cx);
-            let tab = self.active_tab_mut();
-            tab.selection.anchor = url_start;
-            tab.selection.head = url_end;
-            tab.desired_col_x = None;
-            cx.notify();
-        }
+        let r = self.selection().ordered();
+        let edit = plan_link_or_image(&self.buffer().rope, r, image);
+        self.apply_md_edit(edit, cx);
     }
 
     /// Insert a horizontal rule (`---`) on its own line.
     fn md_horizontal_rule(&mut self, cx: &mut Context<Self>) {
-        let sel = self.selection();
-        let r = sel.ordered();
-        let total = self.buffer().rope.len_bytes();
-        let needs_lead = r.start > 0
-            && self
-                .buffer()
-                .slice_bytes(r.start.saturating_sub(1)..r.start)
-                != "\n";
-        let after = if r.end < total {
-            self.buffer()
-                .slice_bytes(r.end..(r.end + 1).min(total))
-        } else {
-            String::new()
-        };
-        let needs_tail = !after.is_empty() && after != "\n";
-
-        let mut new_text = String::new();
-        if needs_lead {
-            new_text.push('\n');
-        }
-        new_text.push_str("---\n");
-        if needs_tail {
-            new_text.push('\n');
-        }
-        let new_len = new_text.len();
-        self.replace_byte_range(r.clone(), &new_text, cx);
-        let tab = self.active_tab_mut();
-        tab.selection.collapse_to(r.start + new_len);
-        tab.desired_col_x = None;
-        cx.notify();
+        let r = self.selection().ordered();
+        let edit = plan_horizontal_rule(&self.buffer().rope, r);
+        self.apply_md_edit(edit, cx);
     }
 
     // ---- Action wrappers (one per toolbar button). ---------------------------
@@ -1229,6 +848,392 @@ impl Workspace {
     }
 }
 
+/// One buffer edit planned by a Markdown formatting command: replace
+/// `range` with `text`, then select `anchor..head` (a caret when equal).
+/// The planners below are pure functions of the rope and the ordered
+/// selection, so the commands can be tested without a window.
+#[derive(Debug, PartialEq, Eq)]
+struct MdEdit {
+    range: Range<usize>,
+    text: String,
+    anchor: usize,
+    head: usize,
+}
+
+/// `Buffer::slice_bytes` over a bare rope.
+fn slice_bytes(rope: &Rope, range: Range<usize>) -> String {
+    let total = rope.len_bytes();
+    let start = range.start.min(total);
+    let end = range.end.min(total);
+    if start >= end {
+        return String::new();
+    }
+    rope.byte_slice(start..end).to_string()
+}
+
+/// Bold / italic / strike / inline-code: wrap the selection in
+/// `prefix`/`suffix`, or unwrap it when the markers are already there.
+fn plan_wrap_inline(
+    rope: &Rope,
+    r: Range<usize>,
+    prefix: &str,
+    suffix: &str,
+    placeholder: &str,
+) -> MdEdit {
+    let selected = slice_bytes(rope, r.clone());
+    let total = rope.len_bytes();
+    let has_selection = r.start != r.end;
+
+    // Toggle off, case A: selection itself includes the markers — the
+    // user picked "**foo**" wholesale.
+    if has_selection
+        && selected.starts_with(prefix)
+        && selected.ends_with(suffix)
+        && selected.len() >= prefix.len() + suffix.len()
+    {
+        let inner = selected[prefix.len()..selected.len() - suffix.len()].to_string();
+        let head = r.start + inner.len();
+        return MdEdit { anchor: r.start, head, range: r, text: inner };
+    }
+
+    // Toggle off, case B: selection is the inner text between existing
+    // markers — happens when the user double-clicks a word inside
+    // "**foo**" (preview-mode selection covers the rendered "foo", not
+    // the asterisks). Strip the surrounding markers and keep the same
+    // visible text selected.
+    if has_selection
+        && r.start >= prefix.len()
+        && r.end + suffix.len() <= total
+    {
+        let pre_bytes = slice_bytes(rope, r.start - prefix.len()..r.start);
+        let suf_bytes = slice_bytes(rope, r.end..r.end + suffix.len());
+        if pre_bytes == prefix && suf_bytes == suffix {
+            let outer_start = r.start - prefix.len();
+            let outer_end = r.end + suffix.len();
+            let head = outer_start + selected.len();
+            return MdEdit {
+                range: outer_start..outer_end,
+                text: selected,
+                anchor: outer_start,
+                head,
+            };
+        }
+    }
+
+    if !has_selection {
+        // Insert placeholder so a fresh `Bold` click lands selecting the
+        // word "bold text" (or whatever the placeholder is) for the user
+        // to type over.
+        let anchor = r.start + prefix.len();
+        return MdEdit {
+            range: r,
+            text: format!("{prefix}{placeholder}{suffix}"),
+            anchor,
+            head: anchor + placeholder.len(),
+        };
+    }
+
+    // Multi-paragraph wrap: selection spans a blank-line gap, which
+    // pulldown-cmark reads as separate paragraphs. A naive
+    // `{prefix}{selected}{suffix}` would put markers around the whole
+    // span, breaking across the gap (the blank line closes the first
+    // paragraph's bold, the prefix on para 2 looks like an unrelated
+    // start). Wrap each paragraph individually instead, preserving
+    // the original blank-line gaps verbatim.
+    let paragraphs = paragraph_ranges_in(&selected);
+    if paragraphs.len() > 1 {
+        let mut out = String::with_capacity(
+            selected.len() + paragraphs.len() * (prefix.len() + suffix.len()),
+        );
+        let mut cursor = 0usize;
+        for p in &paragraphs {
+            if p.start > cursor {
+                out.push_str(&selected[cursor..p.start]);
+            }
+            out.push_str(prefix);
+            out.push_str(&selected[p.start..p.end]);
+            out.push_str(suffix);
+            cursor = p.end;
+        }
+        if cursor < selected.len() {
+            out.push_str(&selected[cursor..]);
+        }
+        let head = r.start + out.len();
+        return MdEdit { anchor: r.start, head, range: r, text: out };
+    }
+
+    // Single-paragraph wrap (or selection with no recognisable content
+    // — fall back to wrap-whole for safety).
+    let anchor = r.start + prefix.len();
+    let head = anchor + selected.len();
+    MdEdit {
+        range: r,
+        text: format!("{prefix}{selected}{suffix}"),
+        anchor,
+        head,
+    }
+}
+
+/// Range of bytes covering the lines touched by the selection `r`.
+/// Mirrors the line-block math used by `apply_line_comment` so the two
+/// behave the same: a selection that ends exactly on a line boundary
+/// excludes the trailing blank line, matching NPP's "current line range"
+/// convention.
+fn line_block_range(rope: &Rope, r: Range<usize>) -> Option<Range<usize>> {
+    let total_lines = rope.len_lines();
+    if total_lines == 0 {
+        return None;
+    }
+    let first = rope.byte_to_line(r.start);
+    let last_raw = rope.byte_to_line(r.end);
+    let last = if r.end > r.start
+        && last_raw > first
+        && rope.line_to_byte(last_raw) == r.end
+    {
+        last_raw - 1
+    } else {
+        last_raw
+    };
+    let block_start = rope.line_to_byte(first);
+    let block_end = if last + 1 < total_lines {
+        rope.line_to_byte(last + 1)
+    } else {
+        rope.len_bytes()
+    };
+    Some(block_start..block_end)
+}
+
+/// Selects the rewritten line block, or `None` when nothing changes.
+fn plan_block_rewrite(range: Range<usize>, block: &str, new_block: String) -> Option<MdEdit> {
+    if new_block == block {
+        return None;
+    }
+    let head = range.start + new_block.len();
+    Some(MdEdit { anchor: range.start, head, range, text: new_block })
+}
+
+/// Headings, bullet list, task list, block quote: toggle `prefix` on
+/// every non-empty line of the selection's line block.
+fn plan_line_prefix(rope: &Rope, r: Range<usize>, prefix: &str) -> Option<MdEdit> {
+    let range = line_block_range(rope, r)?;
+    let block = rope.byte_slice(range.clone()).to_string();
+
+    let all_prefixed = block
+        .split_inclusive('\n')
+        .filter(|l| !l.trim_end_matches(['\n', '\r']).is_empty())
+        .all(|l| {
+            let body = l.trim_end_matches(['\n', '\r']);
+            body.starts_with(prefix)
+        });
+    let any_non_empty = block
+        .split_inclusive('\n')
+        .any(|l| !l.trim_end_matches(['\n', '\r']).is_empty());
+
+    let new_block: String = if all_prefixed && any_non_empty {
+        let mut out = String::new();
+        for line in block.split_inclusive('\n') {
+            let body = line.trim_end_matches(['\n', '\r']);
+            if body.is_empty() {
+                out.push_str(line);
+            } else if let Some(stripped) = line.strip_prefix(prefix) {
+                out.push_str(stripped);
+            } else {
+                out.push_str(line);
+            }
+        }
+        out
+    } else {
+        let mut out = String::new();
+        for line in block.split_inclusive('\n') {
+            let body = line.trim_end_matches(['\n', '\r']);
+            if body.is_empty() {
+                out.push_str(line);
+            } else {
+                out.push_str(prefix);
+                out.push_str(line);
+            }
+        }
+        out
+    };
+    plan_block_rewrite(range, &block, new_block)
+}
+
+/// `line` without its leading `\d+\. `, or `None` when it has none.
+fn strip_ordered_prefix(line: &str) -> Option<&str> {
+    let body = line;
+    let bytes = body.as_bytes();
+    let mut i = 0;
+    while i < bytes.len() && bytes[i].is_ascii_digit() {
+        i += 1;
+    }
+    if i == 0 {
+        return None;
+    }
+    if i + 1 >= bytes.len() {
+        return None;
+    }
+    if bytes[i] != b'.' || bytes[i + 1] != b' ' {
+        return None;
+    }
+    Some(&body[i + 2..])
+}
+
+/// Ordered list: number every non-empty line of the selection's line
+/// block, or strip the numbers when every line already has one.
+fn plan_ordered_list(rope: &Rope, r: Range<usize>) -> Option<MdEdit> {
+    let range = line_block_range(rope, r)?;
+    let block = rope.byte_slice(range.clone()).to_string();
+
+    let all_numbered = block
+        .split_inclusive('\n')
+        .filter(|l| !l.trim_end_matches(['\n', '\r']).is_empty())
+        .all(|l| strip_ordered_prefix(l).is_some());
+    let any_non_empty = block
+        .split_inclusive('\n')
+        .any(|l| !l.trim_end_matches(['\n', '\r']).is_empty());
+
+    let new_block: String = if all_numbered && any_non_empty {
+        let mut out = String::new();
+        for line in block.split_inclusive('\n') {
+            let body = line.trim_end_matches(['\n', '\r']);
+            if body.is_empty() {
+                out.push_str(line);
+            } else if let Some(stripped) = strip_ordered_prefix(line) {
+                out.push_str(stripped);
+            } else {
+                out.push_str(line);
+            }
+        }
+        out
+    } else {
+        let mut out = String::new();
+        let mut n: u32 = 1;
+        for line in block.split_inclusive('\n') {
+            let body = line.trim_end_matches(['\n', '\r']);
+            if body.is_empty() {
+                out.push_str(line);
+            } else {
+                out.push_str(&format!("{n}. "));
+                out.push_str(line);
+                n += 1;
+            }
+        }
+        out
+    };
+    plan_block_rewrite(range, &block, new_block)
+}
+
+/// Whether a block inserted over `r` needs a line break before it (it
+/// doesn't start a line) and after it (more text follows on the line).
+fn block_insert_breaks(rope: &Rope, r: &Range<usize>) -> (bool, bool) {
+    let total = rope.len_bytes();
+    let needs_lead = r.start > 0
+        && slice_bytes(rope, r.start.saturating_sub(1)..r.start) != "\n";
+    let after = if r.end < total {
+        slice_bytes(rope, r.end..(r.end + 1).min(total))
+    } else {
+        String::new()
+    };
+    let needs_tail = !after.is_empty() && after != "\n";
+    (needs_lead, needs_tail)
+}
+
+/// Fenced code block around the selection, or an empty one with the
+/// caret inside.
+fn plan_code_block(rope: &Rope, r: Range<usize>) -> MdEdit {
+    let selected = slice_bytes(rope, r.clone());
+    let (needs_lead, needs_tail) = block_insert_breaks(rope, &r);
+    let lead = if needs_lead { "\n" } else { "" };
+    let tail = if needs_tail { "\n" } else { "" };
+
+    if selected.is_empty() {
+        // Place caret on the empty line between the fences.
+        let caret = r.start + lead.len() + "```\n".len();
+        return MdEdit {
+            range: r,
+            text: format!("{lead}```\n\n```\n{tail}"),
+            anchor: caret,
+            head: caret,
+        };
+    }
+    let body = if selected.ends_with('\n') {
+        selected
+    } else {
+        format!("{selected}\n")
+    };
+    let text = format!("{lead}```\n{body}```\n{tail}");
+    let head = r.start + text.len();
+    MdEdit { anchor: r.start, head, range: r, text }
+}
+
+/// `[text](url)` / `![alt](url)`, selecting the part to type next.
+fn plan_link_or_image(rope: &Rope, r: Range<usize>, image: bool) -> MdEdit {
+    let selected = slice_bytes(rope, r.clone());
+    let bracket_open = if image { "![" } else { "[" };
+    let url_placeholder = "url";
+    let label_placeholder = if image { "alt" } else { "text" };
+
+    if r.start == r.end {
+        let label_start = r.start + bracket_open.len();
+        return MdEdit {
+            range: r,
+            text: format!("{bracket_open}{label_placeholder}]({url_placeholder})"),
+            anchor: label_start,
+            head: label_start + label_placeholder.len(),
+        };
+    }
+    // After insertion, the URL placeholder lives at:
+    //   r.start + bracket_open.len() + selected.len() + "](".len()
+    // and runs for `url_placeholder.len()` bytes.
+    let url_start = r.start + bracket_open.len() + selected.len() + "](".len();
+    MdEdit {
+        range: r,
+        text: format!("{bracket_open}{selected}]({url_placeholder})"),
+        anchor: url_start,
+        head: url_start + url_placeholder.len(),
+    }
+}
+
+/// `---` on its own line, caret after it.
+fn plan_horizontal_rule(rope: &Rope, r: Range<usize>) -> MdEdit {
+    let (needs_lead, needs_tail) = block_insert_breaks(rope, &r);
+    let mut text = String::new();
+    if needs_lead {
+        text.push('\n');
+    }
+    text.push_str("---\n");
+    if needs_tail {
+        text.push('\n');
+    }
+    let caret = r.start + text.len();
+    MdEdit { range: r, text, anchor: caret, head: caret }
+}
+
+/// Image markup dropped onto the preview at `source_byte`, caret after it.
+fn plan_insert_image(rope: &Rope, source_byte: usize, snippet: String) -> MdEdit {
+    let byte = source_byte.min(rope.len_bytes());
+    let caret = byte + snippet.len();
+    MdEdit { range: byte..byte, text: snippet, anchor: caret, head: caret }
+}
+
+/// Image markup appended on its own line at the end of the buffer.
+fn plan_append_image(rope: &Rope, snippet: &str) -> MdEdit {
+    let total = rope.len_bytes();
+    let needs_lead = if total == 0 {
+        false
+    } else {
+        let last = slice_bytes(rope, total.saturating_sub(1)..total);
+        !last.ends_with('\n')
+    };
+    let text = if needs_lead {
+        format!("\n{snippet}\n")
+    } else {
+        format!("{snippet}\n")
+    };
+    let caret = total + text.len();
+    MdEdit { range: total..total, text, anchor: caret, head: caret }
+}
+
 /// Find the byte ranges of content paragraphs inside `text`. A blank
 /// line (`\n` followed by optional whitespace and another `\n`) closes
 /// one paragraph and opens the next. Returned ranges cover only the
@@ -1345,5 +1350,83 @@ mod paragraph_split_tests {
         assert!(paragraph_ranges_in("").is_empty());
         assert!(paragraph_ranges_in("\n\n\n").is_empty());
         assert!(paragraph_ranges_in("   \n\t\n").is_empty());
+    }
+}
+
+#[cfg(test)]
+mod format_plan_tests {
+    use super::*;
+
+    /// `text` after `edit`, and the text the edit leaves selected.
+    fn apply(text: &str, edit: &MdEdit) -> (String, String) {
+        let mut rope = Rope::from_str(text);
+        let start = rope.byte_to_char(edit.range.start);
+        let end = rope.byte_to_char(edit.range.end);
+        rope.remove(start..end);
+        rope.insert(start, &edit.text);
+        let after = rope.to_string();
+        let sel = edit.anchor.min(edit.head)..edit.anchor.max(edit.head);
+        let selected = after.get(sel).map(str::to_string);
+        (after, selected.unwrap_or_else(|| "<selection off a char boundary>".into()))
+    }
+
+    fn wrap(text: &str, r: Range<usize>) -> (String, String) {
+        let edit = plan_wrap_inline(&Rope::from_str(text), r, "**", "**", "bold text");
+        apply(text, &edit)
+    }
+
+    fn prefix(text: &str, r: Range<usize>, p: &str) -> String {
+        match plan_line_prefix(&Rope::from_str(text), r, p) {
+            Some(edit) => apply(text, &edit).0,
+            None => text.to_string(),
+        }
+    }
+
+    fn ordered(text: &str, r: Range<usize>) -> String {
+        match plan_ordered_list(&Rope::from_str(text), r) {
+            Some(edit) => apply(text, &edit).0,
+            None => text.to_string(),
+        }
+    }
+
+    #[test]
+    fn wrap_and_unwrap_inline() {
+        assert_eq!(wrap("hello", 0..5), ("**hello**".into(), "hello".into()));
+        assert_eq!(wrap("**hello**", 0..9), ("hello".into(), "hello".into()));
+        assert_eq!(wrap("**hello**", 2..7), ("hello".into(), "hello".into()));
+        assert_eq!(wrap("", 0..0), ("**bold text**".into(), "bold text".into()));
+        assert_eq!(wrap("a\n\nb", 0..4).0, "**a**\n\n**b**");
+    }
+
+    #[test]
+    fn line_prefix_and_ordered_list() {
+        assert_eq!(prefix("a\nb\n", 0..3, "# "), "# a\n# b\n");
+        assert_eq!(prefix("# a\n# b\n", 0..7, "# "), "a\nb\n");
+        assert_eq!(prefix("a\n\nb", 0..4, "- "), "- a\n\n- b");
+        assert_eq!(ordered("a\n\nb", 0..4), "1. a\n\n2. b");
+        assert_eq!(ordered("1. a\n\n2. b", 0..10), "a\n\nb");
+    }
+
+    #[test]
+    fn block_inserts_land_on_their_own_lines() {
+        let rope = Rope::from_str("abc");
+        let edit = plan_code_block(&rope, 3..3);
+        assert_eq!(apply("abc", &edit).0, "abc\n```\n\n```\n");
+        assert_eq!((edit.anchor, edit.head), (8, 8));
+        let edit = plan_code_block(&rope, 0..3);
+        assert_eq!(apply("abc", &edit), ("```\nabc\n```\n".into(), "```\nabc\n```\n".into()));
+        let edit = plan_horizontal_rule(&Rope::from_str("ab"), 1..1);
+        assert_eq!(apply("ab", &edit).0, "a\n---\n\nb");
+    }
+
+    #[test]
+    fn links_and_images() {
+        let rope = Rope::from_str("x");
+        assert_eq!(apply("x", &plan_link_or_image(&rope, 0..1, false)), ("[x](url)".into(), "url".into()));
+        assert_eq!(apply("x", &plan_link_or_image(&rope, 1..1, true)), ("x![alt](url)".into(), "alt".into()));
+        let edit = plan_append_image(&Rope::from_str("abc"), "![i](p)");
+        assert_eq!(apply("abc", &edit).0, "abc\n![i](p)\n");
+        let edit = plan_insert_image(&Rope::from_str("abc"), 1, "![i](p)".into());
+        assert_eq!(apply("abc", &edit).0, "a![i](p)bc");
     }
 }

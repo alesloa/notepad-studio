@@ -33,6 +33,42 @@ fn is_word_byte(b: u8) -> bool {
     b.is_ascii_alphanumeric() || b == b'_' || (0x80..=0xff).contains(&b)
 }
 
+/// Search options shared by the Find, Replace and Mark tabs.
+struct SearchFlags {
+    regex: bool,
+    extended: bool,
+    whole_word: bool,
+    match_case: bool,
+    dot_matches_newline: bool,
+}
+
+/// Compile `query` the way the Find / Replace / Mark tabs search: Extended
+/// decodes escapes first (ignored in regex mode), Normal and Extended match
+/// literally, whole word wraps the literal in `\b`. Look-around and
+/// backreferences are unsupported by the `regex` crate and come back as
+/// `Err`, which callers report as "Invalid regex".
+fn search_regex(query: &str, flags: &SearchFlags) -> Result<regex::Regex, regex::Error> {
+    let raw_query = if flags.extended && !flags.regex {
+        interpret_extended(query)
+    } else {
+        query.to_string()
+    };
+    let pattern = if flags.regex {
+        raw_query
+    } else if flags.whole_word {
+        format!(r"\b{}\b", regex::escape(&raw_query))
+    } else {
+        regex::escape(&raw_query)
+    };
+    regex::RegexBuilder::new(&pattern)
+        .case_insensitive(!flags.match_case)
+        .multi_line(true)
+        // `. matches newline` only matters in regex mode; literal patterns
+        // have their dots escaped.
+        .dot_matches_new_line(flags.regex && flags.dot_matches_newline)
+        .build()
+}
+
 /// Every non-empty match of `re` in `text`, optionally restricted to the
 /// byte range `scope` ("In selection"). Zero-length matches (`^`, `\b`,
 /// `a*` on "b") are skipped so "current" never cycles on an empty range.
@@ -110,30 +146,7 @@ impl Workspace {
             return;
         }
 
-        let raw_query = if self.find_state.extended && !self.find_state.regex {
-            interpret_extended(&self.find_state.query)
-        } else {
-            self.find_state.query.clone()
-        };
-
-        let pattern = if self.find_state.regex {
-            raw_query
-        } else if self.find_state.whole_word {
-            format!(r"\b{}\b", regex::escape(&raw_query))
-        } else {
-            regex::escape(&raw_query)
-        };
-
-        let re = match regex::RegexBuilder::new(&pattern)
-            .case_insensitive(!self.find_state.match_case)
-            .multi_line(true)
-            // `. matches newline` only matters when the user is in regex mode;
-            // for literal / whole-word searches the dot is escaped so the
-            // flag is a no-op. Plumbing it unconditionally is fine — the
-            // builder swallows the flag for non-regex patterns.
-            .dot_matches_new_line(self.find_state.regex && self.find_state.dot_matches_newline)
-            .build()
-        {
+        let re = match search_regex(&self.find_state.query, &self.find_flags()) {
             Ok(r) => r,
             Err(e) => {
                 self.find_state.matches.clear();
@@ -1089,6 +1102,16 @@ impl Workspace {
         }
     }
 
+    fn find_flags(&self) -> SearchFlags {
+        SearchFlags {
+            regex: self.find_state.regex,
+            extended: self.find_state.extended,
+            whole_word: self.find_state.whole_word,
+            match_case: self.find_state.match_case,
+            dot_matches_newline: self.find_state.dot_matches_newline,
+        }
+    }
+
     /// Byte offset a Find Next / Find Previous with no current match starts
     /// from: the selection's end going forward, its start going backward.
     /// Rich-doc tabs use flat-search-text offsets, like their matches.
@@ -1401,24 +1424,7 @@ impl Workspace {
             self.find_state.status = None;
             return None;
         }
-        let raw_query = if self.find_state.extended && !self.find_state.regex {
-            interpret_extended(&self.find_state.query)
-        } else {
-            self.find_state.query.clone()
-        };
-        let pattern = if self.find_state.regex {
-            raw_query
-        } else if self.find_state.whole_word {
-            format!(r"\b{}\b", regex::escape(&raw_query))
-        } else {
-            regex::escape(&raw_query)
-        };
-        match regex::RegexBuilder::new(&pattern)
-            .case_insensitive(!self.find_state.match_case)
-            .multi_line(true)
-            .dot_matches_new_line(self.find_state.regex && self.find_state.dot_matches_newline)
-            .build()
-        {
+        match search_regex(&self.find_state.query, &self.find_flags()) {
             Ok(r) => {
                 self.find_state.error = None;
                 Some(r)
@@ -1831,27 +1837,14 @@ impl Workspace {
             crate::settings::FindHistorySlot::MarkQuery,
             &self.mark_state.query,
         );
-        // Apply Notepad++'s extended-escape decoding when "Extended" is on
-        // (and `regex` is off — they're mutually-exclusive). `\n`, `\t`,
-        // `\0`, `\\` decode to their literal byte equivalents.
-        let raw_query = if self.mark_state.extended && !self.mark_state.regex {
-            interpret_extended(&self.mark_state.query)
-        } else {
-            self.mark_state.query.clone()
+        let flags = SearchFlags {
+            regex: self.mark_state.regex,
+            extended: self.mark_state.extended,
+            whole_word: self.mark_state.whole_word,
+            match_case: self.mark_state.match_case,
+            dot_matches_newline: self.mark_state.dot_matches_newline,
         };
-        let pattern = if self.mark_state.regex {
-            raw_query
-        } else if self.mark_state.whole_word {
-            format!(r"\b{}\b", regex::escape(&raw_query))
-        } else {
-            regex::escape(&raw_query)
-        };
-        let re = match regex::RegexBuilder::new(&pattern)
-            .case_insensitive(!self.mark_state.match_case)
-            .multi_line(true)
-            .dot_matches_new_line(self.mark_state.regex && self.mark_state.dot_matches_newline)
-            .build()
-        {
+        let re = match search_regex(&self.mark_state.query, &flags) {
             Ok(r) => r,
             Err(e) => {
                 self.mark_state.marks.clear();
@@ -2055,5 +2048,117 @@ mod tests {
         assert!(rope.get_byte_slice(4..6).is_none());
         assert!(rope.get_byte_slice(4..20).is_none());
         assert!(rope.get_byte_slice(4..7).is_some());
+    }
+
+    fn flags(regex: bool) -> SearchFlags {
+        SearchFlags {
+            regex,
+            extended: false,
+            whole_word: false,
+            match_case: true,
+            dot_matches_newline: false,
+        }
+    }
+
+    fn assert_on_boundaries(text: &str, got: &[Range<usize>]) {
+        for r in got {
+            assert!(r.start < r.end && r.end <= text.len(), "{r:?} in {text:?}");
+            assert!(text.is_char_boundary(r.start) && text.is_char_boundary(r.end), "{r:?} in {text:?}");
+        }
+    }
+
+    const EDGE_TEXTS: [&str; 6] = ["a\r\nb", "a\nb\n", "\n\n", "", "é中😀👨‍👩‍👧", "aé\r\n中a"];
+
+    #[test]
+    fn zero_width_patterns_yield_no_matches() {
+        for pat in ["^", "$", r"\b", "", "(?m)^$", "x*"] {
+            let re = search_regex(pat, &flags(true)).unwrap();
+            for text in EDGE_TEXTS {
+                assert!(collect_matches(text, &re, None).is_empty(), "{pat:?} on {text:?}");
+            }
+        }
+    }
+
+    #[test]
+    fn regex_matches_land_on_char_boundaries() {
+        for pat in ["a*", ".", ".+", "$\n", r"\w+", r"[^a]", r"\r?\n"] {
+            let re = search_regex(pat, &flags(true)).unwrap();
+            for text in EDGE_TEXTS {
+                let got = collect_matches(text, &re, None);
+                assert_on_boundaries(text, &got);
+            }
+        }
+        // `.` matches one char at a time, the ZWJ family's parts included.
+        let text = "é中😀👨‍👩‍👧";
+        let re = search_regex(".", &flags(true)).unwrap();
+        assert_eq!(collect_matches(text, &re, None).len(), text.chars().count());
+        // `a*` on "a\r\nb" finds the "a" and skips the empty hits.
+        let re = search_regex("a*", &flags(true)).unwrap();
+        assert_eq!(collect_matches("a\r\nb", &re, None), vec![0..1]);
+    }
+
+    #[test]
+    fn unsupported_regex_features_are_errors_not_panics() {
+        for pat in ["(?=x)", "(?<=a)b", "(?!a)", r"(a)\1", "(", "[z-a]", "a{2,1}"] {
+            assert!(search_regex(pat, &flags(true)).is_err(), "{pat:?}");
+            // The same text is a plain literal outside regex mode.
+            assert!(search_regex(pat, &flags(false)).is_ok(), "{pat:?}");
+        }
+    }
+
+    #[test]
+    fn oversized_regex_is_rejected_quickly() {
+        let (tx, rx) = std::sync::mpsc::channel();
+        std::thread::spawn(move || {
+            let _ = tx.send(search_regex("(?:a{1000}){1000}", &flags(true)).is_err());
+        });
+        let rejected = rx.recv_timeout(std::time::Duration::from_secs(10)).expect("timed out");
+        assert!(rejected);
+    }
+
+    #[test]
+    fn whole_word_respects_multibyte_word_chars() {
+        let f = SearchFlags { whole_word: true, ..flags(false) };
+        let re = search_regex("é", &f).unwrap();
+        assert_eq!(collect_matches("café é", &re, None), vec![6..8]);
+    }
+
+    #[test]
+    fn match_case_off_folds_accented_letters() {
+        let off = SearchFlags { match_case: false, ..flags(false) };
+        let re = search_regex("É", &off).unwrap();
+        assert_eq!(collect_matches("é", &re, None), vec![0..2]);
+        let re = search_regex("É", &flags(false)).unwrap();
+        assert!(collect_matches("é", &re, None).is_empty());
+    }
+
+    #[test]
+    fn malformed_extended_escapes_compile_and_search() {
+        let ext = SearchFlags { extended: true, ..flags(false) };
+        for q in [r"\x", r"\xZZ", r"\u12", r"\o999", r"\d999", r"\b2", "a\\"] {
+            let re = search_regex(q, &ext).unwrap();
+            for text in EDGE_TEXTS {
+                assert_on_boundaries(text, &collect_matches(text, &re, None));
+            }
+        }
+    }
+
+    #[test]
+    fn degenerate_scopes_and_empty_documents() {
+        let re = literal("a");
+        // Empty, reversed and past-the-end scopes.
+        assert!(collect_matches("aaa", &re, Some(&(1..1))).is_empty());
+        #[allow(clippy::reversed_empty_ranges)]
+        let reversed = 3..1;
+        assert!(collect_matches("aaa", &re, Some(&reversed)).is_empty());
+        assert_eq!(collect_matches("aaa", &re, Some(&(2..100))), vec![2..3]);
+        assert!(collect_matches("aaa", &re, Some(&(50..100))).is_empty());
+        // Empty document.
+        assert!(collect_matches("", &re, None).is_empty());
+        assert!(collect_matches("", &re, Some(&(0..5))).is_empty());
+        assert_eq!(step_target(&[], None, 0, true, true), None);
+        // An empty query compiles to an empty pattern: no matches, no loop.
+        let re = search_regex("", &flags(false)).unwrap();
+        assert!(collect_matches("abc", &re, None).is_empty());
     }
 }

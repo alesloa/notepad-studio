@@ -3,12 +3,15 @@
 // Lives at `<config>/Notepad Studio/session.toml` (manifest) and
 // `<config>/Notepad Studio/session/<uuid>.bak` (one per dirty / untitled tab).
 //
-// Atomic write: every save goes to `<path>.tmp` first then renames. A crash
-// mid-write leaves the prior session intact.
+// Atomic write: every save goes to `<path>.tmp` first, is synced, then
+// renames over the old file (`persist::atomic_write`). A crash or a full
+// disk mid-write leaves the prior session intact.
 //
 // Crash-recovery falls out for free: clean exits with no remaining dirty
 // tabs clear the session dir; otherwise the manifest survives and the next
-// launch restores from it.
+// launch restores from it. A manifest that is damaged keeps every tab entry
+// that still parses, and any autosave it no longer points at comes back as
+// an untitled tab instead of being reaped by the next save.
 
 use std::collections::BTreeSet;
 use std::fs;
@@ -20,8 +23,12 @@ use gpui::SharedString;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
-use crate::buffer::{Buffer, Selection, deserialize_undo_stack, serialize_undo_stack};
+use crate::buffer::{
+    Buffer, Selection, deserialize_undo_stack, floor_char_boundary, retain_replayable_undo,
+    serialize_undo_stack,
+};
 use crate::consts::APP_NAME;
+use crate::persist;
 use crate::syntax::LanguageId;
 use crate::tab::{ClosedTab, Tab};
 use crate::text::encoding::Encoding;
@@ -212,19 +219,134 @@ fn bak_dir() -> Option<PathBuf> {
 }
 
 fn bak_path(id: Uuid) -> Option<PathBuf> {
-    bak_dir().map(|d| d.join(format!("{id}.bak")))
+    bak_dir().map(|d| bak_path_in(&d, id))
+}
+
+fn bak_path_in(dir: &Path, id: Uuid) -> PathBuf {
+    dir.join(format!("{id}.bak"))
 }
 
 fn undo_path(id: Uuid) -> Option<PathBuf> {
-    bak_dir().map(|d| d.join(format!("{id}.undo")))
+    bak_dir().map(|d| undo_path_in(&d, id))
+}
+
+fn undo_path_in(dir: &Path, id: Uuid) -> PathBuf {
+    dir.join(format!("{id}.undo"))
 }
 
 // ---- Manifest read / write ------------------------------------------------
 
 pub(crate) fn load_manifest() -> Option<SessionManifest> {
     let path = manifest_path()?;
-    let raw = fs::read_to_string(&path).ok()?;
-    toml::from_str(&raw).ok()
+    let dir = bak_dir()?;
+    load_manifest_at(&path, &dir)
+}
+
+/// Read the manifest at `path`. A manifest that no longer matches the
+/// format keeps every field and tab entry that still parses; one that
+/// isn't TOML is moved aside to `session.toml.corrupt`.
+///
+/// Autosaves in `bak_dir` that the manifest doesn't point at come back as
+/// untitled tabs. A save writes the `.bak` files before the manifest and
+/// then reaps every `.bak` the manifest doesn't list, so an unlisted one
+/// means the manifest was lost, damaged, emptied by a crash, or never
+/// written; it may hold the only copy of what the user typed.
+fn load_manifest_at(path: &Path, bak_dir: &Path) -> Option<SessionManifest> {
+    let loaded = persist::load_toml(path, salvage_manifest, SessionManifest::default);
+    let found = !matches!(loaded, persist::Loaded::Missing);
+    let manifest = loaded.into_option().unwrap_or_default();
+    let manifest = recover_unreferenced_baks(manifest, bak_dir);
+    if !found && manifest.tabs.is_empty() {
+        return None;
+    }
+    Some(manifest)
+}
+
+/// Field-by-field salvage of a manifest that parsed as TOML but not as a
+/// `SessionManifest`: one bad tab entry costs that entry, one bad field in
+/// an entry costs that field.
+fn salvage_manifest(table: &toml::Table) -> SessionManifest {
+    let mut top = table.clone();
+    let tabs = top.remove("tabs");
+    let closed = top.remove("closed_tabs");
+    let mut manifest: SessionManifest = persist::salvage_table(&top, &[]).unwrap_or_default();
+    let (tabs, dropped_tabs) = persist::salvage_array::<SessionTab>(tabs.as_ref(), &["id"]);
+    let (closed, dropped_closed) =
+        persist::salvage_array::<SessionClosedTab>(closed.as_ref(), &["id"]);
+    if dropped_tabs + dropped_closed > 0 {
+        eprintln!("[session] dropped {dropped_tabs} tab and {dropped_closed} closed-tab entries");
+    }
+    manifest.tabs = tabs;
+    manifest.closed_tabs = closed;
+    manifest
+}
+
+/// Append an untitled, dirty tab for every non-empty `<uuid>.bak` in
+/// `bak_dir` that `manifest` doesn't reference, oldest first.
+fn recover_unreferenced_baks(mut manifest: SessionManifest, bak_dir: &Path) -> SessionManifest {
+    let referenced: BTreeSet<Uuid> = manifest
+        .tabs
+        .iter()
+        .map(|t| t.id)
+        .chain(manifest.closed_tabs.iter().map(|c| c.id))
+        .collect();
+    let Ok(entries) = fs::read_dir(bak_dir) else {
+        return manifest;
+    };
+    let mut orphans: Vec<(std::time::SystemTime, Uuid)> = entries
+        .flatten()
+        .filter_map(|entry| {
+            let path = entry.path();
+            if path.extension().and_then(|e| e.to_str()) != Some("bak") {
+                return None;
+            }
+            let id = Uuid::parse_str(path.file_stem()?.to_str()?).ok()?;
+            if referenced.contains(&id) {
+                return None;
+            }
+            let meta = entry.metadata().ok()?;
+            if meta.len() == 0 {
+                return None;
+            }
+            Some((meta.modified().unwrap_or(UNIX_EPOCH), id))
+        })
+        .collect();
+    orphans.sort();
+    let mut labels: Vec<SharedString> = manifest
+        .tabs
+        .iter()
+        .filter_map(|t| t.new_label.clone().map(SharedString::from))
+        .collect();
+    // The `.bak` holds the rope; the line ending and encoding it was going
+    // to be saved with were in the lost entry, so use the new-document ones.
+    let line_ending =
+        LineEndingTag::from_line_ending(crate::settings::resolved_default_line_ending());
+    let encoding = EncodingTag::from_encoding(crate::settings::resolved_default_encoding());
+    for (_, id) in orphans {
+        let label = crate::buffer::next_new_label_for(labels.iter().map(Some));
+        eprintln!("[session] recovered autosave {id} as {label}");
+        manifest.tabs.push(SessionTab {
+            id,
+            path: None,
+            dirty: true,
+            line_ending,
+            encoding,
+            language: None,
+            cursor_anchor: 0,
+            cursor_head: 0,
+            scroll_top: 0.0,
+            scroll_left: 0.0,
+            bookmarks: Vec::new(),
+            original_mtime: None,
+            new_label: Some(label.to_string()),
+            read_only: false,
+            tab_color: None,
+            is_changelog: false,
+            markdown_preview: false,
+        });
+        labels.push(label);
+    }
+    manifest
 }
 
 fn ensure_dirs() -> io::Result<()> {
@@ -237,36 +359,13 @@ fn ensure_dirs() -> io::Result<()> {
     Ok(())
 }
 
-fn atomic_write_string(path: &Path, contents: &str) -> io::Result<()> {
-    let mut tmp = path.to_path_buf();
-    tmp.set_extension(match path.extension().and_then(|e| e.to_str()) {
-        Some(ext) => format!("{ext}.tmp"),
-        None => "tmp".into(),
-    });
-    fs::write(&tmp, contents)?;
-    fs::rename(&tmp, path)?;
-    Ok(())
-}
-
-fn atomic_write_bytes(path: &Path, contents: &[u8]) -> io::Result<()> {
-    let mut tmp = path.to_path_buf();
-    tmp.set_extension(match path.extension().and_then(|e| e.to_str()) {
-        Some(ext) => format!("{ext}.tmp"),
-        None => "tmp".into(),
-    });
-    fs::write(&tmp, contents)?;
-    fs::rename(&tmp, path)?;
-    Ok(())
-}
-
 pub(crate) fn write_manifest(manifest: &SessionManifest) -> io::Result<()> {
     ensure_dirs()?;
     let Some(path) = manifest_path() else {
         return Ok(());
     };
-    let serialized = toml::to_string_pretty(manifest)
-        .map_err(|e| io::Error::new(io::ErrorKind::Other, e.to_string()))?;
-    atomic_write_string(&path, &serialized)
+    let serialized = toml::to_string_pretty(manifest).map_err(io::Error::other)?;
+    persist::atomic_write(&path, serialized.as_bytes())
 }
 
 pub(crate) fn write_bak(id: Uuid, contents: &str) -> io::Result<()> {
@@ -274,12 +373,22 @@ pub(crate) fn write_bak(id: Uuid, contents: &str) -> io::Result<()> {
     let Some(path) = bak_path(id) else {
         return Ok(());
     };
-    atomic_write_bytes(&path, contents.as_bytes())
+    persist::atomic_write(&path, contents.as_bytes())
 }
 
 pub(crate) fn read_bak(id: Uuid) -> Option<String> {
-    let path = bak_path(id)?;
-    fs::read_to_string(&path).ok()
+    read_bak_in(&bak_dir()?, id)
+}
+
+/// The `.bak` is written from the rope, so it is UTF-8. If it was damaged
+/// on disk, keep what's readable rather than calling the autosave missing,
+/// which would let the next save reap it.
+fn read_bak_in(dir: &Path, id: Uuid) -> Option<String> {
+    let raw = fs::read(bak_path_in(dir, id)).ok()?;
+    Some(match String::from_utf8(raw) {
+        Ok(text) => text,
+        Err(err) => String::from_utf8_lossy(err.as_bytes()).into_owned(),
+    })
 }
 
 pub(crate) fn delete_bak(id: Uuid) {
@@ -300,12 +409,11 @@ pub(crate) fn write_undo(id: Uuid, bytes: &[u8]) -> io::Result<()> {
         let _ = fs::remove_file(&path);
         return Ok(());
     }
-    atomic_write_bytes(&path, bytes)
+    persist::atomic_write(&path, bytes)
 }
 
-pub(crate) fn read_undo(id: Uuid) -> Option<Vec<u8>> {
-    let path = undo_path(id)?;
-    fs::read(&path).ok()
+fn read_undo_in(dir: &Path, id: Uuid) -> Option<Vec<u8>> {
+    fs::read(undo_path_in(dir, id)).ok()
 }
 
 pub(crate) fn delete_undo(id: Uuid) {
@@ -425,10 +533,54 @@ pub(crate) enum RestoreOutcome {
 /// from the file path. Restore best-effort — corrupt or missing sources
 /// produce `Skipped(reason)` instead of failing the whole session.
 pub(crate) fn restore_tab(entry: &SessionTab) -> RestoreOutcome {
+    let Some(dir) = bak_dir() else {
+        return RestoreOutcome::Skipped("no config directory".to_string());
+    };
+    restore_tab_in(entry, &dir)
+}
+
+/// Contents of a clean disk-backed tab, read the way File ▸ Open reads it.
+struct CleanFile {
+    rope: ropey::Rope,
+    line_ending: LineEnding,
+    encoding: Encoding,
+    /// Some bytes couldn't be decoded; the tab opens read-only, as on open.
+    lossy: bool,
+}
+
+/// Read `path` for a clean tab. The encoding and line ending come from the
+/// bytes, as on File ▸ Open, not from the manifest: the file can have
+/// changed since, and a UTF-16 or Latin-1 file isn't valid UTF-8 at all.
+/// Folders and files past the open-size guard are refused, since restore
+/// runs before the window shows and can't ask.
+fn read_clean_file(path: &Path) -> Result<CleanFile, String> {
+    let shown = path.display();
+    let meta = fs::metadata(path).map_err(|err| format!("couldn't reopen {shown}: {err}"))?;
+    if meta.is_dir() {
+        return Err(format!("{shown} is a folder"));
+    }
+    if meta.len() >= crate::io_stream::HUGE_FILE_WARNING_BYTES {
+        return Err(format!(
+            "{shown} is too large to reopen automatically; open it from File ▸ Open"
+        ));
+    }
+    let raw = fs::read(path).map_err(|err| format!("couldn't reopen {shown}: {err}"))?;
+    let decoded = crate::text::encoding::decode_bytes(&raw);
+    drop(raw);
+    let (line_ending, text) = crate::text::line_ending::split_line_endings(decoded.text);
+    Ok(CleanFile {
+        rope: ropey::Rope::from_str(&text),
+        line_ending,
+        encoding: decoded.encoding,
+        lossy: decoded.lossy,
+    })
+}
+
+fn restore_tab_in(entry: &SessionTab, bak_dir: &Path) -> RestoreOutcome {
     // Rich-document tabs (DOCX / RTF / ODT / DOC) re-parse from disk on
     // restore. The disk file is a binary container (zip for DOCX/ODT,
     // bespoke encoding for RTF/DOC), so the plain-text restore paths
-    // below — `fs::read_to_string` on a clean tab, or the .bak which
+    // below — decoding a clean tab's bytes as text, or the .bak which
     // only holds the rope's extracted XML — can't reconstruct the
     // rich_doc payload. Without that payload `Buffer::is_rich_doc()`
     // returns false, the toolbar greys out the Doc View / Raw View
@@ -445,6 +597,11 @@ pub(crate) fn restore_tab(entry: &SessionTab) -> RestoreOutcome {
         .filter(|p| crate::rich_doc::detect_format(p).is_some())
         .and_then(|p| crate::rich_doc::open(p).ok());
 
+    // Line ending and encoding default to what the manifest recorded, which
+    // is what a `.bak` (the rope as it was) is saved back with.
+    let mut line_ending = entry.line_ending.into_line_ending();
+    let mut encoding = entry.encoding.into_encoding();
+    let mut lossy = false;
     let (rope, dirty) = if let Some(p) = rich_doc_payload.as_ref() {
         // Rope mirrors raw_view_text so the Raw View source pane stays
         // in sync with the parsed AST. Clean (no .bak) — re-parsing
@@ -454,7 +611,7 @@ pub(crate) fn restore_tab(entry: &SessionTab) -> RestoreOutcome {
             crate::text::line_ending::normalize_to_lf(p.raw_view_text.clone(), le);
         (ropey::Rope::from_str(&normalized), false)
     } else if entry.dirty {
-        match read_bak(entry.id) {
+        match read_bak_in(bak_dir, entry.id) {
             Some(s) => (ropey::Rope::from_str(&s), true),
             None => {
                 let label = entry
@@ -467,18 +624,14 @@ pub(crate) fn restore_tab(entry: &SessionTab) -> RestoreOutcome {
             }
         }
     } else if let Some(path) = entry.path.as_ref() {
-        match fs::read_to_string(path) {
-            Ok(s) => {
-                let le = entry.line_ending.into_line_ending();
-                let normalized = crate::text::line_ending::normalize_to_lf(s, le);
-                (ropey::Rope::from_str(&normalized), false)
+        match read_clean_file(path) {
+            Ok(file) => {
+                line_ending = file.line_ending;
+                encoding = file.encoding;
+                lossy = file.lossy;
+                (file.rope, false)
             }
-            Err(err) => {
-                return RestoreOutcome::Skipped(format!(
-                    "couldn't reopen {}: {err}",
-                    path.display()
-                ));
-            }
+            Err(reason) => return RestoreOutcome::Skipped(reason),
         }
     } else {
         // No path AND not dirty — nothing to restore.
@@ -498,15 +651,17 @@ pub(crate) fn restore_tab(entry: &SessionTab) -> RestoreOutcome {
         rope,
         file_path: entry.path.clone(),
         dirty,
-        line_ending: entry.line_ending.into_line_ending(),
-        encoding: entry.encoding.into_encoding(),
+        line_ending,
+        encoding,
         bookmarks,
         marks: Vec::new(),
         language: entry.language,
         highlights: Vec::new(),
         loading: None,
         new_label: entry.new_label.clone().map(SharedString::from),
-        read_only: entry.read_only,
+        // A lossy decode can't be saved back without rewriting the bad
+        // bytes, so it opens read-only as File ▸ Open does.
+        read_only: entry.read_only || lossy,
         tab_color: entry.tab_color,
         is_changelog: entry.is_changelog,
         rich_doc: rich_doc_payload,
@@ -538,27 +693,35 @@ pub(crate) fn restore_tab(entry: &SessionTab) -> RestoreOutcome {
     // to the same `.bak` after restore.
     tab.session_id = entry.id;
 
-    let head = entry.cursor_head.min(total);
-    let anchor = entry.cursor_anchor.min(total);
+    // The file may be shorter, or different, than when the caret was saved.
+    let rope = &tab.buffer.rope;
     tab.selection = Selection {
-        anchor,
-        head,
+        anchor: floor_char_boundary(rope, entry.cursor_anchor),
+        head: floor_char_boundary(rope, entry.cursor_head),
         is_dragging: false,
     };
-    tab.scroll_top = gpui::px(entry.scroll_top.max(0.0));
-    tab.scroll_left = gpui::px(entry.scroll_left.max(0.0));
+    tab.scroll_top = gpui::px(restored_scroll(entry.scroll_top));
+    tab.scroll_left = gpui::px(restored_scroll(entry.scroll_left));
 
     // Restore the per-tab undo history. Rich-doc tabs re-parse from disk so
     // there's no rope-level undo to restore; everything else gets whatever
-    // was last persisted alongside the `.bak`. Malformed payloads yield an
+    // was last persisted alongside the `.bak`, minus any entries that don't
+    // undo against the text actually restored. Malformed payloads yield an
     // empty stack rather than failing the restore.
     if !is_rich_doc_restore {
-        if let Some(bytes) = read_undo(entry.id) {
-            tab.undo_stack = deserialize_undo_stack(&bytes);
+        if let Some(bytes) = read_undo_in(bak_dir, entry.id) {
+            tab.undo_stack =
+                retain_replayable_undo(deserialize_undo_stack(&bytes), &tab.buffer.rope);
         }
     }
 
     RestoreOutcome::Restored(tab)
+}
+
+/// A saved scroll offset, or 0 for a negative, NaN or infinite one from a
+/// damaged or hand-edited manifest.
+fn restored_scroll(v: f32) -> f32 {
+    if v.is_finite() { v.max(0.0) } else { 0.0 }
 }
 
 /// Reconstruct a `ClosedTab` from a manifest entry. Closed-tab content is
@@ -792,7 +955,7 @@ pub(crate) fn write_save_backup(
     };
 
     let target_name = match mode {
-        BackupOnSaveMode::None => unreachable!(),
+        BackupOnSaveMode::None => return Ok(()),
         BackupOnSaveMode::Simple => {
             // `<filename>.bak` — overwrite each save.
             let mut s = file_name.to_os_string();
@@ -851,4 +1014,216 @@ fn verbose_stamp() -> String {
         "{:04}-{:02}-{:02}_{:02}{:02}{:02}",
         year, m, d, hh, mm, ss
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::buffer::{EditOp, UndoEntry};
+    use crate::persist::TempDir;
+    use crate::text::encoding;
+    use crate::text::line_ending::rope_to_bytes;
+
+    fn entry(id: Uuid, path: Option<PathBuf>, dirty: bool) -> SessionTab {
+        SessionTab {
+            id,
+            path,
+            dirty,
+            line_ending: LineEndingTag::Lf,
+            encoding: EncodingTag::Utf8,
+            language: None,
+            cursor_anchor: 0,
+            cursor_head: 0,
+            scroll_top: 0.0,
+            scroll_left: 0.0,
+            bookmarks: Vec::new(),
+            original_mtime: None,
+            new_label: None,
+            read_only: false,
+            tab_color: None,
+            is_changelog: false,
+            markdown_preview: false,
+        }
+    }
+
+    fn restored(e: &SessionTab, dir: &Path) -> Tab {
+        match restore_tab_in(e, dir) {
+            RestoreOutcome::Restored(tab) => tab,
+            RestoreOutcome::Skipped(reason) => panic!("skipped: {reason}"),
+        }
+    }
+
+    /// What Save writes for `tab`, as in `Workspace::write_active_inner`.
+    fn saved_bytes(tab: &Tab) -> Vec<u8> {
+        let utf8 = rope_to_bytes(&tab.buffer.rope, tab.buffer.line_ending);
+        let text = String::from_utf8(utf8).unwrap_or_default();
+        encoding::encode_checked(&text, tab.buffer.encoding).unwrap_or_default()
+    }
+
+    #[test]
+    fn clean_tabs_reopen_in_any_encoding_and_save_byte_identical() {
+        // Regression: restore read clean files with `read_to_string` and
+        // the manifest's line ending. UTF-16 and Latin-1 files failed to
+        // decode and were dropped from the session, and a UTF-8 BOM file
+        // kept U+FEFF in the text, so the next save wrote the BOM twice.
+        let dir = TempDir::new("session-restore-enc");
+        let mut utf16le = vec![0xFF, 0xFE];
+        utf16le.extend("a\r\nb\u{e9}\r\n".encode_utf16().flat_map(|u| u.to_le_bytes()));
+        let mut utf16be = vec![0xFE, 0xFF];
+        utf16be.extend("x\ny".encode_utf16().flat_map(|u| u.to_be_bytes()));
+        let cases: Vec<(&str, Vec<u8>, EncodingTag, LineEndingTag)> = vec![
+            ("bom.txt", b"\xEF\xBB\xBFone\r\ntwo\r\n".to_vec(), EncodingTag::Utf8Bom, LineEndingTag::Crlf),
+            ("le.txt", utf16le, EncodingTag::Utf16Le, LineEndingTag::Crlf),
+            ("be.txt", utf16be, EncodingTag::Utf16Be, LineEndingTag::Lf),
+            ("latin1.txt", b"caf\xE9\nna\xEFve\n".to_vec(), EncodingTag::Latin1, LineEndingTag::Lf),
+            ("mixed.txt", b"a\r\nb\nc\rd".to_vec(), EncodingTag::Utf8, LineEndingTag::Crlf),
+        ];
+        for (name, bytes, enc, eol) in cases {
+            let path = dir.join(name);
+            assert!(fs::write(&path, &bytes).is_ok());
+            let mut e = entry(Uuid::new_v4(), Some(path), false);
+            e.encoding = enc;
+            e.line_ending = eol;
+            let tab = restored(&e, dir.path());
+            assert!(!tab.buffer.read_only, "{name}");
+            assert_eq!(saved_bytes(&tab), bytes, "{name}: save changed the bytes");
+        }
+    }
+
+    #[test]
+    fn undecodable_clean_file_reopens_read_only() {
+        let dir = TempDir::new("session-restore-lossy");
+        let path = dir.join("bad16.txt");
+        // UTF-16LE with a lone high surrogate.
+        assert!(fs::write(&path, [0xFF, 0xFE, 0x00, 0xD8, 0x41, 0x00]).is_ok());
+        let tab = restored(&entry(Uuid::new_v4(), Some(path), false), dir.path());
+        assert!(tab.buffer.read_only);
+    }
+
+    #[test]
+    fn folders_and_missing_files_are_skipped() {
+        let dir = TempDir::new("session-restore-skip");
+        let folder = dir.join("folder.txt");
+        assert!(fs::create_dir(&folder).is_ok());
+        for path in [folder, dir.join("gone.txt")] {
+            let e = entry(Uuid::new_v4(), Some(path), false);
+            assert!(matches!(restore_tab_in(&e, dir.path()), RestoreOutcome::Skipped(_)));
+        }
+    }
+
+    #[test]
+    fn damaged_autosave_is_restored_not_dropped() {
+        let dir = TempDir::new("session-restore-bak");
+        let id = Uuid::new_v4();
+        assert!(fs::write(bak_path_in(dir.path(), id), b"draft \xFF text").is_ok());
+        let tab = restored(&entry(id, None, true), dir.path());
+        assert_eq!(tab.buffer.rope.to_string(), "draft \u{FFFD} text");
+        assert!(tab.buffer.dirty);
+    }
+
+    #[test]
+    fn saved_caret_and_scroll_are_made_safe() {
+        // Regression: the caret was clamped to the length but not to a
+        // char boundary, so a file that changed under a saved caret put
+        // it inside a character.
+        let dir = TempDir::new("session-restore-caret");
+        let path = dir.join("e.txt");
+        assert!(fs::write(&path, "é").is_ok());
+        let mut e = entry(Uuid::new_v4(), Some(path), false);
+        e.cursor_head = 1;
+        e.cursor_anchor = usize::MAX;
+        e.scroll_top = f32::NAN;
+        e.scroll_left = f32::INFINITY;
+        let tab = restored(&e, dir.path());
+        assert_eq!((tab.selection.anchor, tab.selection.head), (2, 0));
+        assert_eq!(f32::from(tab.scroll_top), 0.0);
+        assert_eq!(f32::from(tab.scroll_left), 0.0);
+    }
+
+    #[test]
+    fn undo_recorded_on_other_text_is_not_restored() {
+        let dir = TempDir::new("session-restore-undo");
+        let path = dir.join("u.txt");
+        assert!(fs::write(&path, "éé").is_ok());
+        let id = Uuid::new_v4();
+        let stale = vec![UndoEntry::Single(EditOp {
+            byte_start: 1,
+            removed: String::new(),
+            inserted: "xy".into(),
+            sel_before_anchor: 1,
+            sel_before_head: 1,
+        })];
+        assert!(fs::write(undo_path_in(dir.path(), id), serialize_undo_stack(&stale)).is_ok());
+        let tab = restored(&entry(id, Some(path), false), dir.path());
+        assert!(tab.undo_stack.is_empty());
+    }
+
+    fn write_manifest_text(dir: &TempDir, text: &str) -> (PathBuf, PathBuf) {
+        let manifest = dir.join("session.toml");
+        let baks = dir.join("session");
+        assert!(fs::create_dir_all(&baks).is_ok());
+        assert!(fs::write(&manifest, text).is_ok());
+        (manifest, baks)
+    }
+
+    #[test]
+    fn one_bad_entry_does_not_lose_the_session() {
+        // Regression: one value the schema rejected made the whole manifest
+        // unreadable, the window opened empty, and the first save reaped
+        // every autosave the manifest pointed at.
+        let dir = TempDir::new("session-salvage");
+        let good = Uuid::new_v4();
+        let bent = Uuid::new_v4();
+        let orphan = Uuid::new_v4();
+        let text = format!(
+            "active = 1\nword_wrap = true\n\n\
+             [[tabs]]\nid = \"{good}\"\ndirty = true\nnew_label = \"new 1\"\n\n\
+             [[tabs]]\nid = \"{bent}\"\ndirty = true\ncursor_head = -4\nline_ending = \"sideways\"\n\n\
+             [[tabs]]\ndirty = true\n"
+        );
+        let (manifest_path, baks) = write_manifest_text(&dir, &text);
+        assert!(toml::from_str::<SessionManifest>(&text).is_err());
+        assert!(fs::write(bak_path_in(&baks, good), "kept").is_ok());
+        assert!(fs::write(bak_path_in(&baks, bent), "bent").is_ok());
+        assert!(fs::write(bak_path_in(&baks, orphan), "only copy").is_ok());
+
+        let Some(m) = load_manifest_at(&manifest_path, &baks) else {
+            panic!("session lost");
+        };
+        assert!(m.word_wrap);
+        assert_eq!(m.active, 1);
+        let ids: Vec<Uuid> = m.tabs.iter().map(|t| t.id).collect();
+        assert_eq!(ids, vec![good, bent, orphan]);
+        assert_eq!(m.tabs.get(1).map(|t| t.cursor_head), Some(0));
+        let recovered = m.tabs.get(2).map(|t| (t.dirty, t.path.clone(), t.new_label.clone()));
+        assert_eq!(recovered, Some((true, None, Some("new 2".to_string()))));
+        let Some(t) = m.tabs.get(2) else { panic!("no recovered tab") };
+        assert_eq!(restored(t, &baks).buffer.rope.to_string(), "only copy");
+        assert!(manifest_path.exists(), "a salvageable manifest isn't moved");
+    }
+
+    #[test]
+    fn unreadable_manifest_is_kept_aside_and_autosaves_recovered() {
+        let dir = TempDir::new("session-quarantine");
+        let (manifest_path, baks) = write_manifest_text(&dir, "[[tabs]\nid = ");
+        let orphan = Uuid::new_v4();
+        assert!(fs::write(bak_path_in(&baks, orphan), "draft").is_ok());
+        assert!(fs::write(bak_path_in(&baks, Uuid::new_v4()), "").is_ok());
+        let Some(m) = load_manifest_at(&manifest_path, &baks) else {
+            panic!("autosave lost");
+        };
+        assert_eq!(m.tabs.iter().map(|t| t.id).collect::<Vec<_>>(), vec![orphan]);
+        assert!(dir.join("session.toml.corrupt").exists());
+    }
+
+    #[test]
+    fn no_manifest_and_no_autosaves_is_no_session() {
+        let dir = TempDir::new("session-none");
+        let baks = dir.join("session");
+        assert!(load_manifest_at(&dir.join("session.toml"), &baks).is_none());
+        // A manifest that reads cleanly comes back untouched.
+        let (manifest_path, baks) = write_manifest_text(&dir, "active = 0\n");
+        let m = load_manifest_at(&manifest_path, &baks);
+        assert!(matches!(m, Some(ref m) if m.tabs.is_empty()));
+    }
 }

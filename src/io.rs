@@ -11,6 +11,7 @@
 use std::path::{Path, PathBuf};
 
 use gpui::{AsyncWindowContext, Context, WeakEntity, Window};
+use uuid::Uuid;
 
 use crate::actions::{
     FileNew, FileOpen, FileOpenFolderAsWorkspace, FileSave, FileSaveAll, FileSaveAs,
@@ -33,22 +34,36 @@ impl Workspace {
     /// hasn't typed into. Opening into such a tab replaces it instead of
     /// stacking another empty next to it — matches Notepad++.
     fn active_is_pristine_empty(&self) -> bool {
-        let tab = &self.tabs[self.active];
+        let Some(tab) = self.tabs.get(self.active) else {
+            return false;
+        };
         tab.buffer.rope.len_bytes() == 0
             && tab.buffer.file_path.is_none()
             && !tab.buffer.dirty
     }
 
     /// Replace the active tab's buffer with `buffer` (used after Open lands a
-    /// file in a pristine empty tab). Resets selection and undo history so
-    /// the load is a clean slate.
+    /// file in a pristine empty tab). Everything tied to the old text goes,
+    /// so the load is a clean slate.
     fn replace_active_buffer(&mut self, buffer: Buffer) {
-        let tab = self.active_tab_mut();
-        tab.buffer = buffer;
-        tab.selection = Selection::default();
-        tab.desired_col_x = None;
-        tab.undo_stack.clear();
-        tab.redo_stack.clear();
+        reset_tab_with(self.active_tab_mut(), buffer);
+    }
+
+    /// Run `f` with the tab whose `session_id` is `id` made active, then
+    /// make the tab that was active before active again. `None` when the
+    /// tab was closed, e.g. while a Save As dialog was open: the tab list
+    /// can change under an await, so an index captured before it may now
+    /// name another tab.
+    fn with_tab_active<R>(&mut self, id: Uuid, f: impl FnOnce(&mut Self) -> R) -> Option<R> {
+        let idx = self.tabs.iter().position(|t| t.session_id == id)?;
+        let prev = self.tabs.get(self.active).map(|t| t.session_id);
+        self.active = idx;
+        let result = f(self);
+        let back = prev.and_then(|p| self.tabs.iter().position(|t| t.session_id == p));
+        if let Some(back) = back {
+            self.active = back;
+        }
+        Some(result)
     }
 
     fn append_buffer_as_tab(&mut self, buffer: Buffer) {
@@ -244,13 +259,8 @@ impl Workspace {
         // Replace an existing changelog tab in place — happens on a
         // version bump where the prior version's changelog is still in
         // the restored session.
-        if let Some(idx) = self.tabs.iter().position(|t| t.buffer.is_changelog) {
-            let tab = &mut self.tabs[idx];
-            tab.buffer = buffer;
-            tab.selection = Selection::default();
-            tab.desired_col_x = None;
-            tab.undo_stack.clear();
-            tab.redo_stack.clear();
+        if let Some(tab) = self.tabs.iter_mut().find(|t| t.buffer.is_changelog) {
+            reset_tab_with(tab, buffer);
         } else if self.active_is_pristine_empty() && self.tabs.len() == 1 {
             // Steal focus only when the workspace currently has nothing
             // the user cares about — a single pristine empty tab.
@@ -518,6 +528,11 @@ impl Workspace {
     }
 
     pub(crate) fn save_active_as(&mut self, _: &FileSaveAs, window: &mut Window, cx: &mut Context<Self>) {
+        // The dialog is async and the user can switch tabs while it's open:
+        // remember which tab asked.
+        let Some(tab_id) = self.tabs.get(self.active).map(|t| t.session_id) else {
+            return;
+        };
         let active_dir = self
             .buffer()
             .file_path
@@ -551,8 +566,10 @@ impl Workspace {
             crate::settings::record_last_used_directory(&path);
             let refused = this
                 .update(cx, |w, cx| {
-                    let active = w.active;
-                    w.save_target_open_elsewhere(&path, active, cx)
+                    match w.tabs.iter().position(|t| t.session_id == tab_id) {
+                        Some(saving) => w.save_target_open_elsewhere(&path, saving, cx),
+                        None => false,
+                    }
                 })
                 .unwrap_or(false);
             if refused {
@@ -560,14 +577,21 @@ impl Workspace {
                 return;
             }
             this.update(cx, |w, cx| {
-                let saved = match w.save_active_to_new_path(path.clone()) {
-                    Ok(()) => {
-                        let name = w.buffer().display_short_name().to_string();
+                let outcome = w.with_tab_active(tab_id, |w| {
+                    w.save_active_to_new_path(path.clone())
+                        .map(|()| w.buffer().display_short_name().to_string())
+                });
+                let saved = match outcome {
+                    Some(Ok(name)) => {
                         w.set_status(format!("Saved {name}"));
                         true
                     }
-                    Err(err) => {
+                    Some(Err(err)) => {
                         w.set_status(format!("Save failed: {err}"));
+                        false
+                    }
+                    None => {
+                        w.set_status("Not saved: the tab was closed".to_string());
                         false
                     }
                 };
@@ -1014,10 +1038,10 @@ pub(crate) async fn save_tab_for_close(
                 .and_then(|p| p.file_name())
                 .map(|n| n.to_string_lossy().into_owned())
                 .unwrap_or_else(|| "Untitled.txt".to_string());
-            Some((tab.buffer.file_path.is_some(), starting, suggested))
+            Some((tab.session_id, tab.buffer.file_path.is_some(), starting, suggested))
         })
         .map_err(|e| e.to_string())?;
-    let Some((has_path, starting, suggested)) = snap else {
+    let Some((tab_id, has_path, starting, suggested)) = snap else {
         return Err("tab gone".to_string());
     };
 
@@ -1040,22 +1064,23 @@ pub(crate) async fn save_tab_for_close(
 
     workspace
         .update(cx, |w, cx| {
-            if idx >= w.tabs.len() {
+            // Found again by id: tabs closed or moved while the dialog was
+            // open shift indices, and `idx` would save another tab's text.
+            let Some(now) = w.tabs.iter().position(|t| t.session_id == tab_id) else {
                 return Err("tab gone".to_string());
-            }
+            };
             if let Some(p) = new_path.as_deref() {
-                if w.open_tab_index_for(p).is_some_and(|other| other != idx) {
+                if w.open_tab_index_for(p).is_some_and(|other| other != now) {
                     return Err(crate::workspace::already_open_message());
                 }
             }
-            let prev = w.active;
-            w.active = idx;
             let recorded = new_path.clone();
-            let r = match new_path {
-                Some(p) => w.save_active_to_new_path(p),
-                None => w.write_active_to_disk(),
-            };
-            w.active = prev;
+            let r = w
+                .with_tab_active(tab_id, |w| match new_path {
+                    Some(p) => w.save_active_to_new_path(p),
+                    None => w.write_active_to_disk(),
+                })
+                .unwrap_or_else(|| Err("tab gone".to_string()));
             if r.is_ok() {
                 if let Some(p) = recorded {
                     recent::record_opened(p);
@@ -1067,10 +1092,49 @@ pub(crate) async fn save_tab_for_close(
         .map_err(|e| e.to_string())?
 }
 
+/// Point `tab` at a freshly loaded `buffer`, dropping everything tied to
+/// the text it held: carets, column selection, undo and redo, an open edit
+/// group, scroll, wrap geometry, the Begin/End Select marker. The tab keeps
+/// its identity (`session_id`, the autosave name).
+pub(crate) fn reset_tab_with(tab: &mut Tab, buffer: Buffer) {
+    let session_id = tab.session_id;
+    *tab = Tab::empty();
+    tab.session_id = session_id;
+    tab.buffer = buffer;
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
     use crate::persist::TempDir;
+
+    #[test]
+    fn reusing_a_tab_drops_state_tied_to_its_old_text() {
+        let mut tab = Tab::empty();
+        let id = tab.session_id;
+        tab.selection = Selection { anchor: 3, head: 9, is_dragging: false };
+        tab.block_selection = Some(crate::buffer::BlockSelection {
+            anchor_line: 4,
+            head_line: 7,
+            ..Default::default()
+        });
+        tab.begin_select_marker = Some(40);
+        tab.undo_stack.push(crate::buffer::UndoEntry::Group {
+            ops: Vec::new(),
+            sel_before_anchor: 3,
+            sel_before_head: 9,
+        });
+        let mut loaded = Buffer::empty();
+        loaded.rope = ropey::Rope::from_str("ab");
+        reset_tab_with(&mut tab, loaded);
+        assert_eq!(tab.session_id, id);
+        assert_eq!(tab.buffer.rope.len_bytes(), 2);
+        assert_eq!((tab.selection.anchor, tab.selection.head), (0, 0));
+        assert!(tab.begin_select_marker.is_none());
+        assert!(tab.undo_stack.is_empty());
+        assert!(tab.wrap_cache.is_none());
+        assert!(tab.block_selection.is_none());
+    }
 
     fn leftovers(dir: &Path) -> Vec<String> {
         std::fs::read_dir(dir)

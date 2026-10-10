@@ -31,7 +31,7 @@ use encoding_rs::{CoderResult, DecoderResult, UTF_8, UTF_16BE, UTF_16LE, WINDOWS
 use gpui::Context;
 
 use crate::app::menus::rebuild_menus;
-use crate::buffer::{Buffer, LoadProgress, Selection};
+use crate::buffer::{Buffer, LoadProgress};
 use crate::consts::APP_NAME;
 use crate::recent;
 use crate::tab::Tab;
@@ -504,13 +504,7 @@ fn start_streaming(
 
     let pristine = active_is_pristine_empty(workspace);
     match workspace.tabs.get_mut(workspace.active).filter(|_| pristine) {
-        Some(tab) => {
-            tab.buffer = empty_buffer;
-            tab.selection = Selection::default();
-            tab.desired_col_x = None;
-            tab.undo_stack.clear();
-            tab.redo_stack.clear();
-        }
+        Some(tab) => crate::io::reset_tab_with(tab, empty_buffer),
         None => {
             let mut tab = Tab::empty();
             tab.buffer = empty_buffer;
@@ -607,6 +601,7 @@ fn start_streaming(
                                 };
                                 tab.buffer.rope = ropey::Rope::new();
                                 tab.buffer.invalidate_flat_text();
+                                tab.wrap_cache = None;
                                 tab.buffer.encoding = next.encoding;
                                 if let Some(p) = tab.buffer.loading.as_mut() {
                                     p.bytes_read = 0;
@@ -636,6 +631,7 @@ fn start_streaming(
                             let len = tab.buffer.rope.len_chars();
                             tab.buffer.rope.insert(len, &text);
                             tab.buffer.invalidate_flat_text();
+                            tab.wrap_cache = None;
                         }
                         if let Some(p) = tab.buffer.loading.as_mut() {
                             p.bytes_read = bytes_read;
@@ -681,6 +677,7 @@ fn start_streaming(
                 return;
             };
             tab.buffer.invalidate_flat_text();
+            tab.wrap_cache = None;
             tab.buffer.line_ending = line_ending;
             tab.buffer.encoding = encoding;
             tab.buffer.loading = None;
@@ -757,6 +754,7 @@ fn abort_load(workspace: &mut Workspace, idx: usize, status: String) {
         tab.buffer.loading = None;
         tab.buffer.rope = ropey::Rope::new();
         tab.buffer.invalidate_flat_text();
+        tab.wrap_cache = None;
         tab.buffer.file_path = None;
         tab.buffer.new_label = Some(label);
         tab.buffer.read_only = false;

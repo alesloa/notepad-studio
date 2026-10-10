@@ -359,7 +359,11 @@ impl FieldId {
             | Self::PrintMarginRightMm
             | Self::PrintMarginBottomMm => Some((0, 50, 1)),
             Self::PrintHeaderFontSize | Self::PrintFooterFontSize => Some((6, 72, 1)),
-            Self::AutocompletionFromChars => Some((1, 9, 1)),
+            Self::AutocompletionFromChars => Some((
+                AUTOCOMPLETION_FROM_CHARS_MIN as i64,
+                AUTOCOMPLETION_FROM_CHARS_MAX as i64,
+                1,
+            )),
             _ => None,
         }
     }
@@ -1097,7 +1101,7 @@ impl PreferencesDialog {
     /// hidden, etc.) come straight off the on-disk snapshot — they're
     /// written by their own toggle handlers, never via this method.
     fn commit_all(&self) -> Settings {
-        let tab_width = parse_clamp(&self.fields.tab_width.text, 1).max(1);
+        let tab_width = parse_bounded(FieldId::TabWidth, &self.fields.tab_width.text, 1);
         let split_column =
             parse_clamp(&self.fields.split_column.text, DEFAULT_SPLIT_LINES_EDGE_COLUMN).max(1);
         let datetime_custom_format = if self.fields.datetime_format.text.trim().is_empty() {
@@ -1112,17 +1116,17 @@ impl PreferencesDialog {
             DEFAULT_RECENT_FILES_MAX as usize,
         )
         .min(RECENT_FILES_MAX_HARD_CAP as usize) as u32;
-        let caret_blink_rate_ms = (parse_clamp(
+        let caret_blink_rate_ms = parse_bounded_u32(
+            FieldId::CaretBlinkRateMs,
             &self.fields.caret_blink_rate.text,
-            DEFAULT_CARET_BLINK_RATE_MS as usize,
-        ) as u32)
-            .clamp(CARET_BLINK_RATE_MIN_MS, CARET_BLINK_RATE_MAX_MS);
+            DEFAULT_CARET_BLINK_RATE_MS,
+        );
         let default_directory_custom = self.fields.default_directory_custom.text.clone();
-        let backup_periodic_interval_ms = (parse_clamp(
+        let backup_periodic_interval_ms = parse_bounded_u32(
+            FieldId::BackupPeriodicIntervalMs,
             &self.fields.backup_periodic_interval_ms.text,
-            DEFAULT_BACKUP_PERIODIC_INTERVAL_MS as usize,
-        ) as u32)
-            .clamp(BACKUP_PERIODIC_INTERVAL_MIN_MS, BACKUP_PERIODIC_INTERVAL_MAX_MS);
+            DEFAULT_BACKUP_PERIODIC_INTERVAL_MS,
+        );
         let backup_custom_dir = self.fields.backup_custom_dir.text.clone();
         let large_file_threshold_bytes = {
             let mb = parse_clamp(
@@ -1255,11 +1259,11 @@ impl PreferencesDialog {
             print_footer_font_bold: prior.print_footer_font_bold,
             print_footer_font_italic: prior.print_footer_font_italic,
             autocompletion_mode: prior.autocompletion_mode,
-            autocompletion_from_chars: (parse_clamp(
+            autocompletion_from_chars: parse_bounded_u32(
+                FieldId::AutocompletionFromChars,
                 &self.fields.autocompletion_from_chars.text,
-                DEFAULT_AUTOCOMPLETION_FROM_CHARS as usize,
-            ) as u32)
-                .clamp(AUTOCOMPLETION_FROM_CHARS_MIN, AUTOCOMPLETION_FROM_CHARS_MAX),
+                DEFAULT_AUTOCOMPLETION_FROM_CHARS,
+            ),
             autocompletion_brief: prior.autocompletion_brief,
             autocompletion_func_params_hint: prior.autocompletion_func_params_hint,
             autocompletion_ignore_numbers: prior.autocompletion_ignore_numbers,
@@ -1297,6 +1301,33 @@ impl PreferencesDialog {
 
 fn parse_clamp(s: &str, fallback: usize) -> usize {
     s.trim().parse::<usize>().unwrap_or(fallback)
+}
+
+/// Parse a numeric field and clamp it to the range its spinner allows
+/// (`FieldId::numeric_bounds`). Empty or non-numeric text falls back to
+/// `fallback`, clamped the same way.
+fn parse_bounded(id: FieldId, text: &str, fallback: usize) -> usize {
+    let value = parse_clamp(text, fallback);
+    let Some((min, max, _)) = id.numeric_bounds() else {
+        return value;
+    };
+    let min = usize::try_from(min).unwrap_or(0);
+    let max = usize::try_from(max).unwrap_or(usize::MAX).max(min);
+    value.clamp(min, max)
+}
+
+/// `parse_bounded` for a field stored as `u32`. Clamps before narrowing,
+/// so a value past `u32::MAX` lands on the maximum instead of wrapping.
+fn parse_bounded_u32(id: FieldId, text: &str, fallback: u32) -> u32 {
+    let value = parse_bounded(id, text, fallback as usize);
+    u32::try_from(value).unwrap_or(u32::MAX)
+}
+
+/// The value one spinner click (`delta` = +1 or -1) moves `text` to,
+/// clamped to `(min, max, step)`. Non-numeric text starts from `min`.
+fn stepped_value(text: &str, delta: i64, (min, max, step): (i64, i64, i64)) -> i64 {
+    let current = text.trim().parse::<i64>().unwrap_or(min);
+    (current + delta * step).clamp(min, max)
 }
 
 /// Find any Workspace window and run `f` against its entity + window.
@@ -1951,12 +1982,12 @@ impl PreferencesDialog {
     /// `FieldId::numeric_bounds`). No-op for non-numeric fields. Clamps to
     /// the field's `(min, max)` and persists via `save_now`.
     pub(super) fn step_field(&mut self, id: FieldId, delta: i64, cx: &mut Context<Self>) {
-        let Some((min, max, step)) = id.numeric_bounds() else {
+        let Some(bounds) = id.numeric_bounds() else {
             return;
         };
         let f = self.fields.get_mut(id);
-        let current = f.text.trim().parse::<i64>().unwrap_or(min);
-        let next = (current + delta * step).clamp(min, max);
+        let current = f.text.trim().parse::<i64>().unwrap_or(bounds.0);
+        let next = stepped_value(&f.text, delta, bounds);
         if next == current {
             return;
         }
@@ -2379,5 +2410,61 @@ impl PreferencesDialog {
                     .child(SharedString::from(status)),
             )
             .child(close)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// The editor indents with `" ".repeat(tab_width)`, so an unbounded
+    /// width typed here aborted the next Tab key with a capacity overflow.
+    #[test]
+    fn tab_width_is_capped_to_the_spinner_range() {
+        let parse = |text: &str| parse_bounded(FieldId::TabWidth, text, 1);
+        assert_eq!(parse("18446744073709551615"), 16);
+        assert_eq!(parse("99999999999"), 16);
+        assert_eq!(parse("17"), 16);
+        assert_eq!(parse(" 8 "), 8);
+        assert_eq!(parse("0"), 1);
+    }
+
+    #[test]
+    fn unparsable_tab_width_falls_back_to_one() {
+        // Empty, negative, overflowing usize and non-ASCII digits.
+        for text in ["", "-1", "184467440737095516150", "٣", "８"] {
+            assert_eq!(parse_bounded(FieldId::TabWidth, text, 1), 1, "{text:?}");
+        }
+    }
+
+    /// Past `u32::MAX` the value used to wrap before clamping, so 2^32 + 1
+    /// landed on the minimum instead of the maximum.
+    #[test]
+    fn u32_fields_clamp_before_narrowing() {
+        let huge = "4294967297";
+        assert_eq!(
+            parse_bounded_u32(FieldId::CaretBlinkRateMs, huge, DEFAULT_CARET_BLINK_RATE_MS),
+            CARET_BLINK_RATE_MAX_MS
+        );
+        assert_eq!(
+            parse_bounded_u32(
+                FieldId::BackupPeriodicIntervalMs,
+                huge,
+                DEFAULT_BACKUP_PERIODIC_INTERVAL_MS
+            ),
+            BACKUP_PERIODIC_INTERVAL_MAX_MS
+        );
+        assert_eq!(
+            parse_bounded_u32(
+                FieldId::AutocompletionFromChars,
+                huge,
+                DEFAULT_AUTOCOMPLETION_FROM_CHARS
+            ),
+            AUTOCOMPLETION_FROM_CHARS_MAX
+        );
+        assert_eq!(
+            parse_bounded_u32(FieldId::CaretBlinkRateMs, "", DEFAULT_CARET_BLINK_RATE_MS),
+            DEFAULT_CARET_BLINK_RATE_MS
+        );
     }
 }

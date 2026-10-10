@@ -218,6 +218,11 @@ pub(crate) struct Workspace {
     /// reparse so a burst of edits (Replace All, fast typing) reparses once
     /// after things settle instead of once per edit on the UI thread.
     pub(crate) post_edit_generation: u64,
+    /// Set once the last tab has closed and the window is torn down. The
+    /// entity can outlive its window (Preferences and Text Tools hold it),
+    /// so session saves from late timers and `on_release` become no-ops
+    /// instead of persisting the placeholder tab left behind in `tabs`.
+    pub(crate) window_closed: bool,
     /// Which dialog input is currently being drag-selected with the mouse,
     /// if any. `Some(focus)` while the user holds left-button after clicking
     /// the input; on every mouse move the cursor side of the selection on
@@ -664,6 +669,7 @@ impl Workspace {
             context_menu: None,
             autosave_generation: 0,
             post_edit_generation: 0,
+            window_closed: false,
             input_drag: None,
             text_drag: None,
             drag_mode: DragMode::Char,
@@ -1040,6 +1046,9 @@ impl Workspace {
     /// after every tab open / close / save / theme toggle — the dirty-tab
     /// `.bak` files only get rewritten when their generation actually changed.
     pub(crate) fn save_session(&self) {
+        if self.window_closed {
+            return;
+        }
         let mru: Vec<uuid::Uuid> = self.tab_mru.iter().copied().collect();
         session::save_workspace(
             &self.tabs,
@@ -1061,6 +1070,9 @@ impl Workspace {
     /// close-too-fast for path-backed buffers; untitled scratch pads round-
     /// trip in full because their `.bak` is written every keystroke.
     pub(crate) fn save_session_eager(&self) {
+        if self.window_closed {
+            return;
+        }
         let mru: Vec<uuid::Uuid> = self.tab_mru.iter().copied().collect();
         session::save_workspace_with_policy(
             &self.tabs,
@@ -1120,7 +1132,10 @@ impl Workspace {
                 if w.post_edit_generation != gen {
                     return;
                 }
-                w.active_tab_mut().buffer.reparse_highlights();
+                let Some(tab) = w.tabs.get_mut(w.active) else {
+                    return;
+                };
+                tab.buffer.reparse_highlights();
                 w.save_session_eager();
                 cx.notify();
             });

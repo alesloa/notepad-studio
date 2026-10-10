@@ -139,12 +139,7 @@ impl Workspace {
     ) {
         if self.tabs.is_empty() {
             if crate::settings::snapshot().tab_exit_on_last_close {
-                // Persist the now-empty open-tab list (closed_tabs still carries
-                // the buffer for Ctrl+Shift+T). Without this, the manifest keeps
-                // claiming the just-closed file is still open, and next launch
-                // would resurrect it as a phantom tab.
-                self.save_session();
-                window.remove_window();
+                self.close_window_after_last_tab(window);
                 return;
             } else {
                 // NPP "Exit on close the last tab" unchecked — keep the window
@@ -160,6 +155,22 @@ impl Workspace {
         self.caret_visible = true;
         self.save_session();
         cx.notify();
+    }
+
+    /// Persist the now-empty open-tab list, then tear the window down.
+    /// Without the save, the manifest keeps claiming the just-closed file is
+    /// still open and the next launch resurrects it as a phantom tab
+    /// (closed_tabs still carries the buffer for Ctrl+Shift+T).
+    ///
+    /// An open Preferences or Text Tools window holds this entity, so it can
+    /// outlive the window. A blank tab is parked in the strip so late timers
+    /// (the debounced reparse) and async closures still find an active tab,
+    /// and `window_closed` stops them persisting it.
+    fn close_window_after_last_tab(&mut self, window: &mut Window) {
+        self.save_session();
+        self.window_closed = true;
+        park_closed_strip(&mut self.tabs, &mut self.active);
+        window.remove_window();
     }
 
     /// Append a tab handed over from another window (cross-window Move /
@@ -373,10 +384,7 @@ impl Workspace {
                         w.tabs.push(tab);
                         w.active = 0;
                     } else {
-                        // Same reason as finish_close: persist the cleared
-                        // tab list before tearing the window down.
-                        w.save_session();
-                        window.remove_window();
+                        w.close_window_after_last_tab(window);
                         return;
                     }
                 }
@@ -686,10 +694,7 @@ impl Workspace {
                 let removed = self.tabs.remove(idx);
                 drop(removed);
                 if self.tabs.is_empty() {
-                    // Same reason as finish_close: persist the cleared
-                    // tab list before tearing the window down.
-                    self.save_session();
-                    window.remove_window();
+                    self.close_window_after_last_tab(window);
                     return;
                 }
                 self.active = active_after_removal(self.active, idx, self.tabs.len());
@@ -951,9 +956,37 @@ pub(crate) fn active_after_removal(active: usize, removed: usize, len: usize) ->
     shifted.min(len.saturating_sub(1))
 }
 
+/// Refill a strip whose window is being torn down so `tabs[active]` still
+/// indexes a tab. The entity can outlive its window, and its timers and async
+/// closures go through accessors that index the active tab.
+fn park_closed_strip(tabs: &mut Vec<Tab>, active: &mut usize) {
+    if tabs.is_empty() {
+        tabs.push(Tab::empty());
+    }
+    *active = (*active).min(tabs.len().saturating_sub(1));
+}
+
 #[cfg(test)]
 mod tests {
-    use super::active_after_removal;
+    use super::{active_after_removal, park_closed_strip};
+    use crate::tab::Tab;
+
+    /// A closed window's strip must still answer `tabs[active]`: the
+    /// debounced reparse indexed it after the window was gone.
+    #[test]
+    fn closed_strip_still_has_an_active_tab() {
+        let mut tabs: Vec<Tab> = Vec::new();
+        let mut active = active_after_removal(0, 0, 0);
+        park_closed_strip(&mut tabs, &mut active);
+        assert!(tabs.get(active).is_some());
+
+        let mut tabs = vec![Tab::empty(), Tab::empty()];
+        let kept = tabs[1].session_id;
+        let mut active = 9;
+        park_closed_strip(&mut tabs, &mut active);
+        assert_eq!(tabs.len(), 2);
+        assert_eq!(tabs.get(active).map(|t| t.session_id), Some(kept));
+    }
 
     /// Replays the Close All loop (rightmost tab first) and checks after
     /// every removal that `active` still indexes a tab, which is what render

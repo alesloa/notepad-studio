@@ -244,14 +244,8 @@ impl Workspace {
             // Ctrl+C and paste it as a new line without first selecting it.
             let head = self.selection().head;
             let rope = &self.buffer().rope;
-            let line_idx = rope.byte_to_line(head);
-            let line_start = rope.line_to_byte(line_idx);
-            let line_end_byte = if line_idx + 1 < rope.len_lines() {
-                rope.line_to_byte(line_idx + 1)
-            } else {
-                rope.len_bytes()
-            };
-            let text = rope.byte_slice(line_start..line_end_byte).to_string();
+            let (_, span) = line_span_at(rope, head);
+            let text = rope.byte_slice(span).to_string();
             if !text.is_empty() {
                 crate::clipboard_history::record_copy(&text);
                 cx.write_to_clipboard(ClipboardItem::new_string(text));
@@ -301,33 +295,15 @@ impl Workspace {
             // doesn't leave a phantom empty trailing line.
             let head = self.selection().head;
             let rope = &self.buffer().rope;
-            let line_idx = rope.byte_to_line(head);
-            let line_start = rope.line_to_byte(line_idx);
-            let len_lines = rope.len_lines();
-            let line_end_byte = if line_idx + 1 < len_lines {
-                rope.line_to_byte(line_idx + 1)
-            } else {
-                rope.len_bytes()
-            };
-            let text = rope.byte_slice(line_start..line_end_byte).to_string();
+            let (_, span) = line_span_at(rope, head);
+            let text = rope.byte_slice(span).to_string();
             if text.is_empty() {
                 return;
             }
-            let has_term = text.ends_with('\n') || text.ends_with('\r');
+            let delete = cut_line_range(rope, head);
             crate::clipboard_history::record_copy(&text);
             cx.write_to_clipboard(ClipboardItem::new_string(text));
-            let delete_start = if !has_term && line_start > 0 {
-                if line_start >= 2
-                    && rope.byte_slice(line_start - 2..line_start).to_string() == "\r\n"
-                {
-                    line_start - 2
-                } else {
-                    line_start - 1
-                }
-            } else {
-                line_start
-            };
-            self.replace_byte_range(delete_start..line_end_byte, "", cx);
+            self.replace_byte_range(delete, "", cx);
             return;
         }
         let r = self.selection().ordered();
@@ -566,16 +542,10 @@ impl Workspace {
         }
         if self.selection().is_empty() {
             let head = self.selection().head;
-            if head == 0 {
+            let Some(range) = backspace_range(&self.buffer().rope, head) else {
                 return;
-            }
-            let rope = &self.buffer().rope;
-            let char_idx = rope.byte_to_char(head);
-            if char_idx == 0 {
-                return;
-            }
-            let prev_byte = rope.char_to_byte(char_idx - 1);
-            self.replace_byte_range(prev_byte..head, "", cx);
+            };
+            self.replace_byte_range(range, "", cx);
         } else {
             let r = self.selection().ordered();
             self.replace_byte_range(r, "", cx);
@@ -618,18 +588,10 @@ impl Workspace {
         }
         if self.selection().is_empty() {
             let head = self.selection().head;
-            let rope = &self.buffer().rope;
-            let total_bytes = rope.len_bytes();
-            if head >= total_bytes {
+            let Some(range) = delete_forward_range(&self.buffer().rope, head) else {
                 return;
-            }
-            let char_idx = rope.byte_to_char(head);
-            let total_chars = rope.len_chars();
-            if char_idx >= total_chars {
-                return;
-            }
-            let next_byte = rope.char_to_byte(char_idx + 1);
-            self.replace_byte_range(head..next_byte, "", cx);
+            };
+            self.replace_byte_range(range, "", cx);
         } else {
             let r = self.selection().ordered();
             self.replace_byte_range(r, "", cx);
@@ -796,25 +758,11 @@ impl Workspace {
                 let lang = self.buffer().language;
                 let mut insert = ending;
                 if !matches!(mode, crate::settings::AutoIndentMode::None) {
-                    let rope = &self.buffer().rope;
-                    let line = rope.byte_to_line(r.start);
-                    let line_start = rope.line_to_byte(line);
-                    let line_text = rope.line(line).to_string();
-                    let body = line_text.trim_end_matches(['\n', '\r']);
-                    let local_offset = r.start - line_start;
-                    let indent_end = body
-                        .char_indices()
-                        .find(|(_, c)| !matches!(c, ' ' | '\t'))
-                        .map(|(i, _)| i)
-                        .unwrap_or(body.len());
-                    // Cap inherited indent at the caret column so pressing
-                    // Enter mid-leading-whitespace doesn't pull in indent
-                    // past the caret. NPP behaves this way.
-                    let inherit_end = indent_end.min(local_offset);
-                    insert.push_str(&body[..inherit_end]);
+                    let (inherit, before_caret) =
+                        auto_indent_context(&self.buffer().rope, r.start);
+                    insert.push_str(&inherit);
                     if matches!(mode, crate::settings::AutoIndentMode::Advanced) {
-                        let before_caret = body.get(..local_offset).unwrap_or("");
-                        if needs_extra_indent(before_caret, lang) {
+                        if needs_extra_indent(&before_caret, lang) {
                             let lang_key = lang.map(|l| l.key());
                             let (uses_tabs, width) =
                                 crate::settings::indent_for_lang(lang_key);
@@ -877,16 +825,11 @@ impl Workspace {
         if self.is_in_markdown_preview() {
             let sel = self.selection();
             if sel.is_empty() {
-                let head = sel.head;
                 let rope = &self.buffer().rope;
-                let line_idx = rope.byte_to_line(head);
-                let line_start = rope.line_to_byte(line_idx);
-                let line_end_byte = if line_idx + 1 < rope.len_lines() {
-                    rope.line_to_byte(line_idx + 1)
-                } else {
-                    rope.len_bytes()
-                };
-                let line_text: String = rope.byte_slice(line_start..line_end_byte).to_string();
+                let head = floor_rope_char_boundary(rope, sel.head);
+                let (_, span) = line_span_at(rope, head);
+                let line_start = span.start;
+                let line_text: String = rope.byte_slice(span).to_string();
                 let line_body = line_text.trim_end_matches(['\n', '\r']);
                 if is_markdown_list_line(line_body) {
                     crate::macros::record(crate::macros::MacroEvent::InsertTab);
@@ -3267,10 +3210,10 @@ impl Workspace {
             cx.notify();
             return;
         }
-        let head = sel.head;
         let rope = &self.buffer().rope;
-        let line = rope.byte_to_line(head);
-        let line_start = rope.line_to_byte(line);
+        let head = floor_rope_char_boundary(rope, sel.head);
+        let (line, span) = line_span_at(rope, head);
+        let line_start = span.start;
         let line_text = rope.line(line).to_string();
         let has_term = line_text.ends_with('\n') || line_text.ends_with('\r');
         let body_len = line_text.trim_end_matches(['\n', '\r']).len();
@@ -3363,16 +3306,7 @@ impl Workspace {
         if total_lines == 0 {
             return;
         }
-        let first = rope.byte_to_line(r.start);
-        let last_raw = rope.byte_to_line(r.end);
-        let last = if r.end > r.start
-            && last_raw > first
-            && rope.line_to_byte(last_raw) == r.end
-        {
-            last_raw - 1
-        } else {
-            last_raw
-        };
+        let (first, last, block) = selected_lines(rope, r);
         if delta < 0 && first == 0 {
             return;
         }
@@ -3380,12 +3314,7 @@ impl Workspace {
             return;
         }
 
-        let block_start = rope.line_to_byte(first);
-        let block_end = if last + 1 < total_lines {
-            rope.line_to_byte(last + 1)
-        } else {
-            rope.len_bytes()
-        };
+        let (block_start, block_end) = (block.start, block.end);
         let block_text = rope.byte_slice(block_start..block_end).to_string();
         let block_has_term = block_text.ends_with('\n') || block_text.ends_with('\r');
         let ending = self.buffer().line_ending.as_str().to_string();
@@ -3473,13 +3402,8 @@ impl Workspace {
         if total_lines == 0 {
             return;
         }
-        let line = rope.byte_to_line(head);
-        let line_start = rope.line_to_byte(line);
-        let next_start = if line + 1 < total_lines {
-            rope.line_to_byte(line + 1)
-        } else {
-            rope.len_bytes()
-        };
+        let (line, span) = line_span_at(rope, head);
+        let (line_start, next_start) = (span.start, span.end);
         if line_start == next_start {
             return;
         }
@@ -3600,22 +3524,8 @@ impl Workspace {
         if total_lines == 0 {
             return;
         }
-        let first = rope.byte_to_line(r.start);
-        let last_raw = rope.byte_to_line(r.end);
-        let last = if r.end > r.start
-            && last_raw > first
-            && rope.line_to_byte(last_raw) == r.end
-        {
-            last_raw - 1
-        } else {
-            last_raw
-        };
-        let block_start = rope.line_to_byte(first);
-        let block_end = if last + 1 < total_lines {
-            rope.line_to_byte(last + 1)
-        } else {
-            rope.len_bytes()
-        };
+        let (_, _, block) = selected_lines(rope, r);
+        let (block_start, block_end) = (block.start, block.end);
         let block_text = rope.byte_slice(block_start..block_end).to_string();
 
         let line_prefix_with_space = format!("{line_token} ");
@@ -3756,22 +3666,8 @@ impl Workspace {
         if total_lines == 0 {
             return;
         }
-        let first = rope.byte_to_line(r.start);
-        let last_raw = rope.byte_to_line(r.end);
-        let last = if r.end > r.start
-            && last_raw > first
-            && rope.line_to_byte(last_raw) == r.end
-        {
-            last_raw - 1
-        } else {
-            last_raw
-        };
-        let block_start = rope.line_to_byte(first);
-        let block_end = if last + 1 < total_lines {
-            rope.line_to_byte(last + 1)
-        } else {
-            rope.len_bytes()
-        };
+        let (_, _, block) = selected_lines(rope, r);
+        let (block_start, block_end) = (block.start, block.end);
         let text = rope.byte_slice(block_start..block_end).to_string();
         let trailing_nl = if text.ends_with("\r\n") {
             "\r\n"
@@ -3978,8 +3874,8 @@ impl Workspace {
         crate::macros::record(crate::macros::MacroEvent::InsertBlankLineAbove);
         let head = self.selection().head;
         let rope = &self.buffer().rope;
-        let line = rope.byte_to_line(head);
-        let line_start = rope.line_to_byte(line);
+        let (_, span) = line_span_at(rope, head);
+        let line_start = span.start;
         let ending = self.buffer().line_ending.as_str().to_string();
         self.replace_byte_range(line_start..line_start, &ending, cx);
         let tab = self.active_tab_mut();
@@ -4000,15 +3896,10 @@ impl Workspace {
         crate::macros::record(crate::macros::MacroEvent::InsertBlankLineBelow);
         let head = self.selection().head;
         let rope = &self.buffer().rope;
-        let total_lines = rope.len_lines();
-        let line = rope.byte_to_line(head);
+        let (line, span) = line_span_at(rope, head);
         let line_text = rope.line(line).to_string();
         let line_has_term = line_text.ends_with('\n') || line_text.ends_with('\r');
-        let next_line_start = if line + 1 < total_lines {
-            rope.line_to_byte(line + 1)
-        } else {
-            rope.len_bytes()
-        };
+        let next_line_start = span.end;
         let ending = self.buffer().line_ending.as_str().to_string();
         let (insert_at, new_caret) = if line_has_term {
             (next_line_start, next_line_start)
@@ -4590,5 +4481,203 @@ mod input_field_tests {
         assert_eq!((t.as_str(), c, a), ("é", 2, 2));
         input_field_step(&t, &mut c, &mut a, -1, false);
         assert_eq!((c, a), (0, 0));
+    }
+}
+
+/// Line holding `byte` (clamped to the rope) and its byte span, terminator
+/// included.
+fn line_span_at(rope: &ropey::Rope, byte: usize) -> (usize, std::ops::Range<usize>) {
+    let line = rope.byte_to_line(byte.min(rope.len_bytes()));
+    let start = rope.line_to_byte(line);
+    let end = if line + 1 < rope.len_lines() {
+        rope.line_to_byte(line + 1)
+    } else {
+        rope.len_bytes()
+    };
+    (line, start..end)
+}
+
+/// Whole lines the ordered selection `r` touches: first and last line, and
+/// their byte span with the last line's terminator. A selection ending
+/// right at a line start does not take that line.
+fn selected_lines(
+    rope: &ropey::Rope,
+    r: std::ops::Range<usize>,
+) -> (usize, usize, std::ops::Range<usize>) {
+    let len = rope.len_bytes();
+    let (start, end) = (r.start.min(len), r.end.min(len));
+    let first = rope.byte_to_line(start);
+    let last_raw = rope.byte_to_line(end);
+    let last = if end > start && last_raw > first && rope.line_to_byte(last_raw) == end {
+        last_raw - 1
+    } else {
+        last_raw
+    };
+    let block_start = rope.line_to_byte(first);
+    let block_end = if last + 1 < rope.len_lines() {
+        rope.line_to_byte(last + 1)
+    } else {
+        rope.len_bytes()
+    };
+    (first, last, block_start..block_end)
+}
+
+/// Bytes an empty-selection Cut removes: the caret's line with its
+/// terminator. The last line has no terminator, so it takes the line
+/// break before it instead and leaves no empty trailing line.
+fn cut_line_range(rope: &ropey::Rope, head: usize) -> std::ops::Range<usize> {
+    let (line, span) = line_span_at(rope, head);
+    // Ropey's last line never holds a line break; every other line does.
+    let is_last = line + 1 >= rope.len_lines();
+    if !is_last || span.start == 0 {
+        return span;
+    }
+    let start_char = rope.byte_to_char(span.start);
+    let Some(prev) = start_char.checked_sub(1) else {
+        return span;
+    };
+    let crlf = rope.get_char(prev) == Some('\n')
+        && prev
+            .checked_sub(1)
+            .and_then(|i| rope.get_char(i))
+            .is_some_and(|c| c == '\r');
+    let break_start = if crlf { prev - 1 } else { prev };
+    rope.char_to_byte(break_start)..span.end
+}
+
+/// Bytes Backspace removes with an empty selection at `head`: the char
+/// before the caret. A head inside a char or past EOF is snapped first.
+fn backspace_range(rope: &ropey::Rope, head: usize) -> Option<std::ops::Range<usize>> {
+    let head = floor_rope_char_boundary(rope, head);
+    let prev = rope.byte_to_char(head).checked_sub(1)?;
+    Some(rope.char_to_byte(prev)..head)
+}
+
+/// Bytes Delete removes with an empty selection at `head`: the char after
+/// the caret. A head inside a char or past EOF is snapped first.
+fn delete_forward_range(rope: &ropey::Rope, head: usize) -> Option<std::ops::Range<usize>> {
+    let head = floor_rope_char_boundary(rope, head);
+    let char_idx = rope.byte_to_char(head);
+    if char_idx >= rope.len_chars() {
+        return None;
+    }
+    Some(head..rope.char_to_byte(char_idx + 1))
+}
+
+/// Auto-indent inputs for Enter at `caret`: the leading whitespace the new
+/// line inherits, capped at the caret so Enter inside the indent doesn't
+/// carry indent past it (as Notepad++ does), and the line text before the
+/// caret for the Advanced extra-indent check.
+fn auto_indent_context(rope: &ropey::Rope, caret: usize) -> (String, String) {
+    let caret = floor_rope_char_boundary(rope, caret);
+    let line = rope.byte_to_line(caret);
+    let line_start = rope.line_to_byte(line);
+    let line_text = rope.line(line).to_string();
+    let body = line_text.trim_end_matches(['\n', '\r']);
+    let local_offset = caret.saturating_sub(line_start);
+    let indent_end = body
+        .char_indices()
+        .find(|(_, c)| !matches!(c, ' ' | '\t'))
+        .map(|(i, _)| i)
+        .unwrap_or(body.len());
+    let inherit_end = indent_end.min(local_offset);
+    (
+        body.get(..inherit_end).unwrap_or("").to_string(),
+        body.get(..local_offset).unwrap_or(body).to_string(),
+    )
+}
+
+#[cfg(test)]
+mod line_command_tests {
+    use super::{
+        auto_indent_context, backspace_range, cut_line_range, delete_forward_range,
+        line_span_at, selected_lines,
+    };
+    use ropey::Rope;
+
+    #[test]
+    fn line_span_covers_line_and_terminator() {
+        let rope = Rope::from_str("ab\r\ncd\ref");
+        assert_eq!(line_span_at(&rope, 0), (0, 0..4));
+        assert_eq!(line_span_at(&rope, 3), (0, 0..4));
+        assert_eq!(line_span_at(&rope, 4), (1, 4..7));
+        assert_eq!(line_span_at(&rope, 9), (2, 7..9));
+        assert_eq!(line_span_at(&Rope::new(), 0), (0, 0..0));
+        assert_eq!(line_span_at(&Rope::from_str("a\n"), 2), (1, 2..2));
+    }
+
+    #[test]
+    fn line_commands_with_head_past_end_do_not_panic() {
+        // A head past EOF used to panic in `byte_to_line`.
+        let rope = Rope::from_str("ab\r\ncd\ref");
+        assert_eq!(line_span_at(&rope, 99), (2, 7..9));
+        assert_eq!(selected_lines(&rope, 5..99), (1, 2, 4..9));
+        assert_eq!(selected_lines(&rope, 98..99), (2, 2, 7..9));
+        assert_eq!(cut_line_range(&rope, 99), 6..9);
+        assert_eq!(auto_indent_context(&Rope::from_str("  ab"), 99), ("  ".into(), "  ab".into()));
+        assert_eq!(backspace_range(&Rope::from_str("aé"), 99), Some(1..3));
+        assert_eq!(delete_forward_range(&Rope::from_str("aé"), 99), None);
+    }
+
+    #[test]
+    fn selected_lines_excludes_line_the_selection_ends_on() {
+        let rope = Rope::from_str("a\nb\nc");
+        assert_eq!(selected_lines(&rope, 0..0), (0, 0, 0..2));
+        assert_eq!(selected_lines(&rope, 0..2), (0, 0, 0..2));
+        assert_eq!(selected_lines(&rope, 0..3), (0, 1, 0..4));
+        assert_eq!(selected_lines(&rope, 4..5), (2, 2, 4..5));
+        assert_eq!(selected_lines(&Rope::new(), 0..0), (0, 0, 0..0));
+    }
+
+    #[test]
+    fn cut_last_line_after_multibyte_text_does_not_panic() {
+        // The last line takes the break before it. Probing two bytes back
+        // for "\r\n" sliced into the middle of `é` / U+2028 and panicked.
+        assert_eq!(cut_line_range(&Rope::from_str("é\nabc"), 4), 2..6);
+        assert_eq!(cut_line_range(&Rope::from_str("中\nx"), 4), 3..5);
+        assert_eq!(cut_line_range(&Rope::from_str("a\u{2028}b"), 4), 1..5);
+        assert_eq!(cut_line_range(&Rope::from_str("a\u{85}b"), 3), 1..4);
+    }
+
+    #[test]
+    fn cut_line_ranges_on_each_line_ending() {
+        assert_eq!(cut_line_range(&Rope::from_str("abc"), 1), 0..3);
+        assert_eq!(cut_line_range(&Rope::from_str("a\r\nb"), 3), 1..4);
+        assert_eq!(cut_line_range(&Rope::from_str("a\nb"), 2), 1..3);
+        assert_eq!(cut_line_range(&Rope::from_str("a\rb"), 2), 1..3);
+        assert_eq!(cut_line_range(&Rope::from_str("a\r\nb\r\n"), 0), 0..3);
+        assert_eq!(cut_line_range(&Rope::from_str("a\nb\n"), 2), 2..4);
+        // A middle line ending in U+2028 is terminated: cut only that line,
+        // not the break before it as well.
+        assert_eq!(cut_line_range(&Rope::from_str("a\nb\u{2028}c"), 2), 2..6);
+    }
+
+    #[test]
+    fn backspace_and_delete_land_on_char_boundaries() {
+        let rope = Rope::from_str("aé👍");
+        assert_eq!(backspace_range(&rope, 0), None);
+        assert_eq!(backspace_range(&rope, 1), Some(0..1));
+        assert_eq!(backspace_range(&rope, 3), Some(1..3));
+        assert_eq!(backspace_range(&rope, 7), Some(3..7));
+        assert_eq!(delete_forward_range(&rope, 0), Some(0..1));
+        assert_eq!(delete_forward_range(&rope, 3), Some(3..7));
+        assert_eq!(delete_forward_range(&rope, 7), None);
+        assert_eq!(delete_forward_range(&Rope::new(), 0), None);
+        // A caret inside a char snaps to its start first. Before, the range
+        // ended or started mid-char and the rope edit panicked.
+        assert_eq!(backspace_range(&rope, 2), Some(0..1));
+        assert_eq!(delete_forward_range(&rope, 2), Some(1..3));
+        assert_eq!(delete_forward_range(&rope, 5), Some(3..7));
+    }
+
+    #[test]
+    fn auto_indent_inherits_leading_whitespace_up_to_caret() {
+        let rope = Rope::from_str("\tfoo {\r\n  bar");
+        assert_eq!(auto_indent_context(&rope, 6), ("\t".into(), "\tfoo {".into()));
+        assert_eq!(auto_indent_context(&rope, 0), ("".into(), "".into()));
+        assert_eq!(auto_indent_context(&rope, 9), (" ".into(), " ".into()));
+        assert_eq!(auto_indent_context(&rope, 13), ("  ".into(), "  bar".into()));
+        // A caret inside `é` snaps to its start.
+        assert_eq!(auto_indent_context(&Rope::from_str("  é"), 3), ("  ".into(), "  ".into()));
     }
 }

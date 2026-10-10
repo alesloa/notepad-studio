@@ -1713,21 +1713,20 @@ fn scan_autolinks(text: &str) -> Vec<(usize, usize, String)> {
             i += 1;
             continue;
         }
-        // Strip trailing sentence punctuation.
+        // Strip trailing sentence punctuation. Parens are counted once and
+        // the close count kept in step as `)` bytes are stripped.
+        let opens = bytes[i..end].iter().filter(|b| **b == b'(').count();
+        let mut closes = bytes[i..end].iter().filter(|b| **b == b')').count();
         while end > body_start {
             let c = bytes[end - 1];
             if matches!(c, b'.' | b',' | b';' | b'!' | b'?' | b':') {
                 end -= 1;
                 continue;
             }
-            if c == b')' {
-                let slice = &text[i..end];
-                let opens = slice.bytes().filter(|b| *b == b'(').count();
-                let closes = slice.bytes().filter(|b| *b == b')').count();
-                if closes > opens {
-                    end -= 1;
-                    continue;
-                }
+            if c == b')' && closes > opens {
+                end -= 1;
+                closes -= 1;
+                continue;
             }
             break;
         }
@@ -1835,6 +1834,16 @@ mod autolink_tests {
         assert_eq!(r.len(), 2);
         assert_eq!(r[0].2, "http://a.com");
         assert_eq!(r[1].2, "http://b.com");
+    }
+
+    #[test]
+    fn long_run_of_trailing_close_parens() {
+        // Stripping each `)` used to recount every paren in the URL, which
+        // hung the preview on a long line of them.
+        let text = format!("http://a{}", ")".repeat(200_000));
+        assert_eq!(scan_autolinks(&text), vec![(0, 8, "http://a".to_string())]);
+        let text = format!("http://a({}", ")".repeat(200_000));
+        assert_eq!(scan_autolinks(&text), vec![(0, 10, "http://a()".to_string())]);
     }
 }
 

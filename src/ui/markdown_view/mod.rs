@@ -1440,6 +1440,13 @@ fn read_inline_runs_until<F: Fn(&TagEnd) -> bool>(
                     Tag::Emphasis | Tag::Strong | Tag::Strikethrough
                 );
                 if is_emphasis {
+                    // A nested tag ends its parent's open marker, so each
+                    // marker covers only its own delimiter run.
+                    if let Some(parent) = tag_stack.last_mut() {
+                        if parent.first_inner_start.is_none() {
+                            parent.first_inner_start = Some(range.start);
+                        }
+                    }
                     tag_stack.push(PendingTag {
                         full_range: range.clone(),
                         first_inner_start: None,
@@ -1473,11 +1480,10 @@ fn read_inline_runs_until<F: Fn(&TagEnd) -> bool>(
                     TagEnd::Emphasis | TagEnd::Strong | TagEnd::Strikethrough
                 ) {
                     if let Some(pending) = tag_stack.pop() {
-                        // The parent's content extends at least as far.
-                        if let (Some(end), Some(parent)) =
-                            (pending.last_inner_end, tag_stack.last_mut())
-                        {
-                            parent.last_inner_end = Some(end);
+                        // The parent's content runs at least to the end of
+                        // this tag, close marker included.
+                        if let Some(parent) = tag_stack.last_mut() {
+                            parent.last_inner_end = Some(pending.full_range.end);
                         }
                         finalize_tag(pending, source, &mut tags);
                     }
@@ -3968,20 +3974,44 @@ mod hostile_input_tests {
         }
     }
 
+    /// Emphasis tags of a one-paragraph document, ordered by open marker.
+    fn paragraph_tags(source: &str) -> Vec<EmphasisTag> {
+        let blocks = parse(source);
+        let [Block::Paragraph { tags, .. }] = blocks.as_slice() else {
+            panic!("expected one paragraph");
+        };
+        let mut tags = tags.clone();
+        tags.sort_by_key(|t| t.open.start);
+        tags
+    }
+
+    fn markers(source: &str) -> Vec<(Range<usize>, String, Range<usize>, String)> {
+        paragraph_tags(source)
+            .into_iter()
+            .map(|t| (t.open, t.open_text.to_string(), t.close, t.close_text.to_string()))
+            .collect()
+    }
+
+    #[test]
+    fn nested_emphasis_markers_stay_their_own_size() {
+        // An open marker used to run on to the first text, swallowing the
+        // markers of every tag nested inside it, so N nested tags held
+        // marker text quadratic in N.
+        assert_eq!(
+            markers("***a***"),
+            vec![
+                (0..1, "*".to_string(), 6..7, "*".to_string()),
+                (1..3, "**".to_string(), 4..6, "**".to_string()),
+            ]
+        );
+        let n = 20_000;
+        let tags = paragraph_tags(&format!("{}x{}", "*".repeat(n), "*".repeat(n)));
+        let marker_bytes: usize = tags.iter().map(|t| t.open_text.len() + t.close_text.len()).sum();
+        assert_eq!(marker_bytes, 2 * n);
+    }
+
     #[test]
     fn emphasis_marker_ranges() {
-        let markers = |source: &str| {
-            let blocks = parse(source);
-            let [Block::Paragraph { tags, .. }] = blocks.as_slice() else {
-                panic!("expected one paragraph");
-            };
-            let mut out: Vec<_> = tags
-                .iter()
-                .map(|t| (t.open.clone(), t.open_text.to_string(), t.close.clone(), t.close_text.to_string()))
-                .collect();
-            out.sort_by_key(|m| m.0.start);
-            out
-        };
         assert_eq!(
             markers("**a *b* c**"),
             vec![

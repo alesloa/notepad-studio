@@ -17,6 +17,8 @@ use std::ops::Range;
 
 use ropey::Rope;
 
+use crate::edit_ops::util::floor_char_boundary;
+
 /// Find the inner range between matching delimiters around `cursor`.
 /// Returns `None` if either side is missing or if the delimiters scan past
 /// the allowed bound (line ends when `whole_doc == false`).
@@ -28,7 +30,8 @@ pub(crate) fn select_between_delimiters(
     whole_doc: bool,
 ) -> Option<Range<usize>> {
     let total = rope.len_bytes();
-    let cursor = cursor.min(total);
+    // A click offset off a char boundary would panic the slices below.
+    let cursor = floor_char_boundary(rope, cursor);
 
     let (back_limit, fwd_limit) = if whole_doc {
         (0, total)
@@ -64,22 +67,22 @@ fn line_bounds(rope: &Rope, byte: usize) -> (usize, usize) {
 }
 
 /// Strip a trailing CRLF / LF / CR (in that order) from `[start, end)`.
+/// Reads single bytes: the char before the line end may be multi-byte, so
+/// slicing the last two bytes could cut into it.
 fn trim_line_terminator(rope: &Rope, start: usize, end: usize) -> usize {
     if end <= start {
         return end;
     }
-    let len = end - start;
-    if len >= 2 {
-        let two: String = rope.byte_slice(end - 2..end).to_string();
-        if two == "\r\n" {
-            return end - 2;
-        }
+    let last = end.checked_sub(1).and_then(|i| rope.get_byte(i));
+    let before = end
+        .checked_sub(2)
+        .filter(|&i| i >= start)
+        .and_then(|i| rope.get_byte(i));
+    match (before, last) {
+        (Some(b'\r'), Some(b'\n')) => end - 2,
+        (_, Some(b'\n' | b'\r')) => end - 1,
+        _ => end,
     }
-    let last: String = rope.byte_slice(end - 1..end).to_string();
-    if last == "\n" || last == "\r" {
-        return end - 1;
-    }
-    end
 }
 
 /// Walk backward from `cursor` looking for `left`. With `nested == true`,
@@ -93,23 +96,22 @@ fn scan_back(
     right: char,
     nested: bool,
 ) -> Option<usize> {
-    let slice = rope.byte_slice(limit..cursor);
+    let slice = rope.get_byte_slice(limit..cursor)?;
     let mut depth: usize = 0;
-    let len = slice.len_bytes();
-    let mut chars: Vec<(usize, char)> = Vec::with_capacity(len);
-    let mut byte = 0;
-    for ch in slice.chars() {
-        chars.push((byte, ch));
-        byte += ch.len_utf8();
-    }
-    for (b, ch) in chars.iter().rev() {
-        if nested && *ch == right {
+    // Walk the chars in place, back to front. Collecting them first cost 16
+    // bytes per byte scanned, gigabytes on a large file with "match entire
+    // document" on.
+    let mut b = slice.len_bytes();
+    let mut chars = slice.chars_at(slice.len_chars());
+    while let Some(ch) = chars.prev() {
+        b = b.saturating_sub(ch.len_utf8());
+        if nested && ch == right {
             depth += 1;
             continue;
         }
-        if *ch == left {
+        if ch == left {
             if depth == 0 {
-                return Some(limit + *b);
+                return Some(limit + b);
             }
             depth = depth.saturating_sub(1);
         }
@@ -131,7 +133,7 @@ fn scan_fwd(
     if cursor >= limit {
         return None;
     }
-    let slice = rope.byte_slice(cursor..limit);
+    let slice = rope.get_byte_slice(cursor..limit)?;
     let mut depth: usize = 0;
     let mut byte = 0;
     for ch in slice.chars() {
@@ -215,6 +217,35 @@ mod tests {
         let rope = r("()");
         let range = select_between_delimiters(&rope, 1, '(', ')', false).unwrap();
         assert_eq!(range.start, range.end);
+    }
+
+    #[test]
+    fn multi_byte_char_before_line_end() {
+        // The line-end check sliced the last two bytes, which cut into `中`.
+        let rope = r("(a)中\nx");
+        assert_eq!(select_between_delimiters(&rope, 1, '(', ')', false), Some(1..2));
+        let rope = r("x\r\n(a)中");
+        assert_eq!(select_between_delimiters(&rope, 4, '(', ')', false), Some(4..5));
+        let rope = r("(é)\r\n(👨‍👩‍👧)🇯🇵\r");
+        assert_eq!(select_between_delimiters(&rope, 7, '(', ')', false), Some(7..25));
+    }
+
+    #[test]
+    fn backward_scan_reports_byte_offsets_across_multi_byte_chars() {
+        // 中=0..3 (=3 é=4..6 (=6 x=7 )=8 ü=9..11 )=11 🇯🇵=12..20
+        let rope = r("中(é(x)ü)🇯🇵");
+        assert_eq!(select_between_delimiters(&rope, 9, '(', ')', true), Some(4..11));
+        assert_eq!(select_between_delimiters(&rope, 7, '(', ')', true), Some(7..8));
+        assert_eq!(select_between_delimiters(&rope, 12, '(', ')', true), None);
+    }
+
+    #[test]
+    fn cursor_inside_a_char_or_past_the_end() {
+        // Byte 2 is inside `中` (1..4): floored to 1.
+        let rope = r("(中)");
+        assert_eq!(select_between_delimiters(&rope, 2, '(', ')', false), Some(1..4));
+        assert_eq!(select_between_delimiters(&rope, 99, '(', ')', false), None);
+        assert_eq!(select_between_delimiters(&r(""), 3, '(', ')', true), None);
     }
 
     #[test]

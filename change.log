@@ -70,6 +70,15 @@ v0.0.5 — current
        and very large fill-series numbers are handled. A CSV that can't be
        written back as UTF-8 is refused instead of blanking the file.
    19. View ▸ Word Wrap and Show Whitespace show a checkmark when on.
+   20. Opening a file that is already open switches to its tab instead of
+       opening a second copy. Save As onto a file open in another tab is
+       refused, as in Notepad++.
+   21. Edit commands: line operations, blank operations, case conversion,
+       outdent, Begin/End Select and delimiter selection keep line endings
+       and non-ASCII text intact and no longer crash next to multi-byte
+       characters. Case conversion in column mode converts each row. An
+       invalid custom date format is reported instead of doing nothing.
+       Text Tools keep line endings and stay responsive on large input.
 
   v0.1.0 — syntax & language:
 

@@ -68,9 +68,11 @@ struct DirCacheEntry {
     entries: Vec<DirEntry>,
 }
 
-static DIR_CACHE: OnceLock<Mutex<HashMap<PathBuf, DirCacheEntry>>> = OnceLock::new();
+type DirCache = HashMap<PathBuf, DirCacheEntry>;
 
-fn dir_cache() -> &'static Mutex<HashMap<PathBuf, DirCacheEntry>> {
+static DIR_CACHE: OnceLock<Mutex<DirCache>> = OnceLock::new();
+
+fn dir_cache() -> &'static Mutex<DirCache> {
     DIR_CACHE.get_or_init(|| Mutex::new(HashMap::new()))
 }
 
@@ -78,37 +80,52 @@ fn dir_cache() -> &'static Mutex<HashMap<PathBuf, DirCacheEntry>> {
 /// matching `(path, show_hidden)`; otherwise falls back to disk and
 /// populates the cache for the next paint.
 pub(crate) fn cached_read_dir_sorted(dir: &Path, show_hidden: bool) -> Vec<DirEntry> {
-    {
-        let guard = dir_cache().lock().unwrap();
-        if let Some(entry) = guard.get(dir) {
-            if entry.show_hidden == show_hidden {
-                return entry.entries.clone();
-            }
-        }
+    cached_read_dir_sorted_in(dir_cache(), dir, show_hidden)
+}
+
+/// Run `f` on the cache. A lock poisoned by a panic on another thread
+/// skips `f`: every lookup then misses and reads from disk, so a stale
+/// listing is never served.
+fn with_cache<R>(cache: &Mutex<DirCache>, f: impl FnOnce(&mut DirCache) -> R) -> Option<R> {
+    let Ok(mut guard) = cache.lock() else {
+        return None;
+    };
+    Some(f(&mut guard))
+}
+
+fn cached_read_dir_sorted_in(cache: &Mutex<DirCache>, dir: &Path, show_hidden: bool) -> Vec<DirEntry> {
+    let hit = with_cache(cache, |map| {
+        map.get(dir)
+            .filter(|entry| entry.show_hidden == show_hidden)
+            .map(|entry| entry.entries.clone())
+    })
+    .flatten();
+    if let Some(entries) = hit {
+        return entries;
     }
     let entries = read_dir_sorted(dir, show_hidden);
-    let mut guard = dir_cache().lock().unwrap();
-    guard.insert(
-        dir.to_path_buf(),
-        DirCacheEntry {
-            show_hidden,
-            entries: entries.clone(),
-        },
-    );
+    with_cache(cache, |map| {
+        map.insert(
+            dir.to_path_buf(),
+            DirCacheEntry {
+                show_hidden,
+                entries: entries.clone(),
+            },
+        )
+    });
     entries
 }
 
 /// Drop a single path's cached children — Refresh on a folder row.
 pub(crate) fn cache_invalidate(path: &Path) {
-    dir_cache().lock().unwrap().remove(path);
+    with_cache(dir_cache(), |map| map.remove(path));
 }
 
 /// Drop every cached entry under `root` (including `root` itself) — used
 /// by Refresh / Collapse All Below / Remove from Workspace so a later
 /// expand re-reads from disk.
 pub(crate) fn cache_invalidate_subtree(root: &Path) {
-    let mut guard = dir_cache().lock().unwrap();
-    guard.retain(|p, _| !p.starts_with(root));
+    with_cache(dir_cache(), |map| map.retain(|p, _| !p.starts_with(root)));
 }
 
 /// Drop the entire cache — toggling Show Hidden Files flips the filter
@@ -116,7 +133,7 @@ pub(crate) fn cache_invalidate_subtree(root: &Path) {
 /// full clear (`cached_read_dir_sorted` would otherwise rebuild lazily
 /// anyway).
 pub(crate) fn cache_clear() {
-    dir_cache().lock().unwrap().clear();
+    with_cache(dir_cache(), |map| map.clear());
 }
 
 /// Splitter drag snapshot captured on mouse-down. Consumed by the workspace's
@@ -274,4 +291,60 @@ pub(crate) fn set_width(next: f32) {
 /// per-row "is this expanded?" check during render.
 pub(crate) fn expanded_set(expanded: &[PathBuf]) -> HashSet<PathBuf> {
     expanded.iter().cloned().collect()
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// A cache whose lock was held by a thread that panicked.
+    fn poisoned_cache() -> Mutex<DirCache> {
+        let cache = Mutex::new(DirCache::new());
+        std::thread::scope(|s| {
+            let joined = s
+                .spawn(|| {
+                    let _guard = cache.lock();
+                    panic!("poison the folder-panel cache");
+                })
+                .join();
+            assert!(joined.is_err());
+        });
+        assert!(cache.is_poisoned());
+        cache
+    }
+
+    #[test]
+    fn poisoned_cache_falls_back_to_disk() {
+        let cache = poisoned_cache();
+        let dir = std::env::temp_dir().join(format!(
+            "notepad-studio-folder-panel-missing-{}",
+            std::process::id()
+        ));
+        // A missing directory reads as empty; the point is not panicking.
+        assert!(cached_read_dir_sorted_in(&cache, &dir, false).is_empty());
+        assert!(cached_read_dir_sorted_in(&cache, &dir, true).is_empty());
+        assert!(with_cache(&cache, |map| map.clear()).is_none());
+    }
+
+    #[test]
+    fn healthy_cache_serves_listing_for_matching_filter() {
+        let cache = Mutex::new(DirCache::new());
+        let dir = PathBuf::from("cached-dir-not-on-disk");
+        let listed = vec![DirEntry {
+            path: dir.join("a.txt"),
+            is_dir: false,
+        }];
+        with_cache(&cache, |map| {
+            map.insert(
+                dir.clone(),
+                DirCacheEntry {
+                    show_hidden: false,
+                    entries: listed.clone(),
+                },
+            )
+        });
+        assert_eq!(cached_read_dir_sorted_in(&cache, &dir, false).len(), 1);
+        // A different show-hidden filter misses and re-reads from disk.
+        assert!(cached_read_dir_sorted_in(&cache, &dir, true).is_empty());
+    }
 }

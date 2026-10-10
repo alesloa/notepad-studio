@@ -9,6 +9,8 @@
 // `window.handle_input` to route IME + typed characters back into the
 // dialog's `EntityInputHandler` impl.
 
+use std::ops::Range;
+
 use gpui::{
     App, Bounds, CursorStyle, DispatchPhase, ElementInputHandler, FocusHandle, Hsla,
     InteractiveElement, IntoElement, MouseButton, MouseDownEvent, ParentElement, Pixels, Rgba,
@@ -17,6 +19,7 @@ use gpui::{
 };
 
 use crate::consts::CARET_WIDTH_PX;
+use crate::edit_ops::util::floor_str_boundary;
 use crate::theme::Theme;
 
 use super::{FieldId, MultiFieldId, TextToolsDialog};
@@ -465,7 +468,11 @@ impl IntoElement for MultiLineInput {
 
 pub(super) struct MultiPrepaint {
     pub(super) handle: FocusHandle,
+    /// Shaped rows `first_row..`, the ones inside the scroll clip; `None`
+    /// for an empty row.
     pub(super) shaped_lines: Vec<Option<ShapedLine>>,
+    pub(super) first_row: usize,
+    /// Start byte of every row, visible or not.
     pub(super) line_offsets: Vec<usize>,
     pub(super) cursor: usize,
     pub(super) anchor: usize,
@@ -511,7 +518,7 @@ impl gpui::Element for MultiLineInput {
         &mut self,
         _id: Option<&gpui::GlobalElementId>,
         _inspector_id: Option<&gpui::InspectorElementId>,
-        _bounds: Bounds<Pixels>,
+        bounds: Bounds<Pixels>,
         _request_layout: &mut Self::RequestLayoutState,
         window: &mut Window,
         cx: &mut App,
@@ -523,17 +530,30 @@ impl gpui::Element for MultiLineInput {
         let font_size = text_style.font_size.to_pixels(window.rem_size());
         let f = dialog_ref.multi_fields.get(self.field_id);
         let handle = dialog_ref.focus_for_multi(self.field_id);
-        let text = f.text.clone();
-        let cursor = f.cursor.min(text.len());
-        let anchor = f.anchor.min(text.len());
+        let text = f.text.as_str();
+        let cursor = floor_str_boundary(text, f.cursor);
+        let anchor = floor_str_boundary(text, f.anchor);
         let text_len = text.len();
+        // The input opens seeded with the whole document. Shaping every row
+        // each frame hangs on a large file, so shape only the clipped rows.
+        let clip = window.content_mask().bounds;
+        let visible = visible_rows(
+            bounds.top().into(),
+            clip.top().into(),
+            clip.bottom().into(),
+            window.line_height().into(),
+        );
 
         let color: Hsla = Rgba::from(rgb(theme.text)).into();
         let mut shaped_lines: Vec<Option<ShapedLine>> = Vec::new();
         let mut line_offsets: Vec<usize> = Vec::new();
         let mut byte = 0usize;
-        for raw in text.split('\n') {
+        for (row, raw) in text.split('\n').enumerate() {
             line_offsets.push(byte);
+            byte += raw.len() + 1;
+            if !visible.contains(&row) {
+                continue;
+            }
             if raw.is_empty() {
                 shaped_lines.push(None);
             } else {
@@ -550,12 +570,12 @@ impl gpui::Element for MultiLineInput {
                     display, font_size, &runs, None,
                 )));
             }
-            byte += raw.len() + 1;
         }
 
         Some(MultiPrepaint {
             handle,
             shaped_lines,
+            first_row: visible.start,
             line_offsets,
             cursor,
             anchor,
@@ -587,15 +607,19 @@ impl gpui::Element for MultiLineInput {
         let sel_color: Hsla = rgba(theme.selection).into();
 
         if hi > lo {
-            for (row_idx, shaped) in state.shaped_lines.iter().enumerate() {
-                let line_start = state.line_offsets[row_idx];
+            let row_count = state.line_offsets.len();
+            let lo_row = byte_to_row_col_offsets(&state.line_offsets, state.text_len, lo).0;
+            for (i, shaped) in state.shaped_lines.iter().enumerate() {
+                let row_idx = state.first_row.saturating_add(i);
+                let Some(&line_start) = state.line_offsets.get(row_idx) else {
+                    continue;
+                };
                 let line_text_len = shaped.as_ref().map(|l| l.len).unwrap_or(0);
                 let line_end = line_start + line_text_len;
                 let row_y = bounds.top() + line_height * row_idx as f32;
                 let sel_lo = lo.max(line_start);
                 let sel_hi = hi.min(line_end);
-                let row_includes_newline =
-                    hi > line_end && row_idx + 1 < state.shaped_lines.len();
+                let row_includes_newline = hi > line_end && row_idx + 1 < row_count;
                 if sel_hi > sel_lo {
                     let local_lo = sel_lo - line_start;
                     let local_hi = sel_hi - line_start;
@@ -614,7 +638,7 @@ impl gpui::Element for MultiLineInput {
                         Bounds::new(point(x_lo, row_y), size(x_hi - x_lo + extra_w, line_height)),
                         sel_color,
                     ));
-                } else if row_includes_newline && row_idx >= line_offset_of_byte(state, lo) {
+                } else if row_includes_newline && row_idx >= lo_row {
                     window.paint_quad(fill(
                         Bounds::new(point(bounds.left(), row_y), size(px(8.), line_height)),
                         sel_color,
@@ -624,8 +648,8 @@ impl gpui::Element for MultiLineInput {
         }
 
         let mut shaped_lines = std::mem::take(&mut state.shaped_lines);
-        for (row_idx, shaped) in shaped_lines.iter_mut().enumerate() {
-            let row_y = bounds.top() + line_height * row_idx as f32;
+        for (i, shaped) in shaped_lines.iter_mut().enumerate() {
+            let row_y = bounds.top() + line_height * state.first_row.saturating_add(i) as f32;
             if let Some(line) = shaped.take() {
                 let _ = line.paint(
                     point(bounds.left(), row_y),
@@ -645,15 +669,10 @@ impl gpui::Element for MultiLineInput {
             let row_y = bounds.top() + line_height * row as f32;
             let style = window.text_style();
             let font_size = style.font_size.to_pixels(window.rem_size());
-            let row_text = dialog
-                .read(cx)
-                .multi_fields
-                .get(self.field_id)
-                .text
-                .split('\n')
-                .nth(row)
-                .unwrap_or("")
-                .to_string();
+            let row_text = {
+                let text = &dialog.read(cx).multi_fields.get(self.field_id).text;
+                text.get(row_byte_range(text, row)).unwrap_or("").to_string()
+            };
             let cx_pos = if row_text.is_empty() {
                 bounds.left()
             } else {
@@ -687,8 +706,6 @@ impl gpui::Element for MultiLineInput {
 
         let dialog_for_click = dialog.clone();
         let field_id = self.field_id;
-        let line_offsets_clone = state.line_offsets.clone();
-        let text_len = state.text_len;
         window.on_mouse_event(move |event: &MouseDownEvent, phase, window, cx| {
             if phase != DispatchPhase::Bubble || event.button != MouseButton::Left {
                 return;
@@ -699,17 +716,15 @@ impl gpui::Element for MultiLineInput {
             let line_h: f32 = window.line_height().into();
             let local_y_px: f32 = (event.position.y - bounds.top()).into();
             let row = (local_y_px / line_h).floor().max(0.0) as usize;
-            let row = row.min(line_offsets_clone.len().saturating_sub(1));
-            let line_start = line_offsets_clone[row];
-            let line_end = line_offsets_clone
-                .get(row + 1)
-                .map(|n| n - 1)
-                .unwrap_or(text_len);
             dialog_for_click.update(cx, |this, cx| {
                 let handle = this.focus_for_multi(field_id);
                 window.focus(&handle, cx);
                 let f = this.multi_fields.get_mut(field_id);
-                let row_text = f.text[line_start..line_end].to_string();
+                // Row bounds come from the text as it is now: an edit can
+                // land between this frame's paint and the click.
+                let range = row_byte_range(&f.text, row);
+                let line_start = range.start;
+                let row_text = f.text.get(range).unwrap_or("").to_string();
                 let click_x = event.position.x - bounds.left();
                 let local_byte = byte_for_x_singleline(&row_text, click_x, window);
                 f.collapse_to(line_start + local_byte);
@@ -719,32 +734,87 @@ impl gpui::Element for MultiLineInput {
     }
 }
 
-fn line_offset_of_byte(state: &MultiPrepaint, byte: usize) -> usize {
-    let mut idx = 0usize;
-    for (i, off) in state.line_offsets.iter().enumerate() {
-        if *off <= byte {
-            idx = i;
-        } else {
+/// Byte range of row `row` of `text`, split on `\n` and without it. A row
+/// past the last maps to the last.
+fn row_byte_range(text: &str, row: usize) -> Range<usize> {
+    let mut start = 0usize;
+    let mut range = 0..0;
+    for (i, line) in text.split('\n').enumerate() {
+        range = start..start + line.len();
+        if i == row {
             break;
         }
+        start = range.end + 1;
     }
-    idx
+    range
 }
 
+/// Rows of height `line_h` laid out from `top` that meet the clip
+/// `clip_top..clip_bottom`, with one row of slack on each side.
+fn visible_rows(top: f32, clip_top: f32, clip_bottom: f32, line_h: f32) -> Range<usize> {
+    if !line_h.is_finite() || line_h <= 0.0 {
+        return 0..0;
+    }
+    // Float-to-int `as` saturates and maps NaN to 0.
+    let first = (((clip_top - top) / line_h).floor() - 1.0).max(0.0) as usize;
+    let last = (((clip_bottom - top) / line_h).ceil() + 1.0).max(0.0) as usize;
+    first..last.max(first)
+}
+
+/// `(row, column byte)` of `byte`, given each row's start byte.
 pub(super) fn byte_to_row_col_offsets(
     line_offsets: &[usize],
     text_len: usize,
     byte: usize,
 ) -> (usize, usize) {
     let byte = byte.min(text_len);
-    let mut row = 0;
-    for (i, off) in line_offsets.iter().enumerate() {
-        if *off <= byte {
-            row = i;
-        } else {
-            break;
+    // Offsets ascend: the last row starting at or before `byte` holds it.
+    let row = line_offsets.partition_point(|&off| off <= byte).saturating_sub(1);
+    let line_start = line_offsets.get(row).copied().unwrap_or(0);
+    (row, byte.saturating_sub(line_start))
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn row_byte_range_follows_the_current_text() {
+        // é=0..2 \n=2 x=3 \r=4 \n=5 中=6..9
+        let s = "é\nx\r\n中";
+        assert_eq!(row_byte_range(s, 0), 0..2);
+        assert_eq!(row_byte_range(s, 1), 3..5);
+        assert_eq!(row_byte_range(s, 2), 6..9);
+        assert_eq!(row_byte_range(s, 99), 6..9);
+        assert_eq!(row_byte_range("", 3), 0..0);
+        assert_eq!(row_byte_range("a\n", 5), 2..2);
+        for row in 0..4 {
+            assert!(s.get(row_byte_range(s, row)).is_some(), "row {row}");
         }
     }
-    let line_start = line_offsets[row];
-    (row, byte - line_start)
+
+    #[test]
+    fn row_col_lookup_survives_empty_offsets() {
+        // An empty offset table indexed `line_offsets[0]`.
+        assert_eq!(byte_to_row_col_offsets(&[], 0, 5), (0, 0));
+        assert_eq!(byte_to_row_col_offsets(&[], 9, 5), (0, 5));
+        let offsets = [0, 3, 4, 7];
+        assert_eq!(byte_to_row_col_offsets(&offsets, 9, 0), (0, 0));
+        assert_eq!(byte_to_row_col_offsets(&offsets, 9, 3), (1, 0));
+        assert_eq!(byte_to_row_col_offsets(&offsets, 9, 6), (2, 2));
+        assert_eq!(byte_to_row_col_offsets(&offsets, 9, 99), (3, 2));
+    }
+
+    #[test]
+    fn only_rows_inside_the_clip_are_shaped() {
+        // 20px rows from y=100, clipped to y=150..250: rows 2..8 with slack.
+        assert_eq!(visible_rows(100.0, 150.0, 250.0, 20.0), 1..9);
+        // Scrolled so the input starts far above the clip.
+        assert_eq!(visible_rows(-1_000_000.0, 0.0, 400.0, 20.0), 49_999..50_021);
+        // Clip above the input: nothing, or only the slack row.
+        assert_eq!(visible_rows(500.0, 0.0, 100.0, 20.0), 0..0);
+        assert_eq!(visible_rows(0.0, 0.0, 100.0, 0.0), 0..0);
+        assert_eq!(visible_rows(0.0, 0.0, 100.0, f32::NAN), 0..0);
+        assert_eq!(visible_rows(0.0, f32::NAN, f32::NAN, 20.0), 0..0);
+    }
 }

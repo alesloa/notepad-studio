@@ -1296,16 +1296,23 @@ fn read_inline_runs_until<F: Fn(&TagEnd) -> bool>(
                      tag_stack: &mut Vec<PendingTag>,
                      out: &mut Vec<InlineRun>,
                      force_code: bool| {
-        let cur = *style_stack.last().unwrap();
-        // Update inner-extent tracking for any open emphasis tags so the
+        let cur = style_stack.last().copied().unwrap_or(base);
+        // Update inner-extent tracking for the open emphasis tags so the
         // post-End marker computation knows where the inner content
         // ended. Cover the full original range, regardless of whether
-        // autolinking splits the text into multiple runs.
-        for pending in tag_stack.iter_mut() {
-            if pending.first_inner_start.is_none() {
-                pending.first_inner_start = Some(range.start);
+        // autolinking splits the text into multiple runs. Tags still
+        // waiting for their first content sit at the top of the stack,
+        // and only the innermost tag records the end: the End handler
+        // passes it to the parent. Touching every open tag here made
+        // deep emphasis over many lines quadratic.
+        for pending in tag_stack.iter_mut().rev() {
+            if pending.first_inner_start.is_some() {
+                break;
             }
-            pending.last_inner_end = Some(range.end);
+            pending.first_inner_start = Some(range.start);
+        }
+        if let Some(innermost) = tag_stack.last_mut() {
+            innermost.last_inner_end = Some(range.end);
         }
         let current_link = link_stack.last().cloned();
         let in_code = cur.code || force_code;
@@ -1466,6 +1473,12 @@ fn read_inline_runs_until<F: Fn(&TagEnd) -> bool>(
                     TagEnd::Emphasis | TagEnd::Strong | TagEnd::Strikethrough
                 ) {
                     if let Some(pending) = tag_stack.pop() {
+                        // The parent's content extends at least as far.
+                        if let (Some(end), Some(parent)) =
+                            (pending.last_inner_end, tag_stack.last_mut())
+                        {
+                            parent.last_inner_end = Some(end);
+                        }
                         finalize_tag(pending, source, &mut tags);
                     }
                 }
@@ -3913,6 +3926,53 @@ mod hostile_input_tests {
             .filter(|r| r.link.as_deref() == Some("notepad-fn:def:1"))
             .count();
         assert_eq!(refs, 60_000);
+    }
+
+    #[test]
+    fn emphasis_marker_ranges() {
+        let markers = |source: &str| {
+            let blocks = parse(source);
+            let [Block::Paragraph { tags, .. }] = blocks.as_slice() else {
+                panic!("expected one paragraph");
+            };
+            let mut out: Vec<_> = tags
+                .iter()
+                .map(|t| (t.open.clone(), t.open_text.to_string(), t.close.clone(), t.close_text.to_string()))
+                .collect();
+            out.sort_by_key(|m| m.0.start);
+            out
+        };
+        assert_eq!(
+            markers("**a *b* c**"),
+            vec![
+                (0..2, "**".to_string(), 9..11, "**".to_string()),
+                (4..5, "*".to_string(), 6..7, "*".to_string()),
+            ]
+        );
+        assert_eq!(
+            markers("*a* and ~~b~~"),
+            vec![
+                (0..1, "*".to_string(), 2..3, "*".to_string()),
+                (8..10, "~~".to_string(), 11..13, "~~".to_string()),
+            ]
+        );
+    }
+
+    #[test]
+    fn nested_emphasis_spanning_many_lines() {
+        // Each text event used to update every open emphasis tag.
+        let n = 200_000;
+        let source = format!("{}{}x{}", "*".repeat(n), "x\n".repeat(n), "*".repeat(n));
+        let blocks = parse(&source);
+        let [Block::Paragraph { tags, .. }] = blocks.as_slice() else {
+            panic!("expected one paragraph");
+        };
+        assert_eq!(tags.len(), n / 2);
+        // The innermost tag's markers hug the text on both sides.
+        let inner = tags.iter().min_by_key(|t| t.close.start - t.open.end).unwrap();
+        assert_eq!(&source[inner.open.end..inner.close.start], format!("{}x", "x\n".repeat(n)));
+        // The outermost tag spans the whole paragraph.
+        assert!(tags.iter().any(|t| t.open.start == 0 && t.close.end == source.len()));
     }
 
     #[test]

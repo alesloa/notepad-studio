@@ -10,9 +10,12 @@
 // back to ISO on Windows + unknown. LONG keeps the explicit long-form spec
 // from the directive (no NPP equivalent surfaced enough to bridge yet).
 // Customized reads its strftime template from `Settings::datetime_custom_format`
-// (Preferences dialog ▸ Insert tab).
+// (Preferences dialog ▸ Multi-Instance & Date).
+
+use std::fmt::{self, Write as _};
 
 use chrono::format::{Item, StrftimeItems};
+use chrono::{DateTime, TimeZone};
 use gpui::{Context, Window};
 
 use crate::actions::*;
@@ -65,15 +68,15 @@ impl Workspace {
             return;
         }
         let fmt = self.settings().datetime_custom_format;
-        // chrono panics inside `to_string()` if the format yields an
-        // `Item::Error` (unknown `%X` specifier). NPP's Win32 path silently
-        // passes unrecognised chars through as literals; chrono doesn't.
-        // Walk the items first; on any Error, treat as a no-op so a typo
-        // in the user's format string can't crash the editor.
-        if StrftimeItems::new(&fmt).any(|i| matches!(i, Item::Error)) {
+        // NPP's Win32 path passes unrecognised chars through as literals;
+        // chrono rejects them. On a bad template insert nothing and say why.
+        let Some(stamp) = format_custom(&chrono::Local::now(), &fmt) else {
+            self.set_status(format!(
+                "Insert Date Time: the customized format \"{fmt}\" is not valid (Preferences > Multi-Instance & Date)"
+            ));
+            cx.notify();
             return;
-        }
-        let stamp = chrono::Local::now().format(&fmt).to_string();
+        };
         self.insert_text_in_editor(&stamp, cx);
         crate::macros::record(crate::macros::MacroEvent::InsertDateTimeCustomized);
     }
@@ -84,5 +87,49 @@ impl Workspace {
     fn insert_text_in_editor(&mut self, text: &str, cx: &mut Context<Self>) {
         let r = self.selection().ordered();
         self.replace_byte_range(r, text, cx);
+    }
+}
+
+/// `now` rendered with the user's strftime `template`, or `None` when the
+/// template has an unknown specifier. chrono's `to_string()` panics on an
+/// `Item::Error`; checking the items and writing through `fmt::Write` turns
+/// every formatting failure into `None` instead.
+fn format_custom<Tz: TimeZone>(now: &DateTime<Tz>, template: &str) -> Option<String>
+where
+    Tz::Offset: fmt::Display,
+{
+    if StrftimeItems::new(template).any(|i| matches!(i, Item::Error)) {
+        return None;
+    }
+    let mut out = String::new();
+    write!(out, "{}", now.format(template)).ok()?;
+    Some(out)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chrono::FixedOffset;
+
+    #[test]
+    fn custom_format_rejects_bad_templates_without_panicking() {
+        let tz = FixedOffset::east_opt(3600).expect("valid offset");
+        let now = chrono::NaiveDate::from_ymd_opt(2026, 3, 4)
+            .and_then(|d| d.and_hms_opt(5, 6, 7))
+            .and_then(|t| t.and_local_timezone(tz).single())
+            .expect("valid date");
+        let cases: &[(&str, Option<&str>)] = &[
+            ("%Y-%m-%d %H:%M:%S", Some("2026-03-04 05:06:07")),
+            ("", Some("")),
+            ("é 中 %d\r\n", Some("é 中 04\r\n")),
+            ("%%", Some("%")),
+            ("%Q", None),
+            ("%", None),
+            ("abc %", None),
+            ("%Y %Ö", None),
+        ];
+        for (template, want) in cases {
+            assert_eq!(format_custom(&now, template).as_deref(), *want, "template {template:?}");
+        }
     }
 }

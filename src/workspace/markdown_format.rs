@@ -65,7 +65,9 @@ impl Workspace {
     }
 
     pub(crate) fn preview_is_dragging(&self) -> bool {
-        self.tabs[self.active].selection.is_dragging
+        self.tabs
+            .get(self.active)
+            .is_some_and(|tab| tab.selection.is_dragging)
     }
 
     pub(crate) fn preview_end_drag(&mut self, cx: &mut gpui::Context<Self>) {
@@ -195,7 +197,7 @@ impl Workspace {
         let needle = format!("[^{label}]");
         let mut search_from = 0;
         let target = loop {
-            let Some(rel) = source[search_from..].find(&needle) else {
+            let Some(rel) = source.get(search_from..).and_then(|rest| rest.find(&needle)) else {
                 return;
             };
             let abs = search_from + rel;
@@ -281,7 +283,7 @@ impl Workspace {
                 best_idx = i;
             }
         }
-        targets[best_idx].source_byte_at(position)
+        targets.get(best_idx)?.source_byte_at(position)
     }
 
     /// One-shot drag-or-click handler called from the outer preview-pane
@@ -493,8 +495,10 @@ impl Workspace {
         // horizontal move captures the current pixel x; subsequent moves
         // reuse it so the caret tracks the same column even through lines
         // of varying length.
-        let desired_x = self.tabs[self.active]
-            .desired_col_x
+        let desired_x = self
+            .tabs
+            .get(self.active)
+            .and_then(|tab| tab.desired_col_x)
             .unwrap_or(origin.x);
         self.active_tab_mut().desired_col_x = Some(desired_x);
 
@@ -542,7 +546,9 @@ impl Workspace {
                 Some(best_idx)
             });
             let Some(idx) = chosen_idx else { return false; };
-            let chosen = self.preview_block_targets[idx].clone();
+            let Some(chosen) = self.preview_block_targets.get(idx).cloned() else {
+                return false;
+            };
             let b = chosen.layout.bounds();
             // Clamp target_y inside the chosen block so index_for_position
             // doesn't fall off the layout entirely.
@@ -585,7 +591,9 @@ impl Workspace {
         // either source or preview view — they always operate on the
         // persisted source selection. Gate purely on file extension so a
         // stray dispatch on a non-markdown tab does nothing.
-        let tab = &self.tabs[self.active];
+        let Some(tab) = self.tabs.get(self.active) else {
+            return false;
+        };
         crate::ui::markdown_view::is_markdown_path(tab.buffer.file_path.as_deref())
     }
 

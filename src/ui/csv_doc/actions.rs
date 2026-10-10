@@ -614,25 +614,30 @@ pub(crate) fn build_text_measure(window: &mut Window) -> impl Fn(&str) -> f32 {
     let font_size = style.font_size.to_pixels(window.rem_size());
     let font = style.font();
     let text_system = window.text_system().clone();
+    // A quoted field can hold line breaks and `shape_line` takes a single
+    // line (it debug-asserts on `\n`), so measure each line and keep the
+    // widest.
     move |s: &str| -> f32 {
-        if s.is_empty() {
-            return 0.0;
-        }
-        let runs = vec![TextRun {
-            len: s.len(),
-            font: font.clone(),
-            color: gpui::black(),
-            background_color: None,
-            underline: None,
-            strikethrough: None,
-        }];
-        let line = text_system.shape_line(
-            SharedString::from(s.to_string()),
-            font_size,
-            &runs,
-            None,
-        );
-        f32::from(line.width)
+        s.split(['\n', '\r'])
+            .filter(|part| !part.is_empty())
+            .map(|part| {
+                let runs = vec![TextRun {
+                    len: part.len(),
+                    font: font.clone(),
+                    color: gpui::black(),
+                    background_color: None,
+                    underline: None,
+                    strikethrough: None,
+                }];
+                let line = text_system.shape_line(
+                    SharedString::from(part.to_string()),
+                    font_size,
+                    &runs,
+                    None,
+                );
+                f32::from(line.width)
+            })
+            .fold(0.0, f32::max)
     }
 }
 

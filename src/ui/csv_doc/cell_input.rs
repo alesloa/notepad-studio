@@ -221,7 +221,7 @@ impl gpui::Element for CsvCellInputElement {
         let display_text = if buffer.is_empty() {
             String::from(" ")
         } else {
-            buffer.clone()
+            single_line_display(&buffer)
         };
         let shaped = Some(window.text_system().shape_line(
             SharedString::from(display_text),
@@ -311,7 +311,7 @@ impl gpui::Element for CsvCellInputElement {
             let display_text = if buffer.is_empty() {
                 String::from(" ")
             } else {
-                buffer.clone()
+                single_line_display(buffer)
             };
             let line = window.text_system().shape_line(
                 SharedString::from(display_text),
@@ -458,7 +458,7 @@ fn byte_for_x_in_text(text: &str, x: Pixels, window: &mut Window) -> usize {
         strikethrough: None,
     }];
     let line = window.text_system().shape_line(
-        SharedString::from(text.to_string()),
+        SharedString::from(single_line_display(text)),
         font_size,
         &runs,
         None,
@@ -469,6 +469,15 @@ fn byte_for_x_in_text(text: &str, x: Pixels, window: &mut Window) -> usize {
     line.index_for_x(x).unwrap_or(text.len())
 }
 
+/// `shape_line` takes a single line and debug-asserts it holds no `\n`,
+/// but a quoted CSV field can carry line breaks (`"line one\nline two"`).
+/// Show each `\n` and `\r` as a space: all three are one byte, so the
+/// cursor and selection byte offsets into the buffer still index the
+/// shaped line.
+pub(crate) fn single_line_display(text: &str) -> String {
+    text.replace(['\n', '\r'], " ")
+}
+
 /// Helper used by the wrapper div builder above to keep external paths
 /// simple — exposes `StyleRefinement` so callers can add minor tweaks
 /// without re-implementing the wrapper's defaults.
@@ -477,4 +486,21 @@ pub(crate) fn default_wrapper_style(theme: &Theme) -> StyleRefinement {
     let mut s = StyleRefinement::default();
     s.background = Some(gpui::Fill::Color(Rgba::from(rgb(theme.chrome)).into()));
     s
+}
+
+#[cfg(test)]
+mod tests {
+    use super::single_line_display;
+
+    #[test]
+    fn single_line_display_drops_line_breaks_and_keeps_offsets() {
+        let cell = "é\r\n中\n👩‍👩‍👧\rend";
+        let shown = single_line_display(cell);
+        assert!(!shown.contains(['\n', '\r']));
+        assert_eq!(shown.len(), cell.len());
+        assert_eq!(shown, "é  中 👩‍👩‍👧 end");
+        for (i, _) in cell.char_indices() {
+            assert!(shown.is_char_boundary(i), "offset {i} must stay a char boundary");
+        }
+    }
 }

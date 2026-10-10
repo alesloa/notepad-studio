@@ -33,6 +33,40 @@ fn is_word_byte(b: u8) -> bool {
     b.is_ascii_alphanumeric() || b == b'_' || (0x80..=0xff).contains(&b)
 }
 
+/// Every non-empty match of `re` in `text`, optionally restricted to the
+/// byte range `scope` ("In selection"). Zero-length matches (`^`, `\b`,
+/// `a*` on "b") are skipped so "current" never cycles on an empty range.
+///
+/// The scope is captured when "In selection" is toggled and is not shifted
+/// by later edits or tab switches, so it can point past the end or into the
+/// middle of a multi-byte char. Clamp and floor both ends to a char boundary.
+fn collect_matches(text: &str, re: &regex::Regex, scope: Option<&Range<usize>>) -> Vec<Range<usize>> {
+    let mut matches: Vec<Range<usize>> = Vec::new();
+    if let Some(s) = scope {
+        let lo = text.floor_char_boundary(s.start.min(text.len()));
+        let hi = text.floor_char_boundary(s.end.min(text.len()));
+        if lo < hi {
+            let Some(slice) = text.get(lo..hi) else {
+                return matches;
+            };
+            for m in re.find_iter(slice) {
+                if m.start() == m.end() {
+                    continue;
+                }
+                matches.push((lo + m.start())..(lo + m.end()));
+            }
+        }
+    } else {
+        for m in re.find_iter(text) {
+            if m.start() == m.end() {
+                continue;
+            }
+            matches.push(m.start()..m.end());
+        }
+    }
+    matches
+}
+
 impl Workspace {
     /// Recompute `find_state.matches` from the current query + flags against
     /// the active buffer. Sets `error` on regex failure and clears `matches`.
@@ -99,27 +133,7 @@ impl Workspace {
             } else {
                 None
             };
-            let mut matches: Vec<Range<usize>> = Vec::new();
-            if let Some(ref s) = scope {
-                let lo = s.start.min(flat_text.len());
-                let hi = s.end.min(flat_text.len());
-                if lo < hi {
-                    let slice = &flat_text[lo..hi];
-                    for m in re.find_iter(slice) {
-                        if m.start() == m.end() {
-                            continue;
-                        }
-                        matches.push((lo + m.start())..(lo + m.end()));
-                    }
-                }
-            } else {
-                for m in re.find_iter(&flat_text) {
-                    if m.start() == m.end() {
-                        continue;
-                    }
-                    matches.push(m.start()..m.end());
-                }
-            }
+            let matches = collect_matches(&flat_text, &re, scope.as_ref());
             // Pick the first match at or after the current cursor's global
             // flat position. Falls back to the first match when no cursor or
             // every match precedes the cursor.
@@ -161,30 +175,7 @@ impl Workspace {
         // O(rope-flatten + haystack-scan).
         let matches: Vec<Range<usize>> = {
             let buffer_text = self.tabs[self.active].buffer.flat_text();
-            let mut matches: Vec<Range<usize>> = Vec::new();
-            if let Some(ref s) = scope {
-                let lo = s.start.min(buffer_text.len());
-                let hi = s.end.min(buffer_text.len());
-                if lo < hi {
-                    let slice = &buffer_text[lo..hi];
-                    for m in re.find_iter(slice) {
-                        if m.start() == m.end() {
-                            continue;
-                        }
-                        matches.push((lo + m.start())..(lo + m.end()));
-                    }
-                }
-            } else {
-                for m in re.find_iter(buffer_text) {
-                    // Skip zero-length matches to avoid infinite "current" cycling
-                    // on patterns like `^` or `\b`. Notepad++ does the same.
-                    if m.start() == m.end() {
-                        continue;
-                    }
-                    matches.push(m.start()..m.end());
-                }
-            }
-            matches
+            collect_matches(buffer_text, &re, scope.as_ref())
         };
 
         let current = if matches.is_empty() {
@@ -1976,4 +1967,31 @@ fn csv_preview_active(w: &Workspace) -> bool {
     };
     matches!(tab.view_mode, crate::tab::TabViewMode::CsvPreview)
         && crate::ui::csv_doc::is_csv_path(tab.buffer.file_path.as_deref())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn literal(q: &str) -> regex::Regex {
+        regex::Regex::new(&regex::escape(q)).unwrap()
+    }
+
+    #[test]
+    fn scope_ending_mid_char_does_not_panic() {
+        // Scope captured over "ab" (0..2), then "中" (3 bytes) was typed at
+        // the start: the stale scope now ends inside the CJK char.
+        let text = "中ab";
+        let re = literal("a");
+        let got = collect_matches(text, &re, Some(&(0..2)));
+        assert!(got.iter().all(|r| text.is_char_boundary(r.start) && text.is_char_boundary(r.end)));
+    }
+
+    #[test]
+    fn scope_starting_mid_char_does_not_panic() {
+        let text = "a中b";
+        let re = literal("b");
+        let got = collect_matches(text, &re, Some(&(2..text.len())));
+        assert_eq!(got, vec![4..5]);
+    }
 }

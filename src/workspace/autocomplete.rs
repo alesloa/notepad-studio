@@ -46,6 +46,9 @@ pub(crate) struct AutocompleteState {
     /// Byte offset where the matched prefix starts in the active buffer's
     /// rope. Replacement on accept covers `[replace_start, caret)`.
     pub(crate) replace_start: usize,
+    /// Session id of the tab the popup was opened on; `replace_start` means
+    /// nothing in any other buffer.
+    pub(crate) tab_id: uuid::Uuid,
     /// Top-left of the popup body in window-space pixels.
     pub(crate) anchor: Point<Pixels>,
 }
@@ -69,8 +72,10 @@ pub(crate) fn is_word_char(c: char) -> bool {
 }
 
 /// Walk backwards from `caret` through the rope and return the byte offset
-/// where the prefix starts. Empty prefix returns `caret` unchanged.
+/// where the prefix starts. Empty prefix returns the caret, clamped to the
+/// rope and floored to a char start.
 pub(crate) fn find_prefix_start(rope: &ropey::Rope, caret: usize) -> usize {
+    let caret = super::edits::floor_rope_char_boundary(rope, caret);
     if caret == 0 {
         return 0;
     }
@@ -88,6 +93,28 @@ pub(crate) fn find_prefix_start(rope: &ropey::Rope, caret: usize) -> usize {
     idx
 }
 
+/// The identifier prefix ending at `caret`: its start byte, the caret byte
+/// the prefix ends at, and the prefix text.
+fn prefix_at(rope: &ropey::Rope, caret: usize) -> (usize, usize, String) {
+    let caret = super::edits::floor_rope_char_boundary(rope, caret);
+    let start = find_prefix_start(rope, caret);
+    (start, caret, rope.byte_slice(start..caret).to_string())
+}
+
+/// Byte range an accepted candidate replaces: the identifier prefix ending
+/// at the caret, provided it still starts where the popup opened. `None`
+/// once the caret has left that prefix (moved away, typed a separator,
+/// deleted past its start), so accept cancels instead of replacing
+/// whatever lies between the old start and the new caret.
+fn accept_range(
+    rope: &ropey::Rope,
+    replace_start: usize,
+    caret: usize,
+) -> Option<std::ops::Range<usize>> {
+    let (start, caret, _) = prefix_at(rope, caret);
+    (start == replace_start).then_some(start..caret)
+}
+
 /// Collect every unique identifier in the buffer that starts with `prefix`,
 /// excluding the exact prefix itself (the user already typed it — offering
 /// it back would just dismiss the popup with no change). When
@@ -100,7 +127,6 @@ pub(crate) fn collect_word_candidates(
     ignore_numbers: bool,
 ) -> Vec<String> {
     let mut seen: BTreeSet<String> = BTreeSet::new();
-    let text = rope.to_string();
     let mut current = String::new();
     let lower_prefix = prefix.to_ascii_lowercase();
     let push = |word: &str, seen: &mut BTreeSet<String>| {
@@ -121,7 +147,7 @@ pub(crate) fn collect_word_candidates(
         seen.insert(word.to_string());
     };
 
-    for ch in text.chars() {
+    for ch in rope.chars() {
         if is_word_char(ch) {
             current.push(ch);
         } else {
@@ -258,8 +284,7 @@ impl Workspace {
         let candidates;
         {
             let rope = &self.buffer().rope;
-            prefix_start = find_prefix_start(rope, caret);
-            prefix = rope.byte_slice(prefix_start..caret).to_string();
+            (prefix_start, _, prefix) = prefix_at(rope, caret);
             candidates = collect_word_candidates(
                 rope,
                 &prefix,
@@ -280,6 +305,7 @@ impl Workspace {
             candidates,
             selected: 0,
             replace_start: prefix_start,
+            tab_id: self.tabs[self.active].session_id,
             anchor,
         });
         self.status_message = None;
@@ -296,13 +322,7 @@ impl Workspace {
     ) -> bool {
         let caret = self.selection().head;
         let snap = settings::snapshot();
-        let prefix_start;
-        let prefix;
-        {
-            let rope = &self.buffer().rope;
-            prefix_start = find_prefix_start(rope, caret);
-            prefix = rope.byte_slice(prefix_start..caret).to_string();
-        }
+        let (prefix_start, _, prefix) = prefix_at(&self.buffer().rope, caret);
         let candidates = collect_keyword_candidates(
             &prefix,
             lang,
@@ -328,6 +348,7 @@ impl Workspace {
             candidates,
             selected: 0,
             replace_start: prefix_start,
+            tab_id: self.tabs[self.active].session_id,
             anchor,
         });
         self.status_message = None;
@@ -350,8 +371,7 @@ impl Workspace {
         let words;
         {
             let rope = &self.buffer().rope;
-            prefix_start = find_prefix_start(rope, caret);
-            prefix = rope.byte_slice(prefix_start..caret).to_string();
+            (prefix_start, _, prefix) = prefix_at(rope, caret);
             words = collect_word_candidates(
                 rope,
                 &prefix,
@@ -382,6 +402,7 @@ impl Workspace {
             candidates,
             selected: 0,
             replace_start: prefix_start,
+            tab_id: self.tabs[self.active].session_id,
             anchor,
         });
         self.status_message = None;
@@ -491,35 +512,48 @@ impl Workspace {
 
     /// Apply the currently-selected candidate at the caret, then dismiss the
     /// popup. Replaces `[replace_start, caret)` with the candidate string.
-    pub(crate) fn accept_autocomplete(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+    /// Returns false when nothing was inserted (no popup, or the popup went
+    /// stale and was closed), so the Enter / Tab caller can run the key's
+    /// normal action instead.
+    pub(crate) fn accept_autocomplete(&mut self, window: &mut Window, cx: &mut Context<Self>) -> bool {
         let Some(state) = self.autocomplete.as_ref() else {
-            return;
+            return false;
         };
         let Some(pick) = state.candidates.get(state.selected).cloned() else {
             self.close_autocomplete(cx);
-            return;
+            return false;
         };
-        self.accept_autocomplete_with(&pick, window, cx);
+        self.accept_autocomplete_with(&pick, window, cx)
     }
 
     /// Variant called by the popup's click handler — uses the explicitly-
     /// picked candidate string instead of the keyboard-selected row so a
     /// click on an unselected row still inserts the right word.
+    ///
+    /// The popup stays on screen while the caret moves (arrows, Ctrl+End,
+    /// Backspace past the prefix, tab switch). Scintilla cancels the list
+    /// in those cases, so a stale popup is closed without editing rather
+    /// than replacing whatever lies between the old prefix and the caret.
     pub(crate) fn accept_autocomplete_with(
         &mut self,
         pick: &str,
         _window: &mut Window,
         cx: &mut Context<Self>,
-    ) {
+    ) -> bool {
         let Some(state) = self.autocomplete.take() else {
-            return;
+            return false;
         };
-        let caret = self.selection().head;
-        let start = state.replace_start.min(caret);
-        let end = caret.max(state.replace_start);
-        crate::macros::record(crate::macros::MacroEvent::InsertText(pick.to_string()));
-        self.replace_byte_range(start..end, pick, cx);
         cx.notify();
+        if self.tabs[self.active].session_id != state.tab_id {
+            return false;
+        }
+        let caret = self.selection().head;
+        let Some(range) = accept_range(&self.buffer().rope, state.replace_start, caret) else {
+            return false;
+        };
+        crate::macros::record(crate::macros::MacroEvent::InsertText(pick.to_string()));
+        self.replace_byte_range(range, pick, cx);
+        true
     }
 
     /// NPP `Auto-Completion ▸ From N-th character` runtime hook. Called from
@@ -574,5 +608,76 @@ impl Workspace {
         if self.autocomplete.is_none() {
             self.status_message = prev_status;
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{accept_range, collect_word_candidates, find_prefix_start, prefix_at};
+    use ropey::Rope;
+
+    #[test]
+    fn prefix_start_walks_back_over_word_chars() {
+        let rope = Rope::from_str("let foo_bar = fo");
+        assert_eq!(find_prefix_start(&rope, rope.len_bytes()), 14);
+        assert_eq!(find_prefix_start(&rope, 11), 4);
+        assert_eq!(find_prefix_start(&rope, 0), 0);
+        let rope = Rope::from_str("x = café");
+        assert_eq!(prefix_at(&rope, rope.len_bytes()), (4, 9, "café".to_string()));
+        let rope = Rope::from_str("a\r\n中文");
+        assert_eq!(prefix_at(&rope, rope.len_bytes()), (3, 9, "中文".to_string()));
+    }
+
+    #[test]
+    fn prefix_with_caret_past_end_or_mid_char_does_not_panic() {
+        // A caret past EOF hit `byte_to_char` out of bounds; one inside a
+        // multi-byte char with no word char before it came back unchanged
+        // and `byte_slice` panicked on it.
+        let rope = Rope::from_str("ab 👍");
+        assert_eq!(prefix_at(&rope, 99), (7, 7, String::new()));
+        assert_eq!(prefix_at(&rope, 5), (3, 3, String::new()));
+        for text in ["", "é", "中文 x", "👨‍👩‍👧ab", "🇫🇷\r\nzz", "a\rb"] {
+            let rope = Rope::from_str(text);
+            for caret in 0..=text.len() + 2 {
+                let (start, end, prefix) = prefix_at(&rope, caret);
+                assert!(start <= end && end <= text.len(), "{text:?} @ {caret}");
+                assert_eq!(&text[start..end], prefix);
+            }
+        }
+    }
+
+    #[test]
+    fn accept_replaces_only_the_prefix_the_popup_opened_on() {
+        let rope = Rope::from_str("fo bar");
+        assert_eq!(accept_range(&rope, 0, 2), Some(0..2));
+        // Typing more word chars or backspacing inside the prefix still
+        // accepts against the same start.
+        assert_eq!(accept_range(&rope, 0, 1), Some(0..1));
+        assert_eq!(accept_range(&rope, 0, 0), Some(0..0));
+    }
+
+    #[test]
+    fn accept_after_caret_left_the_prefix_is_rejected() {
+        // Popup opened on "fo" (start 0). Ctrl+End moved the caret to EOF:
+        // the old min/max range replaced everything from 0 to EOF.
+        let rope = Rope::from_str("fo bar baz\nmore text");
+        assert_eq!(accept_range(&rope, 0, rope.len_bytes()), None);
+        // Caret moved before the prefix start.
+        let rope = Rope::from_str("abc fo");
+        assert_eq!(accept_range(&rope, 4, 2), None);
+        // Caret past EOF or mid-char never panics.
+        assert_eq!(accept_range(&rope, 4, 99), Some(4..6));
+        let rope = Rope::from_str("x é");
+        assert_eq!(accept_range(&rope, 2, 3), Some(2..2));
+    }
+
+    #[test]
+    fn word_candidates_on_edge_buffers() {
+        assert!(collect_word_candidates(&Rope::new(), "", true).is_empty());
+        let rope = Rope::from_str("foo\r\nfood\rfool 12ab café_x 👍fob");
+        assert_eq!(collect_word_candidates(&rope, "fo", true), ["fob", "foo", "food", "fool"]);
+        assert_eq!(collect_word_candidates(&rope, "caf", true), vec!["café_x".to_string()]);
+        assert!(collect_word_candidates(&rope, "1", true).is_empty());
+        assert_eq!(collect_word_candidates(&rope, "1", false), vec!["12ab".to_string()]);
     }
 }

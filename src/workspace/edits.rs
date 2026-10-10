@@ -642,8 +642,8 @@ impl Workspace {
         // candidate; otherwise the normal Enter handling below runs.
         if self.autocomplete.is_some()
             && crate::settings::snapshot().autocompletion_insert_with_enter
+            && self.accept_autocomplete(window, cx)
         {
-            self.accept_autocomplete(window, cx);
             return;
         }
         let focus = self.input_focus(window);
@@ -838,8 +838,8 @@ impl Workspace {
         // Off-pref or no popup falls through to normal Tab handling.
         if self.autocomplete.is_some()
             && crate::settings::snapshot().autocompletion_insert_with_tab
+            && self.accept_autocomplete(window, cx)
         {
-            self.accept_autocomplete(window, cx);
             return;
         }
         let focus = self.input_focus(window);

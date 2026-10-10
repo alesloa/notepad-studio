@@ -4977,4 +4977,276 @@ mod tests {
         let m = fresh("\n\n\r\n");
         assert_eq!((m.row_count(), m.col_count()), (0, 0));
     }
+
+    // ---- Hostile input: actions on empty, small, ragged and stale state -----
+
+    /// What the user sees: the header row, then every body row, in
+    /// logical order.
+    fn grid_view(m: &CsvModel) -> Vec<Vec<String>> {
+        let cols = m.col_count();
+        let mut view = vec![(0..cols).map(|c| m.header(c).to_string()).collect()];
+        view.extend(
+            (0..m.row_count()).map(|r| (0..cols).map(|c| m.cell(r, c).to_string()).collect()),
+        );
+        view
+    }
+
+    fn arm_fill(m: &mut CsvModel, range: CellRange, hovered: (usize, usize), dx: f32, dy: f32) -> bool {
+        m.cell_range = Some(range);
+        if !m.begin_fill_drag(gpui::point(px(0.), px(0.))) {
+            return false;
+        }
+        m.update_fill_drag(hovered, dx, dy);
+        m.commit_fill_drag()
+    }
+
+    #[test]
+    fn actions_on_an_empty_sheet_change_nothing() {
+        let mut m = fresh("");
+        let range = CellRange::new((0, 0), (5, 5));
+        assert!(!m.handle_delete_key());
+        assert!(!m.clear_range(range));
+        assert!(!m.fill_down_range(range));
+        assert!(!m.fill_right_range(range));
+        assert!(!m.clear_rows(&BTreeSet::from([0, 9])));
+        assert!(!m.clear_cols(&BTreeSet::from([0, 9])));
+        m.delete_rows(&BTreeSet::new());
+        m.delete_cols(&BTreeSet::new());
+        m.delete_row(0);
+        m.delete_column(usize::MAX);
+        m.sort_by_col(0, true);
+        assert!(m.unique_values_for_col(0).is_empty());
+        m.open_filter_dropdown_for_col(0, gpui::point(px(0.), px(0.)));
+        assert!(m.open_filter_dropdown.is_none());
+        assert_eq!(m.hidden_row_count(), 0);
+        assert_eq!(m.move_row_block(&[0], 0, 3).1, false);
+        assert_eq!(m.move_col_block(&[0], 0, 3).1, false);
+        m.update_find_query("x".to_string());
+        assert_eq!((m.next_match(), m.prev_match()), (None, None));
+        assert!(!m.replace_current());
+        assert_eq!(m.replace_all(), 0);
+        assert!(!m.set_cell(0, 0, "x".to_string()));
+        assert!(!m.set_header(0, "x".to_string()));
+        m.auto_fit_all_columns(stub_measure_7px);
+        m.auto_fit_column(0, stub_measure_7px);
+        assert!(!m.paste_at(0, 0, &[], None));
+        assert!(!m.paste_at(0, 0, &[vec![], vec![]], Some(range)));
+        assert!(!arm_fill(&mut m, CellRange::new((0, 0), (0, 0)), (4, 0), 0.0, 100.0));
+        assert!(m.undo_stack.is_empty());
+        m.toggle_has_header();
+        m.toggle_has_header();
+        assert_eq!((m.row_count(), m.col_count()), (0, 0));
+        assert_eq!(m.emit_source(), "");
+    }
+
+    #[test]
+    fn stale_selection_past_the_end_after_deletes() {
+        let mut m = fresh("a,b,c\n1,2,3\n4,5,6\n7,8,9\n");
+        let stale = CellRange::new((1, 1), (2, 2));
+        m.delete_rows(&BTreeSet::from([1, 2]));
+        m.delete_cols(&BTreeSet::from([1, 2]));
+        assert_eq!(m.emit_source(), "a\n1\n");
+        let undo_depth = m.undo_stack.len();
+
+        m.cell_range = Some(stale);
+        m.active_cell = Some((2, 2));
+        assert!(!m.handle_delete_key());
+        assert!(!m.clear_range(stale));
+        assert!(!m.fill_down_range(stale));
+        assert!(!m.fill_right_range(stale));
+        assert!(!m.set_cell(2, 2, "x".to_string()));
+        assert!(!m.set_header(2, "x".to_string()));
+        assert!(!m.clear_rows(&BTreeSet::from([5])));
+        assert!(!m.clear_cols(&BTreeSet::from([5])));
+        assert_eq!(m.move_row_block(&[5], 5, 0).1, false);
+        assert_eq!(m.move_col_block(&[5], 5, 0).1, false);
+        m.sort_by_col(5, true);
+        assert!(!arm_fill(&mut m, stale, (0, 0), 0.0, -100.0));
+        assert!(!arm_fill(&mut m, stale, (9, 2), 0.0, 100.0));
+        assert!(!arm_fill(&mut m, stale, (2, 9), 100.0, 0.0));
+        m.update_find_query("1".to_string());
+        m.find_current_match = Some(7);
+        assert!(!m.replace_current());
+        assert_eq!(m.undo_stack.len(), undo_depth);
+        assert_eq!(m.emit_source(), "a\n1\n");
+    }
+
+    #[test]
+    fn single_row_and_single_column_sheets() {
+        let mut m = fresh("h\n7\n");
+        m.sort_by_col(0, false);
+        assert_eq!(m.unique_values_for_col(0), ["7"]);
+        assert!(!m.fill_down_range(CellRange::new((0, 0), (0, 0))));
+        assert!(!m.fill_right_range(CellRange::new((0, 0), (0, 0))));
+        // The fill handle dragged past the last row writes nothing.
+        assert!(!arm_fill(&mut m, CellRange::new((0, 0), (0, 0)), (3, 0), 0.0, 100.0));
+        assert!(!arm_fill(&mut m, CellRange::new((0, 0), (0, 0)), (0, 3), 100.0, 0.0));
+        m.update_find_query("7".to_string());
+        assert_eq!(m.next_match(), Some((0, 0)));
+        assert_eq!(m.next_match(), Some((0, 0)));
+        assert_eq!(m.prev_match(), Some((0, 0)));
+        assert_eq!(m.emit_source(), "h\n7\n");
+
+        let mut m = fresh("a,b,c\n");
+        m.sort_by_col(1, true);
+        assert!(m.unique_values_for_col(1).is_empty());
+        assert!(!arm_fill(&mut m, CellRange::new((0, 0), (0, 1)), (0, 2), 100.0, 0.0));
+        m.update_find_query("b".to_string());
+        assert_eq!(m.find_matches, vec![(usize::MAX, 1)]);
+        m.replace_text = "B".to_string();
+        assert!(m.replace_current());
+        assert_eq!(m.emit_source(), "a,B,c\n");
+    }
+
+    #[test]
+    fn fill_series_on_zero_and_one_source_rows() {
+        let mut m = fresh("n\n1\nx\nx\n");
+        assert!(arm_fill(&mut m, CellRange::new((0, 0), (0, 0)), (2, 0), 0.0, 100.0));
+        assert_eq!((m.cell(1, 0), m.cell(2, 0)), ("1", "1"));
+        // A source range over rows that no longer exist projects onto
+        // nothing.
+        let mut m = fresh("n\n");
+        assert!(!arm_fill(&mut m, CellRange::new((0, 0), (1, 0)), (3, 0), 0.0, 100.0));
+        assert!(!arm_fill(&mut m, CellRange::new((2, 0), (3, 0)), (0, 0), 0.0, -100.0));
+        assert_eq!(m.row_count(), 0);
+        assert!(m.undo_stack.is_empty());
+    }
+
+    #[test]
+    fn sort_filter_find_on_ragged_rows() {
+        let mut m = fresh("a\n3\n1,x,y\n2,z\n");
+        let mut before: Vec<String> = m.rows.concat();
+        before.sort();
+        m.sort_by_col(2, true);
+        m.sort_by_col(1, false);
+        m.sort_by_col(0, true);
+        assert_eq!((m.cell(0, 0), m.cell(1, 0), m.cell(2, 0)), ("1", "2", "3"));
+        let mut after: Vec<String> = m.rows.concat();
+        after.sort();
+        assert_eq!(after, before);
+        assert!(m.rows.iter().all(|r| r.len() == 3));
+
+        assert_eq!(m.unique_values_for_col(2), ["", "y"]);
+        m.col_filters.insert(2, HashSet::from([String::new()]));
+        assert_eq!(m.hidden_row_count(), 2);
+        assert!(m.row_is_visible(0));
+        assert!(m.row_is_visible(usize::MAX));
+        m.update_find_query("y".to_string());
+        assert_eq!(m.find_matches, vec![(0, 2)]);
+        m.replace_text = String::new();
+        assert_eq!(m.replace_all(), 1);
+        assert_eq!(m.hidden_row_count(), 3);
+        assert_emit_reparses(&m);
+    }
+
+    #[test]
+    fn insert_and_delete_at_both_ends() {
+        let mut m = fresh("a,b\n1,2\n3,4\n");
+        m.insert_row_at(0, true);
+        m.insert_row_at(m.row_count() - 1, false);
+        m.insert_col_at(0, true);
+        m.insert_col_at(m.col_count() - 1, false);
+        assert_eq!((m.row_count(), m.col_count()), (4, 4));
+        assert_eq!(m.emit_source(), "Column 1,a,b,Column 4\n,,,\n,1,2,\n,3,4,\n,,,\n");
+        m.delete_row(0);
+        m.delete_row(m.row_count() - 1);
+        m.delete_column(0);
+        m.delete_column(m.col_count() - 1);
+        m.delete_row(99);
+        m.delete_column(99);
+        assert_eq!(m.emit_source(), "a,b\n1,2\n3,4\n");
+
+        let mut m = fresh("");
+        m.insert_col_at(0, true);
+        m.insert_row_at(0, false);
+        assert_eq!((m.row_count(), m.col_count()), (1, 1));
+        m.delete_column(0);
+        m.delete_row(0);
+        assert_eq!((m.row_count(), m.col_count()), (0, 0));
+    }
+
+    #[test]
+    fn undo_redo_walks_structural_changes_both_ways() {
+        let mut m = fresh("a,b\n1,2\n3,4\n");
+        let ops: Vec<Box<dyn Fn(&mut CsvModel)>> = vec![
+            Box::new(|m| m.insert_row_at(0, true)),
+            Box::new(|m| m.insert_col_at(1, false)),
+            Box::new(|m| m.delete_rows(&BTreeSet::from([0]))),
+            Box::new(|m| m.sort_by_col(0, false)),
+            Box::new(|m| {
+                m.move_row_block(&[0], 0, 2);
+            }),
+            Box::new(|m| m.delete_cols(&BTreeSet::from([2]))),
+            Box::new(|m| {
+                let ragged = vec![vec!["p".to_string(), "q".to_string()], vec!["r".to_string()]];
+                m.paste_at(1, 1, &ragged, None);
+            }),
+            Box::new(|m| m.toggle_has_header()),
+            Box::new(|m| {
+                m.set_cell(0, 0, "z".to_string());
+            }),
+            Box::new(|m| {
+                m.fill_down_range(CellRange::new((0, 0), (3, 0)));
+            }),
+            Box::new(|m| m.add_row()),
+            Box::new(|m| m.add_column()),
+            Box::new(|m| m.delete_cols(&BTreeSet::from([0, 1, 2, 3]))),
+        ];
+        let mut states = vec![grid_view(&m)];
+        for (i, op) in ops.iter().enumerate() {
+            let depth = m.undo_stack.len();
+            op(&mut m);
+            assert_eq!(m.undo_stack.len(), depth + 1, "op {i} should leave one undo grain");
+            states.push(grid_view(&m));
+        }
+        for expected in states.iter().rev().skip(1) {
+            assert!(m.undo());
+            assert_eq!(&grid_view(&m), expected);
+        }
+        assert!(!m.undo());
+        for expected in states.iter().skip(1) {
+            assert!(m.redo());
+            assert_eq!(&grid_view(&m), expected);
+        }
+        assert!(!m.redo());
+    }
+
+    #[test]
+    fn paste_ragged_empty_and_oversized_blocks() {
+        let mut m = fresh("a,b\n1,2\n");
+        assert!(!m.paste_at(0, 0, &[], None));
+        assert!(!m.paste_at(0, 0, &[vec![], vec![]], None));
+        assert!(m.undo_stack.is_empty());
+
+        // Short rows leave the cells to their right alone; an empty row
+        // still counts toward the block's height.
+        let ragged = vec![
+            vec!["x".to_string()],
+            vec![],
+            vec!["y".to_string(), "z".to_string(), "w".to_string()],
+        ];
+        assert!(m.paste_at(0, 0, &ragged, None));
+        assert_eq!((m.row_count(), m.col_count()), (3, 3));
+        assert_eq!(m.emit_source(), "a,b,Column 3\nx,2,\n,,\ny,z,w\n");
+
+        // A block bigger than the sheet, anchored at its last cell.
+        let big: Vec<Vec<String>> = (0..50)
+            .map(|r| (0..40).map(|c| format!("{r}:{c}")).collect())
+            .collect();
+        assert!(m.paste_at(2, 2, &big, None));
+        assert_eq!((m.row_count(), m.col_count()), (52, 42));
+        assert_eq!(m.cell(51, 41), "49:39");
+        assert_eq!(m.headers.len(), 42);
+        assert!(m.rows.iter().all(|r| r.len() == 42));
+
+        // A ragged block tiled across a range: missing cells tile as blanks.
+        let tile = vec![vec!["t".to_string(), "u".to_string()], vec!["v".to_string()]];
+        assert!(m.paste_at(0, 0, &tile, Some(CellRange::new((0, 0), (3, 3)))));
+        assert_eq!((m.cell(0, 1), m.cell(1, 0), m.cell(1, 1), m.cell(2, 2)), ("u", "v", "", "t"));
+        assert_emit_reparses(&m);
+        assert!(m.undo());
+        assert!(m.undo());
+        assert!(m.undo());
+        assert_eq!(m.emit_source(), "a,b\n1,2\n");
+    }
 }

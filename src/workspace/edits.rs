@@ -2613,8 +2613,8 @@ impl Workspace {
         if lh <= gpui::px(0.) {
             return 1;
         }
-        let raw = (self.viewport.bounds.size.height / lh).floor() as i32 - 1;
-        raw.max(1) as usize
+        super::movement::lines_per_page(self.viewport.bounds.size.height / lh).unsigned_abs()
+            as usize
     }
 
     fn rich_doc_set_alignment(

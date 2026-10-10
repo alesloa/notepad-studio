@@ -201,8 +201,7 @@ impl Workspace {
         if lh <= px(0.) {
             return 1;
         }
-        let raw = ((self.viewport.bounds.size.height / lh).floor() as i32).saturating_sub(1);
-        raw.max(1)
+        lines_per_page(self.viewport.bounds.size.height / lh)
     }
 
     fn move_page(&mut self, dir: i32, extend: bool, cx: &mut Context<Self>) {
@@ -593,6 +592,12 @@ impl Workspace {
     }
 }
 
+/// Lines a page move steps for a viewport `rows` line-heights tall: one
+/// less than the visible count, at least 1.
+pub(super) fn lines_per_page(rows: f32) -> i32 {
+    (rows.floor() as i32).saturating_sub(1).max(1)
+}
+
 /// Line holding byte `byte`, with a stale offset past EOF clamped to the
 /// last line.
 fn line_at_byte(rope: &ropey::Rope, byte: usize) -> usize {
@@ -610,8 +615,21 @@ fn page_target_line(cur_line: usize, dir: i32, lines: i32, total_lines: usize) -
 
 #[cfg(test)]
 mod tests {
-    use super::{line_at_byte, page_target_line};
+    use super::{line_at_byte, lines_per_page, page_target_line};
     use ropey::Rope;
+
+    #[test]
+    fn lines_per_page_is_at_least_one() {
+        assert_eq!(lines_per_page(30.0), 29);
+        assert_eq!(lines_per_page(30.9), 29);
+        assert_eq!(lines_per_page(1.0), 1);
+        assert_eq!(lines_per_page(0.0), 1);
+        assert_eq!(lines_per_page(-5.0), 1);
+        assert_eq!(lines_per_page(f32::NAN), 1);
+        assert_eq!(lines_per_page(f32::INFINITY), i32::MAX - 1);
+        // A float that saturates to i32::MIN overflowed on the `- 1`.
+        assert_eq!(lines_per_page(f32::NEG_INFINITY), 1);
+    }
 
     #[test]
     fn line_at_byte_clamps_stale_offsets() {

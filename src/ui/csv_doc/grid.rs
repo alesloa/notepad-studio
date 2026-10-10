@@ -1092,15 +1092,25 @@ fn drop_logical_for_x(
         total += f32::from(*w);
         cumulative.push(total);
     }
-    let from_center = (cumulative[from] + cumulative[from + 1]) / 2.0;
+    let last = col_widths.len().saturating_sub(1);
+    // `from` was captured at mousedown; the width list is from the latest
+    // render and can be shorter by now. Without its edges there is no
+    // centre to measure from, so the drop stays at the nearest column.
+    let (Some(&left), Some(&right)) =
+        (cumulative.get(from), cumulative.get(from.saturating_add(1)))
+    else {
+        return from.min(last);
+    };
+    let from_center = (left + right) / 2.0;
     let drag_center = from_center + f32::from(delta_x);
-    for i in 0..col_widths.len() {
-        let cell_center = (cumulative[i] + cumulative[i + 1]) / 2.0;
+    for (i, edges) in cumulative.windows(2).enumerate() {
+        let &[l, r] = edges else { continue };
+        let cell_center = (l + r) / 2.0;
         if drag_center < cell_center {
             return i;
         }
     }
-    col_widths.len().saturating_sub(1)
+    last
 }
 
 fn column_drop_indicator(theme: &Theme, snap: &CsvGridSnapshot) -> Option<AnyElement> {
@@ -1318,4 +1328,28 @@ fn row_drop_indicator(theme: &Theme, snap: &CsvGridSnapshot) -> Option<AnyElemen
             .bg(rgb(theme.link))
             .into_any_element(),
     )
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn drop_logical_for_x_picks_column_under_drag_center() {
+        let widths = [px(100.), px(100.), px(100.)];
+        assert_eq!(drop_logical_for_x(px(0.), 0, &widths, px(300.)), 1);
+        assert_eq!(drop_logical_for_x(px(120.), 0, &widths, px(300.)), 2);
+        assert_eq!(drop_logical_for_x(px(-500.), 2, &widths, px(300.)), 0);
+        assert_eq!(drop_logical_for_x(px(500.), 0, &widths, px(300.)), 2);
+    }
+
+    #[test]
+    fn drop_logical_for_x_with_stale_source_column_does_not_panic() {
+        // The drag's source column can outlive the width list it was
+        // captured against (columns deleted, empty sheet).
+        assert_eq!(drop_logical_for_x(px(10.), 5, &[px(100.)], px(100.)), 0);
+        assert_eq!(drop_logical_for_x(px(10.), 1, &[px(100.)], px(100.)), 0);
+        assert_eq!(drop_logical_for_x(px(10.), 0, &[], px(0.)), 0);
+        assert_eq!(drop_logical_for_x(px(10.), usize::MAX, &[px(1.)], px(1.)), 0);
+    }
 }

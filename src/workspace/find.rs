@@ -67,6 +67,36 @@ fn collect_matches(text: &str, re: &regex::Regex, scope: Option<&Range<usize>>) 
     matches
 }
 
+/// Index Find Next / Find Previous lands on. With a `current` match, step
+/// one match forward or back. Without one, start at `caret`: the first
+/// match at or after it going forward, the last match ending at or before
+/// it going backward. `None` when the step would have to wrap and Wrap
+/// around is off.
+fn step_target(
+    matches: &[Range<usize>],
+    current: Option<usize>,
+    caret: usize,
+    forward: bool,
+    wrap: bool,
+) -> Option<usize> {
+    let last = matches.len().checked_sub(1)?;
+    let wrapped = |to: usize| if wrap { Some(to) } else { None };
+    match (current.filter(|&c| c <= last), forward) {
+        (Some(c), true) if c < last => Some(c + 1),
+        (Some(_), true) => wrapped(0),
+        (Some(c), false) if c > 0 => Some(c - 1),
+        (Some(_), false) => wrapped(last),
+        (None, true) => match matches.iter().position(|r| r.start >= caret) {
+            Some(i) => Some(i),
+            None => wrapped(0),
+        },
+        (None, false) => match matches.iter().rposition(|r| r.end <= caret) {
+            Some(i) => Some(i),
+            None => wrapped(last),
+        },
+    }
+}
+
 impl Workspace {
     /// Recompute `find_state.matches` from the current query + flags against
     /// the active buffer. Sets `error` on regex failure and clears `matches`.
@@ -888,6 +918,12 @@ impl Workspace {
             cx.notify();
             return;
         }
+        // Matches come from a scan of this rope, so they sit on char
+        // boundaries inside it. Check anyway: a range that doesn't would put
+        // the selection mid-char, and the next `byte_slice` on it panics.
+        if self.buffer().rope.get_byte_slice(range.clone()).is_none() {
+            return;
+        }
         let tab = self.active_tab_mut();
         tab.selection.anchor = range.start;
         tab.selection.head = range.end;
@@ -1006,32 +1042,73 @@ impl Workspace {
     }
 
     fn step_match(&mut self, forward: bool, cx: &mut Context<Self>) {
+        let kept = self.resync_matches();
         if self.find_state.matches.is_empty() {
             return;
         }
-        let n = self.find_state.matches.len();
-        let target = if forward {
-            match self.find_state.current {
-                Some(c) => {
-                    let candidate = c + 1;
-                    if candidate >= n {
-                        if self.find_state.wrap_around { 0 } else { return }
-                    } else {
-                        candidate
-                    }
-                }
-                None => 0,
-            }
-        } else {
-            match self.find_state.current {
-                Some(0) => {
-                    if self.find_state.wrap_around { n - 1 } else { return }
-                }
-                Some(c) => c - 1,
-                None => n - 1,
-            }
+        let current = if kept { self.find_state.current } else { None };
+        let caret = self.find_caret(forward);
+        let Some(target) = step_target(
+            &self.find_state.matches,
+            current,
+            caret,
+            forward,
+            self.find_state.wrap_around,
+        ) else {
+            return;
         };
         self.jump_to_match(target, cx);
+    }
+
+    /// Re-run the search against the active buffer before acting on
+    /// `find_state.matches`. The cache only follows edits while the dialog
+    /// is open and never follows a tab switch, so it can hold ranges from
+    /// another buffer: past the end, inside a multi-byte char, or over
+    /// unrelated text that Replace would then overwrite. Returns true when
+    /// the match the user was on is still there (same byte range) and keeps
+    /// it as `current`, so stepping is unchanged when nothing moved.
+    fn resync_matches(&mut self) -> bool {
+        let prev = self
+            .find_state
+            .current
+            .and_then(|i| self.find_state.matches.get(i).cloned());
+        let status = self.find_state.status.take();
+        self.refresh_matches();
+        if self.find_state.error.is_none() {
+            self.find_state.status = status;
+        }
+        let Some(prev) = prev else {
+            return false;
+        };
+        match self.find_state.matches.iter().position(|r| *r == prev) {
+            Some(i) => {
+                self.find_state.current = Some(i);
+                true
+            }
+            None => false,
+        }
+    }
+
+    /// Byte offset a Find Next / Find Previous with no current match starts
+    /// from: the selection's end going forward, its start going backward.
+    /// Rich-doc tabs use flat-search-text offsets, like their matches.
+    fn find_caret(&self, forward: bool) -> usize {
+        let Some(tab) = self.tabs.get(self.active) else {
+            return 0;
+        };
+        if let Some(offsets) = self.find_state.rich_doc_block_offsets.as_ref() {
+            let Some(payload) = tab.buffer.rich_doc.as_ref() else {
+                return 0;
+            };
+            let Some(sel) = payload.selection else {
+                return 0;
+            };
+            let (lo, hi) = sel.range_full();
+            let pos = if forward { hi } else { lo };
+            return payload.global_flat_for_pos(offsets, pos);
+        }
+        let sel = tab.selection.ordered();
+        if forward { sel.end } else { sel.start }
     }
 
     /// "Count" — populate `find_state.status` with a one-line tally. The
@@ -1045,6 +1122,7 @@ impl Workspace {
         if self.find_state.query.is_empty() {
             self.find_state.status = Some("Enter a query first".to_string());
         } else {
+            self.resync_matches();
             let n = self.find_state.matches.len();
             self.find_state.status = Some(format!(
                 "{n} match{}",
@@ -1177,6 +1255,7 @@ impl Workspace {
         _w: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        self.resync_matches();
         let Some(idx) = self.find_state.current else {
             return;
         };
@@ -1257,6 +1336,7 @@ impl Workspace {
         _w: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        self.resync_matches();
         if self.find_state.matches.is_empty() {
             return;
         }
@@ -1993,5 +2073,47 @@ mod tests {
         let re = literal("b");
         let got = collect_matches(text, &re, Some(&(2..text.len())));
         assert_eq!(got, vec![4..5]);
+    }
+
+    #[test]
+    fn step_target_steps_from_current() {
+        let m = vec![0..1, 4..5, 8..9];
+        assert_eq!(step_target(&m, Some(0), 0, true, false), Some(1));
+        assert_eq!(step_target(&m, Some(2), 0, true, false), None);
+        assert_eq!(step_target(&m, Some(2), 0, true, true), Some(0));
+        assert_eq!(step_target(&m, Some(1), 0, false, false), Some(0));
+        assert_eq!(step_target(&m, Some(0), 0, false, false), None);
+        assert_eq!(step_target(&m, Some(0), 0, false, true), Some(2));
+    }
+
+    #[test]
+    fn step_target_without_current_starts_at_caret() {
+        let m = vec![0..1, 4..5, 8..9];
+        assert_eq!(step_target(&m, None, 4, true, false), Some(1));
+        assert_eq!(step_target(&m, None, 9, true, false), None);
+        assert_eq!(step_target(&m, None, 9, true, true), Some(0));
+        assert_eq!(step_target(&m, None, 5, false, false), Some(1));
+        // Backward from document start: nothing before, wrap decides.
+        assert_eq!(step_target(&m, None, 0, false, false), None);
+        assert_eq!(step_target(&m, None, 0, false, true), Some(2));
+    }
+
+    #[test]
+    fn step_target_ignores_out_of_range_current_and_empty_list() {
+        let m = vec![0..1, 4..5];
+        // A `current` left over from a longer list counts as no current.
+        assert_eq!(step_target(&m, Some(7), 2, true, false), Some(1));
+        assert_eq!(step_target(&[], Some(0), 0, true, true), None);
+        assert_eq!(step_target(&[], None, 0, false, true), None);
+    }
+
+    #[test]
+    fn stale_range_is_rejected_by_rope_guard() {
+        // `jump_to_match` refuses ranges `get_byte_slice` rejects: a match
+        // cached from another buffer ending inside "中" or past the end.
+        let rope = ropey::Rope::from_str("abcd中");
+        assert!(rope.get_byte_slice(4..6).is_none());
+        assert!(rope.get_byte_slice(4..20).is_none());
+        assert!(rope.get_byte_slice(4..7).is_some());
     }
 }

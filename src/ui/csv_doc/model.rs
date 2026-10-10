@@ -4877,7 +4877,7 @@ mod tests {
     #[test]
     fn parse_matrix_reparses_under_every_delimiter_and_header_mode() {
         for src in hostile_sources() {
-            for delim in [b',', b';', b'\t', b'|'] {
+            for &delim in b",;\t|" {
                 for has_header in [true, false] {
                     let mut m = CsvModel::empty(delim);
                     m.has_header = has_header;
@@ -5019,8 +5019,8 @@ mod tests {
         m.open_filter_dropdown_for_col(0, gpui::point(px(0.), px(0.)));
         assert!(m.open_filter_dropdown.is_none());
         assert_eq!(m.hidden_row_count(), 0);
-        assert_eq!(m.move_row_block(&[0], 0, 3).1, false);
-        assert_eq!(m.move_col_block(&[0], 0, 3).1, false);
+        assert!(!m.move_row_block(&[0], 0, 3).1);
+        assert!(!m.move_col_block(&[0], 0, 3).1);
         m.update_find_query("x".to_string());
         assert_eq!((m.next_match(), m.prev_match()), (None, None));
         assert!(!m.replace_current());
@@ -5058,8 +5058,8 @@ mod tests {
         assert!(!m.set_header(2, "x".to_string()));
         assert!(!m.clear_rows(&BTreeSet::from([5])));
         assert!(!m.clear_cols(&BTreeSet::from([5])));
-        assert_eq!(m.move_row_block(&[5], 5, 0).1, false);
-        assert_eq!(m.move_col_block(&[5], 5, 0).1, false);
+        assert!(!m.move_row_block(&[5], 5, 0).1);
+        assert!(!m.move_col_block(&[5], 5, 0).1);
         m.sort_by_col(5, true);
         assert!(!arm_fill(&mut m, stale, (0, 0), 0.0, -100.0));
         assert!(!arm_fill(&mut m, stale, (9, 2), 0.0, 100.0));
@@ -5165,10 +5165,12 @@ mod tests {
         assert_eq!((m.row_count(), m.col_count()), (0, 0));
     }
 
+    type Op = Box<dyn Fn(&mut CsvModel)>;
+
     #[test]
     fn undo_redo_walks_structural_changes_both_ways() {
         let mut m = fresh("a,b\n1,2\n3,4\n");
-        let ops: Vec<Box<dyn Fn(&mut CsvModel)>> = vec![
+        let ops: Vec<Op> = vec![
             Box::new(|m| m.insert_row_at(0, true)),
             Box::new(|m| m.insert_col_at(1, false)),
             Box::new(|m| m.delete_rows(&BTreeSet::from([0]))),

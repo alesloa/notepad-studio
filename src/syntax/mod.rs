@@ -392,7 +392,9 @@ pub(crate) fn highlight(lang: LanguageId, source: &str) -> Vec<HighlightSpan> {
                 config.configure(HIGHLIGHT_NAMES);
                 configs.insert(lang, config);
             }
-            let config = configs.get(&lang).expect("just inserted");
+            let Some(config) = configs.get(&lang) else {
+                return Vec::new();
+            };
 
             let events = match highlighter.highlight(config, source.as_bytes(), None, |_| None) {
                 Ok(it) => it,

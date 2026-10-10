@@ -1217,6 +1217,12 @@ fn default_tab_width() -> usize {
     TAB_SPACES
 }
 
+/// Indent width range: the bounds of the Preferences ▸ Indentation
+/// spinner (`FieldId::numeric_bounds`). A width outside it only comes from
+/// a hand-edited settings.toml.
+pub(crate) const TAB_WIDTH_MIN: usize = 1;
+pub(crate) const TAB_WIDTH_MAX: usize = 16;
+
 fn default_split_lines_edge_column() -> usize {
     DEFAULT_SPLIT_LINES_EDGE_COLUMN
 }
@@ -1556,27 +1562,53 @@ fn load_from_disk() -> Settings {
     let Some(path) = settings_path() else {
         return Settings::default();
     };
-    let Ok(raw) = std::fs::read_to_string(&path) else {
-        return Settings::default();
-    };
+    let s = load_from_path(&path);
     record_seen_mtime(&path);
-    toml::from_str(&raw).unwrap_or_default()
+    s
+}
+
+/// Settings stored in `path`. A value that no longer fits its field (a
+/// typo, a renamed enum variant) resets that one field instead of every
+/// preference; the original file is kept as `settings.toml.corrupt`.
+fn load_from_path(path: &Path) -> Settings {
+    let mut s = crate::persist::load_toml(
+        path,
+        |t| crate::persist::salvage_table(t, &[]).unwrap_or_default(),
+        Settings::default,
+    )
+    .into_option()
+    .unwrap_or_default();
+    clamp_indent_widths(&mut s);
+    s
+}
+
+/// Pull indent widths into `TAB_WIDTH_MIN..=TAB_WIDTH_MAX`. A width of
+/// billions reaches `" ".repeat(width)` on the next Tab press and aborts.
+fn clamp_indent_widths(s: &mut Settings) {
+    s.tab_width = s.tab_width.clamp(TAB_WIDTH_MIN, TAB_WIDTH_MAX);
+    for o in s.language_indent_overrides.values_mut() {
+        o.width = o.width.clamp(TAB_WIDTH_MIN, TAB_WIDTH_MAX);
+    }
 }
 
 fn save_to_disk(s: &Settings) {
     let Some(path) = settings_path() else {
         return;
     };
+    match save_to_path(&path, s) {
+        // Capture the post-write mtime so the cross-process watcher
+        // doesn't treat our own save as an external change.
+        Ok(()) => record_seen_mtime(&path),
+        Err(err) => eprintln!("[settings] couldn't save {}: {err}", path.display()),
+    }
+}
+
+fn save_to_path(path: &Path, s: &Settings) -> std::io::Result<()> {
     if let Some(parent) = path.parent() {
-        let _ = std::fs::create_dir_all(parent);
+        std::fs::create_dir_all(parent)?;
     }
-    if let Ok(serialized) = toml::to_string_pretty(s) {
-        if std::fs::write(&path, serialized).is_ok() {
-            // Capture the post-write mtime so the cross-process watcher
-            // doesn't treat our own save as an external change.
-            record_seen_mtime(&path);
-        }
-    }
+    let serialized = toml::to_string_pretty(s).map_err(std::io::Error::other)?;
+    crate::persist::atomic_write(path, serialized.as_bytes())
 }
 
 fn current_mtime(path: &Path) -> Option<SystemTime> {
@@ -1642,7 +1674,8 @@ pub(crate) fn indent_for_lang(lang_key: Option<&str>) -> (bool, usize) {
 /// window propagate to every other open window (Preferences, Style
 /// Configurator, sibling editor windows) without each call site having
 /// to thread `cx` through manually.
-pub(crate) fn replace_and_save(next: Settings) {
+pub(crate) fn replace_and_save(mut next: Settings) {
+    clamp_indent_widths(&mut next);
     if let Ok(mut g) = global().lock() {
         *g = next.clone();
     }
@@ -1700,10 +1733,13 @@ fn check_external_settings_change() {
     let Ok(raw) = std::fs::read_to_string(&path) else {
         return;
     };
-    let next: Settings = match toml::from_str(&raw) {
+    // Strict on purpose: a file caught mid-edit by hand shouldn't reset
+    // the fields that don't parse yet. Wait for the next save instead.
+    let mut next: Settings = match toml::from_str(&raw) {
         Ok(v) => v,
         Err(_) => return,
     };
+    clamp_indent_widths(&mut next);
     if let Ok(mut g) = global().lock() {
         *g = next;
     }
@@ -1711,4 +1747,72 @@ fn check_external_settings_change() {
         *g = Some(current);
     }
     SETTINGS_DIRTY.store(true, std::sync::atomic::Ordering::Release);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::persist::TempDir;
+
+    #[test]
+    fn hand_edited_indent_widths_are_pulled_into_range() {
+        let dir = TempDir::new("settings-width");
+        let p = dir.join("settings.toml");
+        let huge = i64::MAX;
+        let src = format!(
+            "tab_width = {huge}\n[language_indent_overrides.rust]\nuses_tabs = false\nwidth = 0\n\
+             [language_indent_overrides.python]\nuses_tabs = true\nwidth = {huge}\n"
+        );
+        assert!(std::fs::write(&p, src).is_ok());
+        // The old loader handed these straight to `" ".repeat(width)`, which
+        // aborts the process on the failed allocation (no unwinding).
+        let s = load_from_path(&p);
+        assert_eq!(s.tab_width, TAB_WIDTH_MAX);
+        assert_eq!(s.language_indent_overrides.get("rust").map(|o| o.width), Some(TAB_WIDTH_MIN));
+        assert_eq!(s.language_indent_overrides.get("python").map(|o| o.width), Some(TAB_WIDTH_MAX));
+    }
+
+    #[test]
+    fn one_bad_value_resets_only_that_setting() {
+        let dir = TempDir::new("settings-salvage");
+        let p = dir.join("settings.toml");
+        assert!(std::fs::write(&p, "tab_width = \"wide\"\nstatus_bar_hidden = true\n").is_ok());
+        let s = load_from_path(&p);
+        assert!(s.status_bar_hidden, "the good field survives");
+        assert_eq!(s.tab_width, TAB_SPACES);
+        assert!(dir.join("settings.toml.corrupt").exists());
+    }
+
+    #[test]
+    fn unreadable_settings_file_is_kept_aside() {
+        let dir = TempDir::new("settings-junk");
+        let p = dir.join("settings.toml");
+        assert_eq!(load_from_path(&p).tab_width, TAB_SPACES);
+        assert!(std::fs::write(&p, b"\x00\x01 = = [").is_ok());
+        assert_eq!(load_from_path(&p).tab_width, TAB_SPACES);
+        assert!(!p.exists());
+        assert!(dir.join("settings.toml.corrupt").exists());
+    }
+
+    #[test]
+    fn settings_round_trip() {
+        let dir = TempDir::new("settings-save");
+        let p = dir.join("settings.toml");
+        let mut s = Settings {
+            tab_width: 8,
+            status_bar_hidden: true,
+            ..Settings::default()
+        };
+        s.language_indent_overrides
+            .insert("rust".into(), IndentOverride { uses_tabs: true, width: 2 });
+        assert!(save_to_path(&p, &s).is_ok());
+        let got = load_from_path(&p);
+        assert_eq!(got.tab_width, 8);
+        assert!(got.status_bar_hidden);
+        assert_eq!(
+            got.language_indent_overrides.get("rust"),
+            Some(&IndentOverride { uses_tabs: true, width: 2 })
+        );
+        assert!(!dir.join("settings.toml.tmp").exists());
+    }
 }

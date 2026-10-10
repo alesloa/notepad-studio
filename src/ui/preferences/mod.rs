@@ -338,7 +338,11 @@ impl FieldId {
     /// by 1, etc.).
     pub(super) fn numeric_bounds(self) -> Option<(i64, i64, i64)> {
         match self {
-            Self::TabWidth => Some((1, 16, 1)),
+            Self::TabWidth => Some((
+                crate::settings::TAB_WIDTH_MIN as i64,
+                crate::settings::TAB_WIDTH_MAX as i64,
+                1,
+            )),
             Self::SplitColumn => Some((1, 1000, 1)),
             Self::RecentFilesMax => Some((0, RECENT_FILES_MAX_HARD_CAP as i64, 1)),
             Self::CaretBlinkRateMs => {

@@ -161,7 +161,18 @@ pub(crate) fn invoke(
     let run_fn = plugin.run_command_fn;
     drop(guard);
 
-    start_active_call(workspace, cx);
+    if !start_active_call(workspace, cx) {
+        workspace.set_status(format!(
+            "Plugin '{plugin_name}' not run: another plugin command is still running"
+        ));
+        return;
+    }
+    // SAFETY: `run_fn` was read from the plugin's
+    // `notepad_studio_plugin_run_command` export with the signature fixed by
+    // `PLUGIN_API_VERSION`, which `loader::load_one` checked, and its
+    // `Library` stays loaded for the life of the process (`GLOBAL`).
+    // `HOST_API` is a `'static` vtable. Plugin code is trusted native code
+    // (README "Plugins"); the host-side callbacks validate what it passes.
     let result = unsafe { run_fn(command_id, &host_api::HOST_API as *const _) };
     end_active_call();
 

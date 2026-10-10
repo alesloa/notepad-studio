@@ -380,6 +380,7 @@ fn swatch_grid(theme: &Theme, entity: &Entity<StyleConfiguratorDialog>) -> AnyEl
         grid = grid.child(row);
     }
     // Trailing pure-black row aligned under the grey column.
+    let [.., black] = GREYS;
     let last_row = div()
         .flex()
         .flex_row()
@@ -388,7 +389,7 @@ fn swatch_grid(theme: &Theme, entity: &Entity<StyleConfiguratorDialog>) -> AnyEl
             theme,
             entity,
             "style-cfg-swatch-black".to_string(),
-            *GREYS.last().unwrap(),
+            black,
         ));
     grid = grid.child(last_row);
 

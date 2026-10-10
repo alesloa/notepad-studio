@@ -59,8 +59,10 @@ representative at an online or offline event.
 ## Enforcement
 
 Instances of abusive, harassing, or otherwise unacceptable behavior may be
-reported to the community leaders responsible for enforcement at
-alesloan@icloud.com.
+reported to the community leaders responsible for enforcement privately,
+through the repository's **Security** tab ▸ **Report a vulnerability**
+(GitHub private advisories), or by opening a GitHub issue that asks a
+maintainer (@alesloa) to contact you.
 All complaints will be reviewed and investigated promptly and fairly.
 
 All community leaders are obligated to respect the privacy and security of the

@@ -15,3 +15,4 @@ pub(crate) mod insert;
 pub(crate) mod line_ops;
 pub(crate) mod on_selection;
 pub(crate) mod readonly;
+pub(crate) mod util;

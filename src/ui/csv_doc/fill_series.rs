@@ -539,16 +539,14 @@ fn detect_text_number(source: &[String]) -> Option<Pattern> {
 /// (negative trailing numbers are rare in user data and the prefix
 /// rules conflict with "negative" signage).
 fn split_trailing_number(s: &str) -> Option<(String, i64, usize)> {
-    let t = s;
-    let trail_start = t
-        .rfind(|c: char| !c.is_ascii_digit())
-        .map(|i| i + 1)
-        .unwrap_or(0);
-    if trail_start == t.len() {
+    // ASCII digits are one byte each, so the length of the trimmed
+    // string is a char boundary even when the prefix ends in a
+    // multi-byte char ("é1", "中10").
+    let prefix = s.trim_end_matches(|c: char| c.is_ascii_digit());
+    let digits = s.get(prefix.len()..)?;
+    if digits.is_empty() {
         return None;
     }
-    let prefix = &t[..trail_start];
-    let digits = &t[trail_start..];
     let n: i64 = digits.parse().ok()?;
     Some((prefix.to_string(), n, digits.len()))
 }
@@ -986,5 +984,26 @@ mod tests {
         let p = detect(&s(&["1.5", "2.5"]));
         let out = project_with_source_len(&p, 2, 2, false);
         assert_eq!(out, vec!["3.5", "4.5"]);
+    }
+
+    #[test]
+    fn detect_text_number_after_multibyte_prefix() {
+        // The last non-digit char is 2, 3 or 4 bytes wide, so the digit
+        // run starts several bytes after it, not one.
+        match detect(&s(&["é1", "é2"])) {
+            Pattern::TextNumber { prefix, start, step, width } => {
+                assert_eq!(prefix, "é");
+                assert_eq!((start, step, width), (1, 1, 1));
+            }
+            p => panic!("expected TextNumber, got {p:?}"),
+        }
+        let p = detect(&s(&["中9", "中10"]));
+        assert_eq!(project_with_source_len(&p, 2, 2, false), vec!["中11", "中12"]);
+        let family = "\u{1F468}\u{200D}\u{1F469}\u{200D}\u{1F467}";
+        let p = detect(&[format!("{family}1"), format!("{family}2")]);
+        assert_eq!(
+            project_with_source_len(&p, 2, 1, false),
+            vec![format!("{family}3")]
+        );
     }
 }

@@ -409,6 +409,8 @@ mod tests {
     }
 
     #[test]
+    // The OS can hand over a reversed range; the test feeds one on purpose.
+    #[allow(clippy::reversed_empty_ranges)]
     fn utf16_ranges_from_the_os_are_clamped_and_ordered() {
         // a(1 unit) 👍(2 units, a surrogate pair) b(1 unit) \r\n 中
         let rope = Rope::from_str("a👍b\r\n中");
@@ -442,6 +444,8 @@ mod tests {
     use super::replace_input_utf16;
 
     #[test]
+    // The OS can hand over a reversed range; the test feeds one on purpose.
+    #[allow(clippy::reversed_empty_ranges)]
     fn input_ime_replace_with_stale_carets_does_not_panic() {
         // Ctrl+F prefill sets the query to "é" and the cursor to 2 but
         // leaves the anchor at 1, inside the char.

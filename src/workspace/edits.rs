@@ -3,7 +3,7 @@ use std::time::Duration;
 
 use crate::actions::{
     EditBackspace, EditBlockComment, EditCopy, EditCut, EditDelete, EditDeleteLine,
-    EditDuplicateLine, EditFillRight, EditFindNext, EditInsertBlankLineAbove,
+    EditDuplicateLine, EditFillRight, EditFindNext, EditFindPrev, EditInsertBlankLineAbove,
     EditInsertBlankLineBelow, EditInsertNewline, EditInsertNowTime, EditInsertTab,
     EditInsertTodayDate, EditLowercase, EditMoveLineDown, EditMoveLineUp,
     EditPaste, EditRedo, EditSelectAll, EditStreamComment, EditTrimTrailingWs, EditUndo,
@@ -646,7 +646,25 @@ impl Workspace {
             self.accept_autocomplete(window, cx);
             return;
         }
-        match self.input_focus(window) {
+        let focus = self.input_focus(window);
+        // Shift+Enter shares this action with Enter (Notepad++ binds both
+        // to SCI_NEWLINE). In the find bar and the CSV grid it runs the
+        // reverse step instead; `find_prev` routes each of those.
+        if window.modifiers().shift
+            && matches!(
+                focus,
+                InputFocus::FindQuery
+                    | InputFocus::Replacement
+                    | InputFocus::CsvCell
+                    | InputFocus::CsvGrid
+                    | InputFocus::CsvFindBar
+                    | InputFocus::CsvReplaceBar
+            )
+        {
+            self.find_prev(&EditFindPrev, window, cx);
+            return;
+        }
+        match focus {
             InputFocus::FindQuery | InputFocus::Replacement => {
                 self.find_next(&EditFindNext, window, cx);
             }
@@ -726,8 +744,7 @@ impl Workspace {
             }
             InputFocus::CsvFindBar => {
                 // Find bar: Enter advances to the next match. Shift+Enter
-                // (handled via the dedicated reverse-Enter path on the
-                // global key dispatcher) advances backward.
+                // steps backward through `find_prev` (routed above).
                 crate::ui::csv_doc::actions::find_step(self, true, window, cx);
             }
             InputFocus::CsvReplaceBar => {

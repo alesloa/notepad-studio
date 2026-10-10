@@ -594,7 +594,9 @@ impl ShortcutMapper {
             return;
         };
         let mut prev_keys = shortcuts::effective_keys(prev_owner, &self.overrides);
-        prev_keys.retain(|k| k != &conflict.chord);
+        // Compare canonical forms: the owner may list `ctrl-shift-8` while
+        // the captured chord is `ctrl-*`.
+        prev_keys.retain(|k| !shortcuts::same_chord(k, &conflict.chord));
         self.overrides
             .insert(prev_owner.id.to_string(), prev_keys);
 
@@ -749,9 +751,7 @@ fn format_keystroke_for_storage(ks: &gpui::Keystroke) -> String {
 /// Render a chord for the Shortcut column. Uses `Cmd+Shift+F` style on every
 /// platform so the dialog reads consistently regardless of where it runs.
 fn pretty_chord(chord: &str) -> String {
-    let mut parts: Vec<&str> = chord.split('-').collect();
-    // Last part is the key itself; everything before is modifiers.
-    let key = parts.pop().unwrap_or("");
+    let (parts, key) = shortcuts::split_chord(chord);
     let mut out = String::new();
     for part in parts {
         let label = match part {
@@ -859,5 +859,22 @@ where
             .into_any_element()
     } else {
         node.into_any_element()
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn pretty_chord_handles_dash_key() {
+        assert_eq!(pretty_chord("ctrl--"), "Ctrl+-");
+        assert_eq!(pretty_chord("ctrl-shift-pageup"), "Ctrl+Shift+Pageup");
+        assert_eq!(pretty_chord("f3"), "F3");
+        assert_eq!(format_chord_list(&[]), "(none)");
+        assert_eq!(
+            format_chord_list(&["ctrl-z".to_string(), "alt-backspace".to_string()]),
+            "Ctrl+Z, Alt+Backspace"
+        );
     }
 }

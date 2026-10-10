@@ -924,7 +924,8 @@ impl Workspace {
         // Shift+Enter inside the CSV grid maps to Excel's "step up one
         // row" — the same dispatch as Shift+Enter while editing. Route
         // before find_prev's actual work so the shortcut doesn't
-        // double as a stealth find step.
+        // double as a stealth find step. Shift+Enter reaches this
+        // handler through `insert_newline`, which owns the chord.
         let focus = self.input_focus(_w);
         if focus == InputFocus::CsvCell || focus == InputFocus::CsvGrid {
             crate::ui::csv_doc::actions::move_active_cell_enter(self, false, cx);

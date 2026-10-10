@@ -508,11 +508,11 @@ impl Workspace {
 
     // ---- Bookmark actions ------------------------------------------------------------------
     //
-    // Bookmarks are per-buffer line markers. F2 toggles, Ctrl-F2 / Shift-F2
-    // jump to the next / previous one (wrapping), and Cmd/Ctrl-Shift-F2 clears
-    // all bookmarks in the active buffer. The buffer holds the offset state;
-    // these handlers translate cursor line ↔ bookmark line and notify so the
-    // gutter repaints.
+    // Bookmarks are per-buffer line markers. As in Notepad++, Ctrl-F2 toggles
+    // (Cmd-F2 on macOS), F2 / Shift-F2 jump to the next / previous one
+    // (wrapping), and Clear All has no default chord. The buffer holds the
+    // offset state; these handlers translate cursor line ↔ bookmark line and
+    // notify so the gutter repaints.
 
     pub(crate) fn toggle_bookmark(
         &mut self,
@@ -520,13 +520,6 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        // F2 inside the CSV grid (no cell editor) opens the cell editor
-        // on the active cell — Excel convention. Bookmarks are not
-        // meaningful for a grid view so hijacking F2 here is safe.
-        if self.input_focus(window) == InputFocus::CsvGrid {
-            crate::ui::csv_doc::actions::open_active_cell_editor(self, window, cx);
-            return;
-        }
         if self.input_focus(window) != InputFocus::Editor {
             return;
         }
@@ -542,6 +535,13 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        // F2 inside the CSV grid (no cell editor) opens the cell editor
+        // on the active cell — Excel convention. Bookmarks are not
+        // meaningful for a grid view so taking F2 here is safe.
+        if self.input_focus(window) == InputFocus::CsvGrid {
+            crate::ui::csv_doc::actions::open_active_cell_editor(self, window, cx);
+            return;
+        }
         if self.input_focus(window) != InputFocus::Editor {
             return;
         }

@@ -88,29 +88,6 @@ impl Render for ToolbarTooltip {
     }
 }
 
-/// Pick the platform-preferred chord from a list of cross-platform mirrors
-/// stored in the shortcuts catalog. macOS prefers `cmd-…`, others prefer
-/// `ctrl-…`; chord-less entries (function keys, `escape`, etc.) just take
-/// the first element.
-fn pick_chord<'a>(keys: &'a [&'a str]) -> Option<&'a str> {
-    if keys.is_empty() {
-        return None;
-    }
-    if cfg!(target_os = "macos") {
-        keys.iter()
-            .find(|k| k.starts_with("cmd-"))
-            .or_else(|| keys.iter().find(|k| !k.contains("ctrl-")))
-            .or_else(|| keys.first())
-            .copied()
-    } else {
-        keys.iter()
-            .find(|k| k.starts_with("ctrl-"))
-            .or_else(|| keys.iter().find(|k| !k.contains("cmd-")))
-            .or_else(|| keys.first())
-            .copied()
-    }
-}
-
 fn format_key(k: &str, mac: bool) -> String {
     match k {
         "left" => if mac { "←" } else { "Left" }.into(),
@@ -127,6 +104,7 @@ fn format_key(k: &str, mac: bool) -> String {
         "pagedown" => if mac { "⇟" } else { "PgDn" }.into(),
         "home" => "Home".into(),
         "end" => "End".into(),
+        "insert" => "Insert".into(),
         s if s.len() <= 3 && s.starts_with('f') && s[1..].chars().all(|c| c.is_ascii_digit()) => {
             s.to_uppercase()
         }
@@ -139,17 +117,12 @@ fn format_key(k: &str, mac: bool) -> String {
 /// human-readable shortcut label per platform. macOS uses Apple glyphs
 /// (`⌘⇧S`); other OSes spell it (`Ctrl+Shift+S`).
 fn format_chord(chord: &str) -> String {
-    let parts: Vec<&str> = chord.split('-').collect();
-    if parts.is_empty() {
-        return String::new();
-    }
-    let key = parts[parts.len() - 1];
-    let mods = &parts[..parts.len() - 1];
+    let (mods, key) = shortcuts::split_chord(chord);
     let mac = cfg!(target_os = "macos");
 
     if mac {
         let mut s = String::new();
-        for m in mods {
+        for m in &mods {
             match *m {
                 "ctrl" => s.push('⌃'),
                 "alt" => s.push('⌥'),
@@ -162,7 +135,7 @@ fn format_chord(chord: &str) -> String {
         s
     } else {
         let mut out: Vec<String> = Vec::new();
-        for m in mods {
+        for m in &mods {
             match *m {
                 "cmd" => continue,
                 "ctrl" => out.push("Ctrl".into()),
@@ -177,12 +150,13 @@ fn format_chord(chord: &str) -> String {
 }
 
 /// Build the tooltip display text for a toolbar item: looks up the catalog
-/// row by action id, picks the platform-preferred chord, and renders it.
-/// Returns `None` for items that don't appear in the catalog (whitespace
-/// toggle, word-wrap toggle, plugins folder).
+/// row by action id, takes the first default chord for this platform, and
+/// renders it. Returns `None` for items that don't appear in the catalog
+/// (whitespace toggle, word-wrap toggle, plugins folder) or have no
+/// default chord here.
 fn chord_for(action_id: &str) -> Option<String> {
     let entry = shortcuts::catalog().iter().find(|e| e.id == action_id)?;
-    let chord = pick_chord(entry.default_keys)?;
+    let chord = shortcuts::platform_default_keys(entry).first()?;
     Some(format_chord(chord))
 }
 
@@ -1006,4 +980,32 @@ pub(crate) fn rich_doc_format_bar(
     }
 
     row
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn format_chord_keeps_dash_key() {
+        if cfg!(target_os = "macos") {
+            assert_eq!(format_chord("cmd--"), "⌘-");
+            assert_eq!(format_chord("cmd-shift-s"), "⌘⇧S");
+        } else {
+            assert_eq!(format_chord("ctrl--"), "Ctrl+-");
+            assert_eq!(format_chord("ctrl-shift-s"), "Ctrl+Shift+S");
+            assert_eq!(format_chord("ctrl-insert"), "Ctrl+Insert");
+        }
+    }
+
+    #[test]
+    fn chord_for_uses_this_platforms_default() {
+        let expected = if cfg!(target_os = "macos") { "⌘S" } else { "Ctrl+S" };
+        assert_eq!(chord_for("FileSave").as_deref(), Some(expected));
+        // Notepad++ has no default for Preferences on Windows/Linux.
+        if !cfg!(target_os = "macos") {
+            assert_eq!(chord_for("OpenPreferences"), None);
+        }
+        assert_eq!(chord_for("NoSuchAction"), None);
+    }
 }

@@ -17,7 +17,7 @@ use crate::actions::{
     FileNew, FileOpen, FileOpenFolderAsWorkspace, FileSave, FileSaveAll, FileSaveAs,
 };
 use crate::app::menus::rebuild_menus;
-use crate::buffer::{Buffer, Selection};
+use crate::buffer::Buffer;
 use crate::consts::APP_NAME;
 use crate::recent;
 use crate::tab::{CloseDecision, Tab, TabViewMode};
@@ -1112,7 +1112,7 @@ mod tests {
     fn reusing_a_tab_drops_state_tied_to_its_old_text() {
         let mut tab = Tab::empty();
         let id = tab.session_id;
-        tab.selection = Selection { anchor: 3, head: 9, is_dragging: false };
+        tab.selection = crate::buffer::Selection { anchor: 3, head: 9, is_dragging: false };
         tab.block_selection = Some(crate::buffer::BlockSelection {
             anchor_line: 4,
             head_line: 7,

@@ -4825,4 +4825,156 @@ mod tests {
         assert!(m.paste_at(0, 0, &tile, whole));
         assert_eq!((m.row_count(), m.col_count()), (2, 2));
     }
+
+    // ---- Hostile input: parse matrix -----------------------------------------
+
+    /// Emit `m` and parse the result with the same settings: the cells
+    /// must come back unchanged, whatever shape the original source had.
+    fn assert_emit_reparses(m: &CsvModel) {
+        let mut again = CsvModel::empty(m.delimiter);
+        again.has_header = m.has_header;
+        again.rebuild_from_source(&m.emit_source(), 2);
+        assert_eq!(
+            (&again.headers, &again.rows),
+            (&m.headers, &m.rows),
+            "emit of {:?} parsed differently",
+            m.emit_source()
+        );
+    }
+
+    /// Sources a CSV file can hand the parser that are not a tidy grid.
+    fn hostile_sources() -> Vec<String> {
+        let mut sources: Vec<String> = [
+            "",
+            "\u{FEFF}",
+            "x",
+            "\"",
+            "\"\"",
+            "\"\"\"",
+            "a,b\n\"open,1\n2,3\n",
+            "a,b\nx\"y,z\n",
+            "a,b\n1,\"\"",
+            "\"a\"b\"c",
+            "a\n1,2,3\n4,5\n\n6\n",
+            "a,b\r1,2\r3,4\r",
+            "a,b\r\n1,2\n3,4\r5,6",
+            "a,b\r\n\"x\r\ny\",2\r\n",
+            "\u{FEFF}\"a\",b\r\n1,2",
+            "naïve,中文,👩‍👩‍👧\né,中,🏳️‍🌈\n",
+            "a,b,",
+            "a,b\n1,2,\n",
+            "a,b\n1,2\n\n\n",
+            "\n\n\r\n",
+            "a;b\t|c\0d\n",
+        ]
+        .iter()
+        .map(|s| s.to_string())
+        .collect();
+        sources.push(format!("{}\n1\n", ",".repeat(999)));
+        sources
+    }
+
+    #[test]
+    fn parse_matrix_reparses_under_every_delimiter_and_header_mode() {
+        for src in hostile_sources() {
+            for delim in [b',', b';', b'\t', b'|'] {
+                for has_header in [true, false] {
+                    let mut m = CsvModel::empty(delim);
+                    m.has_header = has_header;
+                    m.rebuild_from_source(&src, 1);
+                    let cols = m.col_count();
+                    assert_eq!(m.headers.len(), cols, "{src:?}");
+                    assert!(m.rows.iter().all(|r| r.len() == cols), "{src:?}");
+                    assert_emit_reparses(&m);
+                }
+            }
+        }
+    }
+
+    #[test]
+    fn parse_empty_and_single_cell_round_trip_bytes() {
+        for src in ["", "\u{FEFF}", "x", "x\n", "\u{FEFF}x\r\n"] {
+            assert_eq!(fresh(src).emit_source(), src);
+        }
+        let m = fresh("x");
+        assert_eq!((m.row_count(), m.col_count()), (0, 1));
+        assert_eq!(m.header(0), "x");
+    }
+
+    #[test]
+    fn parse_unbalanced_quotes() {
+        // An open quote that never closes runs to the end of the file.
+        let m = fresh("a,b\n\"open,1\n2,3\n");
+        assert_eq!(m.row_count(), 1);
+        assert_eq!(m.cell(0, 0), "open,1\n2,3\n");
+        // A quote inside an unquoted field is plain text.
+        let m = fresh("a,b\nx\"y,z\n");
+        assert_eq!((m.cell(0, 0), m.cell(0, 1)), ("x\"y", "z"));
+        // An empty quoted field right at EOF.
+        let m = fresh("a,b\n1,\"\"");
+        assert_eq!((m.cell(0, 0), m.cell(0, 1)), ("1", ""));
+    }
+
+    #[test]
+    fn parse_ragged_rows_pad_to_the_widest() {
+        let m = fresh("a\n1,2,3\n4,5\n\n6\n");
+        assert_eq!((m.row_count(), m.col_count()), (3, 3));
+        assert_eq!(m.headers, ["a", "", ""]);
+        assert_eq!((m.cell(1, 1), m.cell(1, 2), m.cell(2, 0)), ("5", "", "6"));
+    }
+
+    #[test]
+    fn parse_million_columns_on_one_line() {
+        let line = ",".repeat(999_999);
+        let started = std::time::Instant::now();
+        let m = fresh(&line);
+        assert_eq!((m.row_count(), m.col_count()), (0, 1_000_000));
+        assert_eq!(m.emit_source(), line);
+        let took = started.elapsed();
+        assert!(took < std::time::Duration::from_secs(20), "took {took:?}");
+    }
+
+    #[test]
+    fn parse_cr_only_mixed_endings_and_quoted_breaks() {
+        let m = fresh("a,b\r1,2\r3,4\r");
+        assert_eq!(m.row_count(), 2);
+        assert_eq!((m.cell(1, 0), m.cell(1, 1)), ("3", "4"));
+        let m = fresh("a,b\r\n1,2\n3,4\r5,6");
+        assert_eq!(m.row_count(), 3);
+        assert_eq!(m.cell(2, 1), "6");
+        let m = fresh("a,b\r\n\"x\r\ny\",2\r\n");
+        assert_eq!(m.cell(0, 0), "x\r\ny");
+        assert_eq!(m.emit_source(), "a,b\r\n\"x\r\ny\",2\r\n");
+        let m = fresh("\u{FEFF}\"a\",b\r\n1,2");
+        assert_eq!((m.header(0), m.cell(0, 1)), ("a", "2"));
+    }
+
+    #[test]
+    fn parse_multibyte_cells_round_trip_and_find() {
+        let src = "naïve,中文,👩‍👩‍👧\né,中,🏳️‍🌈\n";
+        let mut m = fresh(src);
+        assert_eq!(m.header(2), "👩‍👩‍👧");
+        assert_eq!(m.cell(0, 2), "🏳️‍🌈");
+        assert_eq!(m.emit_source(), src);
+        m.find_case_sensitive = false;
+        m.update_find_query("\u{200D}".to_string());
+        assert_eq!(m.find_matches, vec![(usize::MAX, 2), (0, 2)]);
+        m.replace_text = "+".to_string();
+        assert_eq!(m.replace_all(), 2);
+        assert_eq!(m.header(2), "👩+👩+👧");
+        assert_eq!(m.cell(0, 2), "🏳️+🌈");
+    }
+
+    #[test]
+    fn parse_delimiter_at_eof_and_trailing_blank_lines() {
+        let m = fresh("a,b,");
+        assert_eq!(m.headers, ["a", "b", ""]);
+        assert_eq!(m.emit_source(), "a,b,");
+        let m = fresh("a,b\n1,2,\n");
+        assert_eq!(m.col_count(), 3);
+        let m = fresh("a,b\n1,2\n\n\n");
+        assert_eq!(m.row_count(), 1);
+        let m = fresh("\n\n\r\n");
+        assert_eq!((m.row_count(), m.col_count()), (0, 0));
+    }
 }

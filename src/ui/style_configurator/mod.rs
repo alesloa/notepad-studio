@@ -25,6 +25,7 @@ mod layout;
 mod left_column;
 mod right_column;
 mod state;
+mod user_ext_edit;
 mod user_ext_input;
 
 use state::DialogState;
@@ -622,14 +623,11 @@ impl EntityInputHandler for StyleConfiguratorDialog {
                 range_utf16,
                 &filtered,
             );
-            // Hard cap at 256 chars — way past anything NPP ships (e.g.
-            // the C lexer's default is ~40 chars). Stops a paste-bomb
-            // from blowing up the field.
-            if self.user_ext_buffer.len() > 256 {
-                self.user_ext_buffer.truncate(256);
-                self.user_ext_cursor = self.user_ext_cursor.min(256);
-                self.user_ext_anchor = self.user_ext_anchor.min(256);
-            }
+            user_ext_edit::cap_length(
+                &mut self.user_ext_buffer,
+                &mut self.user_ext_cursor,
+                &mut self.user_ext_anchor,
+            );
             self.on_user_ext_buffer_changed(cx);
             return;
         }
@@ -864,7 +862,7 @@ impl StyleConfiguratorDialog {
         let mut text_changed = false;
         match key {
             "left" => {
-                let new = self.user_ext_cursor.saturating_sub(1);
+                let new = user_ext_edit::prev_boundary(&self.user_ext_buffer, self.user_ext_cursor);
                 self.user_ext_cursor = new;
                 if !shift {
                     self.user_ext_anchor = new;
@@ -872,7 +870,7 @@ impl StyleConfiguratorDialog {
                 mutated = true;
             }
             "right" => {
-                let new = (self.user_ext_cursor + 1).min(buf_len);
+                let new = user_ext_edit::next_boundary(&self.user_ext_buffer, self.user_ext_cursor);
                 self.user_ext_cursor = new;
                 if !shift {
                     self.user_ext_anchor = new;
@@ -894,37 +892,21 @@ impl StyleConfiguratorDialog {
                 mutated = true;
             }
             "backspace" => {
-                let lo = self.user_ext_cursor.min(self.user_ext_anchor);
-                let hi = self.user_ext_cursor.max(self.user_ext_anchor);
-                if hi > lo {
-                    self.user_ext_buffer.replace_range(lo..hi, "");
-                    self.user_ext_cursor = lo;
-                    self.user_ext_anchor = lo;
-                    mutated = true;
-                    text_changed = true;
-                } else if self.user_ext_cursor > 0 {
-                    let prev = self.user_ext_cursor - 1;
-                    self.user_ext_buffer
-                        .replace_range(prev..self.user_ext_cursor, "");
-                    self.user_ext_cursor = prev;
-                    self.user_ext_anchor = prev;
+                if user_ext_edit::backspace(
+                    &mut self.user_ext_buffer,
+                    &mut self.user_ext_cursor,
+                    &mut self.user_ext_anchor,
+                ) {
                     mutated = true;
                     text_changed = true;
                 }
             }
             "delete" => {
-                let lo = self.user_ext_cursor.min(self.user_ext_anchor);
-                let hi = self.user_ext_cursor.max(self.user_ext_anchor);
-                if hi > lo {
-                    self.user_ext_buffer.replace_range(lo..hi, "");
-                    self.user_ext_cursor = lo;
-                    self.user_ext_anchor = lo;
-                    mutated = true;
-                    text_changed = true;
-                } else if self.user_ext_cursor < buf_len {
-                    let nxt = self.user_ext_cursor + 1;
-                    self.user_ext_buffer
-                        .replace_range(self.user_ext_cursor..nxt, "");
+                if user_ext_edit::delete_forward(
+                    &mut self.user_ext_buffer,
+                    &mut self.user_ext_cursor,
+                    &mut self.user_ext_anchor,
+                ) {
                     mutated = true;
                     text_changed = true;
                 }
@@ -935,23 +917,22 @@ impl StyleConfiguratorDialog {
                 mutated = true;
             }
             "c" if cmd_or_ctrl => {
-                let lo = self.user_ext_cursor.min(self.user_ext_anchor);
-                let hi = self.user_ext_cursor.max(self.user_ext_anchor);
-                if hi > lo {
-                    let sel = self.user_ext_buffer[lo..hi].to_string();
+                if let Some(sel) = user_ext_edit::selected_text(
+                    &self.user_ext_buffer,
+                    self.user_ext_cursor,
+                    self.user_ext_anchor,
+                ) {
                     cx.write_to_clipboard(gpui::ClipboardItem::new_string(sel));
                 }
                 return;
             }
             "x" if cmd_or_ctrl => {
-                let lo = self.user_ext_cursor.min(self.user_ext_anchor);
-                let hi = self.user_ext_cursor.max(self.user_ext_anchor);
-                if hi > lo {
-                    let sel = self.user_ext_buffer[lo..hi].to_string();
+                if let Some(sel) = user_ext_edit::cut(
+                    &mut self.user_ext_buffer,
+                    &mut self.user_ext_cursor,
+                    &mut self.user_ext_anchor,
+                ) {
                     cx.write_to_clipboard(gpui::ClipboardItem::new_string(sel));
-                    self.user_ext_buffer.replace_range(lo..hi, "");
-                    self.user_ext_cursor = lo;
-                    self.user_ext_anchor = lo;
                     mutated = true;
                     text_changed = true;
                 }

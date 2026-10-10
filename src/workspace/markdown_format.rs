@@ -136,7 +136,8 @@ impl Workspace {
         snippet: String,
         cx: &mut gpui::Context<Self>,
     ) {
-        let edit = plan_append_image(&self.buffer().rope, &snippet);
+        let buf = self.buffer();
+        let edit = plan_append_image(&buf.rope, &snippet, buf.line_ending.as_str());
         self.apply_md_edit(edit, cx);
     }
 
@@ -646,7 +647,8 @@ impl Workspace {
     /// Always lands on its own lines.
     fn md_code_block(&mut self, cx: &mut Context<Self>) {
         let r = self.selection().ordered();
-        let edit = plan_code_block(&self.buffer().rope, r);
+        let buf = self.buffer();
+        let edit = plan_code_block(&buf.rope, r, buf.line_ending.as_str());
         self.apply_md_edit(edit, cx);
     }
 
@@ -663,7 +665,8 @@ impl Workspace {
     /// Insert a horizontal rule (`---`) on its own line.
     fn md_horizontal_rule(&mut self, cx: &mut Context<Self>) {
         let r = self.selection().ordered();
-        let edit = plan_horizontal_rule(&self.buffer().rope, r);
+        let buf = self.buffer();
+        let edit = plan_horizontal_rule(&buf.rope, r, buf.line_ending.as_str());
         self.apply_md_edit(edit, cx);
     }
 
@@ -1026,6 +1029,35 @@ fn line_block_range(rope: &Rope, r: Range<usize>) -> Option<Range<usize>> {
     Some(block_start..block_end)
 }
 
+/// `text` split after each CRLF, CR or LF, each line keeping its line
+/// ending: `str::split_inclusive` for all three of Notepad++'s EOLs.
+fn split_lines(text: &str) -> Vec<&str> {
+    let bytes = text.as_bytes();
+    let mut lines = Vec::new();
+    let mut start = 0;
+    let mut i = 0;
+    while let Some(&b) = bytes.get(i) {
+        let end = match b {
+            b'\n' => i + 1,
+            b'\r' if bytes.get(i + 1) == Some(&b'\n') => i + 2,
+            b'\r' => i + 1,
+            _ => {
+                i += 1;
+                continue;
+            }
+        };
+        if let Some(line) = text.get(start..end) {
+            lines.push(line);
+        }
+        start = end;
+        i = end;
+    }
+    if let Some(rest) = text.get(start..).filter(|rest| !rest.is_empty()) {
+        lines.push(rest);
+    }
+    lines
+}
+
 /// Selects the rewritten line block, or `None` when nothing changes.
 fn plan_block_rewrite(range: Range<usize>, block: &str, new_block: String) -> Option<MdEdit> {
     if new_block == block {
@@ -1041,20 +1073,20 @@ fn plan_line_prefix(rope: &Rope, r: Range<usize>, prefix: &str) -> Option<MdEdit
     let range = line_block_range(rope, r)?;
     let block = rope.byte_slice(range.clone()).to_string();
 
-    let all_prefixed = block
-        .split_inclusive('\n')
+    let all_prefixed = split_lines(&block)
+        .into_iter()
         .filter(|l| !l.trim_end_matches(['\n', '\r']).is_empty())
         .all(|l| {
             let body = l.trim_end_matches(['\n', '\r']);
             body.starts_with(prefix)
         });
-    let any_non_empty = block
-        .split_inclusive('\n')
+    let any_non_empty = split_lines(&block)
+        .into_iter()
         .any(|l| !l.trim_end_matches(['\n', '\r']).is_empty());
 
     let new_block: String = if all_prefixed && any_non_empty {
         let mut out = String::new();
-        for line in block.split_inclusive('\n') {
+        for line in split_lines(&block) {
             let body = line.trim_end_matches(['\n', '\r']);
             if body.is_empty() {
                 out.push_str(line);
@@ -1067,7 +1099,7 @@ fn plan_line_prefix(rope: &Rope, r: Range<usize>, prefix: &str) -> Option<MdEdit
         out
     } else {
         let mut out = String::new();
-        for line in block.split_inclusive('\n') {
+        for line in split_lines(&block) {
             let body = line.trim_end_matches(['\n', '\r']);
             if body.is_empty() {
                 out.push_str(line);
@@ -1107,17 +1139,17 @@ fn plan_ordered_list(rope: &Rope, r: Range<usize>) -> Option<MdEdit> {
     let range = line_block_range(rope, r)?;
     let block = rope.byte_slice(range.clone()).to_string();
 
-    let all_numbered = block
-        .split_inclusive('\n')
+    let all_numbered = split_lines(&block)
+        .into_iter()
         .filter(|l| !l.trim_end_matches(['\n', '\r']).is_empty())
         .all(|l| strip_ordered_prefix(l).is_some());
-    let any_non_empty = block
-        .split_inclusive('\n')
+    let any_non_empty = split_lines(&block)
+        .into_iter()
         .any(|l| !l.trim_end_matches(['\n', '\r']).is_empty());
 
     let new_block: String = if all_numbered && any_non_empty {
         let mut out = String::new();
-        for line in block.split_inclusive('\n') {
+        for line in split_lines(&block) {
             let body = line.trim_end_matches(['\n', '\r']);
             if body.is_empty() {
                 out.push_str(line);
@@ -1130,8 +1162,8 @@ fn plan_ordered_list(rope: &Rope, r: Range<usize>) -> Option<MdEdit> {
         out
     } else {
         let mut out = String::new();
-        let mut n: u32 = 1;
-        for line in block.split_inclusive('\n') {
+        let mut n: usize = 1;
+        for line in split_lines(&block) {
             let body = line.trim_end_matches(['\n', '\r']);
             if body.is_empty() {
                 out.push_str(line);
@@ -1149,37 +1181,38 @@ fn plan_ordered_list(rope: &Rope, r: Range<usize>) -> Option<MdEdit> {
 /// Whether a block inserted over `r` needs a line break before it (it
 /// doesn't start a line) and after it (more text follows on the line).
 fn block_insert_breaks(rope: &Rope, r: &Range<usize>) -> (bool, bool) {
+    let is_eol = |at: usize| matches!(rope.get_byte(at), Some(b'\n' | b'\r'));
     let total = rope.len_bytes();
-    let needs_lead = r.start > 0 && !bytes_at(rope, r.start - 1, "\n");
-    let needs_tail = r.end < total && !bytes_at(rope, r.end, "\n");
+    let needs_lead = r.start > 0 && !is_eol(r.start - 1);
+    let needs_tail = r.end < total && !is_eol(r.end);
     (needs_lead, needs_tail)
 }
 
 /// Fenced code block around the selection, or an empty one with the
-/// caret inside.
-fn plan_code_block(rope: &Rope, r: Range<usize>) -> MdEdit {
+/// caret inside. Line breaks are the document's `eol`.
+fn plan_code_block(rope: &Rope, r: Range<usize>, eol: &str) -> MdEdit {
     let r = snap_range(rope, r);
     let selected = slice_bytes(rope, r.clone());
     let (needs_lead, needs_tail) = block_insert_breaks(rope, &r);
-    let lead = if needs_lead { "\n" } else { "" };
-    let tail = if needs_tail { "\n" } else { "" };
+    let lead = if needs_lead { eol } else { "" };
+    let tail = if needs_tail { eol } else { "" };
 
     if selected.is_empty() {
         // Place caret on the empty line between the fences.
-        let caret = r.start + lead.len() + "```\n".len();
+        let caret = r.start + lead.len() + "```".len() + eol.len();
         return MdEdit {
             range: r,
-            text: format!("{lead}```\n\n```\n{tail}"),
+            text: format!("{lead}```{eol}{eol}```{eol}{tail}"),
             anchor: caret,
             head: caret,
         };
     }
-    let body = if selected.ends_with('\n') {
+    let body = if selected.ends_with(['\n', '\r']) {
         selected
     } else {
-        format!("{selected}\n")
+        format!("{selected}{eol}")
     };
-    let text = format!("{lead}```\n{body}```\n{tail}");
+    let text = format!("{lead}```{eol}{body}```{eol}{tail}");
     let head = r.start + text.len();
     MdEdit { anchor: r.start, head, range: r, text }
 }
@@ -1214,16 +1247,17 @@ fn plan_link_or_image(rope: &Rope, r: Range<usize>, image: bool) -> MdEdit {
 }
 
 /// `---` on its own line, caret after it.
-fn plan_horizontal_rule(rope: &Rope, r: Range<usize>) -> MdEdit {
+fn plan_horizontal_rule(rope: &Rope, r: Range<usize>, eol: &str) -> MdEdit {
     let r = snap_range(rope, r);
     let (needs_lead, needs_tail) = block_insert_breaks(rope, &r);
     let mut text = String::new();
     if needs_lead {
-        text.push('\n');
+        text.push_str(eol);
     }
-    text.push_str("---\n");
+    text.push_str("---");
+    text.push_str(eol);
     if needs_tail {
-        text.push('\n');
+        text.push_str(eol);
     }
     let caret = r.start + text.len();
     MdEdit { range: r, text, anchor: caret, head: caret }
@@ -1237,22 +1271,22 @@ fn plan_insert_image(rope: &Rope, source_byte: usize, snippet: String) -> MdEdit
 }
 
 /// Image markup appended on its own line at the end of the buffer.
-fn plan_append_image(rope: &Rope, snippet: &str) -> MdEdit {
+fn plan_append_image(rope: &Rope, snippet: &str, eol: &str) -> MdEdit {
     let total = rope.len_bytes();
-    let needs_lead = total > 0 && !bytes_at(rope, total - 1, "\n");
+    let (needs_lead, _) = block_insert_breaks(rope, &(total..total));
     let text = if needs_lead {
-        format!("\n{snippet}\n")
+        format!("{eol}{snippet}{eol}")
     } else {
-        format!("{snippet}\n")
+        format!("{snippet}{eol}")
     };
     let caret = total + text.len();
     MdEdit { range: total..total, text, anchor: caret, head: caret }
 }
 
 /// Find the byte ranges of content paragraphs inside `text`. A blank
-/// line (`\n` followed by optional whitespace and another `\n`) closes
-/// one paragraph and opens the next. Returned ranges cover only the
-/// content bytes; trailing whitespace at paragraph end is trimmed so
+/// line (a line ending, optional whitespace, and another line ending;
+/// CRLF, CR and LF all count) closes one paragraph and opens the next.
+/// Returned ranges cover only the content bytes; trailing whitespace at paragraph end is trimmed so
 /// the suffix marker doesn't end up after stray spaces. Blank-line
 /// gaps between paragraphs aren't returned but their bytes can be
 /// recovered from the gaps between consecutive ranges.
@@ -1267,12 +1301,8 @@ fn paragraph_ranges_in(text: &str) -> Vec<std::ops::Range<usize>> {
     let mut paragraphs: Vec<std::ops::Range<usize>> = Vec::new();
     let mut content_start: Option<usize> = None;
     let mut line_start = 0usize;
-    loop {
-        let mut line_end = line_start;
-        while line_end < bytes.len() && bytes[line_end] != b'\n' {
-            line_end += 1;
-        }
-        let is_blank = text[line_start..line_end].trim().is_empty();
+    for line in split_lines(text) {
+        let is_blank = line.trim().is_empty();
         if is_blank {
             if let Some(start) = content_start.take() {
                 // Trim trailing ASCII whitespace so the suffix sits
@@ -1288,10 +1318,7 @@ fn paragraph_ranges_in(text: &str) -> Vec<std::ops::Range<usize>> {
         } else if content_start.is_none() {
             content_start = Some(line_start);
         }
-        if line_end >= bytes.len() {
-            break;
-        }
-        line_start = line_end + 1;
+        line_start += line.len();
     }
     if let Some(start) = content_start {
         let mut end = bytes.len();
@@ -1430,12 +1457,12 @@ mod format_plan_tests {
     #[test]
     fn block_inserts_land_on_their_own_lines() {
         let rope = Rope::from_str("abc");
-        let edit = plan_code_block(&rope, 3..3);
+        let edit = plan_code_block(&rope, 3..3, "\n");
         assert_eq!(apply("abc", &edit).0, "abc\n```\n\n```\n");
         assert_eq!((edit.anchor, edit.head), (8, 8));
-        let edit = plan_code_block(&rope, 0..3);
+        let edit = plan_code_block(&rope, 0..3, "\n");
         assert_eq!(apply("abc", &edit), ("```\nabc\n```\n".into(), "```\nabc\n```\n".into()));
-        let edit = plan_horizontal_rule(&Rope::from_str("ab"), 1..1);
+        let edit = plan_horizontal_rule(&Rope::from_str("ab"), 1..1, "\n");
         assert_eq!(apply("ab", &edit).0, "a\n---\n\nb");
     }
 
@@ -1444,7 +1471,7 @@ mod format_plan_tests {
         let rope = Rope::from_str("x");
         assert_eq!(apply("x", &plan_link_or_image(&rope, 0..1, false)), ("[x](url)".into(), "url".into()));
         assert_eq!(apply("x", &plan_link_or_image(&rope, 1..1, true)), ("x![alt](url)".into(), "alt".into()));
-        let edit = plan_append_image(&Rope::from_str("abc"), "![i](p)");
+        let edit = plan_append_image(&Rope::from_str("abc"), "![i](p)", "\n");
         assert_eq!(apply("abc", &edit).0, "abc\n![i](p)\n");
         let edit = plan_insert_image(&Rope::from_str("abc"), 1, "![i](p)".into());
         assert_eq!(apply("abc", &edit).0, "a![i](p)bc");
@@ -1457,13 +1484,13 @@ mod format_plan_tests {
         assert_eq!(wrap("中x中", 3..4), ("中**x**中".into(), "x".into()));
         assert_eq!(wrap("aax中", 2..3), ("aa**x**中".into(), "x".into()));
         assert_eq!(wrap("é**x**👍", 4..5), ("éx👍".into(), "x".into()));
-        let edit = plan_code_block(&Rope::from_str("café"), 5..5);
+        let edit = plan_code_block(&Rope::from_str("café"), 5..5, "\n");
         assert_eq!(apply("café", &edit).0, "café\n```\n\n```\n");
-        let edit = plan_code_block(&Rope::from_str("é"), 0..0);
+        let edit = plan_code_block(&Rope::from_str("é"), 0..0, "\n");
         assert_eq!(apply("é", &edit).0, "```\n\n```\n\né");
-        let edit = plan_horizontal_rule(&Rope::from_str("👍x👍"), 4..5);
+        let edit = plan_horizontal_rule(&Rope::from_str("👍x👍"), 4..5, "\n");
         assert_eq!(apply("👍x👍", &edit).0, "👍\n---\n\n👍");
-        let edit = plan_append_image(&Rope::from_str("café"), "![i](p)");
+        let edit = plan_append_image(&Rope::from_str("café"), "![i](p)", "\n");
         assert_eq!(apply("café", &edit).0, "café\n![i](p)\n");
     }
 
@@ -1473,9 +1500,9 @@ mod format_plan_tests {
         assert_eq!(prefix("ab", 10..10, "# "), "# ab");
         assert_eq!(ordered("ab", 5..9), "1. ab");
         assert_eq!(wrap("ab", 5..7), ("ab**bold text**".into(), "bold text".into()));
-        let edit = plan_code_block(&Rope::from_str("ab"), 9..9);
+        let edit = plan_code_block(&Rope::from_str("ab"), 9..9, "\n");
         assert_eq!(apply("ab", &edit).0, "ab\n```\n\n```\n");
-        let edit = plan_horizontal_rule(&Rope::from_str("ab"), 3..4);
+        let edit = plan_horizontal_rule(&Rope::from_str("ab"), 3..4, "\n");
         assert_eq!(apply("ab", &edit).0, "ab\n---\n");
         let edit = plan_link_or_image(&Rope::from_str(""), 1..3, false);
         assert_eq!(apply("", &edit), ("[text](url)".into(), "text".into()));
@@ -1486,11 +1513,47 @@ mod format_plan_tests {
         assert_eq!(wrap("é", 1..2), ("**é**".into(), "é".into()));
         assert_eq!(wrap("é", 1..1), ("**bold text**é".into(), "bold text".into()));
         assert_eq!(prefix("中", 2..2, "> "), "> 中");
-        let edit = plan_code_block(&Rope::from_str("é"), 1..1);
+        let edit = plan_code_block(&Rope::from_str("é"), 1..1, "\n");
         assert_eq!(apply("é", &edit).0, "```\n\n```\n\né");
         let edit = plan_link_or_image(&Rope::from_str("👍"), 1..3, true);
         assert_eq!(apply("👍", &edit).0, "![alt](url)👍");
         let edit = plan_insert_image(&Rope::from_str("👍"), 2, "![i](p)".into());
         assert_eq!(apply("👍", &edit).0, "![i](p)👍");
+    }
+
+    fn code_block(text: &str, r: Range<usize>, eol: &str) -> String {
+        apply(text, &plan_code_block(&Rope::from_str(text), r, eol)).0
+    }
+
+    fn rule(text: &str, r: Range<usize>, eol: &str) -> String {
+        apply(text, &plan_horizontal_rule(&Rope::from_str(text), r, eol)).0
+    }
+
+    fn append_image(text: &str, eol: &str) -> String {
+        apply(text, &plan_append_image(&Rope::from_str(text), "![i](p)", eol)).0
+    }
+
+    #[test]
+    fn crlf_and_cr_only_documents() {
+        // Every CR-terminated line is a line.
+        assert_eq!(prefix("a\rb\r", 0..3, "# "), "# a\r# b\r");
+        assert_eq!(prefix("# a\r# b", 0..7, "# "), "a\rb");
+        assert_eq!(ordered("a\r\rb", 0..4), "1. a\r\r2. b");
+        assert_eq!(wrap("a\r\rb", 0..4).0, "**a**\r\r**b**");
+        assert_eq!(prefix("a\r\nb\r\n", 0..4, "- [ ] "), "- [ ] a\r\n- [ ] b\r\n");
+        assert_eq!(ordered("a\r\n\r\nb", 0..6), "1. a\r\n\r\n2. b");
+        assert_eq!(wrap("a\r\n\r\nb", 0..6).0, "**a**\r\n\r\n**b**");
+
+        // Inserted line breaks match the document's, and a CR counts as
+        // the line break before or after the insertion.
+        assert_eq!(code_block("ab\r\ncd", 2..2, "\r\n"), "ab\r\n```\r\n\r\n```\r\n\r\ncd");
+        let edit = plan_code_block(&Rope::from_str("ab\r\ncd"), 2..2, "\r\n");
+        assert_eq!((edit.anchor, edit.head), (9, 9));
+        assert_eq!(code_block("ab\r", 3..3, "\r"), "ab\r```\r\r```\r");
+        assert_eq!(code_block("x\r\ny", 0..1, "\r\n"), "```\r\nx\r\n```\r\n\r\ny");
+        assert_eq!(rule("ab\r\ncd", 4..4, "\r\n"), "ab\r\n---\r\n\r\ncd");
+        assert_eq!(rule("ab\rcd", 2..2, "\r"), "ab\r---\r\rcd");
+        assert_eq!(append_image("abc\r\n", "\r\n"), "abc\r\n![i](p)\r\n");
+        assert_eq!(append_image("abc\r", "\r"), "abc\r![i](p)\r");
     }
 }

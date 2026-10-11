@@ -319,3 +319,48 @@ fn find_next_dismisses_completion_when_selecting_a_match() {
         assert!(w.autocomplete.is_none());
     });
 }
+
+#[test]
+fn backspace_broadens_beyond_the_opening_prefix() {
+    with_workspace("anchor android andromeda\nandro", |w, window, cx| {
+        assert_eq!(candidates(w), ["android", "andromeda"]);
+        w.backspace(&EditBackspace, window, cx);
+        w.backspace(&EditBackspace, window, cx);
+        w.backspace(&EditBackspace, window, cx);
+        assert_eq!(candidates(w), ["anchor", "android", "andromeda"]);
+        assert!(w.buffer().rope.to_string().ends_with("\nan"));
+    });
+}
+
+#[test]
+fn narrowing_a_capped_pool_discovers_previously_hidden_matches() {
+    let words: Vec<String> = (0..70).map(|i| format!("an{i:03}word")).collect();
+    let text = format!("{}\nan", words.join(" "));
+    with_workspace(&text, |w, window, cx| {
+        assert_eq!(candidates(w).len(), super::MAX_CANDIDATES);
+        w.replace_text_in_range(None, "06", window, cx);
+        let expected: Vec<&str> = words.iter().skip(60).map(String::as_str).collect();
+        assert_eq!(candidates(w), expected);
+        assert!(w.buffer().rope.to_string().ends_with("\nan06"));
+    });
+}
+
+#[test]
+fn broadening_retains_function_and_combined_sources() {
+    for combined in [false, true] {
+        with_workspace("return ref relic\nret", |w, window, cx| {
+            w.active_tab_mut().buffer.language = Some(crate::syntax::LanguageId::Rust);
+            if combined {
+                w.autocomplete_function_and_word(&EditAutocompleteFuncAndWord, window, cx);
+            } else {
+                w.autocomplete_function(&EditAutocompleteFunc, window, cx);
+            }
+            assert_eq!(candidates(w), ["return"]);
+            w.backspace(&EditBackspace, window, cx);
+            let words = candidates(w);
+            assert!(words.contains(&"ref"), "keyword source remains available");
+            assert!(words.contains(&"return"));
+            assert_eq!(words.contains(&"relic"), combined, "manual mode stays unchanged");
+        });
+    }
+}

@@ -40,8 +40,10 @@ use crate::workspace::Workspace;
 #[derive(Clone)]
 pub(crate) struct AutocompleteState {
     pub(crate) candidates: Vec<String>,
-    /// Refilter this bounded pool after edits without scanning the rope again.
+    /// Refilter until the prefix broadens or a capped pool needs new matches.
     pub(crate) candidate_pool: Vec<String>,
+    pool_prefix: String,
+    source: CandidateSource,
     pub(crate) caret: usize,
     pub(crate) allow_empty_prefix: bool,
     pub(crate) selected: usize,
@@ -51,6 +53,35 @@ pub(crate) struct AutocompleteState {
     /// Session id of the tab the popup was opened on; `replace_start` means
     /// nothing in any other buffer.
     pub(crate) tab_id: uuid::Uuid,
+}
+
+#[derive(Clone, Copy)]
+enum CandidateKind {
+    Word,
+    Function(LanguageId),
+    Combined(LanguageId),
+}
+
+#[derive(Clone, Copy)]
+struct CandidateSource {
+    kind: CandidateKind,
+    ignore_numbers: bool,
+    brief: bool,
+}
+
+impl CandidateSource {
+    fn collect(&self, rope: &ropey::Rope, prefix: &str, caret: usize) -> Vec<String> {
+        match self.kind {
+            CandidateKind::Word => collect_word_candidates(rope, prefix, self.ignore_numbers, caret),
+            CandidateKind::Function(lang) => apply_brief_filter(
+                collect_keyword_candidates(prefix, lang, self.ignore_numbers), self.brief,
+            ),
+            CandidateKind::Combined(lang) => merge_candidates(
+                apply_brief_filter(collect_keyword_candidates(prefix, lang, self.ignore_numbers), self.brief),
+                collect_word_candidates(rope, prefix, self.ignore_numbers, caret),
+            ),
+        }
+    }
 }
 
 /// Maximum candidates surfaced. NPP caps the popup at this kind of size
@@ -255,6 +286,12 @@ impl Workspace {
         }
         self.autocomplete = Some(AutocompleteState {
             candidate_pool: candidates.clone(),
+            pool_prefix: prefix.to_ascii_lowercase(),
+            source: CandidateSource {
+                kind: CandidateKind::Word,
+                ignore_numbers: snap.autocompletion_ignore_numbers,
+                brief: snap.autocompletion_brief,
+            },
             candidates,
             caret,
             allow_empty_prefix: prefix.is_empty(),
@@ -301,6 +338,12 @@ impl Workspace {
         }
         self.autocomplete = Some(AutocompleteState {
             candidate_pool: candidates.clone(),
+            pool_prefix: prefix.to_ascii_lowercase(),
+            source: CandidateSource {
+                kind: CandidateKind::Function(lang),
+                ignore_numbers: snap.autocompletion_ignore_numbers,
+                brief: snap.autocompletion_brief,
+            },
             candidates,
             caret,
             allow_empty_prefix: prefix.is_empty(),
@@ -360,6 +403,12 @@ impl Workspace {
         }
         self.autocomplete = Some(AutocompleteState {
             candidate_pool: candidates.clone(),
+            pool_prefix: prefix.to_ascii_lowercase(),
+            source: CandidateSource {
+                kind: CandidateKind::Combined(lang),
+                ignore_numbers: snap.autocompletion_ignore_numbers,
+                brief: snap.autocompletion_brief,
+            },
             candidates,
             caret,
             allow_empty_prefix: prefix.is_empty(),
@@ -509,7 +558,12 @@ impl Workspace {
         }
         let previous = state.candidates.get(state.selected).cloned();
         let lower = prefix.to_ascii_lowercase();
-        let filtered: Vec<String> = state.candidate_pool.iter().filter(|word| {
+        // Requery only when cached matches cannot represent the new prefix.
+        // Word collection still visits at most 128 KiB around the caret.
+        let refill = !lower.starts_with(&state.pool_prefix)
+            || (state.candidate_pool.len() == MAX_CANDIDATES && lower != state.pool_prefix);
+        let pool = refill.then(|| state.source.collect(&self.buffer().rope, &prefix, caret));
+        let filtered: Vec<String> = pool.as_ref().unwrap_or(&state.candidate_pool).iter().filter(|word| {
             !word.eq_ignore_ascii_case(&prefix) && word.to_ascii_lowercase().starts_with(&lower)
         }).cloned().collect();
         if filtered.is_empty() {
@@ -517,6 +571,10 @@ impl Workspace {
             return;
         }
         if let Some(state) = self.autocomplete.as_mut() {
+            if let Some(pool) = pool {
+                state.candidate_pool = pool;
+                state.pool_prefix = lower;
+            }
             state.selected = previous.and_then(|pick| filtered.iter().position(|word| *word == pick)).unwrap_or(0);
             state.candidates = filtered;
             state.caret = caret;

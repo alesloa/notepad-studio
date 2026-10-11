@@ -181,6 +181,10 @@ v0.0.5 — current
        including malformed closing tags. Soft line breaks retain heading,
        list and inline styles, and preformatted text keeps its spaces.
 
+   49. Auto-completion finds broader matches after Backspace and discovers
+       words beyond the initial list limit as a prefix narrows. Manual Word,
+       Function and combined modes keep their selected candidate source.
+
   v0.1.0 — syntax & language:
 
     1. Tree-sitter syntax highlighting for 25 modes: Rust, Python, C,

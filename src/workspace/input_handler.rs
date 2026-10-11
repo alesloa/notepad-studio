@@ -1364,7 +1364,7 @@ impl EntityInputHandler for Workspace {
                     self.refresh_matches();
                 }
                 // Committed input may contain several IME characters. An open
-                // list was refreshed by after_edit_flush; never rescan that edit.
+                // list was refreshed by after_edit_flush; do not open it again.
                 if plain_point_insert && !had_autocomplete && !new_text.is_empty()
                     && new_text.chars().all(super::autocomplete::is_word_char)
                 {

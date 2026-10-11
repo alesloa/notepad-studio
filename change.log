@@ -546,6 +546,10 @@ v0.0.5 — current
          text in Doc View. Native Save and Undo now follow those edits;
          Raw View still replaces source text.
 
+    139. Recorded autocomplete choices replay correctly for API punctuation
+         prefixes and manually selected function names, even without the
+         original API file. Changed text or editor context still refuses.
+
   v0.1.0 — syntax & language:
 
     1. Tree-sitter syntax highlighting for 25 modes: Rust, Python, C,

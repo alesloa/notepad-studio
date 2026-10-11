@@ -4,6 +4,10 @@ use crate::{tab::InputFocus, workspace::Workspace};
 use gpui::{Context, Window};
 use std::ops::Range;
 
+#[cfg(test)]
+#[path = "completion_macro_context_tests.rs"]
+mod context_tests;
+
 // Matches the completion UI's identifier limit; config events are hostile input.
 const MAX_COMPLETION_BYTES: usize = 256;
 
@@ -17,10 +21,8 @@ fn completion_range(
         || candidate.is_empty()
         || candidate.len() > MAX_COMPLETION_BYTES
         || prefix == candidate
-        || !prefix.chars().all(is_word_char)
-        || !candidate
-            .to_ascii_lowercase()
-            .starts_with(&prefix.to_ascii_lowercase())
+        || prefix.chars().any(|c| c.is_control() || c.is_whitespace())
+        || candidate.chars().any(char::is_control)
     {
         return None;
     }
@@ -33,7 +35,10 @@ fn completion_range(
         .byte_to_char(start)
         .checked_sub(1)
         .and_then(|idx| rope.get_char(idx));
-    if before.is_some_and(is_word_char) {
+    // API prefixes include configured punctuation; manual Function Completion
+    // can choose a non-prefix member. Replay the recorded span without requiring
+    // a loaded API or popup, but never replace a suffix of that identifier.
+    if before.is_some_and(|c| is_word_char(c) || prefix.contains(c)) {
         return None;
     }
     Some(start..caret)
@@ -91,7 +96,7 @@ mod tests {
             ("café", "caféine", end - 1),
             ("afé", "aféine", end),
             ("café", "", end),
-            ("café", "zebra", end),
+            ("caff", "zebra", end),
             ("café", "café", end),
             ("", "android", end),
             ("re café", "re caféine", end),
@@ -106,5 +111,6 @@ mod tests {
             Some(7..end)
         );
         assert_eq!(completion_range(&rope, "", "android", 0), Some(0..0));
+        assert_eq!(completion_range(&rope, "café", "zebra", end), Some(7..end));
     }
 }

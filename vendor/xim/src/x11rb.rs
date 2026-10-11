@@ -546,7 +546,14 @@ impl<C: HasConnection> X11rbClient<C> {
             }
             Event::ClientMessage(msg) if msg.window == self.client_window => {
                 if msg.type_ == self.atoms.XIM_XCONNECT {
+                    if msg.format != 32 {
+                        return Err(ClientError::InvalidReply);
+                    }
                     let [im_window, major, minor, max, _] = msg.data.as_data32();
+                    // Only-CM and Property-with-CM are the implemented X transport.
+                    if (major, minor) != (0, 0) {
+                        return Err(ClientError::UnsupportedTransport);
+                    }
                     log::info!(
                         "XConnected server on {}, transport version: {}.{}, TRANSPORT_MAX: {}",
                         im_window,
@@ -555,7 +562,7 @@ impl<C: HasConnection> X11rbClient<C> {
                         max
                     );
                     self.im_window = im_window;
-                    self.transport_max = max as usize;
+                    self.transport_max = (max as usize).min(20);
                     self.send_req(Request::Connect {
                         client_major_protocol_version: 1,
                         client_minor_protocol_version: 0,
@@ -708,10 +715,13 @@ fn send_req_impl<C: HasConnection, E: From<ConnectionError> + From<ReplyError>>(
 
     if buf.len() < transport_max {
         if buf.len() > 20 {
-            todo!("multi-CM");
+            return Err(ConnectionError::UnsupportedExtension.into());
         }
         buf.resize(20, 0);
-        let buf: [u8; 20] = buf.as_slice().try_into().unwrap();
+        let buf: [u8; 20] = buf
+            .as_slice()
+            .try_into()
+            .map_err(|_| ConnectionError::UnsupportedExtension)?;
         c.conn().send_event(
             false,
             target,

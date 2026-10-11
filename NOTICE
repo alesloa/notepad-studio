@@ -64,6 +64,9 @@ The X11 input-method client is patched locally under `vendor/xim/`.
     Preserve XIM synchronous flags for character and keysym commits;
     forward combined keysym/text commits through the text callback, and
     acknowledge successful synchronous commits after callback processing.
+    Reject unsupported X transport versions before connecting, validate
+    handshake format, and bound single-ClientMessage payloads. Unsupported
+    multi-ClientMessage sends return a typed error instead of panicking.
     Added actual X11 property-transport/parser tests with an in-memory
     connection, and compound-text decoding regressions. The optional
     parser generator is retained to preserve the original manifests.

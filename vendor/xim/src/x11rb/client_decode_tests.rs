@@ -18,6 +18,8 @@ struct WireConnection {
     sent: RefCell<Vec<Vec<u8>>>,
     send_attempts: RefCell<usize>,
     reject_send: bool,
+    reply_opcode: RefCell<u8>,
+    with_reply: RefCell<Vec<Vec<u8>>>,
 }
 
 impl HasConnection for WireConnection {
@@ -27,9 +29,15 @@ impl HasConnection for WireConnection {
 
 impl RequestConnection for WireConnection {
     type Buf = Vec<u8>;
-    fn send_request_with_reply<R: TryParse>(&self, _: &[IoSlice<'_>], _: Vec<RawFdContainer>)
+    fn send_request_with_reply<R: TryParse>(&self, bufs: &[IoSlice<'_>], _: Vec<RawFdContainer>)
         -> Result<Cookie<'_, Self, R>, ConnectionError>
-    { Ok(Cookie::new(self, 1)) }
+    {
+        let opcode = bufs.first().and_then(|buf| buf.first()).copied()
+            .ok_or(ConnectionError::UnsupportedExtension)?;
+        self.reply_opcode.replace(opcode);
+        self.with_reply.borrow_mut().push(bufs.iter().flat_map(|buf| buf.iter().copied()).collect());
+        Ok(Cookie::new(self, 1))
+    }
     fn send_request_with_reply_with_fds<R: TryParseFd>(&self, _: &[IoSlice<'_>], _: Vec<RawFdContainer>)
         -> Result<CookieWithFds<'_, Self, R>, ConnectionError>
     { Err(ConnectionError::UnsupportedExtension) }
@@ -45,6 +53,13 @@ impl RequestConnection for WireConnection {
     fn prefetch_extension_information(&self, _: &'static str) -> Result<(), ConnectionError> { Ok(()) }
     fn extension_information(&self, _: &'static str) -> Result<Option<ExtensionInformation>, ConnectionError> { Ok(None) }
     fn wait_for_reply_or_raw_error(&self, _: SequenceNumber) -> Result<ReplyOrError<Vec<u8>>, ConnectionError> {
+        if *self.reply_opcode.borrow() == 16 {
+            let reply = x11rb::protocol::xproto::InternAtomReply { sequence: 1, length: 0, atom: 42 };
+            let mut bytes = reply.serialize().to_vec();
+            bytes.resize(32, 0);
+            return Ok(ReplyOrError::Reply(bytes));
+        }
+        if *self.reply_opcode.borrow() != 20 { return Err(ConnectionError::UnsupportedExtension); }
         let length = self.property.len().saturating_add(3) / 4;
         let reply = GetPropertyReply { format: 8, sequence: 1, length: length as u32, type_: 1,
             bytes_after: 0, value_len: self.property.len() as u32,
@@ -272,3 +287,4 @@ fn truncated_wire_returns_protocol_error() {
 }
 
 mod commit_tests;
+mod transport_tests;

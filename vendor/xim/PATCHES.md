@@ -33,6 +33,12 @@ Changes from the pinned revision:
   synchronous Chars, Keysym and Both requests exactly once. Keysym-only
   commits still do not dispatch keys. Wire tests cover every flag, Unicode
   delivery, callback-before-reply ordering and send/callback errors.
+- `src/x11rb.rs`: validate XCONNECT format and reject unimplemented transport
+  versions before changing state or sending Connect. Version 0.0 retains its
+  single-ClientMessage/property transport with a threshold capped at20 bytes.
+  Shared sender calls return a typed error for unsupported multi-CM instead
+  of panicking. Tests exercise actual negotiation and serialized property
+  packets, boundary sizes, refusal state and send errors.
 
 Two imported whitespace-only lines in `xim-parser/Cargo.toml` and
 `xim-parser/xim-format.yaml` were normalized for the repository diff check.
@@ -46,7 +52,13 @@ sections Synchronizing with the IM Server and Sending a committed string.
 As before, malformed text or a refused callback returns an error before
 acknowledging; Both uses that same behavior. Recovery of a synchronous
 request after these errors remains open: a caller that only logs the error
-can leave the server waiting. This patch establishes valid-path behavior.
+  can leave the server waiting. This patch establishes valid-path behavior.
+
+X transport version handling follows Table D.3 and its dividing-size rule in
+the same specification. Full multi-ClientMessage and PropertyNotify support
+remain open. Version 0.2 below its dividing size is not silently rerouted to
+properties; it is refused before use. GPUI currently tears down XIM on an
+error and falls back to ordinary keys, so these modes remain unavailable.
 
 ASCII designation behavior follows the X Consortium Compound Text 1.1
 [standard](https://xorg.freedesktop.org/archive/current/doc/xorg-docs/ctext/ctext.html),

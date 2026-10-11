@@ -360,3 +360,5 @@ mod multicm_tests;
 mod property_tests;
 
 mod mixed_transport_tests;
+
+mod gpui_callback_tests;

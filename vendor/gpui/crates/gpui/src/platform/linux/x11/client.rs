@@ -657,15 +657,15 @@ impl X11Client {
                 drop(state);
 
                 let xim_filtered = ximc.filter_event(&event, &mut xim_handler);
-                let xim_callback_event = xim_handler.last_callback_event.take();
+                let xim_callbacks = xim_handler.take_callbacks();
 
                 let mut state = self.0.borrow_mut();
                 state.restore_xim(ximc, xim_handler);
                 drop(state);
 
-                if let Some(event) = xim_callback_event {
-                    self.handle_xim_callback_event(event);
-                }
+                let xim_filtered = super::xim_callbacks::finish_xim_filter(
+                    xim_filtered, xim_callbacks, |event| self.handle_xim_callback_event(event),
+                );
 
                 match xim_filtered {
                     Ok(handled) => {

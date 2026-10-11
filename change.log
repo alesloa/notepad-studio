@@ -444,6 +444,9 @@ v0.0.5 — current
     112. Recent-file updates persist in background so opening and saving
          do not wait for recent-list writes. Quitting preserves the latest list.
 
+    113. Linux input callbacks keep their order and accepted text is delivered
+         before a later protocol error, within bounded memory limits.
+
   v0.1.0 — syntax & language:
 
     1. Tree-sitter syntax highlighting for 25 modes: Rust, Python, C,

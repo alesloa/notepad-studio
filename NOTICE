@@ -117,3 +117,8 @@ Atomic Reload captures rich containers with the existing tempfile dependency.
     tempfile 3.27.0 - Steven Allen and contributors
     Source: https://github.com/Stebalien/tempfile
     License: MIT OR Apache-2.0; MIT notice in licenses/tempfile-MIT.txt.
+
+Vendored gpui X11 XIM callbacks retain a bounded FIFO with an inline first
+callback. Allocated String/deque capacity is checked with fallible reservation;
+accepted callbacks publish once before a later filter or ACK error reaches
+existing fallback. Transport negotiation and input-context ownership are unchanged.

@@ -92,3 +92,6 @@ impl<Atom> Atoms<Atom> {
         })
     }
 }
+
+#[cfg(test)]
+extern crate self as xim;

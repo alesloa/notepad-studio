@@ -1,5 +1,7 @@
 use std::default::Default;
 
+use super::xim_callbacks::{XimCallbackBatch, XimCallbackQueue};
+
 use x11rb::protocol::{Event, xproto};
 use xim::{AHashMap, AttributeName, Client, ClientError, ClientHandler, InputStyle};
 
@@ -14,17 +16,21 @@ pub struct XimHandler {
     pub ic_id: u16,
     pub connected: bool,
     pub window: xproto::Window,
-    pub last_callback_event: Option<XimCallbackEvent>,
+    callbacks: XimCallbackQueue,
 }
 
 impl XimHandler {
+    pub(super) fn take_callbacks(&mut self) -> XimCallbackBatch {
+        self.callbacks.take()
+    }
+
     pub fn new() -> Self {
         Self {
             im_id: Default::default(),
             ic_id: Default::default(),
             connected: false,
             window: Default::default(),
-            last_callback_event: None,
+            callbacks: XimCallbackQueue::new(),
         }
     }
 }
@@ -73,11 +79,8 @@ impl<C: Client<XEvent = xproto::KeyPressEvent>> ClientHandler<C> for XimHandler 
         _input_context_id: u16,
         text: &str,
     ) -> Result<(), ClientError> {
-        self.last_callback_event = Some(XimCallbackEvent::XimCommitEvent(
-            self.window,
-            String::from(text),
-        ));
-        Ok(())
+        let window = self.window;
+        self.callbacks.push_text(text, |text| XimCallbackEvent::XimCommitEvent(window, text))
     }
 
     fn handle_forward_event(
@@ -90,11 +93,10 @@ impl<C: Client<XEvent = xproto::KeyPressEvent>> ClientHandler<C> for XimHandler 
     ) -> Result<(), ClientError> {
         match xev.response_type {
             x11rb::protocol::xproto::KEY_PRESS_EVENT => {
-                self.last_callback_event = Some(XimCallbackEvent::XimXEvent(Event::KeyPress(xev)));
+                self.callbacks.push_xevent(Event::KeyPress(xev))?;
             }
             x11rb::protocol::xproto::KEY_RELEASE_EVENT => {
-                self.last_callback_event =
-                    Some(XimCallbackEvent::XimXEvent(Event::KeyRelease(xev)));
+                self.callbacks.push_xevent(Event::KeyRelease(xev))?;
             }
             _ => {}
         }
@@ -124,10 +126,7 @@ impl<C: Client<XEvent = xproto::KeyPressEvent>> ClientHandler<C> for XimHandler 
         // XIMPrimary, XIMHighlight, XIMSecondary, XIMTertiary are not specified,
         // but interchangeable as above
         // Currently there's no way to support these.
-        self.last_callback_event = Some(XimCallbackEvent::XimPreeditEvent(
-            self.window,
-            String::from(preedit_string),
-        ));
-        Ok(())
+        let window = self.window;
+        self.callbacks.push_text(preedit_string, |text| XimCallbackEvent::XimPreeditEvent(window, text))
     }
 }

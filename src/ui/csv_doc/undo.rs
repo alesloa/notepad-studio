@@ -20,11 +20,20 @@ use super::model::{CellRange, CsvModel};
 /// stacking 200 of those is still well under typical app overhead.
 pub(crate) const MAX_DEPTH: usize = 200;
 
+/// Exact source associated with a grid state. Rope clones share chunks;
+/// retaining it lets Undo restore optional quoting as well as cell values.
+#[derive(Clone, Debug, PartialEq)]
+pub(crate) struct CsvSourceState {
+    pub(crate) revision: crate::buffer::ContentRevision,
+    pub(crate) rope: ropey::Rope,
+}
+
 /// Frozen copy of the CSV model state at one undo grain. Drag /
 /// resize / edit-buffer fields are deliberately omitted — they are
 /// ephemeral and would round-trip noisily through undo.
 #[derive(Clone, Debug, PartialEq)]
 pub(crate) struct CsvSnapshot {
+    pub(crate) source_state: Option<CsvSourceState>,
     pub(crate) headers: Vec<String>,
     pub(crate) rows: Vec<Vec<String>>,
     pub(crate) col_widths: Vec<Pixels>,
@@ -45,6 +54,7 @@ impl CsvModel {
     /// of focus handles, scroll handles or in-flight cell input.
     pub(crate) fn snapshot(&self) -> CsvSnapshot {
         CsvSnapshot {
+            source_state: self.pending_source.as_ref().or(self.source_state.as_ref()).cloned(),
             headers: self.headers.clone(),
             rows: self.rows.clone(),
             col_widths: self.col_widths.clone(),
@@ -64,6 +74,8 @@ impl CsvModel {
     /// Restore the model from a snapshot. Cancels any in-flight cell
     /// editor and bumps `source_version` so the workspace re-emits.
     pub(crate) fn restore(&mut self, snap: CsvSnapshot) {
+        self.pending_source = snap.source_state;
+        self.reparse_requested = false;
         self.headers = snap.headers;
         self.rows = snap.rows;
         self.col_widths = snap.col_widths;
@@ -95,6 +107,7 @@ impl CsvModel {
     /// Caps depth at MAX_DEPTH by dropping the oldest entry.
     pub(crate) fn push_undo(&mut self) {
         let snap = self.snapshot();
+        self.pending_source = None;
         self.undo_stack.push(snap);
         if self.undo_stack.len() > MAX_DEPTH {
             self.undo_stack.remove(0);

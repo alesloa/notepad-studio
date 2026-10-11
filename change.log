@@ -207,6 +207,11 @@ v0.0.5 — current
         removing real control codes. Replacing selected text and pressing Enter
         each undo in one step, restoring text, formatting and the selection.
 
+    55. CSV grid Undo/Redo restores saved states and exact source spelling,
+        including optional quotes. Metadata and edits in other tabs retain grid
+        history; stale grid edits cannot overwrite newer source text. Unchanged
+        preview frames avoid copying the entire source file.
+
   v0.1.0 — syntax & language:
 
     1. Tree-sitter syntax highlighting for 25 modes: Rust, Python, C,

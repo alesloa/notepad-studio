@@ -255,11 +255,14 @@ pub(crate) struct CsvModel {
     pub(crate) cell_input: Option<CsvCellInput>,
     pub(crate) delimiter: u8,
     pub(crate) has_header: bool,
-    /// Buffer generation seen at the last `rebuild_from_source`. Source-
-    /// side edits bump the buffer's `autosave_generation`; comparing
-    /// against this lets the grid know when to re-parse without doing
-    /// it on every paint.
+    /// Local parse/mutation version, retained for the model's own callers.
+    /// Workspace invalidation uses the bound raw revision below.
     pub(crate) source_version: u64,
+    pub(crate) source_state: Option<super::undo::CsvSourceState>,
+    /// Snapshot awaiting an Undo/Redo write; source_state still identifies
+    /// the current rope so a newer raw edit can refuse the stale write.
+    pub(crate) pending_source: Option<super::undo::CsvSourceState>,
+    pub(crate) reparse_requested: bool,
     pub(crate) col_drag: Option<ColDragState>,
     pub(crate) row_drag: Option<RowDragState>,
     pub(crate) col_resize: Option<ColResizeState>,
@@ -388,6 +391,9 @@ impl CsvModel {
             delimiter,
             has_header: true,
             source_version: 0,
+            source_state: None,
+            pending_source: None,
+            reparse_requested: false,
             col_drag: None,
             row_drag: None,
             col_resize: None,
@@ -563,12 +569,21 @@ impl CsvModel {
         self.cell_range_drag = None;
     }
 
+    pub(crate) fn bind_source(&mut self, rope: &ropey::Rope, revision: &crate::buffer::ContentRevision) {
+        self.source_state = Some(super::undo::CsvSourceState { revision: revision.clone(), rope: rope.clone() });
+        self.pending_source = None;
+        self.reparse_requested = false;
+    }
+
     /// Re-parse `source` into headers + rows. Preserves user-set column
     /// widths when the column count is unchanged; otherwise resets every
     /// width to `DEFAULT_COL_WIDTH_PX`. Resets `col_order` / `row_order`
     /// to identity — any in-flight drag is implicitly cancelled because
     /// the source-side edit that triggered the rebuild is authoritative.
     pub(crate) fn rebuild_from_source(&mut self, source: &str, generation: u64) {
+        self.source_state = None;
+        self.pending_source = None;
+        self.reparse_requested = false;
         let preserved_widths = self.col_widths.clone();
 
         // Detect and strip UTF-8 BOM. csv crate handles BOM internally but
@@ -1910,9 +1925,8 @@ impl CsvModel {
         }
         self.push_undo();
         self.delimiter = delim;
-        // Force a re-parse on the next render — bump source_version so
-        // the next preview frame rebuilds from the source with the new
-        // delimiter before any cell-emit could write canonical output.
+        // Delimiter selection reinterprets the same source bytes.
+        self.reparse_requested = true;
         self.source_version = self.source_version.wrapping_add(1).max(1);
     }
 

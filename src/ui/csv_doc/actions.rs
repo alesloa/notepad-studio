@@ -280,83 +280,99 @@ pub(crate) fn emit_to_source(
     cx: &mut Context<Workspace>,
 ) {
     let tab_id = w.tabs[w.active].session_id;
-    let Some(model) = w.csv_models.get(&tab_id) else {
+    let Some(model) = w.csv_models.get(&tab_id) else { return; };
+    let buffer = &w.tabs[w.active].buffer;
+    let refusal = if buffer.read_only { Some("Buffer is read-only") }
+        else if buffer.loading.is_some() { Some("CSV source is still loading") }
+        else if model.source_state.as_ref().is_none_or(|source| source.revision != buffer.raw_revision) {
+            Some("CSV source changed; grid history or edit was not applied")
+        } else { None };
+    if let Some(message) = refusal {
+        if let Some(model) = w.csv_models.get_mut(&tab_id) { model.reparse_requested = true; }
+        w.set_status(message);
+        cx.notify();
         return;
-    };
-    let Some(new_text) = model.emit_source() else {
+    }
+    let restored = model.pending_source.clone();
+    let new_text = if let Some(source) = &restored {
+        source.rope.to_string()
+    } else if let Some(text) = model.emit_source() {
+        text
+    } else {
         w.set_status("CSV grid edit not written: the grid could not be written back as CSV text");
         cx.notify();
         return;
     };
     let total = w.tabs[w.active].buffer.rope.len_bytes();
     let current_text = w.tabs[w.active].buffer.rope.to_string();
-    if current_text == new_text {
-        cx.notify();
-        return;
+    let identity_changed = restored.as_ref().is_some_and(|source| source.revision != w.tabs[w.active].buffer.raw_revision);
+    if current_text != new_text || identity_changed {
+        w.replace_byte_range(0..total, &new_text, cx);
+        if let Some(source) = restored {
+            let tab = &mut w.tabs[w.active];
+            // The emitted rope op must identify its final state too, so
+            // switching to Source View keeps text Undo/Redo replayable.
+            if let Some(transaction) = tab.edit_transaction.as_mut() {
+                if let Some(op) = transaction.ops.last_mut() { op.after_revision = source.revision.clone(); }
+            } else if let Some(entry) = tab.undo_stack.last_mut() {
+                match entry {
+                    crate::buffer::UndoEntry::Single(op) => op.after_revision = source.revision.clone(),
+                    crate::buffer::UndoEntry::Group { ops, .. } => {
+                        if let Some(op) = ops.last_mut() { op.after_revision = source.revision.clone(); }
+                    }
+                }
+            }
+            tab.buffer.raw_revision = source.revision;
+        }
     }
-    w.replace_byte_range(0..total, &new_text, cx);
-    // Bump the model's source_version so the next preview render
-    // doesn't unnecessarily rebuild — it just emitted the source
-    // itself.
+    w.tabs[w.active].buffer.refresh_dirty();
     if let Some(model) = w.csv_models.get_mut(&tab_id) {
-        // The autosave_generation bumped during apply_edit; mirror that
-        // by reading the post-edit value if exposed, else simply
-        // increment so subsequent checks compare-equal.
+        let buffer = &w.tabs[w.active].buffer;
+        model.bind_source(&buffer.rope, &buffer.raw_revision);
         model.source_version = w.autosave_generation;
     }
+    cx.notify();
 }
 
-/// Ensure a `CsvModel` exists for the active tab and is in sync with the
-/// rope's current contents. Called at the top of `Workspace::render`
-/// whenever the active tab is in `CsvPreview` mode.
+/// Ensure a `CsvModel` exists and follows the active tab's raw revision.
+/// Metadata changes and edits in another tab leave grid history intact.
 pub(crate) fn ensure_model(
     w: &mut Workspace,
     window: &mut Window,
     cx: &mut Context<Workspace>,
 ) {
     let tab_id = w.tabs[w.active].session_id;
-    let source = w.tabs[w.active].buffer.rope.to_string();
-    let path = w.tabs[w.active].buffer.file_path.clone();
     let generation = w.autosave_generation;
-
-    let existing = w.csv_models.contains_key(&tab_id);
-    if !existing {
-        let default_delim = super::default_delimiter_for_path(path.as_deref());
+    if !w.csv_models.contains_key(&tab_id) {
+        let buffer = &w.tabs[w.active].buffer;
+        let source = buffer.rope.to_string();
+        let default_delim = super::default_delimiter_for_path(buffer.file_path.as_deref());
         let delim = super::detect_delimiter(&source, default_delim);
         let grid_focus = cx.focus_handle();
         let mut model = super::CsvModel::empty(delim);
         model.rebuild_from_source(&source, generation);
+        model.bind_source(&buffer.rope, &buffer.raw_revision);
         model.grid_focus = Some(grid_focus.clone());
         w.csv_models.insert(tab_id, model);
         register_grid_blur_listener(w, tab_id, &grid_focus, window, cx);
         cx.notify();
         return;
     }
-
-    let needs_rebuild = w
-        .csv_models
-        .get(&tab_id)
-        .map(|m| m.source_version != generation)
-        .unwrap_or(true);
-    let needs_grid_focus = w
-        .csv_models
-        .get(&tab_id)
-        .map(|m| m.grid_focus.is_none())
-        .unwrap_or(false);
-    let grid_focus = if needs_grid_focus {
-        Some(cx.focus_handle())
-    } else {
-        None
-    };
+    let buffer = &w.tabs[w.active].buffer;
+    let needs_rebuild = w.csv_models.get(&tab_id).is_none_or(|model| {
+        model.reparse_requested || model.source_state.as_ref().is_none_or(|source| source.revision != buffer.raw_revision)
+    });
+    let needs_grid_focus = w.csv_models.get(&tab_id).is_none_or(|model| model.grid_focus.is_none());
+    let grid_focus = if needs_grid_focus { Some(cx.focus_handle()) } else { None };
     if needs_rebuild || grid_focus.is_some() {
         let new_focus_for_listener = grid_focus.clone();
+        let source = needs_rebuild.then(|| buffer.rope.to_string());
         if let Some(model) = w.csv_models.get_mut(&tab_id) {
-            if needs_rebuild {
+            if let Some(source) = source {
                 model.rebuild_from_source(&source, generation);
+                model.bind_source(&buffer.rope, &buffer.raw_revision);
             }
-            if let Some(handle) = grid_focus {
-                model.grid_focus = Some(handle);
-            }
+            if let Some(handle) = grid_focus { model.grid_focus = Some(handle); }
             cx.notify();
         }
         if let Some(handle) = new_focus_for_listener {
@@ -2060,3 +2076,7 @@ mod tests {
         assert_eq!(b, "2026-10-10");
     }
 }
+
+#[cfg(test)]
+#[path = "savepoint_tests.rs"]
+mod savepoint_tests;

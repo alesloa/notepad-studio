@@ -141,6 +141,7 @@ fn macros_path() -> Option<PathBuf> {
     dirs::config_dir().map(|d| d.join(APP_NAME).join("macros.toml"))
 }
 
+#[cfg(not(test))]
 fn load_saved() -> BTreeMap<String, Vec<MacroEvent>> {
     let Some(path) = macros_path() else {
         return BTreeMap::new();
@@ -204,12 +205,16 @@ static GLOBAL: OnceLock<Mutex<MacroRecorder>> = OnceLock::new();
 
 fn global() -> &'static Mutex<MacroRecorder> {
     GLOBAL.get_or_init(|| {
+        #[cfg(test)]
+        let saved = BTreeMap::new();
+        #[cfg(not(test))]
+        let saved = load_saved();
         Mutex::new(MacroRecorder {
             recording: false,
             replaying: false,
             in_progress: Vec::new(),
             current: Vec::new(),
-            saved: load_saved(),
+            saved,
         })
     })
 }

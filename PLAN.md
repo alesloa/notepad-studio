@@ -22,3 +22,5 @@ Shared-file edits are surgical, re-read before integration. Agent branches are a
 - 2026-10-10: main 71d33f5; 1301 unit tests + 1 integration passed, 8 ignored. Build and clippy passed with no new touched-code warnings. Run, composite savepoints, rich Unicode/input history and CSV exact-source history integrated. Completion routing, selected rich Tab and pending-cell persistence remain active.
 
 - 2026-10-10: reviewed selected rich Tab 003146fc integrated; 1302 units + 1 integration passed, 8 ignored; build/clippy passed with no new warnings. G4 now met.
+
+- 2026-10-10: reviewed completion routing 181087cf integrated; 1312 units + 1 integration passed, 8 ignored; build/clippy passed with no new warnings. G2 met. Inline input dispatch and macro/CSV persistence leaves continue.

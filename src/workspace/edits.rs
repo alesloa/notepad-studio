@@ -1191,6 +1191,7 @@ impl Workspace {
         };
         if tab.view_mode != next {
             tab.view_mode = next;
+            self.close_autocomplete(cx);
             cx.notify();
         }
     }
@@ -1238,6 +1239,7 @@ impl Workspace {
         let tab = self.active_tab_mut();
         if tab.view_mode != next {
             tab.view_mode = next;
+            self.close_autocomplete(cx);
             cx.notify();
         }
     }
@@ -1245,10 +1247,12 @@ impl Workspace {
     pub(crate) fn view_csv_source(
         &mut self,
         _: &ViewCsvSource,
-        _w: &mut Window,
+        window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        let focus = self.input_focus(window);
         self.set_csv_view_mode(false, cx);
+        self.focus_source_editor(focus, window, cx);
     }
 
     pub(crate) fn view_csv_preview(
@@ -1279,9 +1283,10 @@ impl Workspace {
     pub(crate) fn view_source(
         &mut self,
         _: &ViewSource,
-        _w: &mut Window,
+        window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        let focus = self.input_focus(window);
         let tab = &self.tabs[self.active];
         let path = tab.buffer.file_path.as_deref();
         if tab.buffer.is_rich_doc() {
@@ -1290,6 +1295,17 @@ impl Workspace {
             self.set_csv_view_mode(false, cx);
         } else if crate::ui::markdown_view::is_markdown_path(path) {
             self.set_markdown_view_mode(false, cx);
+        }
+        self.focus_source_editor(focus, window, cx);
+    }
+
+    fn focus_source_editor(&self, previous: InputFocus, window: &mut Window, cx: &mut Context<Self>) {
+        // The rendered body's focus node disappears on Source/Raw. Keep
+        // unrelated visible inputs (such as Go to Line) focused.
+        if self.tabs.get(self.active).is_some_and(|tab| tab.view_mode == TabViewMode::Edit)
+            && matches!(previous, InputFocus::RichDocBody | InputFocus::CsvCell | InputFocus::CsvGrid)
+        {
+            window.focus(&self.focus_handle, cx);
         }
     }
 
@@ -1327,6 +1343,7 @@ impl Workspace {
         };
         if tab.view_mode != next {
             tab.view_mode = next;
+            self.close_autocomplete(cx);
             cx.notify();
         }
     }
@@ -1343,10 +1360,12 @@ impl Workspace {
     pub(crate) fn view_raw(
         &mut self,
         _: &crate::actions::rich_doc::RichDocRaw,
-        _w: &mut Window,
+        window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        let focus = self.input_focus(window);
         self.set_rich_doc_view_mode(false, cx);
+        self.focus_source_editor(focus, window, cx);
     }
 
     /// Set the active rich-doc block (the target for Bold / Italic / Underline

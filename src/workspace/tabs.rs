@@ -41,6 +41,7 @@ impl Workspace {
         }) {
             self.autocomplete = None;
             self.autocomplete_blur_subscription = None;
+            self.autocomplete_activation_subscription = None;
         }
         let Some(active_id) = self.tabs.get(self.active).map(|t| t.session_id) else {
             self.tab_mru.clear();

@@ -87,13 +87,13 @@ impl Element for CaretPopup {
                 w.autocomplete_caret_bounds()
                     .zip(w.autocomplete.as_ref())
                     .map(|(caret, state)| {
-                        (caret, w.viewport.bounds, state.candidates.clone(), state.selected)
+                        (caret, w.viewport.bounds, state.candidates.clone(), state.selected, state.session_id)
                     })
             } else {
                 None
             }
         };
-        let Some((caret, viewport, candidates, selected)) = snapshot else {
+        let Some((caret, viewport, candidates, selected, session_id)) = snapshot else {
             self.workspace.update(cx, |w, cx| w.close_autocomplete(cx));
             return None;
         };
@@ -124,25 +124,14 @@ impl Element for CaretPopup {
             .overflow_hidden()
             .occlude()
             .on_mouse_down_out(move |_, _, cx| {
-                dismiss.update(cx, |w, cx| w.close_autocomplete(cx));
+                dismiss.update(cx, |w, cx| w.dismiss_autocomplete_session(session_id, cx));
             })
             .on_mouse_down(MouseButton::Left, |_, _, cx| cx.stop_propagation())
             .on_mouse_down(MouseButton::Right, |_, _, cx| cx.stop_propagation())
             .on_scroll_wheel(move |event, window, cx| {
                 let delta = event.delta.pixel_delta(window.line_height()).y;
-                scroll.update(cx, |w, cx| {
-                    if let Some(state) = w.autocomplete.as_mut() {
-                        if delta > px(0.) {
-                            state.selected = state.selected.saturating_sub(1);
-                        } else if delta < px(0.) {
-                            state.selected = state
-                                .selected
-                                .saturating_add(1)
-                                .min(state.candidates.len().saturating_sub(1));
-                        }
-                        cx.notify();
-                    }
-                });
+                let step = if delta > px(0.) { -1 } else if delta < px(0.) { 1 } else { 0 };
+                scroll.update(cx, |w, cx| w.scroll_autocomplete_session(session_id, step, window, cx));
                 cx.stop_propagation();
             });
         for (idx, candidate) in candidates
@@ -172,7 +161,7 @@ impl Element for CaretPopup {
                 .child(div().min_w_0().truncate().child(candidate_label(candidate)))
                 .on_mouse_down(MouseButton::Left, move |_, window, cx| {
                     cx.stop_propagation();
-                    workspace.update(cx, |w, cx| w.accept_autocomplete_with(&pick, window, cx));
+                    workspace.update(cx, |w, cx| w.accept_autocomplete_session(session_id, &pick, window, cx));
                 });
             menu = menu.child(row);
         }
@@ -415,6 +404,7 @@ mod tests {
         workspace: Entity<Workspace>,
         height: f32,
         outside_clicks: usize,
+        _settings: crate::settings::TestSettingsGuard,
     }
 
     impl gpui::Render for Fixture {
@@ -450,7 +440,8 @@ mod tests {
         height: f32,
     ) -> (Entity<Fixture>, &mut gpui::VisualTestContext) {
         use gpui::{AppContext, WindowAppearance};
-        cx.add_window_view(|window, cx| {
+        let settings = crate::settings::override_for_test(crate::settings::Settings::default());
+        let (fixture, visual) = cx.add_window_view(|_, cx| {
             let workspace = cx.new(|cx| {
                 let mut w = Workspace::new(
                     cx.focus_handle(),
@@ -472,17 +463,24 @@ mod tests {
                 w.window_closed = true;
                 w
             });
-            workspace.update(cx, |w, cx| {
-                w.focus_handle.focus(window, cx);
-                w.autocomplete_word(&crate::actions::EditAutocompleteWord, window, cx);
-                assert!(w.autocomplete.is_some());
-            });
             Fixture {
                 workspace,
                 height,
                 outside_clicks: 0,
+                _settings: settings,
             }
-        })
+        });
+        visual.update(|window, _| window.activate_window());
+        visual.run_until_parked();
+        visual.update(|window, cx| {
+            fixture.read(cx).workspace.clone().update(cx, |w, cx| {
+                w.focus_handle.focus(window, cx);
+                w.autocomplete_word(&crate::actions::EditAutocompleteWord, window, cx);
+                assert!(w.autocomplete.is_some());
+            });
+        });
+        visual.run_until_parked();
+        (fixture, visual)
     }
 
     #[test]

@@ -6,10 +6,13 @@ use crate::{actions::*, tab::{InputFocus, Tab}};
 const SAMPLE: &str = "anchor android andromeda\nan";
 
 fn with_workspace(text: &str, test: impl FnOnce(&mut Workspace, &mut Window, &mut Context<Workspace>)) {
+    let _settings = crate::settings::override_for_test(crate::settings::Settings::default());
     let mut cx = TestAppContext::single();
     let entity = new_workspace(text, &mut cx);
     {
         let cx = cx.add_empty_window();
+        cx.update(|window, _| window.activate_window());
+        cx.run_until_parked();
         cx.update_window_entity(&entity, |w, window, cx| {
             window.focus(&w.focus_handle, cx);
             w.autocomplete_word(&EditAutocompleteWord, window, cx);
@@ -34,6 +37,7 @@ fn new_workspace(text: &str, cx: &mut TestAppContext) -> gpui::Entity<Workspace>
         tab.selection.collapse_to(text.len());
         w.tabs = vec![tab];
         w.active = 0;
+        w.window_closed = true;
         w
     })
 }
@@ -183,6 +187,7 @@ impl Render for CompletionFocusFixture {
 
 #[test]
 fn blur_subscription_dismisses_without_an_editor_command() {
+    let _settings = crate::settings::override_for_test(crate::settings::Settings::default());
     let mut cx = TestAppContext::single();
     let entity = new_workspace(SAMPLE, &mut cx);
     {

@@ -381,6 +381,7 @@ pub(crate) struct Workspace {
     /// invalidates the originating prefix.
     pub(crate) autocomplete: Option<autocomplete::AutocompleteState>,
     pub(crate) autocomplete_blur_subscription: Option<gpui::Subscription>,
+    pub(crate) autocomplete_activation_subscription: Option<gpui::Subscription>,
     pub(crate) autocomplete_auto_trigger_suppressed: bool,
     /// Per-tab CSV preview model. Built lazily the first time a `.csv` /
     /// `.tsv` tab enters preview mode and re-parsed only when the
@@ -716,6 +717,7 @@ impl Workspace {
             folder_inline_create_focus: None,
             autocomplete: None,
             autocomplete_blur_subscription: None,
+            autocomplete_activation_subscription: None,
             autocomplete_auto_trigger_suppressed: false,
             csv_models: std::collections::HashMap::new(),
             csv_grid_blur_subscriptions: std::collections::HashMap::new(),

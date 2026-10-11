@@ -215,6 +215,11 @@ v0.0.5 — current
     56. Typing Tab over a Doc View selection replaces it in one Undo step,
         restoring text, formatting and the selection when undone.
 
+    57. Completion belongs to its visible editor session: old painted rows
+        and wheel events cannot change a reopened list. Switching previews,
+        losing focus or deactivating the window dismisses it immediately.
+        Source/Raw actions restore editor focus from Doc View and CSV grids.
+
   v0.1.0 — syntax & language:
 
     1. Tree-sitter syntax highlighting for 25 modes: Rust, Python, C,

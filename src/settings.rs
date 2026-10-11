@@ -1640,10 +1640,36 @@ fn global() -> &'static Mutex<Settings> {
 /// Snapshot a clone of the current settings. Cheap on the read side —
 /// callers stay off the lock for the duration of any non-trivial work.
 pub(crate) fn snapshot() -> Settings {
+    #[cfg(test)]
+    if let Some(settings) = TEST_SETTINGS.with(|settings| settings.borrow().clone()) {
+        return settings;
+    }
     global()
         .lock()
         .map(|g| g.clone())
         .unwrap_or_default()
+}
+
+#[cfg(test)]
+thread_local! {
+    static TEST_SETTINGS: std::cell::RefCell<Option<Settings>> = const { std::cell::RefCell::new(None) };
+}
+
+#[cfg(test)]
+pub(crate) struct TestSettingsGuard(Option<Settings>);
+
+#[cfg(test)]
+impl Drop for TestSettingsGuard {
+    fn drop(&mut self) {
+        TEST_SETTINGS.with(|settings| *settings.borrow_mut() = self.0.take());
+    }
+}
+
+/// UI-thread tests can change preferences without reading or writing user state.
+#[cfg(test)]
+pub(crate) fn override_for_test(mut settings: Settings) -> TestSettingsGuard {
+    clamp_indent_widths(&mut settings);
+    TestSettingsGuard(TEST_SETTINGS.with(|current| current.replace(Some(settings))))
 }
 
 /// Resolve the active indent character + width for a given language. Returns

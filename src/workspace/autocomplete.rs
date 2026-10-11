@@ -39,6 +39,8 @@ use crate::workspace::Workspace;
 /// Current completion session. Placement resolves fresh editor geometry at prepaint.
 #[derive(Clone)]
 pub(crate) struct AutocompleteState {
+    /// Identifies this opening even if another popup has identical candidates.
+    pub(crate) session_id: uuid::Uuid,
     pub(crate) candidates: Vec<String>,
     /// Refilter until the prefix broadens or a capped pool needs new matches.
     pub(crate) candidate_pool: Vec<String>,
@@ -285,6 +287,7 @@ impl Workspace {
             return false;
         }
         self.autocomplete = Some(AutocompleteState {
+            session_id: uuid::Uuid::new_v4(),
             candidate_pool: candidates.clone(),
             pool_prefix: prefix.to_ascii_lowercase(),
             source: CandidateSource {
@@ -337,6 +340,7 @@ impl Workspace {
             return false;
         }
         self.autocomplete = Some(AutocompleteState {
+            session_id: uuid::Uuid::new_v4(),
             candidate_pool: candidates.clone(),
             pool_prefix: prefix.to_ascii_lowercase(),
             source: CandidateSource {
@@ -402,6 +406,7 @@ impl Workspace {
             return false;
         }
         self.autocomplete = Some(AutocompleteState {
+            session_id: uuid::Uuid::new_v4(),
             candidate_pool: candidates.clone(),
             pool_prefix: prefix.to_ascii_lowercase(),
             source: CandidateSource {
@@ -430,7 +435,7 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if !self.focus_handle.is_focused(window) || self.input_focus(window) != InputFocus::Editor {
+        if !window.is_window_active() || !self.focus_handle.is_focused(window) || self.input_focus(window) != InputFocus::Editor {
             self.close_autocomplete(cx);
             return;
         }
@@ -449,7 +454,7 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if !self.focus_handle.is_focused(window) || self.input_focus(window) != InputFocus::Editor {
+        if !window.is_window_active() || !self.focus_handle.is_focused(window) || self.input_focus(window) != InputFocus::Editor {
             self.close_autocomplete(cx);
             return;
         }
@@ -475,7 +480,7 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if !self.focus_handle.is_focused(window) || self.input_focus(window) != InputFocus::Editor {
+        if !window.is_window_active() || !self.focus_handle.is_focused(window) || self.input_focus(window) != InputFocus::Editor {
             self.close_autocomplete(cx);
             return;
         }
@@ -509,33 +514,83 @@ impl Workspace {
     /// Close the popup. Idempotent — safe to call when no popup is up.
     pub(crate) fn close_autocomplete(&mut self, cx: &mut Context<Self>) {
         self.autocomplete_blur_subscription = None;
+        self.autocomplete_activation_subscription = None;
         if self.autocomplete.take().is_some() {
             cx.notify();
         }
     }
 
     fn watch_autocomplete_focus(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if self.autocomplete.is_some() && self.autocomplete_blur_subscription.is_none() {
+        let Some(session_id) = self.autocomplete.as_ref().map(|state| state.session_id) else { return; };
+        if self.autocomplete_blur_subscription.is_none() {
             let focus = self.focus_handle.clone();
-            self.autocomplete_blur_subscription = Some(cx.on_blur(&focus, window, |w, _, cx| {
-                w.close_autocomplete(cx);
+            self.autocomplete_blur_subscription = Some(cx.on_blur(&focus, window, move |w, _, cx| {
+                w.dismiss_autocomplete_session(session_id, cx);
+            }));
+        }
+        // FocusHandle retains its id in an inactive window, and rendered blur
+        // events wait for a frame. Cancel on the platform notification itself.
+        if self.autocomplete_activation_subscription.is_none() {
+            self.autocomplete_activation_subscription = Some(cx.observe_window_activation(window, move |w, window, cx| {
+                if !window.is_window_active() {
+                    w.dismiss_autocomplete_session(session_id, cx);
+                }
             }));
         }
     }
 
     fn autocomplete_editable(&self) -> bool {
         self.tabs.get(self.active).is_some_and(|tab| {
-            !tab.buffer.read_only && tab.selection.is_empty() && tab.block_selection.is_none()
+            tab.view_mode == crate::tab::TabViewMode::Edit && !tab.buffer.read_only
+                && tab.selection.is_empty() && tab.block_selection.is_none()
         })
     }
 
     pub(crate) fn autocomplete_context_valid(&self, window: &Window) -> bool {
         let Some(state) = self.autocomplete.as_ref() else { return false; };
-        self.focus_handle.is_focused(window)
+        window.is_window_active() && self.focus_handle.is_focused(window)
             && self.input_focus(window) == InputFocus::Editor
             && self.autocomplete_editable()
             && self.tabs.get(self.active).is_some_and(|tab| tab.session_id == state.tab_id)
             && self.selection().head == state.caret
+    }
+
+    /// Painted callbacks belong to one opening. Ignore stale callbacks without
+    /// accepting, selecting or dismissing a more recent completion session.
+    pub(crate) fn dismiss_autocomplete_session(&mut self, session_id: uuid::Uuid, cx: &mut Context<Self>) {
+        if self.autocomplete.as_ref().is_some_and(|state| state.session_id == session_id) {
+            self.close_autocomplete(cx);
+        }
+    }
+
+    pub(crate) fn accept_autocomplete_session(
+        &mut self, session_id: uuid::Uuid, pick: &str, window: &mut Window, cx: &mut Context<Self>,
+    ) -> bool {
+        if !self.autocomplete.as_ref().is_some_and(|state| state.session_id == session_id) {
+            return false;
+        }
+        self.accept_autocomplete_with(pick, window, cx)
+    }
+
+    pub(crate) fn scroll_autocomplete_session(
+        &mut self, session_id: uuid::Uuid, delta: i32, window: &Window, cx: &mut Context<Self>,
+    ) {
+        if !self.autocomplete.as_ref().is_some_and(|state| state.session_id == session_id) {
+            return;
+        }
+        if !self.autocomplete_context_valid(window) {
+            self.dismiss_autocomplete_session(session_id, cx);
+            return;
+        }
+        if let Some(state) = self.autocomplete.as_mut() {
+            let previous = state.selected;
+            if delta < 0 {
+                state.selected = state.selected.saturating_sub(1);
+            } else if delta > 0 {
+                state.selected = state.selected.saturating_add(1).min(state.candidates.len().saturating_sub(1));
+            }
+            if state.selected != previous { cx.notify(); }
+        }
     }
 
     // NppNotification.cpp:200-217 and ScintillaBase.cxx:415-434 — keep an
@@ -634,6 +689,7 @@ impl Workspace {
             return false;
         };
         self.autocomplete_blur_subscription = None;
+        self.autocomplete_activation_subscription = None;
         cx.notify();
         if !state.candidates.iter().any(|candidate| candidate == pick) { return false; }
         let caret = self.selection().head;
@@ -653,7 +709,7 @@ impl Workspace {
     /// character threshold. Existing lists filter through after_edit_flush;
     /// composition updates suppress opening and automatic misses stay silent.
     pub(crate) fn maybe_auto_trigger_autocomplete(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if self.autocomplete_auto_trigger_suppressed || !self.focus_handle.is_focused(window)
+        if self.autocomplete_auto_trigger_suppressed || !window.is_window_active() || !self.focus_handle.is_focused(window)
             || self.input_focus(window) != InputFocus::Editor || !self.autocomplete_editable()
         { return; }
         if self.autocomplete.is_some() {
@@ -767,3 +823,7 @@ mod tests {
 #[cfg(test)]
 #[path = "autocomplete_state_tests.rs"]
 mod completion_state_tests;
+
+#[cfg(test)]
+#[path = "autocomplete_routing_tests.rs"]
+mod completion_routing_tests;

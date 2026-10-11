@@ -346,6 +346,13 @@ v0.0.5 — current
        focus leaves and returns, even within one frame. Fresh manual hints
        still work; refocusing the editor or repainting keeps current requests.
 
+    87. Regex Replace and Replace All now expand numbered/named captures,
+        optional groups and zero-length matches from fresh matches. Source
+        planning runs in the background; stale work and confirmations cannot
+        edit a tab after switching away and back. Each document has one Undo
+        group. Bounded Source/Doc View limits and unsupported-template errors
+        preserve text and history. Replace in Files shares the template parser.
+
   v0.1.0 — syntax & language:
 
     1. Tree-sitter syntax highlighting for 25 modes: Rust, Python, C,

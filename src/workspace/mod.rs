@@ -15,6 +15,10 @@ mod cursor;
 mod tag_match;
 pub(crate) mod edits;
 mod find;
+mod find_replacement;
+mod rich_replacement;
+#[cfg(test)]
+mod regex_replacement_tests;
 mod file_tab_actions;
 mod find_in_files;
 mod folder_panel;
@@ -400,6 +404,7 @@ pub(crate) struct Workspace {
     pub(crate) autocomplete_auto_trigger_suppressed: bool,
     completion_api: completion_api::CompletionApiCache,
     function_hint: call_hint::FunctionHintRuntime,
+    regex_replacement: find_replacement::Runtime,
     /// Per-tab CSV preview model. Built lazily the first time a `.csv` /
     /// `.tsv` tab enters preview mode and re-parsed only when the
     /// buffer's edit generation has changed. See
@@ -749,6 +754,7 @@ impl Workspace {
             autocomplete_auto_trigger_suppressed: false,
             completion_api: completion_api::CompletionApiCache::default(),
             function_hint: call_hint::FunctionHintRuntime::default(),
+            regex_replacement: find_replacement::Runtime::default(),
             csv_models: std::collections::HashMap::new(),
             csv_grid_blur_subscriptions: std::collections::HashMap::new(),
             csv_context_menu: None,

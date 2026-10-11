@@ -50,6 +50,7 @@ impl Workspace {
         if !crate::ui::csv_doc::actions::commit_cell_edit(self, cx) { return; }
         self.close_autocomplete(cx);
         self.close_function_hint(cx);
+        self.cancel_regex_replacement();
         self.active = idx;
         self.touch_mru();
         self.last_lines.clear();
@@ -99,6 +100,7 @@ impl Workspace {
         self.tabs.push(tab);
         self.close_autocomplete(cx);
         self.close_function_hint(cx);
+        self.cancel_regex_replacement();
         self.active = self.tabs.len() - 1;
         self.touch_mru();
         self.last_lines.clear();
@@ -216,6 +218,7 @@ impl Workspace {
     ) {
         self.close_autocomplete(cx);
         self.close_function_hint(cx);
+        self.cancel_regex_replacement();
         if self.tabs.is_empty() {
             if crate::settings::snapshot().tab_exit_on_last_close {
                 self.close_window_after_last_tab(window, cx);
@@ -265,6 +268,7 @@ impl Workspace {
         self.tabs.push(tab);
         self.close_autocomplete(cx);
         self.close_function_hint(cx);
+        self.cancel_regex_replacement();
         self.active = self.tabs.len() - 1;
         self.touch_mru();
         self.last_lines.clear();
@@ -320,6 +324,7 @@ impl Workspace {
         }
         self.close_autocomplete(cx);
         self.close_function_hint(cx);
+        self.cancel_regex_replacement();
         let prompts = ClosePrompts::capture();
         cx.spawn_in(window, async move |this, cx| {
             for id in targets.into_iter().rev() {
@@ -521,6 +526,7 @@ impl Workspace {
             return;
         }
         if on && idx == self.active { self.close_autocomplete(cx); self.close_function_hint(cx); }
+        if on { self.cancel_regex_replacement(); }
         self.tabs[idx].buffer.read_only = on;
         self.save_session(cx);
         cx.notify();
@@ -602,6 +608,7 @@ impl Workspace {
         }
         let Some(idx) = tab_index_of(&self.tabs, id) else { return };
         if idx == self.active { self.close_autocomplete(cx); self.close_function_hint(cx); }
+        self.cancel_regex_replacement();
         let Some(tab) = self.tabs.get(idx) else { return };
         if !tab.buffer.dirty {
             self.finish_reload(id, false, csv_focus, window, cx);
@@ -860,6 +867,7 @@ impl Workspace {
         self.tabs.push(Tab::from_closed(closed));
         self.close_autocomplete(cx);
         self.close_function_hint(cx);
+        self.cancel_regex_replacement();
         self.active = self.tabs.len() - 1;
         self.touch_mru();
         self.last_lines.clear();
@@ -933,6 +941,7 @@ impl Workspace {
         if !crate::ui::csv_doc::actions::commit_cell_edit(self, cx) { return; }
         self.close_autocomplete(cx);
         self.close_function_hint(cx);
+        self.cancel_regex_replacement();
         self.active = target_idx;
         self.sync_source_input_tab();
         self.last_lines.clear();

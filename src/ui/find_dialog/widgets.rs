@@ -299,6 +299,8 @@ where
         .text_color(rgb(fg))
         .cursor(cursor)
         .child(label);
+    #[cfg(test)]
+    let node = node.debug_selector(|| format!("dialog-button-{label}"));
 
     if enabled {
         node.hover(move |s| s.bg(rgb(hover_bg)))

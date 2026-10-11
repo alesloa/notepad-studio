@@ -746,6 +746,9 @@ impl EntityInputHandler for Workspace {
             self.replace_ime_text(range_utf16, new_text, None, false, window, cx);
             return;
         }
+        if matches!(self.input_focus(window), InputFocus::FindQuery | InputFocus::Replacement) {
+            self.cancel_regex_replacement();
+        }
         match self.input_focus(window) {
             InputFocus::FindQuery => {
                 let cursor = self.find_state.query_cursor;

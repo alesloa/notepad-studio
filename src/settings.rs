@@ -361,6 +361,18 @@ pub(crate) fn push_find_history(slot: FindHistorySlot, value: &str) {
     if trimmed.is_empty() {
         return;
     }
+    #[cfg(test)]
+    if TEST_SETTINGS.with(|settings| {
+        let mut settings = settings.borrow_mut();
+        if let Some(settings) = settings.as_mut() {
+            settings.find_history.push(slot, trimmed);
+            true
+        } else {
+            false
+        }
+    }) {
+        return;
+    }
     let mut next = snapshot();
     if !next.find_history.push(slot, trimmed) {
         return;

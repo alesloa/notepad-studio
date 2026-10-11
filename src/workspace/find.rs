@@ -34,7 +34,8 @@ fn is_word_byte(b: u8) -> bool {
 }
 
 /// Search options shared by the Find, Replace and Mark tabs.
-struct SearchFlags {
+#[derive(Clone, PartialEq, Eq)]
+pub(super) struct SearchFlags {
     regex: bool,
     extended: bool,
     whole_word: bool,
@@ -47,7 +48,7 @@ struct SearchFlags {
 /// literally, whole word wraps the literal in `\b`. Look-around and
 /// backreferences are unsupported by the `regex` crate and come back as
 /// `Err`, which callers report as "Invalid regex".
-fn search_regex(query: &str, flags: &SearchFlags) -> Result<regex::Regex, regex::Error> {
+pub(super) fn search_regex(query: &str, flags: &SearchFlags) -> Result<regex::Regex, regex::Error> {
     let raw_query = if flags.extended && !flags.regex {
         interpret_extended(query)
     } else {
@@ -138,6 +139,7 @@ impl Workspace {
     /// the active buffer. Sets `error` on regex failure and clears `matches`.
     /// Picks the first match at or after the current cursor as `current`.
     pub(crate) fn refresh_matches(&mut self) {
+        self.cancel_regex_replacement();
         if self.find_state.query.is_empty() {
             self.find_state.matches.clear();
             self.find_state.rich_doc_block_offsets = None;
@@ -1140,7 +1142,7 @@ impl Workspace {
         }
     }
 
-    fn find_flags(&self) -> SearchFlags {
+    pub(super) fn find_flags(&self) -> SearchFlags {
         SearchFlags {
             regex: self.find_state.regex,
             extended: self.find_state.extended,
@@ -1288,6 +1290,16 @@ impl Workspace {
         _w: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        self.close_function_hint(cx);
+        if self.find_state.regex {
+            self.start_regex_replacement(super::find_replacement::Mode::Current, cx);
+            return;
+        }
+        if self.buffer().read_only {
+            self.set_status("Buffer is read-only");
+            cx.notify();
+            return;
+        }
         self.resync_matches();
         let Some(idx) = self.find_state.current else {
             return;
@@ -1371,6 +1383,16 @@ impl Workspace {
         _w: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        self.close_function_hint(cx);
+        if self.find_state.regex {
+            self.start_regex_replacement(super::find_replacement::Mode::All, cx);
+            return;
+        }
+        if self.buffer().read_only {
+            self.set_status("Buffer is read-only");
+            cx.notify();
+            return;
+        }
         self.resync_matches();
         if self.find_state.matches.is_empty() {
             return;
@@ -1589,12 +1611,13 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        self.cancel_regex_replacement();
         if self.find_state.query.is_empty() {
             self.find_state.status = Some("Enter a query first".to_string());
             cx.notify();
             return;
         }
-        if self.build_find_regex().is_none() {
+        if !self.find_state.regex && self.build_find_regex().is_none() {
             cx.notify();
             return;
         }
@@ -1605,6 +1628,7 @@ impl Workspace {
         // so the immediate path and the post-confirm path call the same
         // code.
         if crate::settings::snapshot().confirm_replace_all_in_all_docs {
+            let Some(confirmation) = self.begin_replace_all_confirmation(cx) else { return };
             let query = self.find_state.query.clone();
             let replacement_preview = self.find_state.replacement.clone();
             let doc_count = self.tabs.len();
@@ -1620,13 +1644,18 @@ impl Workspace {
                     .await;
                 if !matches!(confirm, rfd::MessageDialogResult::Yes) {
                     let _ = this.update(cx, |w, cx| {
+                        if !w.replacement_confirmation_valid(&confirmation) {
+                            w.retire_replace_all_confirmation(&confirmation, cx);
+                            return;
+                        }
+                        w.cancel_regex_replacement();
                         w.find_state.status = Some("Replace All in All Opened cancelled".to_string());
                         cx.notify();
                     });
                     return;
                 }
                 let _ = this.update(cx, |w, cx| {
-                    w.run_replace_all_in_all(cx);
+                    w.resume_replace_all_confirmation(confirmation, cx);
                 });
             })
             .detach();
@@ -1638,7 +1667,11 @@ impl Workspace {
 
     /// The actual rewrite loop, extracted so both the immediate and the
     /// post-confirm path share semantics.
-    fn run_replace_all_in_all(&mut self, cx: &mut Context<Self>) {
+    pub(super) fn run_replace_all_in_all(&mut self, cx: &mut Context<Self>) {
+        if self.find_state.regex {
+            self.start_regex_replacement(super::find_replacement::Mode::AllOpened, cx);
+            return;
+        }
         let Some(re) = self.build_find_regex() else {
             cx.notify();
             return;

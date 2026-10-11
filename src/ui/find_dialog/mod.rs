@@ -263,6 +263,7 @@ fn open_new_dialog_window(
                 // and repaint the editor, otherwise the as-you-type match
                 // highlights stay painted after the window is gone.
                 w.find_dialog_window = None;
+                w.cancel_regex_replacement();
                 w.find_state.open = false;
                 w.find_history_open = None;
                 cx.notify();
@@ -598,6 +599,7 @@ pub(crate) fn close_find_dialog(
     _window: &mut Window,
     cx: &mut Context<Workspace>,
 ) {
+    workspace.cancel_regex_replacement();
     workspace.find_state.open = false;
     workspace.find_history_open = None;
     if let Some(handle) = workspace.find_dialog_window.take() {

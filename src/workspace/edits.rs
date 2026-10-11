@@ -1200,6 +1200,7 @@ impl Workspace {
             self.retire_source_input();
             self.close_autocomplete(cx);
             self.close_function_hint(cx);
+            self.cancel_regex_replacement();
             cx.notify();
         }
     }
@@ -1250,6 +1251,7 @@ impl Workspace {
             self.retire_source_input();
             self.close_autocomplete(cx);
             self.close_function_hint(cx);
+            self.cancel_regex_replacement();
             cx.notify();
         }
     }
@@ -1356,6 +1358,7 @@ impl Workspace {
             self.retire_source_input();
             self.close_autocomplete(cx);
             self.close_function_hint(cx);
+            self.cancel_regex_replacement();
             cx.notify();
         }
     }
@@ -3205,6 +3208,9 @@ impl Workspace {
         &mut self,
         focus: InputFocus,
     ) -> Option<(&mut String, &mut usize, &mut usize)> {
+        if matches!(focus, InputFocus::FindQuery | InputFocus::Replacement) {
+            self.cancel_regex_replacement();
+        }
         match focus {
             InputFocus::FindQuery => Some((
                 &mut self.find_state.query,

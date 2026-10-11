@@ -328,7 +328,7 @@ impl Workspace {
                             report.files_changed,
                             if report.files_changed == 1 { "" } else { "s" },
                             if report.failures > 0 {
-                                format!(" · {} failed", report.failures)
+                                report.failure_status()
                             } else {
                                 String::new()
                             },
@@ -830,6 +830,7 @@ impl Workspace {
                         files_changed: 0,
                         replacements: 0,
                         failures: 0,
+                        first_failure: None,
                     };
                     let mut last_err: Option<String> = None;
                     for dir in &roots {
@@ -850,6 +851,7 @@ impl Workspace {
                                 total.files_changed += r.files_changed;
                                 total.replacements += r.replacements;
                                 total.failures += r.failures;
+                                if total.first_failure.is_none() { total.first_failure = r.first_failure; }
                             }
                             Err(msg) => {
                                 last_err = Some(msg);
@@ -876,7 +878,7 @@ impl Workspace {
                             report.files_changed,
                             if report.files_changed == 1 { "" } else { "s" },
                             if report.failures > 0 {
-                                format!(" · {} failed", report.failures)
+                                report.failure_status()
                             } else {
                                 String::new()
                             },
@@ -1075,6 +1077,14 @@ struct ReplaceInFilesReport {
     files_changed: usize,
     replacements: usize,
     failures: usize,
+    first_failure: Option<String>,
+}
+
+impl ReplaceInFilesReport {
+    fn failure_status(&self) -> String {
+        format!(" · {} failed{}", self.failures,
+            self.first_failure.as_ref().map_or(String::new(), |reason| format!(": {reason}")))
+    }
 }
 
 /// Walk `query.directory`, regex-replace every match with `replacement`, and
@@ -1101,10 +1111,14 @@ fn run_replace_in_files(
     } else {
         replacement.to_string()
     };
+    let regex_template = if query.regex {
+        Some(crate::text::regex_replacement::Template::parse(&replacement, &re)?)
+    } else { None };
 
     let mut files_changed = 0usize;
     let mut replacements = 0usize;
     let mut failures = 0usize;
+    let mut first_failure = None;
 
     let in_subfolders = query.in_subfolders;
     let in_hidden = query.in_hidden_folders;
@@ -1185,23 +1199,30 @@ fn run_replace_in_files(
             Some(rest) => ("\u{FEFF}", rest),
             None => ("", content),
         };
-        let count_in_file = re.find_iter(content).count();
-        if count_in_file == 0 {
-            continue;
-        }
-        let replaced = if query.regex {
-            re.replace_all(content, replacement.as_str())
+        let (replaced, count_in_file) = if let Some(template) = &regex_template {
+            let result = template.plan(&re, content, None, crate::text::regex_replacement::MAX_CACHED_MATCHES)
+                .and_then(|plan| crate::text::regex_replacement::apply_to_string(content, &plan).map(|text| (text, plan.len())));
+            match result {
+                Ok((text, count)) => (std::borrow::Cow::Owned(text), count),
+                Err(error) => {
+                    failures += 1;
+                    if first_failure.is_none() { first_failure = Some(format!("{}: {error}", path.display())); }
+                    continue;
+                }
+            }
         } else {
-            re.replace_all(content, regex::NoExpand(&replacement))
+            (re.replace_all(content, regex::NoExpand(&replacement)), re.find_iter(content).count())
         };
+        if count_in_file == 0 { continue; }
         let new_content = format!("{bom}{replaced}");
-        match std::fs::write(path, new_content.as_bytes()) {
+        match crate::io::write_file_safely(path, new_content.as_bytes()) {
             Ok(()) => {
                 files_changed += 1;
                 replacements += count_in_file;
             }
-            Err(_) => {
+            Err(error) => {
                 failures += 1;
+                if first_failure.is_none() { first_failure = Some(format!("{}: {error}", path.display())); }
             }
         }
     }
@@ -1210,6 +1231,7 @@ fn run_replace_in_files(
         files_changed,
         replacements,
         failures,
+        first_failure,
     })
 }
 
@@ -1298,9 +1320,22 @@ mod tests {
     #[test]
     fn regex_mode_expands_groups() {
         assert_eq!(replace_in(b"ab", "(a)(?<n>b)", true, false, "${n}$1"), b"ba");
-        assert_eq!(replace_in(b"ab", "(a)b", true, false, "[$2]"), b"[]");
+        assert_eq!(replace_in(b"a", "(a)(b)?", true, false, "[$2]"), b"[]");
         assert_eq!(replace_in(b"ab", "(a)b", true, false, "$$"), b"$");
-        assert_eq!(replace_in(b"ab", "(a)b", true, false, r"\1"), br"\1");
+        assert_eq!(replace_in(b"ab", "(a)b", true, false, r"\1"), b"a");
+        assert_eq!(replace_in(b"ab", "(?<n>a)b", true, false, "$+{n}"), b"a");
+    }
+
+    #[test]
+    fn unsupported_regex_replacement_leaves_all_files_intact() {
+        let dir = temp_dir();
+        let path = dir.join("f.txt");
+        std::fs::write(&path, b"a a").unwrap();
+        for value in ["$2", r"\U$1\E", "?1yes:no", r"\0", r"\0101"] {
+            assert!(run_replace_in_files(&query(&dir, "(a)", true, false), value).is_err());
+            assert_eq!(std::fs::read(&path).unwrap(), b"a a");
+        }
+        std::fs::remove_dir_all(dir).unwrap();
     }
 
     #[test]

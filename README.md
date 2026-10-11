@@ -13,7 +13,9 @@ A lightweight, cross-platform text editor inspired by Notepad++, written in Rust
 > menu, column/multi-cursor edit, macro record / replay, plugin host, session
 > restore, and large-file streaming reads have all landed. Currently in flight:
 > Notepad++ behavior parity and correctness audit, including remaining
-> completion and IME edge cases, focus bugs, and menu gaps.
+> completion and IME edge cases, focus bugs, large-edit performance, search
+> macro replay, and menu gaps. Regex capture replacement has landed with
+> bounded background planning; see its documented syntax and limits.
 
 Optional [API completion definitions](docs/api-completion.md) supply language
 names for Function Completion and signatures for parameter hints, including
@@ -165,6 +167,7 @@ icons from new source art → [`docs/icons.md`](docs/icons.md).
 - [x] "Extended" search mode — `\n` `\r` `\t` `\0` `\b` `\\` `\xHH` `\dDDD` `\oOOO` escape interpretation in non-regex find/replace (Find / Replace / FIF / Mark)
 - [x] Mark / Bookmark — `F2` toggle, `Ctrl+F2` next, `Shift+F2` previous, `Cmd/Ctrl+Shift+F2` clear all; gutter glyph + buffer-local set
 - [x] Replace All as a single undo step (edit-group primitive)
+- [x] [Regex capture replacement](docs/regex-replacement.md) — numbered/named captures, optional groups, zero-length matches, guarded background planning, and explicit unsupported-template errors
 - [x] Line endings toggle (CRLF / LF / CR) — click the EOL chip in the status bar to cycle
 - [x] Encoding toggle (UTF-8 / UTF-8 BOM / UTF-16 LE/BE / Latin-1) — BOM-aware load, click the encoding chip to cycle
 

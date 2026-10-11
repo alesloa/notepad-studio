@@ -22,6 +22,12 @@ use serde::{Deserialize, Serialize};
 
 use crate::consts::APP_NAME;
 
+#[cfg(test)]
+#[path = "macros_playback_fixture.rs"]
+mod playback_fixture;
+#[cfg(test)]
+pub(crate) use playback_fixture::override_for_test as override_playback_for_test;
+
 /// Events captured during recording. Each variant maps onto a single
 /// keyboard-driven editor action. Replay dispatches these by calling the
 /// matching `Workspace` method directly (not via gpui action dispatch) so
@@ -318,11 +324,19 @@ pub(crate) fn stop_recording() -> bool {
 
 /// Snapshot of the most-recently-stopped macro for replay.
 pub(crate) fn current() -> Vec<MacroEvent> {
+    #[cfg(test)]
+    if let Some(events) = playback_fixture::current() {
+        return events;
+    }
     global().lock().map(|g| g.current.clone()).unwrap_or_default()
 }
 
 /// Snapshot of saved macro names + event counts for the menu builder.
 pub(crate) fn saved_snapshot() -> Vec<(String, usize)> {
+    #[cfg(test)]
+    if let Some(saved) = playback_fixture::saved_snapshot() {
+        return saved;
+    }
     global()
         .lock()
         .map(|g| {
@@ -336,6 +350,10 @@ pub(crate) fn saved_snapshot() -> Vec<(String, usize)> {
 
 /// Look up a saved macro by name for replay.
 pub(crate) fn saved_events(name: &str) -> Option<Vec<MacroEvent>> {
+    #[cfg(test)]
+    if let Some(events) = playback_fixture::saved_events(name) {
+        return events;
+    }
     global().lock().ok().and_then(|g| g.saved.get(name).cloned())
 }
 

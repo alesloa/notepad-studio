@@ -30,3 +30,5 @@ Shared-file edits are surgical, re-read before integration. Agent branches are a
 - 2026-10-10: View Tab menu and actions implemented from behavior-only oracle review; 1332 units + 1 integration passed,8 ignored; build/clippy passed. G11 met; G7 remains open for broader parity. Inline crash/focus and macro context branches are ready for integration; CSV recovery is active.
 
 - 2026-10-10: reviewed inline input focus/crash ec8869b delta integrated; 1339 units + 1 integration passed,8 ignored; build/clippy passed with no new touched-code warnings. G6 met for real headless routing; native checks remain G8. Macro context integration is next; bounded shaping, CSV recovery and File menu branches continue.
+
+- 2026-10-10: reviewed macro context b57b386 integrated;1353 units+1 integration pass,8 ignored;build/clippy pass with no new touched warnings. G5 met. Macro playback Undo grouping remains under G7; bounded input shaping is ready; CSV recovery and File menu continue.

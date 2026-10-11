@@ -14,8 +14,8 @@ Scope: Continue the requested cross-platform Notepad++ parity audit and fix the 
 - [x] G4: Rich typing, Enter and Tab preserve Unicode and undo selected replacements in one action, with no-op/read-only Redo preserved.
   EVIDENCE: 78af329 plus reviewed 003146fc source integration; selected-Tab actual handler, nested/no-op/read-only tests pass in the 1302-unit main gate.
 
-- [ ] G5: Macro playback uses the visible editable source context and preserves input fields, preview source, inactive windows and read-only documents.
-  EVIDENCE: ec0c73d covers CompleteWord only; general InsertText/entry routing remains under audit.
+- [x] G5: Macro playback uses the visible editable source context and preserves input fields, preview source, inactive windows and read-only documents.
+  EVIDENCE: reviewed b57b386; 13 context/caller/error regressions plus one isolated macro fixture test pass in the 1353-unit main gate. Preview, CSV draft/grid, visible fields, inactive/unfocused/loading/read-only/missing-tab contexts refuse replay; completion is closed first. Partial completion failure stops further events/repetitions and retains the reason. Native evidence remains G8; playback Undo grouping remains a G7 gap.
 
 - [x] G6: Rendered inline text fields have a real focus/action route for keyboard editing, Enter and Escape.
   EVIDENCE: reviewed 766b763..ec8869b source delta; reproduced Go to Line Enter crash, seven actual-frame focus/edit/clipboard/Enter/Escape regressions, and multiline raw-value rendering tests pass in the 1339-unit main gate. Native evidence remains G8; bounded shaping and Mac test chords are a separate active follow-up.
@@ -27,14 +27,14 @@ Scope: Continue the requested cross-platform Notepad++ parity audit and fix the 
   EVIDENCE: pending; current native computer-use transport is unavailable and CUA native surfaces are disabled. Headless GPUI tests are not native screenshots.
 
 - [x] G9: The integrated main tree builds and passes its required unit/integration/clippy checks with no new warnings on touched code.
-  CHECK: powershell -NoProfile -Command "Get-Content log/inline-focus-integration-tests.txt -Tail 16"
-  EXPECT: 1339 passed; 0 failed
-  EVIDENCE: inline focus integration; cargo build and clippy all-targets passed; 1339 units + 1 integration passed, 8 ignored. Refresh for each source batch.
+  CHECK: powershell -NoProfile -Command "Get-Content log/macro-context-integration-tests.txt -Tail 16"
+  EXPECT: 1353 passed; 0 failed
+  EVIDENCE: macro context integration; cargo build and clippy all-targets passed; 1353 units + 1 integration passed, 8 ignored. Refresh for each source batch.
 
 - [x] G10: Completed source batches have separate conventional commits and current change.log/devlog entries; the main working tree is clean before beginning a new batch.
   CHECK: git status --porcelain
   EXPECT: /^$/
-  EVIDENCE: main a02c6ce was clean before this inline input batch; 60 current-version release notes and a devlog entry accompany it. Refresh after each source batch.
+  EVIDENCE: main ddd25a4 was clean before this macro context batch; 61 current-version release notes and a devlog entry accompany it. Refresh after each source batch.
 
 - [x] G11: View > Tab exposes every oracle Tab command in order with rebindable shortcuts; selection/reordering/color commands preserve document UUID, text, encoding/EOL, saved state and history, with edge and pending-cell refusal coverage.
   EVIDENCE: oracle RC789-817 / Commands1304-1412,3532-3537; red missing-menu contract then 7 new menu/actual-dispatch/refusal/edge tests pass. 1332-unit main gate; existing shortcut parity/collision tests cover added rows. Native appearance remains G8.

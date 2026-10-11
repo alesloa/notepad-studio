@@ -1,3 +1,4 @@
+// PowerEditor/src/NppCommands.cpp:83, 106-125 — macro playback targets the editor document.
 // Macro recorder hooks + replay engine + action handlers.
 //
 // Recording side: every editor action handler calls `record_event(...)` near
@@ -29,7 +30,7 @@ use crate::actions::{
 };
 use crate::find_state::{MacroPromptMode, MacroPromptState};
 use crate::macros::{self, MacroEvent, set_replaying};
-use crate::tab::InputFocus;
+use crate::tab::{InputFocus, TabViewMode};
 use crate::workspace::Workspace;
 
 #[path = "completion_macro.rs"]
@@ -46,27 +47,64 @@ impl Workspace {
         times: usize,
         window: &mut Window,
         cx: &mut Context<Self>,
-    ) {
+    ) -> bool {
         if events.is_empty() || times == 0 {
-            return;
+            return false;
         }
+        let Some(tab) = self.tabs.get(self.active) else {
+            self.set_status("No active editor for macro playback");
+            cx.notify();
+            return false;
+        };
+        let refusal = if tab.view_mode != TabViewMode::Edit {
+            Some("Switch to Source or Raw View to run a macro")
+        } else if !window.is_window_active()
+            || !self.focus_handle.is_focused(window)
+            || self.input_focus(window) != InputFocus::Editor
+        {
+            Some("Focus the active Source or Raw View editor to run a macro")
+        } else if tab.buffer.loading.is_some() {
+            Some("Wait for the file to finish loading before running a macro")
+        } else if tab.buffer.read_only {
+            Some("Buffer is read-only")
+        } else {
+            None
+        };
+        if let Some(message) = refusal {
+            self.set_status(message);
+            cx.notify();
+            return false;
+        }
+        self.close_autocomplete(cx);
         let prev = set_replaying(true);
+        let mut completed = 0usize;
         for _ in 0..times {
             for ev in events {
-                self.replay_event(ev, window, cx);
+                if !self.replay_event(ev, window, cx) {
+                    set_replaying(prev);
+                    if completed > 0 {
+                        let reason = self.status_message.as_deref().unwrap_or("event rejected");
+                        let unit = if completed == 1 { "event" } else { "events" };
+                        self.set_status(format!("Macro stopped after {completed} {unit}: {reason}"));
+                        cx.notify();
+                    }
+                    return false;
+                }
+                completed = completed.saturating_add(1);
             }
         }
         set_replaying(prev);
+        true
     }
 
-    fn replay_event(&mut self, event: &MacroEvent, window: &mut Window, cx: &mut Context<Self>) {
+    fn replay_event(&mut self, event: &MacroEvent, window: &mut Window, cx: &mut Context<Self>) -> bool {
         match event {
             MacroEvent::InsertText(text) => {
                 let r = self.selection().ordered();
                 self.replace_byte_range(r, text, cx);
             }
             MacroEvent::CompleteWord { prefix, candidate } => {
-                self.replay_completion_word(prefix, candidate, window, cx);
+                return self.replay_completion_word(prefix, candidate, window, cx);
             }
             MacroEvent::Backspace => self.backspace(&EditBackspace, window, cx),
             MacroEvent::Delete => self.delete(&EditDelete, window, cx),
@@ -142,6 +180,7 @@ impl Workspace {
             MacroEvent::ScrollLineDown => self.scroll_line_down(&EditScrollLineDown, window, cx),
             MacroEvent::ToggleOvertype => self.toggle_overtype(&EditToggleOvertype, window, cx),
         }
+        true
     }
 
     // ---- Macro menu actions ---------------------------------------------------------------
@@ -210,8 +249,9 @@ impl Workspace {
             cx.notify();
             return;
         }
-        self.replay_macro(&events, 1, window, cx);
-        self.set_status(format!("Played macro ({} events)", events.len()));
+        if self.replay_macro(&events, 1, window, cx) {
+            self.set_status(format!("Played macro ({} events)", events.len()));
+        }
         cx.notify();
     }
 
@@ -260,8 +300,9 @@ impl Workspace {
             cx.notify();
             return;
         };
-        self.replay_macro(&events, 1, window, cx);
-        self.set_status(format!("Ran macro '{}'", action.name));
+        if self.replay_macro(&events, 1, window, cx) {
+            self.set_status(format!("Ran macro '{}'", action.name));
+        }
         cx.notify();
     }
 
@@ -323,8 +364,9 @@ impl Workspace {
                     self.set_status("No macro to play");
                     return;
                 }
-                self.replay_macro(&events, n, window, cx);
-                self.set_status(format!("Ran macro {n} times"));
+                if self.replay_macro(&events, n, window, cx) {
+                    self.set_status(format!("Ran macro {n} times"));
+                }
             }
             MacroPromptMode::SaveName => {
                 let name = state.text.trim().to_string();
@@ -346,3 +388,7 @@ impl Workspace {
 #[cfg(test)]
 #[path = "completion_macro_tests.rs"]
 mod completion_macro_tests;
+
+#[cfg(test)]
+#[path = "macro_context_tests.rs"]
+mod macro_context_tests;

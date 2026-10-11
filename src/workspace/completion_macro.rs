@@ -46,10 +46,10 @@ impl Workspace {
         candidate: &str,
         window: &mut Window,
         cx: &mut Context<Self>,
-    ) {
+    ) -> bool {
         self.close_autocomplete(cx);
         let Some(tab) = self.tabs.get(self.active) else {
-            return;
+            return false;
         };
         let selection = tab.selection.clamped(&tab.buffer.rope);
         if !window.is_window_active()
@@ -64,15 +64,16 @@ impl Workspace {
         {
             self.set_status("Macro completion skipped: editor context changed");
             cx.notify();
-            return;
+            return false;
         }
         let Some(range) = completion_range(&tab.buffer.rope, prefix, candidate, selection.head)
         else {
             self.set_status("Macro completion skipped: prefix changed or event is invalid");
             cx.notify();
-            return;
+            return false;
         };
         self.replace_byte_range(range, candidate, cx);
+        true
     }
 }
 

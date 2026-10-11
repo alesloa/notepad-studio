@@ -422,6 +422,10 @@ v0.0.5 — current
     105. Support negotiated Linux XIM multi-message client transport 0.1 with
          bounded reassembly and error handling; mixed transport 0.2 remains open.
 
+    106. Replace All in All Opened Documents now skips read-only documents in
+         Normal and Extended modes, so reported replacement totals match the
+         writable documents processed.
+
   v0.1.0 — syntax & language:
 
     1. Tree-sitter syntax highlighting for 25 modes: Rust, Python, C,

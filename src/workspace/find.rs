@@ -1702,11 +1702,14 @@ impl Workspace {
         let mut total_replacements: usize = 0;
         let mut docs_changed: usize = 0;
 
+        // PowerEditor/src/Notepad_plus.cpp:1277,1313 -- skip read-only buffers.
         for tab_idx in 0..self.tabs.len() {
+            let Some(tab) = self.tabs.get(tab_idx) else { continue };
+            if tab.buffer.read_only { continue; }
             // Compute matches against this buffer's current rope. Each
             // replacement walks back-to-front so earlier byte ranges stay
             // valid.
-            let content = self.tabs[tab_idx].buffer.rope.to_string();
+            let content = tab.buffer.rope.to_string();
             let ranges: Vec<Range<usize>> = re
                 .find_iter(&content)
                 .filter(|m| m.start() != m.end())
@@ -2323,3 +2326,7 @@ mod smart_highlight_tests {
         });
     }
 }
+
+#[cfg(test)]
+#[path = "find_all_opened_tests.rs"]
+mod all_opened_tests;

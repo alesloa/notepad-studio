@@ -326,6 +326,10 @@ v0.0.5 — current
        configured character threshold. Preedit, cancelled input and selected
        replacements keep lists closed; Unicode, encoding and undo are preserved.
 
+   82. Shortcut Mapper now exposes all fixed commands in the installed menus,
+       including Word Wrap, read-only, encoding and line endings. Existing
+       bindings remain compatible; new rows have no default shortcut.
+
   v0.1.0 — syntax & language:
 
     1. Tree-sitter syntax highlighting for 25 modes: Rust, Python, C,

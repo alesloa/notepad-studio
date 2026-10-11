@@ -150,6 +150,12 @@ fn save_at(path: &Path, recent: &RecentFiles) -> std::io::Result<()> {
 /// surface immediately in window B's File menu.
 static GLOBAL: OnceLock<Mutex<RecentFiles>> = OnceLock::new();
 
+#[cfg(test)]
+#[path = "recent_test_snapshot.rs"]
+mod test_snapshot;
+#[cfg(test)]
+pub(crate) use test_snapshot::override_for_test as override_snapshot_for_test;
+
 fn global() -> &'static Mutex<RecentFiles> {
     GLOBAL.get_or_init(|| Mutex::new(load()))
 }
@@ -157,6 +163,10 @@ fn global() -> &'static Mutex<RecentFiles> {
 /// Snapshot the current MRU paths for menu builders. Returns an owned `Vec`
 /// to keep callers off the lock for any longer than necessary.
 pub(crate) fn snapshot() -> Vec<PathBuf> {
+    #[cfg(test)]
+    if let Some(paths) = test_snapshot::snapshot() {
+        return paths;
+    }
     global()
         .lock()
         .map(|g| g.paths.clone())

@@ -323,6 +323,7 @@ impl ShortcutMapper {
         let entity_click = entity.clone();
         div()
             .id(SharedString::from(format!("row::{}", entry.id)))
+            .debug_selector(|| format!("row::{}", entry.id))
             .flex()
             .flex_row()
             .h(rems(24. / 16.))
@@ -837,6 +838,7 @@ where
     let handler = Rc::new(handler);
     let node = div()
         .id(SharedString::from(format!("sm_button::{label}")))
+        .debug_selector(|| format!("sm_button::{label}"))
         .flex()
         .items_center()
         .justify_center()
@@ -861,6 +863,10 @@ where
         node.into_any_element()
     }
 }
+
+#[cfg(test)]
+#[path = "shortcut_mapper_catalog_tests.rs"]
+mod catalog_tests;
 
 #[cfg(test)]
 mod tests {

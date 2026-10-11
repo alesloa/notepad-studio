@@ -209,7 +209,7 @@ icons from new source art → [`docs/icons.md`](docs/icons.md).
 - [x] Comment toggle (syntax-aware) — per-language tokens for all 24 grammars (HTML/XML/Markdown wrap line ranges in `<!-- -->`; JSON no-op)
 
 ### Settings ✅
-- [x] Shortcut Mapper — `Settings ▸ Shortcut Mapper`; rebind any action, conflict detection, persisted to `<config>/Notepad Studio/shortcuts.toml`
+- [x] Shortcut Mapper — `Settings ▸ Shortcut Mapper`; 252 actions including every fixed installed menu command, conflict detection, persisted to `<config>/Notepad Studio/shortcuts.toml`. Per-entry shortcuts for named Run commands, saved macros and plugin commands remain open.
 
 ### Polish ✅
 - [x] Multi-click selection — double-click a word, triple-click a line, quad+-click select-all

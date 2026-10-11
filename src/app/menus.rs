@@ -17,6 +17,9 @@ mod settings;
 mod state;
 mod view;
 
+#[cfg(test)]
+mod catalog_tests;
+
 pub(crate) use state::{publish as publish_menu_state, MenuState};
 
 use gpui::{App, Menu, MenuItem};
@@ -31,28 +34,32 @@ use crate::workspace::Workspace;
 /// Tools, Macro, Run, Plugins, Window, ?. Labels carry Win32 `&` access keys
 /// for the in-window bar; macOS gets them stripped and keeps its app menu.
 pub(crate) fn install_menus(cx: &mut App) {
+    let state = state::current();
+    cx.set_menus(build_menus(&state, file::build(&state), cfg!(target_os = "macos")));
+}
+
+fn build_menus(state: &MenuState, file_menu: Menu, macos: bool) -> Vec<Menu> {
     let mut menus = Vec::new();
-    if cfg!(target_os = "macos") {
+    if macos {
         menus.push(app_menu::build());
     }
-    let state = state::current();
     menus.extend([
-        file::build(&state),
-        edit::build(&state),
-        search::build(&state),
-        view::build(&state),
-        encoding::build(&state),
-        language::build(&state),
-        settings::build(&state),
-        macros::build(&state),
-        run::build(&state),
-        plugins::build(&state),
-        help::build(&state),
+        file_menu,
+        edit::build(state),
+        search::build(state),
+        view::build(state),
+        encoding::build(state),
+        language::build(state),
+        settings::build(state),
+        macros::build(state),
+        run::build(state),
+        plugins::build(state),
+        help::build(state),
     ]);
-    if cfg!(target_os = "macos") {
+    if macos {
         menus = menus.into_iter().map(strip_mnemonics).collect();
     }
-    cx.set_menus(menus);
+    menus
 }
 
 /// Drop `&` access-key markers for a menu system that has none (macOS).

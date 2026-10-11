@@ -35,10 +35,14 @@ use gpui::{App, KeyBinding};
 use serde::{Deserialize, Serialize};
 
 use crate::actions::*;
+use crate::actions::rich_doc::RichDocSaveAsDocx;
 use crate::consts::APP_NAME;
 
 #[cfg(test)]
 mod npp_defaults;
+
+#[cfg(test)]
+mod menu_catalog_tests;
 
 /// One row in the Shortcut Mapper. Pairs an action's stable string id (its
 /// gpui Action type name) with a human-readable label, the per-platform
@@ -129,8 +133,10 @@ static CATALOG: &[ActionEntry] = &[
     row!(FileOpenDefaultViewer, "Open in Default Viewer",   Some("IDM_FILE_OPEN_DEFAULT_VIEWER"),   W,      [],               []),
     row!(FileReloadFromDisk,   "Reload from Disk",          Some("IDM_FILE_RELOAD"),                W,      ["ctrl-r"],       ["cmd-r"]),
     row!(FileOpenFolderAsWorkspace, "Open Folder as Workspace", Some("IDM_FILE_OPENFOLDERASWORKSPACE"), W, [], []),
+    row!(FileClearRecent, "Clear Recent List", EXTRA, GLOBAL, [], []),
     row!(FileSave,             "Save",                      Some("IDM_FILE_SAVE"),                  W,      ["ctrl-s"],       ["cmd-s"]),
     row!(FileSaveAs,           "Save As",                   Some("IDM_FILE_SAVEAS"),                W,      ["ctrl-alt-s"],   ["cmd-shift-s"]),
+    row!(RichDocSaveAsDocx, "Save As .docx", EXTRA, W, [], []),
     row!(FileSaveAll,          "Save All",                  Some("IDM_FILE_SAVEALL"),               W,      ["ctrl-shift-s"], ["cmd-alt-s"]),
     row!(FileCloseTab,         "Close Tab",                 Some("IDM_FILE_CLOSE"),                 W,      ["ctrl-w"],       ["cmd-w"]),
     row!(FileCloseAllTabs,     "Close All Tabs",            Some("IDM_FILE_CLOSEALL"),              W,      ["ctrl-shift-w"], ["cmd-shift-w"]),
@@ -164,11 +170,11 @@ static CATALOG: &[ActionEntry] = &[
     // find bar and the CSV grid `insert_newline` routes it backwards.
     row!(EditInsertNewline, "Insert Newline",     Some("SCI_NEWLINE"),            W, ["enter", "shift-enter"],            ["enter", "shift-enter"]),
     row!(EditInsertTab,     "Insert Tab",         Some("SCI_TAB"),                W, ["tab"],                             ["tab"]),
-    row!(EditOutdent,       "Decrease Line Indent", Some("SCI_BACKTAB"),          W, ["shift-tab"],                       ["shift-tab"]),
+    row!(EditOutdent,       "Backward Tab",       Some("SCI_BACKTAB"),          W, ["shift-tab"],                       ["shift-tab"]),
     row!(EditIncreaseLineIndent, "Increase Line Indent", Some("IDM_EDIT_INS_TAB"), W, [], []),
     row!(EditDecreaseLineIndent, "Decrease Line Indent", Some("IDM_EDIT_RMV_TAB"), W, [], []),
     row!(EditDuplicateCurrentLine, "Duplicate Current Line", Some("IDM_EDIT_DUP_LINE"), W, [], []),
-    row!(EditDuplicateLine, "Duplicate Line",     Some("SCI_SELECTIONDUPLICATE"), W, ["ctrl-d"],                          ["cmd-d"]),
+    row!(EditDuplicateLine, "Duplicate Selection or Line", Some("SCI_SELECTIONDUPLICATE"), W, ["ctrl-d"],                          ["cmd-d"]),
     // Ctrl/Cmd+R belongs to Reload. CSV Fill Right remains unassigned on
     // Windows/Linux and uses Cmd+Alt+R on macOS.
     row!(EditFillRight,       "CSV: Fill Right",          EXTRA, W, [],               ["cmd-alt-r"]),
@@ -200,6 +206,52 @@ static CATALOG: &[ActionEntry] = &[
     row!(EditBeginEndSelect,           "Begin/End Select",                Some("IDM_EDIT_BEGINENDSELECT"),            W, ["ctrl-shift-b"], ["cmd-shift-b"]),
     row!(EditBeginEndSelectColumnMode, "Begin/End Select in Column Mode", Some("IDM_EDIT_BEGINENDSELECT_COLUMNMODE"), W, ["alt-shift-b"],  []),
 
+    // Parameters.cpp:153-245 — mirrored Edit menu commands have no default chord.
+    row!(EditClearReadOnlyFlag, "Clear Read-Only Flag", EXTRA, W, [], []),
+    row!(EditCopyDirPath, "Current Dir. Path to Clipboard", Some("IDM_EDIT_CURRENTDIRTOCLIP"), W, [], []),
+    row!(EditCopyFilename, "Current Filename to Clipboard", Some("IDM_EDIT_FILENAMETOCLIP"), W, [], []),
+    row!(EditCopyFullPath, "Current Full File path to Clipboard", Some("IDM_EDIT_FULLPATHTOCLIP"), W, [], []),
+    row!(EditEolMacintosh, "Macintosh (CR)", Some("IDM_FORMAT_TOMAC"), W, [], []),
+    row!(EditEolToSpace, "EOL to Space", Some("IDM_EDIT_EOL2WS"), W, [], []),
+    row!(EditEolUnix, "Unix (LF)", Some("IDM_FORMAT_TOUNIX"), W, [], []),
+    row!(EditEolWindows, "Windows (CR LF)", Some("IDM_FORMAT_TODOS"), W, [], []),
+    row!(EditInsertDateTimeCustomized, "Date Time (customized)", Some("IDM_EDIT_INSERT_DATETIME_CUSTOMIZED"), W, [], []),
+    row!(EditInsertDateTimeLong, "Date Time (long)", Some("IDM_EDIT_INSERT_DATETIME_LONG"), W, [], []),
+    row!(EditInsertDateTimeShort, "Date Time (short)", Some("IDM_EDIT_INSERT_DATETIME_SHORT"), W, [], []),
+    row!(EditInvertCase, "iNVERT cASE", Some("IDM_EDIT_INVERTCASE"), W, [], []),
+    row!(EditOpenCharacterPanel, "Character Panel", Some("IDM_EDIT_CHAR_PANEL"), GLOBAL, [], []),
+    row!(EditOpenClipboardHistory, "Clipboard History", Some("IDM_EDIT_CLIPBOARDHISTORY_PANEL"), GLOBAL, [], []),
+    row!(EditOpenContainingFolder, "On Selection: Open Containing Folder", Some("IDM_EDIT_OPENSELECTEDFILEFOLDERINEXPLORER"), W, [], []),
+    row!(EditOpenContainingFolderInTerminal, "On Selection: Open Containing Folder in Terminal", EXTRA, W, [], []),
+    row!(EditOpenSelectedFile, "Open File", Some("IDM_EDIT_OPENSELECTEDFILETOEDIT"), W, [], []),
+    row!(EditOpenSelectedInNewInstance, "Open in New Instance", EXTRA, W, [], []),
+    row!(EditOpenTextTools, "Text Tools", EXTRA, GLOBAL, [], []),
+    row!(EditRandomCase, "rANdOm cASe", Some("IDM_EDIT_RANDOMCASE"), W, [], []),
+    row!(EditRandomizeLineOrder, "Randomize Line Order", Some("IDM_EDIT_SORTLINES_RANDOMLY"), W, [], []),
+    row!(EditRemoveConsecutiveDuplicateLines, "Remove Consecutive Duplicate Lines", Some("IDM_EDIT_REMOVE_CONSECUTIVE_DUP_LINES"), W, [], []),
+    row!(EditRemoveDuplicateLines, "Remove Duplicate Lines", Some("IDM_EDIT_REMOVE_ANY_DUP_LINES"), W, [], []),
+    row!(EditRemoveEmptyLines, "Remove Empty Lines", Some("IDM_EDIT_REMOVEEMPTYLINES"), W, [], []),
+    row!(EditRemoveEmptyLinesContainingBlank, "Remove Empty Lines (Containing Blank chars)", Some("IDM_EDIT_REMOVEEMPTYLINESWITHBLANK"), W, [], []),
+    row!(EditRemoveUnnecessaryBlankAndEol, "Remove Unnecessary Blank and EOL", Some("IDM_EDIT_TRIMALL"), W, [], []),
+    row!(EditReverseLineOrder, "Reverse Line Order", Some("IDM_EDIT_SORTLINES_REVERSE_ORDER"), W, [], []),
+    row!(EditSearchSelectionOnInternet, "Search on Internet", Some("IDM_EDIT_SEARCHONINTERNET"), W, [], []),
+    row!(EditSendSelectionViaEmail, "Send via Email", EXTRA, W, [], []),
+    row!(EditSortLinesDecCommaAsc, "Sort Lines as Decimals (Comma) Ascending", Some("IDM_EDIT_SORTLINES_DECIMALCOMMA_ASCENDING"), W, [], []),
+    row!(EditSortLinesDecCommaDesc, "Sort Lines as Decimals (Comma) Descending", Some("IDM_EDIT_SORTLINES_DECIMALCOMMA_DESCENDING"), W, [], []),
+    row!(EditSortLinesDecDotAsc, "Sort Lines as Decimals (Dot) Ascending", Some("IDM_EDIT_SORTLINES_DECIMALDOT_ASCENDING"), W, [], []),
+    row!(EditSortLinesDecDotDesc, "Sort Lines as Decimals (Dot) Descending", Some("IDM_EDIT_SORTLINES_DECIMALDOT_DESCENDING"), W, [], []),
+    row!(EditSortLinesIntAsc, "Sort Lines as Integers Ascending", Some("IDM_EDIT_SORTLINES_INTEGER_ASCENDING"), W, [], []),
+    row!(EditSortLinesIntDesc, "Sort Lines as Integers Descending", Some("IDM_EDIT_SORTLINES_INTEGER_DESCENDING"), W, [], []),
+    row!(EditSortLinesLexAsc, "Sort Lines Lexicographically Ascending", Some("IDM_EDIT_SORTLINES_LEXICOGRAPHIC_ASCENDING"), W, [], []),
+    row!(EditSortLinesLexDesc, "Sort Lines Lexicographically Descending", Some("IDM_EDIT_SORTLINES_LEXICOGRAPHIC_DESCENDING"), W, [], []),
+    row!(EditSpaceToTabAll, "Space to TAB (All)", Some("IDM_EDIT_SW2TAB_ALL"), W, [], []),
+    row!(EditSpaceToTabLeading, "Space to TAB (Leading)", Some("IDM_EDIT_SW2TAB_LEADING"), W, [], []),
+    row!(EditStreamUncomment, "Stream Uncomment", Some("IDM_EDIT_STREAM_UNCOMMENT"), W, [], []),
+    row!(EditTabToSpace, "TAB to Space", Some("IDM_EDIT_TAB2SW"), W, [], []),
+    row!(EditToggleReadOnly, "Set Read-Only", Some("IDM_EDIT_TOGGLEREADONLY"), W, [], []),
+    row!(EditTrimLeadingAndTrailingWs, "Trim Leading and Trailing Space", Some("IDM_EDIT_TRIM_BOTH"), W, [], []),
+    row!(EditTrimLeadingWs, "Trim Leading Space", Some("IDM_EDIT_TRIMLINEHEAD"), W, [], []),
+    row!(EditTrimTrailingWs, "Trim Trailing Space", Some("IDM_EDIT_TRIMTRAILING"), W, [], []),
     // --- Auto-Completion ---
     // Ctrl-family on every platform, as in Notepad++. Ctrl+Alt+Space is
     // Notepad++'s path completion, so the combined Function and Word
@@ -253,11 +305,16 @@ static CATALOG: &[ActionEntry] = &[
     row!(EditFindClose,     "Close Find",    Some("SCI_CANCEL"),             W, ["escape"],       ["escape"]),
     row!(EditFindNext,      "Find Next",     Some("IDM_SEARCH_FINDNEXT"),    W, ["f3"],           ["f3", "cmd-g"]),
     row!(EditFindPrev,      "Find Previous", Some("IDM_SEARCH_FINDPREV"),    W, ["shift-f3"],     ["shift-f3", "cmd-shift-g"]),
+    row!(EditFindAllCurrent, "Find All in Current Document", EXTRA, W, [], []),
+    row!(EditFindCount, "Count", EXTRA, W, [], []),
     row!(EditReplace,       "Replace",       Some("IDM_SEARCH_REPLACE"),     W, ["ctrl-h"],       ["cmd-alt-f"]),
     row!(EditGotoLine,      "Go to Line",    Some("IDM_SEARCH_GOTOLINE"),    W, ["ctrl-g"],       ["cmd-l"]),
     row!(SearchFindInFiles, "Find in Files", Some("IDM_SEARCH_FINDINFILES"), W, ["ctrl-shift-f"], ["cmd-shift-f"]),
+    row!(SearchFindInProjects, "Find in Projects", EXTRA, W, [], []),
     row!(SearchMark,        "Mark",          Some("IDM_SEARCH_MARK"),        W, ["ctrl-m"],       ["cmd-m"]),
 
+    row!(MarkClearAll, "Clear all marks", EXTRA, W, [], []),
+    row!(MarkCopy, "Copy Marked Text", Some("IDM_SEARCH_MARKEDTOCLIP"), W, [], []),
     // --- Tabs ---
     // Notepad++ binds Ctrl+Numpad1..9 to the tab slots. gpui reports a
     // numpad digit as the plain digit, so the slot chord is Ctrl+1..9.
@@ -296,9 +353,20 @@ static CATALOG: &[ActionEntry] = &[
     row!(ViewZoomOut,            "Zoom Out",               Some("SCI_ZOOMOUT"),               W, ["ctrl--", "ctrl-subtract"], ["cmd--"]),
     row!(ViewZoomReset,          "Reset Zoom",             Some("SCI_SETZOOM"),               W, ["ctrl-/", "ctrl-divide"],   ["cmd-0"]),
     row!(ViewToggleFullScreen,   "Toggle Full Screen",     Some("IDM_VIEW_FULLSCREENTOGGLE"), W, ["f11"],                     ["f11"]),
+    row!(ViewToggleTheme, "Toggle Theme", EXTRA, W, [], []),
+    row!(ViewWordWrap, "Word Wrap", Some("IDM_VIEW_WRAP"), W, [], []),
+    row!(ViewShowWhitespace, "Show Whitespace", Some("IDM_VIEW_TAB_SPACE"), W, [], []),
+    row!(ViewToggleFolderPanel, "Folder as Workspace", Some("IDM_VIEW_FILEBROWSER"), W, [], []),
     // Ctrl/Cmd+Shift+L is Delete Line (Notepad++ SCI_LINEDELETE).
     row!(ViewCsvToggleFilterRow, "CSV: Toggle Filter Row", EXTRA,                             W, [],                          []),
 
+    // --- Encoding ---
+    // Parameters.cpp:409-413 — encoding menu items have no default chord.
+    row!(EncodingUtf8, "UTF-8", Some("IDM_FORMAT_AS_UTF_8"), W, [], []),
+    row!(EncodingUtf8Bom, "UTF-8 BOM", Some("IDM_FORMAT_UTF_8"), W, [], []),
+    row!(EncodingUtf16Le, "UTF-16 LE", Some("IDM_FORMAT_UTF_16LE"), W, [], []),
+    row!(EncodingUtf16Be, "UTF-16 BE", Some("IDM_FORMAT_UTF_16BE"), W, [], []),
+    row!(EncodingLatin1, "Latin-1", Some("IDM_FORMAT_ANSI"), W, [], []),
     // --- Language ---
     // Parameters.cpp winKeyDefs[] gives these menu commands no default chord.
     row!(LanguageNormalText, "Language: None (Normal Text)", Some("IDM_LANG_TEXT"), W, [], []),
@@ -338,6 +406,8 @@ static CATALOG: &[ActionEntry] = &[
     row!(RunCommand,           "Run...",                 Some("IDM_EXECUTE"),                       W, ["f5"], ["f5"]),
     row!(RunValidateShortcuts, "Validate shortcuts.xml", Some("IDM_EXECUTE_VALIDATE_SHORTCUTSXML"), W, [],     []),
 
+    // --- Plugins ---
+    row!(PluginsOpenFolder, "Open Plugins Folder", Some("IDM_SETTING_OPENPLUGINSDIR"), GLOBAL, [], []),
     // --- Bookmarks ---
     // Notepad++: Ctrl+F2 toggles, F2 / Shift+F2 jump next / previous.
     row!(BookmarkToggle,   "Toggle Bookmark",     Some("IDM_SEARCH_TOGGLE_BOOKMARK"), W, ["ctrl-f2"],  ["cmd-f2"]),
@@ -352,6 +422,7 @@ static CATALOG: &[ActionEntry] = &[
     row!(OpenPreferences,       "Open Preferences",        Some("IDM_SETTING_PREFERENCE"),   GLOBAL, [], ["cmd-,"]),
     row!(OpenStyleConfigurator, "Open Style Configurator", Some("IDM_LANGSTYLE_CONFIG_DLG"), GLOBAL, [], ["cmd-shift-,"]),
 
+    row!(OpenShortcutMapper, "Shortcut Mapper", Some("IDM_SETTING_SHORTCUT_MAPPER"), GLOBAL, [], []),
     // --- Help ---
     row!(HelpAbout, "About", Some("IDM_ABOUT"), GLOBAL, ["f1"], []),
 

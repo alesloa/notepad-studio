@@ -13,7 +13,7 @@ pub(crate) fn build(_state: &MenuState) -> Menu {
     build_with_recent(&snap, &recent::snapshot())
 }
 
-fn build_with_recent(snap: &settings::Settings, paths: &[std::path::PathBuf]) -> Menu {
+pub(super) fn build_with_recent(snap: &settings::Settings, paths: &[std::path::PathBuf]) -> Menu {
     let mut items: Vec<MenuItem> = vec![
         MenuItem::action("New Window", FileNewWindow),
         MenuItem::separator(),

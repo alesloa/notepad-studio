@@ -1001,3 +1001,17 @@ Every node below appears once in resource order, including separators, both alte
 First complete the tracked safety leaves and retain their narrow refusal/race regressions. Then add existing-menu catalog rows using stable action type names, behavior-oracle defaults, no invented shortcut where the oracle has none, and deliberate macOS mirrors. Prove that every static installed menu action is either cataloged or explicitly documented as a dynamic payload action; exercise actual mapper visibility and custom binding dispatch without writing user settings.
 
 For new parity commands, establish the exact oracle behavior before implementation: single-line and multi-line selections, Unicode/CRLF/BOM/UTF-16, read-only and loading buffers, focus, UUID and asynchronous races, undo grouping, recovery and macro replay. A menu row alone must not turn this inventory’s U into a behavior pass. Native UI comparison and the three OS build/runtime gates remain required to claim complete parity.
+
+## Subsequent static-menu catalog verification (2026-10-10)
+
+The tables above remain the pinned inventory. Reviewed leaf `aa0e3aa` adds the
+63 missing fixed-menu actions to CATALOG, bringing it to 252 entries. Prior
+action IDs, defaults and contexts remain compatible; new entries are unassigned.
+The installed menu builders are shared with the completeness contract, and
+actual painted Mapper rows, Modify/capture, conflict cancellation, reset,
+production key binding and Workspace dispatch are exercised. Recent paths,
+named macros, saved Run commands and plugin commands carry per-entry payloads
+and remain explicitly excluded from the fixed-action contract. The combined
+Windows gate passes 1,628 units and three integration tests, with eight ignored.
+This closes static catalog completeness; command behavior and native platform
+acceptance still follow the separate criteria above.

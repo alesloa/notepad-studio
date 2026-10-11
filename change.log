@@ -535,6 +535,10 @@ v0.0.5 — current
          Cancellation and failed recovery retain the original backups.
 
 
+    136. Rich-document search highlights reuse the displayed text layout
+         and resolve positions in bounded chunks. Match order, colors,
+         paragraph prefixes and clipping stay consistent.
+
   v0.1.0 — syntax & language:
 
     1. Tree-sitter syntax highlighting for 25 modes: Rust, Python, C,

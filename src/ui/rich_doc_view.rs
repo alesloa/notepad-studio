@@ -9,6 +9,9 @@
 
 use std::path::Path;
 
+#[path = "rich_highlight.rs"]
+mod rich_highlight;
+
 use gpui::{
     div, fill, point, prelude::*, px, relative, rgb, rgba, size, AnyElement, App, Bounds,
     CursorStyle, DispatchPhase, Edges, Element, ElementId, ElementInputHandler, Entity,
@@ -827,6 +830,8 @@ impl gpui::Element for EditableInline {
             return None;
         }
         let font_size = px(self.base_size_px);
+        #[cfg(test)]
+        rich_highlight::record_prepaint_shape();
         Some(
             window
                 .text_system()
@@ -923,43 +928,22 @@ impl gpui::Element for EditableInline {
         // amber so the user can tell which one Find Next/Prev will land on.
         // Painted after the selection rect but before glyphs so the text
         // stays legible on top.
-        if !self.match_highlights.is_empty() {
-            let shaped_for_hl = window.text_system().shape_line(
-                SharedString::from(build_combined(
-                    self.prefix.as_deref(),
-                    &self.runs,
-                    &self.theme,
-                    self.base_size_px,
-                    self.base_weight,
-                ).0),
-                px(self.base_size_px),
-                &build_combined(
-                    self.prefix.as_deref(),
-                    &self.runs,
-                    &self.theme,
-                    self.base_size_px,
-                    self.base_weight,
-                ).1,
-                None,
-            );
-            // Notepad++ palette: pale yellow for all matches, amber for the
-            // currently-targeted one. RGBA hex.
+        if let Some(shaped_for_hl) = prepaint.as_ref().filter(|_| !self.match_highlights.is_empty()) {
             let match_color: Hsla = rgba(0xfff39960).into();
             let current_color: Hsla = rgba(0xff8c4290).into();
-            for &(lo_body, hi_body, is_current) in &self.match_highlights {
-                let lo_disp = (lo_body + prefix_len).min(shaped_for_hl.len);
-                let hi_disp = (hi_body + prefix_len).min(shaped_for_hl.len);
-                if hi_disp <= lo_disp {
-                    continue;
-                }
-                let x_lo = bounds.left() + shaped_for_hl.x_for_index(lo_disp);
-                let x_hi = bounds.left() + shaped_for_hl.x_for_index(hi_disp);
+            rich_highlight::visit_ranges(shaped_for_hl, &self.match_highlights, prefix_len, |lo, hi, is_current| {
+                #[cfg(test)]
+                rich_highlight::record_match();
                 let color = if is_current { current_color } else { match_color };
-                window.paint_quad(fill(
-                    Bounds::new(point(x_lo, baseline_y), size(x_hi - x_lo, line_height)),
-                    color,
-                ));
-            }
+                let x_lo = bounds.left() + lo;
+                let x_hi = bounds.left() + hi;
+                let quad = fill(
+                    Bounds::new(point(x_lo, baseline_y), size(x_hi - x_lo, line_height)), color,
+                );
+                #[cfg(test)]
+                rich_highlight::record_quad(&quad, window.content_mask());
+                window.paint_quad(quad);
+            });
         }
 
         // Glyphs.

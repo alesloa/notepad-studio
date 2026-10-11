@@ -35,6 +35,9 @@ use crate::text::encoding::Encoding;
 use crate::text::line_ending::LineEnding;
 use crate::theme::ThemeMode;
 
+mod windows;
+pub(crate) use windows::{register_workspace, release_workspace};
+
 // ---- Manifest types --------------------------------------------------------
 
 #[derive(Default, Serialize, Deserialize, Debug, Clone)]
@@ -364,8 +367,12 @@ pub(crate) fn write_manifest(manifest: &SessionManifest) -> io::Result<()> {
     let Some(path) = manifest_path() else {
         return Ok(());
     };
+    write_manifest_at(manifest, &path)
+}
+
+fn write_manifest_at(manifest: &SessionManifest, path: &Path) -> io::Result<()> {
     let serialized = toml::to_string_pretty(manifest).map_err(io::Error::other)?;
-    persist::atomic_write(&path, serialized.as_bytes())
+    persist::atomic_write(path, serialized.as_bytes())
 }
 
 pub(crate) fn write_bak(id: Uuid, contents: &str) -> io::Result<()> {
@@ -757,13 +764,17 @@ pub(crate) fn restore_closed_tab(entry: &SessionClosedTab) -> Option<ClosedTab> 
 /// save scrubs orphans so the dir can't grow unbounded across many sessions.
 pub(crate) fn reap_orphan_baks(manifest: &SessionManifest) {
     let Some(dir) = bak_dir() else { return };
+    reap_orphan_baks_at(manifest, &dir);
+}
+
+fn reap_orphan_baks_at(manifest: &SessionManifest, dir: &Path) {
     let referenced: BTreeSet<Uuid> = manifest
         .tabs
         .iter()
         .map(|t| t.id)
         .chain(manifest.closed_tabs.iter().map(|c| c.id))
         .collect();
-    let Ok(entries) = fs::read_dir(&dir) else {
+    let Ok(entries) = fs::read_dir(dir) else {
         return;
     };
     for entry in entries.flatten() {
@@ -858,53 +869,12 @@ pub(crate) fn snapshot_workspace_with_policy(
     }
 }
 
-/// Snapshot + write atomically, then prune orphaned `.bak` files so the
-/// session dir stays minimal.
-pub(crate) fn save_workspace(
-    tabs: &[Tab],
-    active: usize,
-    closed_tabs: &[ClosedTab],
-    theme: ThemeMode,
-    show_whitespace: bool,
-    word_wrap: bool,
-    mru: &[Uuid],
-) {
-    save_workspace_with_policy(
-        tabs,
-        active,
-        closed_tabs,
-        theme,
-        show_whitespace,
-        word_wrap,
-        mru,
-        BakPolicy::Full,
-    );
-}
-
-/// Variant of `save_workspace` that lets the caller pick a `BakPolicy`. The
-/// eager per-keystroke save in `replace_byte_range` uses
-/// `BakPolicy::UntitledOnly` so the manifest is always current without
-/// per-keystroke megabyte writes for path-backed dirty buffers.
-pub(crate) fn save_workspace_with_policy(
-    tabs: &[Tab],
-    active: usize,
-    closed_tabs: &[ClosedTab],
-    theme: ThemeMode,
-    show_whitespace: bool,
-    word_wrap: bool,
-    mru: &[Uuid],
-    bak_policy: BakPolicy,
-) {
-    let manifest = snapshot_workspace_with_policy(
-        tabs,
-        active,
-        closed_tabs,
-        theme,
-        show_whitespace,
-        word_wrap,
-        mru,
-        bak_policy,
-    );
+/// Combine the window snapshots, write atomically, then prune orphaned
+/// recovery files under the full-backup policy.
+pub(crate) fn save_workspace(window_id: Uuid, manifest: SessionManifest, bak_policy: BakPolicy) {
+    let Some(manifest) = windows::update(window_id, manifest) else {
+        return;
+    };
     if let Err(err) = write_manifest(&manifest) {
         eprintln!("[session] failed to write manifest: {err}");
         return;

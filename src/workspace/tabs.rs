@@ -168,7 +168,7 @@ impl Workspace {
     /// and `window_closed` stops them persisting it.
     fn close_window_after_last_tab(&mut self, window: &mut Window) {
         self.save_session();
-        self.window_closed = true;
+        self.release_session_window();
         park_closed_strip(&mut self.tabs, &mut self.active);
         window.remove_window();
     }

@@ -226,6 +226,7 @@ pub(crate) struct Workspace {
     /// so session saves from late timers and `on_release` become no-ops
     /// instead of persisting the placeholder tab left behind in `tabs`.
     pub(crate) window_closed: bool,
+    pub(crate) session_window_id: Uuid,
     /// Which dialog input is currently being drag-selected with the mouse,
     /// if any. `Some(focus)` while the user holds left-button after clicking
     /// the input; on every mouse move the cursor side of the selection on
@@ -673,6 +674,7 @@ impl Workspace {
             autosave_generation: 0,
             post_edit_generation: 0,
             window_closed: false,
+            session_window_id: Uuid::new_v4(),
             input_drag: None,
             text_drag: None,
             drag_mode: DragMode::Char,
@@ -1052,41 +1054,33 @@ impl Workspace {
         if self.window_closed {
             return;
         }
-        let mru: Vec<uuid::Uuid> = self.tab_mru.iter().copied().collect();
-        session::save_workspace(
-            &self.tabs,
-            self.active,
-            &self.closed_tabs,
-            self.theme_mode,
-            self.show_whitespace,
-            self.word_wrap,
-            &mru,
-        );
+        session::save_workspace(self.session_window_id, self.session_snapshot(session::BakPolicy::Full), session::BakPolicy::Full);
     }
 
-    /// Eager save for the per-keystroke path. Writes the manifest immediately
-    /// but only `.bak`s untitled buffers — path-backed dirty `.bak`s stay on
-    /// the 250ms debounced full save in `schedule_autosave`. Manifest entries
-    /// for path-backed dirty buffers carry `dirty = false` so restore re-reads
-    /// from disk if the user closes before the debounced full save fires.
-    /// Trade-off: at most 250ms of typed-but-unsaved keystrokes are lost on a
-    /// close-too-fast for path-backed buffers; untitled scratch pads round-
-    /// trip in full because their `.bak` is written every keystroke.
+    /// Keep untitled drafts current while path-backed buffers wait for the
+    /// full autosave. Their existing backups remain owned by this window.
     pub(crate) fn save_session_eager(&self) {
         if self.window_closed {
             return;
         }
-        let mru: Vec<uuid::Uuid> = self.tab_mru.iter().copied().collect();
-        session::save_workspace_with_policy(
-            &self.tabs,
-            self.active,
-            &self.closed_tabs,
-            self.theme_mode,
-            self.show_whitespace,
-            self.word_wrap,
-            &mru,
-            session::BakPolicy::UntitledOnly,
-        );
+        session::save_workspace(self.session_window_id, self.session_snapshot(session::BakPolicy::UntitledOnly), session::BakPolicy::UntitledOnly);
+    }
+
+    fn session_snapshot(&self, policy: session::BakPolicy) -> SessionManifest {
+        let mru: Vec<Uuid> = self.tab_mru.iter().copied().collect();
+        session::snapshot_workspace_with_policy(
+            &self.tabs, self.active, &self.closed_tabs, self.theme_mode,
+            self.show_whitespace, self.word_wrap, &mru, policy,
+        )
+    }
+
+    pub(crate) fn register_session_window(&self) {
+        session::register_workspace(self.session_window_id, self.session_snapshot(session::BakPolicy::Full));
+    }
+
+    pub(crate) fn release_session_window(&mut self) {
+        self.window_closed = true;
+        session::release_workspace(self.session_window_id);
     }
 
     /// Schedule a debounced autosave of every dirty / untitled buffer AND a

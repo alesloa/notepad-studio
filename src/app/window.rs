@@ -230,6 +230,7 @@ fn spawn_window(cx: &mut App, entry: Option<WindowEntry>, restore_session: bool)
                 // is sufficient, both is belt-and-suspenders.
                 cx.on_release(|workspace: &mut Workspace, _app: &mut App| {
                     workspace.save_session();
+                    workspace.release_session_window();
                 })
                 .detach();
                 let mut workspace = Workspace::new(
@@ -247,6 +248,7 @@ fn spawn_window(cx: &mut App, entry: Option<WindowEntry>, restore_session: bool)
                         workspace.apply_session(manifest);
                     }
                 }
+                workspace.register_session_window();
                 spawn_caret_blink(cx);
                 spawn_periodic_backup(cx);
                 workspace
@@ -257,7 +259,10 @@ fn spawn_window(cx: &mut App, entry: Option<WindowEntry>, restore_session: bool)
             // with the `on_release` registration above.
             let entity_for_close = workspace_entity.clone();
             window.on_window_should_close(cx, move |_window, app_cx| {
-                let _ = entity_for_close.update(app_cx, |w, _cx| w.save_session());
+                let _ = entity_for_close.update(app_cx, |w, _cx| {
+                    w.save_session();
+                    w.release_session_window();
+                });
                 true
             });
 

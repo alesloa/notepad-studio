@@ -52,7 +52,9 @@ impl Workspace {
             return;
         };
         let selection = tab.selection.clamped(&tab.buffer.rope);
-        if !self.focus_handle.is_focused(window)
+        if !window.is_window_active()
+            || tab.view_mode != crate::tab::TabViewMode::Edit
+            || !self.focus_handle.is_focused(window)
             || self.input_focus(window) != InputFocus::Editor
             || tab.buffer.read_only
             || !selection.is_empty()

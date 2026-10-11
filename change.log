@@ -200,6 +200,9 @@ v0.0.5 — current
         menu and update, rename or delete them without changing editor Undo.
         Saved-command keyboard shortcuts remain unassigned.
 
+    53. Recorded completion cannot change hidden preview source or an
+        inactive window. It requires an active Source/Raw editor context.
+
   v0.1.0 — syntax & language:
 
     1. Tree-sitter syntax highlighting for 25 modes: Rust, Python, C,

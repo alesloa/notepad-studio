@@ -11,6 +11,14 @@ fn with_workspace(
     text: &str,
     test: impl FnOnce(&mut Workspace, &mut Window, &mut Context<Workspace>),
 ) {
+    with_workspace_window(text, true, test);
+}
+
+fn with_workspace_window(
+    text: &str,
+    active: bool,
+    test: impl FnOnce(&mut Workspace, &mut Window, &mut Context<Workspace>),
+) {
     let mut cx = TestAppContext::single();
     let text = text.to_string();
     let entity = cx.new(move |cx| {
@@ -29,10 +37,15 @@ fn with_workspace(
         tab.selection.collapse_to(text.len());
         w.tabs = vec![tab];
         w.active = 0;
+        w.window_closed = true;
         w
     });
     {
         let cx = cx.add_empty_window();
+        if active {
+            cx.update(|window, _| window.activate_window());
+            cx.run_until_parked();
+        }
         cx.update_window_entity(&entity, |w, window, cx| {
             window.focus(&w.focus_handle, cx);
             test(w, window, cx);
@@ -153,5 +166,32 @@ fn live_completion_and_recorded_replay_have_the_same_undo_caret() {
         w.undo(&EditUndo, window, cx);
         assert!(w.selection().is_empty());
         assert_eq!(w.selection().head, initial_caret);
+    });
+}
+
+
+#[test]
+fn completion_replay_does_not_edit_hidden_preview_source() {
+    for view in [
+        crate::tab::TabViewMode::MarkdownPreview,
+        crate::tab::TabViewMode::CsvPreview,
+        crate::tab::TabViewMode::RichDocView,
+    ] {
+        with_workspace("an", |w, window, cx| {
+            w.active_tab_mut().view_mode = view;
+            w.replay_macro(&[completion_event("an", "android")], 1, window, cx);
+            assert_eq!(w.buffer().rope.to_string(), "an", "preview {view:?}");
+            assert!(w.active_tab_mut().undo_stack.is_empty());
+        });
+    }
+}
+
+#[test]
+fn completion_replay_does_not_edit_an_inactive_window() {
+    with_workspace_window("an", false, |w, window, cx| {
+        assert!(!window.is_window_active());
+        w.replay_macro(&[completion_event("an", "android")], 1, window, cx);
+        assert_eq!(w.buffer().rope.to_string(), "an");
+        assert!(w.active_tab_mut().undo_stack.is_empty());
     });
 }

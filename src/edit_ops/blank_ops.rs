@@ -32,6 +32,12 @@ use crate::workspace::Workspace;
 #[path = "trim_leading_scope_tests.rs"]
 mod trim_leading_scope_tests;
 
+#[path = "trim_both_scope.rs"]
+mod trim_both_scope;
+#[cfg(test)]
+#[path = "trim_both_scope_tests.rs"]
+mod trim_both_scope_tests;
+
 impl Workspace {
     pub(crate) fn trim_leading_ws(
         &mut self,
@@ -88,7 +94,7 @@ impl Workspace {
         _w: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        run_full_buffer_transform(self, cx, |s| Ok(trim_both(s)));
+        trim_both_scope::apply(self, cx);
     }
 
     pub(crate) fn eol_to_space(

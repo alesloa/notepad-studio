@@ -579,6 +579,9 @@ v0.0.5 — current
          Corrections support Undo, macros and session ignore words. Edit >
          Spelling and Grammar controls each check; see docs/proofreading.md
          for paragraph, document-size and diagnostic limits.
+    147. Trim Leading and Trailing Space now changes only the selected
+         physical lines, including partially selected lines. Rectangular
+         selections are refused, and Undo restores the original selection.
 
   v0.1.0 — syntax & language:
 

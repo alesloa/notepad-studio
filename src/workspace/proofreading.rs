@@ -313,13 +313,21 @@ impl Workspace {
 
     pub(crate) fn toggle_spelling(&mut self, _: &crate::actions::EditToggleSpelling, _: &mut Window, cx: &mut Context<Self>) {
         let mut prefs = crate::settings::snapshot(); prefs.proofread_spelling = !prefs.proofread_spelling;
-        crate::settings::replace_and_save(prefs); self.ensure_proofreading(cx); cx.notify();
+        crate::settings::replace_and_save(prefs);
+        crate::app::menus::rebuild_menus(cx);
+        self.ensure_proofreading(cx); cx.notify();
     }
     pub(crate) fn toggle_grammar(&mut self, _: &crate::actions::EditToggleGrammar, _: &mut Window, cx: &mut Context<Self>) {
         let mut prefs = crate::settings::snapshot(); prefs.proofread_grammar = !prefs.proofread_grammar;
-        crate::settings::replace_and_save(prefs); self.ensure_proofreading(cx); cx.notify();
+        crate::settings::replace_and_save(prefs);
+        crate::app::menus::rebuild_menus(cx);
+        self.ensure_proofreading(cx); cx.notify();
     }
 }
+
+#[cfg(test)]
+#[path = "proofreading_menu_tests.rs"]
+mod menu_tests;
 
 #[cfg(test)]
 mod tests {

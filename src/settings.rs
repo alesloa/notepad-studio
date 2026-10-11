@@ -1612,6 +1612,8 @@ fn clamp_indent_widths(s: &mut Settings) {
 }
 
 fn save_to_disk(s: &Settings) {
+    #[cfg(test)]
+    if persistence_fixture::intercept() { return; }
     let Some(path) = settings_path() else {
         return;
     };
@@ -1650,6 +1652,9 @@ fn last_seen_mtime() -> &'static Mutex<Option<SystemTime>> {
 }
 
 // --- process-global cache ------------------------------------------------
+
+#[cfg(test)]
+pub(crate) mod persistence_fixture;
 
 static GLOBAL: OnceLock<Mutex<Settings>> = OnceLock::new();
 
@@ -1722,6 +1727,11 @@ pub(crate) fn indent_for_lang(lang_key: Option<&str>) -> (bool, usize) {
 /// to thread `cx` through manually.
 pub(crate) fn replace_and_save(mut next: Settings) {
     clamp_indent_widths(&mut next);
+    #[cfg(test)]
+    if TEST_SETTINGS.with(|settings| {
+        let mut current = settings.borrow_mut();
+        if current.is_some() { *current = Some(next.clone()); true } else { false }
+    }) { return; }
     if let Ok(mut g) = global().lock() {
         *g = next.clone();
     }

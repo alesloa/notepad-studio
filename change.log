@@ -594,6 +594,8 @@ v0.0.5 — current
     151. Every Blank Operations command can now be recorded and replayed
          in saved macros. Playback keeps each command's current selection
          and tab-width behavior and undoes the complete macro in one step.
+    152. Spelling and grammar menu checkmarks update immediately when
+         either check is switched on or off, including native menus.
 
   v0.1.0 — syntax & language:
 

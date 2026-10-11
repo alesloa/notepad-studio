@@ -19,6 +19,8 @@ mod view;
 
 #[cfg(test)]
 mod catalog_tests;
+#[cfg(test)]
+pub(crate) mod publication_fixture;
 
 pub(crate) use state::{publish as publish_menu_state, MenuState};
 
@@ -35,7 +37,10 @@ use crate::workspace::Workspace;
 /// for the in-window bar; macOS gets them stripped and keeps its app menu.
 pub(crate) fn install_menus(cx: &mut App) {
     let state = state::current();
-    cx.set_menus(build_menus(&state, file::build(&state), cfg!(target_os = "macos")));
+    let menus = build_menus(&state, file::build(&state), cfg!(target_os = "macos"));
+    #[cfg(test)]
+    publication_fixture::capture(&menus);
+    cx.set_menus(menus);
 }
 
 fn build_menus(state: &MenuState, file_menu: Menu, macos: bool) -> Vec<Menu> {

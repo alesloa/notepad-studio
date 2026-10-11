@@ -143,6 +143,9 @@ impl Workspace {
             MacroEvent::CompleteWord { prefix, candidate } => {
                 return self.replay_completion_word(prefix, candidate, window, cx);
             }
+            MacroEvent::CorrectText { original, replacement } => {
+                return self.replay_proofreading_correction(original, replacement, cx);
+            }
             MacroEvent::Backspace => self.backspace(&EditBackspace, window, cx),
             MacroEvent::Delete => self.delete(&EditDelete, window, cx),
             MacroEvent::InsertNewline => self.insert_newline(&EditInsertNewline, window, cx),

@@ -66,6 +66,7 @@ pub(crate) fn context_menu(
     theme: &Theme,
     position: Point<Pixels>,
     flags: ContextMenuFlags,
+    correction: Option<crate::workspace::proofreading::CorrectionMenu>,
     workspace: Entity<Workspace>,
 ) -> impl IntoElement {
     let dismiss_workspace = workspace.clone();
@@ -101,6 +102,8 @@ pub(crate) fn context_menu(
         .border_color(rgb(border))
         .text_size(rems(12. / 16.))
         .text_color(rgb(text));
+
+    menu = crate::ui::proofreading_menu::append_rows(menu, theme, correction, workspace.clone());
 
     for entry in ENTRIES {
         let entry = *entry;

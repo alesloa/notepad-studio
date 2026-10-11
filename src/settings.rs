@@ -1080,6 +1080,12 @@ pub(crate) struct Settings {
     #[serde(default)]
     pub(crate) print_footer_font_italic: bool,
 
+    /// Local English checking for ordinary text and Markdown source.
+    #[serde(default = "default_true")]
+    pub(crate) proofread_spelling: bool,
+    #[serde(default = "default_true")]
+    pub(crate) proofread_grammar: bool,
+
     // --- Auto-Completion panel ------------------------------------------
 
     /// NPP `Auto-Completion ▸ {radio}`. Mirrors `_autocStatus` in
@@ -1430,6 +1436,8 @@ impl Default for Settings {
             print_footer_font_size: 0,
             print_footer_font_bold: false,
             print_footer_font_italic: false,
+            proofread_spelling: true,
+            proofread_grammar: true,
             autocompletion_mode: AutocompletionMode::default(),
             autocompletion_from_chars: DEFAULT_AUTOCOMPLETION_FROM_CHARS,
             autocompletion_brief: false,
@@ -1791,6 +1799,16 @@ fn check_external_settings_change() {
 mod tests {
     use super::*;
     use crate::persist::TempDir;
+
+    #[test]
+    fn proofreading_defaults_load_old_settings_and_switches_round_trip() {
+        let old: Settings = toml::from_str("tab_width = 8\n").unwrap();
+        assert!(old.proofread_spelling && old.proofread_grammar);
+        let settings = Settings { proofread_spelling: false, proofread_grammar: false, ..old };
+        let loaded: Settings = toml::from_str(&toml::to_string(&settings).unwrap()).unwrap();
+        assert!(!loaded.proofread_spelling && !loaded.proofread_grammar);
+        assert_eq!(loaded.tab_width, 8);
+    }
 
     #[test]
     fn hand_edited_indent_widths_are_pulled_into_range() {

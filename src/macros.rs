@@ -40,6 +40,7 @@ pub(crate) enum MacroEvent {
     /// Accepted completion replaces a prefix rather than inserting after it.
     /// Existing saved event names remain unchanged.
     CompleteWord { prefix: String, candidate: String },
+    CorrectText { original: String, replacement: String },
     Backspace,
     Delete,
     InsertNewline,
@@ -407,6 +408,23 @@ mod tests {
 
     fn names(m: &BTreeMap<String, Vec<MacroEvent>>) -> Vec<&str> {
         m.keys().map(String::as_str).collect()
+    }
+
+    #[test]
+    fn proofreading_corrections_round_trip_with_existing_macro_events() {
+        let dir = TempDir::new("macro-proofreading-save");
+        let path = dir.join("macros.toml");
+        let saved = BTreeMap::from([("correction".into(), vec![
+            MacroEvent::InsertText("sentnce".into()),
+            MacroEvent::CorrectText { original: "sentnce".into(), replacement: "sentence".into() },
+            MacroEvent::MoveRight,
+        ])]);
+        assert!(persist_at(&path, &saved).is_ok());
+        let loaded = load_saved_at(&path);
+        assert!(matches!(loaded.get("correction").map(Vec::as_slice), Some([
+            MacroEvent::InsertText(text), MacroEvent::CorrectText { original, replacement }, MacroEvent::MoveRight,
+        ]) if text == "sentnce" && original == "sentnce" && replacement == "sentence"));
+        assert!(!dir.join("macros.toml.corrupt").exists());
     }
 
     #[test]

@@ -38,6 +38,7 @@ mod panic_log;
 mod persist;
 mod plugins;
 mod print;
+mod proofreading;
 mod recent;
 mod rich_doc;
 mod run_command;

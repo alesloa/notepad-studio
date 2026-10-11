@@ -69,6 +69,7 @@ tempfile = { workspace = true }
 sha2 = { workspace = true }
 gpui = { path = "vendor/gpui/crates/gpui" }
 ropey = "1.6"
+harper-core = { version = "=0.33.0", default-features = false, features = ["concurrent"] }
 rfd = "0.14"
 anyhow = "1"
 dirs = "5"

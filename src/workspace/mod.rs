@@ -49,6 +49,7 @@ mod ime;
 mod input_handler;
 mod language;
 mod syntax_refresh;
+pub(crate) mod proofreading;
 #[cfg(test)]
 mod syntax_refresh_tests;
 #[cfg(test)]
@@ -284,6 +285,7 @@ pub(crate) struct Workspace {
     /// Independent post-edit eager-recovery debounce; syntax work is tracked per tab.
     pub(crate) post_edit_generation: u64,
     syntax_refresh: syntax_refresh::Runtime,
+    proofreader: proofreading::Runtime,
     reload: reload::Runtime,
     /// Set once the last tab has closed and the window is torn down. The
     /// entity can outlive its window (Preferences and Text Tools hold it),
@@ -783,6 +785,7 @@ impl Workspace {
             session_final_save_result: None,
             post_edit_generation: 0,
             syntax_refresh: syntax_refresh::Runtime::default(),
+            proofreader: proofreading::Runtime::default(),
             reload: reload::Runtime::default(),
             window_closed: false,
             session_window_id: Uuid::new_v4(),
@@ -1179,6 +1182,7 @@ impl Workspace {
     }
 
     pub(crate) fn hide_context_menu(&mut self, cx: &mut Context<Self>) {
+        self.clear_proofreading_menu();
         if self.context_menu.take().is_some() {
             cx.notify();
         }
@@ -1264,6 +1268,7 @@ impl Workspace {
         self.cancel_directory_operations();
         self.cancel_regex_replacement();
         self.syntax_refresh.close();
+        self.proofreader.close();
         self.reload.close();
         session::release_workspace(self.session_window_id);
     }

@@ -1265,6 +1265,8 @@ impl PreferencesDialog {
             ) as u32,
             print_footer_font_bold: prior.print_footer_font_bold,
             print_footer_font_italic: prior.print_footer_font_italic,
+            proofread_spelling: prior.proofread_spelling,
+            proofread_grammar: prior.proofread_grammar,
             autocompletion_mode: prior.autocompletion_mode,
             autocompletion_from_chars: parse_bounded_u32(
                 FieldId::AutocompletionFromChars,

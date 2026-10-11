@@ -16,6 +16,7 @@ pub(crate) mod markdown_view;
 pub(crate) mod menu_bar;
 pub(crate) mod paste_format_dialog;
 pub(crate) mod preferences;
+pub(crate) mod proofreading_menu;
 pub(crate) mod rich_doc_color_bar;
 pub(crate) mod rich_doc_color_more;
 pub(crate) mod rich_doc_link_bar;

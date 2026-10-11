@@ -34,6 +34,9 @@ A lightweight, cross-platform text editor inspired by Notepad++, written in Rust
 > matches in background and rejects stale result navigation. Large captures
 > yield between bounded turns and stop feeding when the worker queue is full.
 > Native completion latency and broader search performance still need testing.
+> Local English spelling and grammar checking now marks Normal Text and Markdown
+> Source View with wavy underlines and right-click corrections. Links and code
+> are excluded; see [scope and limits](docs/proofreading.md).
 
 Optional [API completion definitions](docs/api-completion.md) supply language
 names for Function Completion and signatures for parameter hints, including

@@ -573,6 +573,13 @@ v0.0.5 — current
          selection ending at the next line's start leaves that line alone;
          rectangular selections are refused and Undo restores the selection.
 
+    146. Local English spelling and grammar checking adds wavy underlines
+         and right-click corrections in Normal Text and Markdown Source View.
+         Links, email, paths, identifiers and Markdown code are excluded.
+         Corrections support Undo, macros and session ignore words. Edit >
+         Spelling and Grammar controls each check; see docs/proofreading.md
+         for paragraph, document-size and diagnostic limits.
+
   v0.1.0 — syntax & language:
 
     1. Tree-sitter syntax highlighting for 25 modes: Rust, Python, C,

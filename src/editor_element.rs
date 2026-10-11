@@ -24,6 +24,9 @@ pub(crate) struct EditorElement {
     pub(crate) workspace: Entity<Workspace>,
 }
 
+#[path = "editor_proofreading.rs"]
+mod proofreading;
+
 pub(crate) struct EditorPrepaint {
     lines: Vec<EditorLineLayout>,
     selection_quads: Vec<PaintQuad>,
@@ -1214,6 +1217,7 @@ impl gpui::Element for EditorElement {
                         &theme.syntax,
                     )
                 };
+                proofreading::apply(&mut runs, seg_text, seg_byte_start, workspace.proofreading_issues(), &theme);
                 let url_ranges_in_seg: Vec<Range<usize>> =
                     if url_underline_enabled && !seg_text.is_empty() {
                         let urls = url_scan::find_urls(seg_text);
@@ -1268,6 +1272,7 @@ impl gpui::Element for EditorElement {
                         &theme.syntax,
                     )
                 };
+                proofreading::apply(&mut runs, trimmed, line_byte_start, workspace.proofreading_issues(), &theme);
                 let url_ranges_in_seg: Vec<Range<usize>> =
                     if url_underline_enabled && !display.is_empty() {
                         let urls = url_scan::find_urls(trimmed);

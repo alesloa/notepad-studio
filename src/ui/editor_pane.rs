@@ -53,7 +53,11 @@ pub(crate) fn editor_pane(
             workspace_listener(&workspace, Workspace::on_mouse_down),
         )
         .on_mouse_down(MouseButton::Right, move |event, _window, cx| {
-            menu_workspace.update(cx, |w, cx| w.show_context_menu(event.position, cx));
+            menu_workspace.update(cx, |w, cx| {
+                let byte = w.offset_at_position(event.position);
+                w.capture_proofreading_menu(byte, cx);
+                w.show_context_menu(event.position, cx);
+            });
         })
         .child(EditorElement {
             workspace: workspace.clone(),

@@ -47,6 +47,15 @@ pub(crate) fn build(_state: &MenuState) -> Menu {
             MenuItem::action("Text Tools…", EditOpenTextTools),
             MenuItem::action("Clipboard History…", EditOpenClipboardHistory),
             MenuItem::action("Character Panel…", EditOpenCharacterPanel),
+            MenuItem::submenu(gpui::Menu {
+                name: "Spelling and Grammar".into(),
+                items: vec![
+                    MenuItem::action("Check Spelling", EditToggleSpelling)
+                        .checked(crate::settings::snapshot().proofread_spelling),
+                    MenuItem::action("Check Grammar", EditToggleGrammar)
+                        .checked(crate::settings::snapshot().proofread_grammar),
+                ],
+            }),
             MenuItem::separator(),
             MenuItem::action("Set Read-Only", EditToggleReadOnly),
             MenuItem::action("Clear Read-Only Flag", EditClearReadOnlyFlag),

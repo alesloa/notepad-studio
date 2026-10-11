@@ -34,6 +34,7 @@ impl Render for Workspace {
         csv_actions::restore_committed_cell_focus(self, window, cx);
         self.retire_ime_composition(window, cx);
         self.retire_prepared_edit(window, cx);
+        self.ensure_proofreading(cx);
         let theme = self.theme();
         let prefs = crate::settings::snapshot();
         self.refresh_function_hint_for_frame(window, cx);
@@ -177,6 +178,8 @@ impl Render for Workspace {
             .on_action(cx.listener(Self::paste))
             .on_action(cx.listener(Self::undo))
             .on_action(cx.listener(Self::redo))
+            .on_action(cx.listener(Self::toggle_spelling))
+            .on_action(cx.listener(Self::toggle_grammar))
             .on_action(cx.listener(Self::open_run))
             .on_action(cx.listener(Self::run_saved_command))
             .on_action(cx.listener(Self::validate_run_shortcuts))
@@ -756,7 +759,7 @@ impl Render for Workspace {
                     can_redo,
                     has_selection: !self.selection().is_empty(),
                 };
-                this.child(context_menu(&theme, position, flags, cx.entity().clone()))
+                this.child(context_menu(&theme, position, flags, self.proofreading_menu(), cx.entity().clone()))
             })
             .when_some(self.tab_context_menu, |this, state| {
                 // Pre-compute flags from `self` so the menu doesn't double-

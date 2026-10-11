@@ -132,3 +132,66 @@ MIT OR Apache-2.0. It is an exact registry dependency, not modified or vendored.
 Copyright (c) 2023 Notify Contributors.
 Source revision: a1d7c2d8f80786679d58ec6d5986a1d4278bc8cf (file-id/).
 Original licences are preserved under licenses/file-id-0.2.3/.
+
+Local English spelling and grammar uses harper-core 0.33.0 (Apache-2.0),
+Copyright 2024 Elijah Potter. Published source revision:
+1c87e4f63c1f3debd3d42876eb90a55608cd5d9b. This is an unmodified registry
+dependency, including its curated English dictionary and lint rules.
+Original license retained at licenses/harper-core-0.33.0/LICENSE.
+Source: https://github.com/Automattic/harper
+
+Additional registry dependencies introduced by English proofreading:
+    allocator-api2 0.2.21: MIT OR Apache-2.0
+    Source: https://github.com/zakarumych/allocator-api2
+    Original licences: licenses/allocator-api2-0.2.21/
+    blanket 0.4.0: MIT
+    Source: https://github.com/althonos/blanket
+    Original licences: licenses/blanket-0.4.0/
+    cached 0.55.1: MIT
+    Source: https://github.com/jaemk/cached
+    Original licences: licenses/cached-0.55.1/
+    cached_proc_macro 0.24.0: MIT
+    Source: https://github.com/jaemk/cached
+    Original licences: licenses/cached_proc_macro-0.24.0/
+    cached_proc_macro_types 0.1.1: MIT
+    Source: https://github.com/jaemk/cached
+    Original licences: licenses/cached_proc_macro_types-0.1.1/
+    darling 0.20.11: MIT
+    Source: https://github.com/TedDriggs/darling
+    Original licences: licenses/darling-0.20.11/
+    darling_core 0.20.11: MIT
+    Source: https://github.com/TedDriggs/darling
+    Original licences: licenses/darling_core-0.20.11/
+    darling_macro 0.20.11: MIT
+    Source: https://github.com/TedDriggs/darling
+    Original licences: licenses/darling_macro-0.20.11/
+    fst 0.4.7: Unlicense/MIT
+    Source: https://github.com/BurntSushi/fst
+    Original licences: licenses/fst-0.4.7/
+    getopts 0.2.24: MIT OR Apache-2.0
+    Source: https://github.com/rust-lang/getopts
+    Original licences: licenses/getopts-0.2.24/
+    ident_case 1.0.1: MIT/Apache-2.0
+    Source: https://github.com/TedDriggs/ident_case
+    Original licences: licenses/ident_case-1.0.1/
+    is-macro 0.3.8: Apache-2.0
+    Source: https://github.com/dudykr/ddbase.git
+    Original licences: licenses/is-macro-0.3.8/
+    levenshtein_automata 0.2.1: MIT
+    Source: https://github.com/tantivy-search/levenshtein-automata
+    Original licences: licenses/levenshtein_automata-0.2.1/
+    lru 0.14.0: MIT
+    Source: https://github.com/jeromefroe/lru-rs.git
+    Original licences: licenses/lru-0.14.0/
+    ordered-float 5.5.0: MIT
+    Source: https://github.com/reem/rust-ordered-float
+    Original licences: licenses/ordered-float-5.5.0/
+    pulldown-cmark-escape 0.11.0: MIT
+    Source: https://github.com/raphlinus/pulldown-cmark
+    Original licences: licenses/pulldown-cmark-escape-0.11.0/
+    strsim 0.11.1: MIT
+    Source: https://github.com/rapidfuzz/strsim-rs
+    Original licences: licenses/strsim-0.11.1/
+    unicode-blocks 0.1.10: MIT
+    Source: https://github.com/magiclen/unicode-blocks
+    Original licences: licenses/unicode-blocks-0.1.10/

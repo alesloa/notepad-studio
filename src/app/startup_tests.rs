@@ -569,7 +569,9 @@ fn startup_controller_release_phase_evidence() {
     let unit = "alpha \u{e9} \u{1f980}\r\n";
     let source = unit.repeat((12 * 1024 * 1024) / unit.len() + 1);
     std::fs::write(&path, source.as_bytes()).unwrap();
-    println!("fixture_bytes={} unit_bytes={} repetitions={} scope=actual_controller_test_platform_no_native_render_loaders_excluded", source.len(), unit.len(), source.len() / unit.len());
+    let repetitions = source.len() / unit.len();
+    let canonical_bytes = source.len() - repetitions; // one CR removed per CRLF
+    println!("fixture_bytes={} canonical_bytes={} unit_bytes={} repetitions={} scope=actual_controller_test_platform_no_native_render_loaders_excluded", source.len(), canonical_bytes, unit.len(), repetitions);
     for sample in 0..3 {
         let mut cx = TestAppContext::single();
         let mut saved = entry(&path, Uuid::new_v4()); saved.language = None;
@@ -581,8 +583,19 @@ fn startup_controller_release_phase_evidence() {
         let total = started.elapsed(); assert!(saves.try_recv().is_ok()); assert!(errors.try_recv().is_err());
         cx.update(|cx| {
             let handle = cx.windows().into_iter().find_map(|h| h.downcast::<Workspace>()).unwrap();
-            handle.update(cx, |w, _, _| { assert_eq!(w.tabs.len(), 1); assert_eq!(w.tabs[0].buffer.rope.len_bytes(), source.len()); assert!(!w.tabs[0].buffer.dirty); }).unwrap();
+            handle.update(cx, |w, _, _| {
+                assert_eq!(w.tabs.len(), 1);
+                let buffer = &w.tabs[0].buffer;
+                assert_eq!(buffer.rope.len_bytes(), canonical_bytes);
+                assert_eq!(buffer.line_ending, crate::text::line_ending::LineEnding::Crlf);
+                assert_eq!(buffer.encoding, crate::text::encoding::Encoding::Utf8);
+                assert!(!buffer.dirty);
+                let encoded = crate::text::line_ending::rope_to_bytes(&buffer.rope, buffer.line_ending);
+                assert_eq!(encoded.as_slice(), source.as_bytes());
+                w.write_active_to_disk().expect("unchanged physical save");
+            }).unwrap();
         });
+        assert_eq!(std::fs::read(&path).unwrap(), source.as_bytes());
         for (phase, elapsed) in timings.try_iter() { println!("sample={sample} {phase}_ms={:.3}", elapsed.as_secs_f64() * 1000.); }
         println!("sample={sample} release_to_test_publication_ms={:.3}", total.as_secs_f64() * 1000.);
         cx.quit();

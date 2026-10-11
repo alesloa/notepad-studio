@@ -330,6 +330,10 @@ v0.0.5 — current
        including Word Wrap, read-only, encoding and line endings. Existing
        bindings remain compatible; new rows have no default shortcut.
 
+   83. Typing and undo safely update malformed bookmarks, marks and Begin/End
+       selection markers. Invalid offsets cannot overflow or leave highlights
+       inside a Unicode character; valid annotation positions keep their behavior.
+
   v0.1.0 — syntax & language:
 
     1. Tree-sitter syntax highlighting for 25 modes: Rust, Python, C,

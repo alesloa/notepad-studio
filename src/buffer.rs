@@ -459,16 +459,16 @@ impl Buffer {
         if removed_len == 0 && new_len == 0 {
             return;
         }
-        let delta: isize = new_len as isize - removed_len as isize;
+        let old_total = self.rope.len_bytes().saturating_sub(new_len).saturating_add(removed_len);
         let shifted: BTreeSet<usize> = self
             .bookmarks
             .iter()
             .filter_map(|&b| {
+                let b = b.min(old_total);
                 if b <= start {
                     Some(b)
                 } else if b >= end {
-                    let signed = b as isize + delta;
-                    if signed < 0 { None } else { Some(signed as usize) }
+                    b.checked_sub(removed_len).and_then(|byte| byte.checked_add(new_len))
                 } else {
                     // Bookmark sits strictly inside the deleted region.
                     None
@@ -515,25 +515,27 @@ impl Buffer {
         if removed_len == 0 && new_len == 0 {
             return;
         }
-        let delta: isize = new_len as isize - removed_len as isize;
-        self.marks.retain(|r| {
+        let old_total = self.rope.len_bytes().saturating_sub(new_len).saturating_add(removed_len);
+        self.marks.retain_mut(|r| {
+            if r.start >= r.end || r.end > old_total { return false; }
             // Drop any mark that overlaps the edited region — its content is
             // gone or transformed, so the highlight is stale.
-            r.end <= start || r.start >= end
-        });
-        for r in self.marks.iter_mut() {
+            if r.end > start && r.start < end { return false; }
             if r.start >= end {
-                let s = r.start as isize + delta;
-                let e = r.end as isize + delta;
-                r.start = if s < 0 { 0 } else { s as usize };
-                r.end = if e < 0 { 0 } else { e as usize };
+                let shifted = r.start.checked_sub(removed_len).and_then(|byte| byte.checked_add(new_len))
+                    .zip(r.end.checked_sub(removed_len).and_then(|byte| byte.checked_add(new_len)));
+                let Some((start, end)) = shifted else { return false; };
+                *r = start..end;
             }
-        }
+            true
+        });
         // Clamp tail-end of the buffer in case the rope shrank below a stored
         // offset — defensive, retain above already drops most of these.
         let total = self.rope.len_bytes();
         self.marks
-            .retain(|r| r.start < total && r.end <= total && r.start < r.end);
+            .retain(|r| r.start < total && r.end <= total && r.start < r.end
+                && floor_char_boundary(&self.rope, r.start) == r.start
+                && floor_char_boundary(&self.rope, r.end) == r.end);
     }
 
     /// Snap every bookmark byte offset to the start of its current line.
@@ -1350,3 +1352,7 @@ mod savepoint_tests {
         assert_eq!(serialize_undo_stack(&stack), bytes, "runtime tokens do not change the legacy codec");
     }
 }
+
+#[cfg(test)]
+#[path = "buffer_annotation_tests.rs"]
+mod annotation_tests;

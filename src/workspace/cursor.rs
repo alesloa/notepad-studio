@@ -25,6 +25,8 @@ impl Workspace {
             crate::buffer::char_boundary_range(&tab.buffer.rope, byte_range);
 
         let removed = tab.buffer.slice_bytes(start..end);
+        let marker = tab.begin_select_marker.filter(|&byte| byte <= tab.buffer.rope.len_bytes()
+            && crate::buffer::floor_char_boundary(&tab.buffer.rope, byte) == byte);
         let before_revision = tab.buffer.raw_revision.clone();
         let sel_before_anchor = tab.selection.anchor;
         let sel_before_head = tab.selection.head;
@@ -57,16 +59,15 @@ impl Workspace {
         // edits. Mirrors NPP `ScintillaEditView::updateBeginEndSelectPosition`:
         // edits before the marker shift it by the size delta, edits that
         // straddle the marker drop it.
-        if let Some(marker) = tab.begin_select_marker {
-            let removed_len = end - start;
-            let inserted_len = new_text.len();
+        tab.begin_select_marker = marker.and_then(|marker| {
             if marker >= start && marker <= end {
-                tab.begin_select_marker = None;
+                None
             } else if marker > end {
-                let shifted = marker as isize - removed_len as isize + inserted_len as isize;
-                tab.begin_select_marker = Some(shifted.max(0) as usize);
+                marker.checked_sub(end - start).and_then(|byte| byte.checked_add(new_text.len()))
+            } else {
+                Some(marker)
             }
-        }
+        });
 
         // Syntax-highlight refresh is deferred to `after_edit_flush` so a
         // batched Replace All / multi-cursor run reparses ONCE at the end
@@ -804,3 +805,7 @@ mod tests {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "annotation_edit_tests.rs"]
+mod annotation_tests;

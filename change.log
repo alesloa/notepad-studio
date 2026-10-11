@@ -569,6 +569,10 @@ v0.0.5 — current
          timestamp. Existing backup files stay intact; failed copies clean
          up only their own incomplete backup.
 
+    145. Trim Leading Space applies to the selected physical lines. A
+         selection ending at the next line's start leaves that line alone;
+         rectangular selections are refused and Undo restores the selection.
+
   v0.1.0 — syntax & language:
 
     1. Tree-sitter syntax highlighting for 25 modes: Rust, Python, C,

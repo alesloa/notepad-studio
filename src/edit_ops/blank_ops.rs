@@ -28,6 +28,10 @@ use crate::actions::*;
 use crate::edit_ops::util::{floor_char_boundary, split_lines_eol};
 use crate::workspace::Workspace;
 
+#[cfg(test)]
+#[path = "trim_leading_scope_tests.rs"]
+mod trim_leading_scope_tests;
+
 impl Workspace {
     pub(crate) fn trim_leading_ws(
         &mut self,
@@ -35,7 +39,47 @@ impl Workspace {
         _w: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        run_full_buffer_transform(self, cx, |s| Ok(trim_leading(s)));
+        // PowerEditor/src/Notepad_plus.cpp:1651–1704 — trim only expanded
+        // selected physical lines; rectangular selection is unsupported.
+        let Some(tab) = self.tabs.get(self.active) else { return; };
+        if tab.block_selection.is_some() { return; }
+        if tab.view_mode != crate::tab::TabViewMode::Edit {
+            self.set_status("Switch to Source or Raw View to trim leading space");
+            cx.notify();
+            return;
+        }
+        if tab.buffer.read_only {
+            self.set_status("Buffer is read-only");
+            cx.notify();
+            return;
+        }
+        let selection = tab.selection.clamped(&tab.buffer.rope);
+        if selection.is_empty() {
+            if !tab.selection.is_empty() { return; }
+            run_full_buffer_transform(self, cx, |s| Ok(trim_leading(s)));
+            return;
+        }
+        let range = trim_selected_line_range(&tab.buffer.rope, selection.ordered());
+        let Some(slice) = tab.buffer.rope.get_byte_slice(range.clone()) else { return; };
+        let mut out = String::new();
+        if out.try_reserve(range.end.saturating_sub(range.start)).is_err() {
+            self.set_status("Trim Leading Space skipped: not enough memory");
+            cx.notify();
+            return;
+        }
+        let mut leading = true;
+        for ch in slice.chars() {
+            if leading && matches!(ch, ' ' | '\t') { continue; }
+            out.push(ch);
+            leading = matches!(ch, '\r' | '\n');
+        }
+        if slice.chars().eq(out.chars()) { return; }
+        self.replace_byte_range(range.clone(), &out, cx);
+        let tab = self.active_tab_mut();
+        tab.selection.anchor = range.start;
+        tab.selection.head = range.start.saturating_add(out.len());
+        tab.desired_col_x = None;
+        self.commit_caret(cx);
     }
 
     pub(crate) fn trim_leading_and_trailing_ws(
@@ -140,6 +184,34 @@ where
 }
 
 // ---- Pure transforms -----------------------------------------------------
+
+fn trim_selected_line_range(rope: &ropey::Rope, range: std::ops::Range<usize>) -> std::ops::Range<usize> {
+    let range = crate::buffer::char_boundary_range(rope, range.start.min(range.end)..range.start.max(range.end));
+    let mut start = range.start;
+    // Between a CR/LF pair is still part of the preceding physical line.
+    if rope.get_byte(start) == Some(b'\n')
+        && start.checked_sub(1).and_then(|at| rope.get_byte(at)) == Some(b'\r') {
+        start = start.saturating_sub(1);
+    }
+    if let Some(mut bytes) = rope.get_bytes_at(start) {
+        while let Some(byte) = bytes.prev() {
+            if matches!(byte, b'\r' | b'\n') { break; }
+            start = start.saturating_sub(1);
+        }
+    }
+    let mut end = range.end;
+    let at_line_start = end.checked_sub(1).and_then(|at| rope.get_byte(at))
+        .is_some_and(|byte| matches!(byte, b'\r' | b'\n'));
+    if !at_line_start {
+        if let Some(bytes) = rope.get_bytes_at(end) {
+            for byte in bytes {
+                if matches!(byte, b'\r' | b'\n') { break; }
+                end = end.saturating_add(1);
+            }
+        }
+    }
+    start..end
+}
 
 fn trim_leading(text: &str) -> String {
     let mut out = String::with_capacity(text.len());

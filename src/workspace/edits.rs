@@ -3954,36 +3954,7 @@ impl Workspace {
         cx: &mut Context<Self>,
     ) {
         crate::macros::record(crate::macros::MacroEvent::TrimTrailingWs);
-        let total_bytes = self.buffer().rope.len_bytes();
-        if total_bytes == 0 {
-            return;
-        }
-        let text = self.buffer().rope.slice(..).to_string();
-        let mut out = String::with_capacity(text.len());
-        for line in text.split_inclusive('\n') {
-            let (body, term) = if let Some(s) = line.strip_suffix("\r\n") {
-                (s, "\r\n")
-            } else if let Some(s) = line.strip_suffix('\n') {
-                (s, "\n")
-            } else if let Some(s) = line.strip_suffix('\r') {
-                (s, "\r")
-            } else {
-                (line, "")
-            };
-            let trimmed = body.trim_end_matches([' ', '\t']);
-            out.push_str(trimmed);
-            out.push_str(term);
-        }
-        if out == text {
-            return;
-        }
-        let head_was = self.selection().head;
-        self.replace_byte_range(0..total_bytes, &out, cx);
-        let clamped = head_was.min(self.buffer().rope.len_bytes());
-        let tab = self.active_tab_mut();
-        tab.selection.collapse_to(clamped);
-        tab.desired_col_x = None;
-        self.commit_caret(cx);
+        self.trim_trailing_ws_scoped(cx);
     }
 
     pub(crate) fn insert_blank_line_above(

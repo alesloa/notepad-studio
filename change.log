@@ -585,6 +585,9 @@ v0.0.5 — current
     148. Save As ignores late dialog replies after the requesting tab is
          closed and restored, or its window closes. An unrelated existing
          file can no longer be overwritten through that stale dialog.
+    149. Trim Trailing Space now respects selected physical lines and
+         refuses rectangular selections. CR-only lines trim correctly;
+         Undo and recorded macros preserve the selected scope.
 
   v0.1.0 — syntax & language:
 

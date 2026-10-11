@@ -16,4 +16,8 @@ pub(crate) mod line_ops;
 pub(crate) mod menu_line_commands;
 pub(crate) mod on_selection;
 pub(crate) mod readonly;
+pub(crate) mod trim_trailing_scope;
 pub(crate) mod util;
+
+#[cfg(test)]
+mod trim_trailing_scope_tests;

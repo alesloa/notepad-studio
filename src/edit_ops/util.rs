@@ -78,6 +78,34 @@ pub(crate) fn clamp_byte_range(rope: &Rope, range: Range<usize>) -> Range<usize>
     a.min(b)..a.max(b)
 }
 
+pub(crate) fn trim_selected_line_range(rope: &ropey::Rope, range: std::ops::Range<usize>) -> std::ops::Range<usize> {
+    let range = crate::buffer::char_boundary_range(rope, range.start.min(range.end)..range.start.max(range.end));
+    let mut start = range.start;
+    // Between a CR/LF pair is still part of the preceding physical line.
+    if rope.get_byte(start) == Some(b'\n')
+        && start.checked_sub(1).and_then(|at| rope.get_byte(at)) == Some(b'\r') {
+        start = start.saturating_sub(1);
+    }
+    if let Some(mut bytes) = rope.get_bytes_at(start) {
+        while let Some(byte) = bytes.prev() {
+            if matches!(byte, b'\r' | b'\n') { break; }
+            start = start.saturating_sub(1);
+        }
+    }
+    let mut end = range.end;
+    let at_line_start = end.checked_sub(1).and_then(|at| rope.get_byte(at))
+        .is_some_and(|byte| matches!(byte, b'\r' | b'\n'));
+    if !at_line_start {
+        if let Some(bytes) = rope.get_bytes_at(end) {
+            for byte in bytes {
+                if matches!(byte, b'\r' | b'\n') { break; }
+                end = end.saturating_add(1);
+            }
+        }
+    }
+    start..end
+}
+
 /// Byte offset of char column `col` on `line`, for column (block)
 /// selections. A column past the line's text maps to the end of the text,
 /// before its line end; a line past the end of the rope maps to the rope's

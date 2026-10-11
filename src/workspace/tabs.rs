@@ -23,7 +23,7 @@ impl Workspace {
         self.touch_mru();
         self.last_lines.clear();
         self.caret_visible = true;
-        self.save_session();
+        self.save_session(cx);
         cx.notify();
     }
 
@@ -55,7 +55,7 @@ impl Workspace {
         self.touch_mru();
         self.last_lines.clear();
         self.caret_visible = true;
-        self.save_session();
+        self.save_session(cx);
         cx.notify();
     }
 
@@ -153,7 +153,7 @@ impl Workspace {
         self.touch_mru();
         self.last_lines.clear();
         self.caret_visible = true;
-        self.save_session();
+        self.save_session(cx);
         cx.notify();
     }
 
@@ -167,7 +167,10 @@ impl Workspace {
     /// (the debounced reparse) and async closures still find an active tab,
     /// and `window_closed` stops them persisting it.
     fn close_window_after_last_tab(&mut self, window: &mut Window) {
-        self.save_session();
+        if !self.save_session_now() {
+            park_closed_strip(&mut self.tabs, &mut self.active);
+            return;
+        }
         self.release_session_window();
         park_closed_strip(&mut self.tabs, &mut self.active);
         window.remove_window();
@@ -183,7 +186,7 @@ impl Workspace {
         self.touch_mru();
         self.last_lines.clear();
         self.caret_visible = true;
-        self.save_session();
+        self.save_session(cx);
         cx.notify();
     }
 
@@ -290,7 +293,7 @@ impl Workspace {
                 w.touch_mru();
                 w.last_lines.clear();
                 w.caret_visible = true;
-                w.save_session();
+                w.save_session(cx);
                 cx.notify();
             })
             .ok();
@@ -391,7 +394,7 @@ impl Workspace {
                 w.touch_mru();
                 w.last_lines.clear();
                 w.caret_visible = true;
-                w.save_session();
+                w.save_session(cx);
                 cx.notify();
             })
             .ok();
@@ -497,7 +500,7 @@ impl Workspace {
         }
         let normalized = color.filter(|&c| (1..=5).contains(&c));
         self.tabs[idx].buffer.tab_color = normalized;
-        self.save_session();
+        self.save_session(cx);
         cx.notify();
     }
 
@@ -509,7 +512,7 @@ impl Workspace {
             return;
         }
         self.tabs[idx].buffer.read_only = on;
-        self.save_session();
+        self.save_session(cx);
         cx.notify();
     }
 
@@ -558,7 +561,7 @@ impl Workspace {
                 self.set_status("Read-only flag cleared (in-memory only)");
             }
         }
-        self.save_session();
+        self.save_session(cx);
         cx.notify();
     }
 
@@ -624,7 +627,7 @@ impl Workspace {
             Ok(None) => return,
         }
         self.last_lines.clear();
-        self.save_session();
+        self.save_session(cx);
         cx.notify();
     }
 
@@ -683,7 +686,7 @@ impl Workspace {
                 self.set_status(format!("Rename failed: {err}"));
             }
         }
-        self.save_session();
+        self.save_session(cx);
         cx.notify();
     }
 
@@ -720,7 +723,7 @@ impl Workspace {
                 self.touch_mru();
                 self.last_lines.clear();
                 self.caret_visible = true;
-                self.save_session();
+                self.save_session(cx);
             }
             Err(err) => {
                 self.set_status(format!("Move to trash failed: {err}"));
@@ -753,7 +756,7 @@ impl Workspace {
             }
         }
         self.active = prev;
-        self.save_session();
+        self.save_session(cx);
         cx.notify();
     }
 
@@ -791,7 +794,7 @@ impl Workspace {
         self.touch_mru();
         self.last_lines.clear();
         self.caret_visible = true;
-        self.save_session();
+        self.save_session(cx);
         cx.notify();
     }
 
@@ -857,7 +860,7 @@ impl Workspace {
         self.active = target_idx;
         self.last_lines.clear();
         self.caret_visible = true;
-        self.save_session();
+        self.save_session(cx);
         cx.notify();
     }
 
@@ -953,7 +956,7 @@ impl Workspace {
 
         self.last_lines.clear();
         self.caret_visible = true;
-        self.save_session();
+        self.save_session(cx);
         cx.notify();
     }
 }

@@ -125,7 +125,7 @@ fn main() {
             // close before the timer fires and lose the new tab.
             for handle in cx.windows() {
                 if let Some(ws) = handle.downcast::<workspace::Workspace>() {
-                    ws.update(cx, |w, _window, _cx| w.save_session()).ok();
+                    ws.update(cx, |w, _window, _cx| w.save_session_now()).ok();
                 }
             }
         })
@@ -137,16 +137,16 @@ fn main() {
         cx.on_app_quit(|cx: &mut App| {
             for handle in cx.windows() {
                 if let Some(ws) = handle.downcast::<workspace::Workspace>() {
-                    ws.update(cx, |w, _window, _cx| w.save_session()).ok();
+                    ws.update(cx, |w, _window, _cx| w.save_session_now()).ok();
                 }
             }
             let alive: Vec<_> = cx.windows().into_iter().map(|h| h.window_id()).collect();
             flush_window_settings_for_alive(&alive);
-            // Drop the single-instance lock so the next launch starts clean.
+            // Release after window teardown has flushed its recovery state,
+            // so the next instance cannot race the final writes.
             // A crash leaves the lock behind; the next launch's stale-PID
             // branch will clear it.
-            single_instance::release();
-            async {}
+            async { single_instance::release(); }
         })
         .detach();
         // Scan + load plugins before menu install so the Plugins menu

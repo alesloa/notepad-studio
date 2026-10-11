@@ -25,7 +25,6 @@ use uuid::Uuid;
 
 use crate::buffer::{
     Buffer, Selection, deserialize_undo_stack, floor_char_boundary, retain_replayable_undo,
-    serialize_undo_stack,
 };
 use crate::consts::APP_NAME;
 use crate::persist;
@@ -36,6 +35,9 @@ use crate::text::line_ending::LineEnding;
 use crate::theme::ThemeMode;
 
 mod windows;
+mod persistence;
+use persistence::Backup;
+pub(crate) use persistence::{prepare_save, write_prepared};
 pub(crate) use windows::{register_workspace, release_workspace};
 
 // ---- Manifest types --------------------------------------------------------
@@ -65,6 +67,9 @@ pub(crate) struct SessionManifest {
     /// MRU and the workspace seeds it from the restored active tab.
     #[serde(default)]
     pub(crate) mru: Vec<Uuid>,
+    /// Captured buffers travel with a pending write, never into the TOML file.
+    #[serde(skip)]
+    pub(super) backups: Vec<std::sync::Arc<Backup>>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -226,16 +231,8 @@ fn bak_dir() -> Option<PathBuf> {
     session_root().map(|d| d.join("session"))
 }
 
-fn bak_path(id: Uuid) -> Option<PathBuf> {
-    bak_dir().map(|d| bak_path_in(&d, id))
-}
-
 fn bak_path_in(dir: &Path, id: Uuid) -> PathBuf {
     dir.join(format!("{id}.bak"))
-}
-
-fn undo_path(id: Uuid) -> Option<PathBuf> {
-    bak_dir().map(|d| undo_path_in(&d, id))
 }
 
 fn undo_path_in(dir: &Path, id: Uuid) -> PathBuf {
@@ -357,35 +354,9 @@ fn recover_unreferenced_baks(mut manifest: SessionManifest, bak_dir: &Path) -> S
     manifest
 }
 
-fn ensure_dirs() -> io::Result<()> {
-    if let Some(root) = session_root() {
-        fs::create_dir_all(&root)?;
-    }
-    if let Some(b) = bak_dir() {
-        fs::create_dir_all(&b)?;
-    }
-    Ok(())
-}
-
-pub(crate) fn write_manifest(manifest: &SessionManifest) -> io::Result<()> {
-    ensure_dirs()?;
-    let Some(path) = manifest_path() else {
-        return Ok(());
-    };
-    write_manifest_at(manifest, &path)
-}
-
 fn write_manifest_at(manifest: &SessionManifest, path: &Path) -> io::Result<()> {
     let serialized = toml::to_string_pretty(manifest).map_err(io::Error::other)?;
     persist::atomic_write(path, serialized.as_bytes())
-}
-
-pub(crate) fn write_bak(id: Uuid, contents: &str) -> io::Result<()> {
-    ensure_dirs()?;
-    let Some(path) = bak_path(id) else {
-        return Ok(());
-    };
-    persist::atomic_write(&path, contents.as_bytes())
 }
 
 /// The `.bak` is written from the rope, so it is UTF-8. If it was damaged
@@ -399,35 +370,8 @@ fn read_bak_in(dir: &Path, id: Uuid) -> Option<String> {
     })
 }
 
-pub(crate) fn delete_bak(id: Uuid) {
-    if let Some(path) = bak_path(id) {
-        let _ = fs::remove_file(&path);
-    }
-}
-
-/// Persist the per-tab undo stack alongside the `.bak`. Empty stacks delete
-/// the file instead of writing a zero-entry payload so the session dir doesn't
-/// accumulate empty undo shadows for fresh tabs.
-pub(crate) fn write_undo(id: Uuid, bytes: &[u8]) -> io::Result<()> {
-    ensure_dirs()?;
-    let Some(path) = undo_path(id) else {
-        return Ok(());
-    };
-    if bytes.is_empty() {
-        let _ = fs::remove_file(&path);
-        return Ok(());
-    }
-    persist::atomic_write(&path, bytes)
-}
-
 fn read_undo_in(dir: &Path, id: Uuid) -> Option<Vec<u8>> {
     fs::read(undo_path_in(dir, id)).ok()
-}
-
-pub(crate) fn delete_undo(id: Uuid) {
-    if let Some(path) = undo_path(id) {
-        let _ = fs::remove_file(&path);
-    }
 }
 
 // ---- Snapshotting ----------------------------------------------------------
@@ -467,22 +411,9 @@ pub(crate) fn snapshot_tab_with_policy(tab: &Tab, bak_policy: BakPolicy) -> Sess
         BakPolicy::Full => buffer.dirty || buffer.file_path.is_none(),
         BakPolicy::UntitledOnly => buffer.file_path.is_none(),
     };
-    if needs_backup {
-        let _ = write_bak(id, &buffer.rope.to_string());
-        let _ = write_undo(id, &serialize_undo_stack(&tab.undo_stack));
-    } else if matches!(bak_policy, BakPolicy::Full) {
-        // Clean disk-backed tab — drop any stale `.bak` from a previous dirty
-        // state. Manifest still references the path; restore reads disk.
-        // Skip this delete on `UntitledOnly` so a path-backed dirty buffer's
-        // older `.bak` (written by an earlier `Full` save) isn't wiped on
-        // every keystroke — the next `Full` flush owns that decision.
-        delete_bak(id);
-        delete_undo(id);
-    }
-    // Manifest's `dirty` flag must mirror whether a `.bak` exists: if we
-    // skipped the `.bak` write under `UntitledOnly` for a path-backed dirty
-    // buffer, claim `dirty = false` so restore reads from the file path
-    // instead of looking for a missing `.bak`.
+    // Full writes publish the captured backup before this metadata. Eager
+    // captures leave disk-backed entries at the previous recovery point;
+    // WindowSnapshots pairs them with that point's flags and bytes.
     let manifest_dirty = match bak_policy {
         BakPolicy::Full => needs_backup,
         BakPolicy::UntitledOnly => buffer.file_path.is_none(),
@@ -515,7 +446,6 @@ pub(crate) fn snapshot_tab_with_policy(tab: &Tab, bak_policy: BakPolicy) -> Sess
 
 pub(crate) fn snapshot_closed_tab(closed: &ClosedTab) -> SessionClosedTab {
     let id = closed.session_id;
-    let _ = write_bak(id, &closed.buffer.rope.to_string());
     SessionClosedTab {
         id,
         path: closed.buffer.file_path.clone(),
@@ -811,13 +741,6 @@ fn restore_closed_tab_in(entry: &SessionClosedTab, dir: &Path) -> Option<ClosedT
     })
 }
 
-/// Replace any leftover `.bak` files with the freshly written set — every
-/// save scrubs orphans so the dir can't grow unbounded across many sessions.
-pub(crate) fn reap_orphan_baks(manifest: &SessionManifest) {
-    let Some(dir) = bak_dir() else { return };
-    reap_orphan_baks_at(manifest, &dir);
-}
-
 fn reap_orphan_baks_at(manifest: &SessionManifest, dir: &Path) {
     let referenced: BTreeSet<Uuid> = manifest
         .tabs
@@ -879,22 +802,16 @@ pub(crate) fn snapshot_workspace_with_policy(
     // user's current tab after the filter drops untitled-and-clean ones.
     let mut tab_entries: Vec<SessionTab> = Vec::with_capacity(tabs.len());
     let mut new_active = 0usize;
+    let mut backups = Vec::new();
     for (idx, tab) in tabs.iter().enumerate() {
         if !tab_is_persistable(tab) {
-            // Even though we skip serializing, still scrub any stale `.bak`
-            // left over from a previous dirty state. Skip on UntitledOnly so
-            // we don't kick path-backed `.bak`s out from under the debounced
-            // full-save path.
-            if matches!(bak_policy, BakPolicy::Full) {
-                delete_bak(tab.session_id);
-                delete_undo(tab.session_id);
-            }
             continue;
         }
         if idx == active {
             new_active = tab_entries.len();
         }
         tab_entries.push(snapshot_tab_with_policy(tab, bak_policy));
+        backups.push(std::sync::Arc::new(Backup::capture(tab, bak_policy)));
     }
 
     // Filter the MRU to only ids that survived the persistability filter,
@@ -909,6 +826,7 @@ pub(crate) fn snapshot_workspace_with_policy(
         .filter(|id| persisted_ids.contains(id))
         .collect();
 
+    backups.extend(closed_tabs.iter().map(|closed| std::sync::Arc::new(Backup::closed(closed))));
     SessionManifest {
         theme: Some(theme),
         show_whitespace,
@@ -917,24 +835,7 @@ pub(crate) fn snapshot_workspace_with_policy(
         tabs: tab_entries,
         closed_tabs: closed_tabs.iter().map(snapshot_closed_tab).collect(),
         mru: mru_filtered,
-    }
-}
-
-/// Combine the window snapshots, write atomically, then prune orphaned
-/// recovery files under the full-backup policy.
-pub(crate) fn save_workspace(window_id: Uuid, manifest: SessionManifest, bak_policy: BakPolicy) {
-    let Some(manifest) = windows::update(window_id, manifest) else {
-        return;
-    };
-    if let Err(err) = write_manifest(&manifest) {
-        eprintln!("[session] failed to write manifest: {err}");
-        return;
-    }
-    // The `Full` save is the canonical owner of `.bak` lifecycle; only it
-    // gets to reap orphans. Eager `UntitledOnly` saves leave the debounced
-    // full-save path's `.bak`s alone.
-    if matches!(bak_policy, BakPolicy::Full) {
-        reap_orphan_baks(&manifest);
+        backups,
     }
 }
 
@@ -1040,7 +941,7 @@ fn verbose_stamp() -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::buffer::{EditOp, UndoEntry};
+    use crate::buffer::{EditOp, UndoEntry, serialize_undo_stack};
     use crate::persist::TempDir;
     use crate::text::encoding;
     use crate::text::line_ending::rope_to_bytes;

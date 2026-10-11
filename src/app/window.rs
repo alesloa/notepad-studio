@@ -83,7 +83,7 @@ pub(crate) fn spawn_periodic_backup(cx: &mut Context<Workspace>) {
             if !snap.backup_periodic_enabled {
                 continue;
             }
-            if this.update(cx, |w, _cx| w.save_session()).is_err() {
+            if this.update(cx, |w, cx| w.save_session(cx)).is_err() {
                 break;
             }
         }
@@ -229,7 +229,7 @@ fn spawn_window(cx: &mut App, entry: Option<WindowEntry>, restore_session: bool)
                 // the late hook (fires when gpui drops the entity) — either
                 // is sufficient, both is belt-and-suspenders.
                 cx.on_release(|workspace: &mut Workspace, _app: &mut App| {
-                    workspace.save_session();
+                    workspace.save_session_now();
                     workspace.release_session_window();
                 })
                 .detach();
@@ -259,11 +259,11 @@ fn spawn_window(cx: &mut App, entry: Option<WindowEntry>, restore_session: bool)
             // with the `on_release` registration above.
             let entity_for_close = workspace_entity.clone();
             window.on_window_should_close(cx, move |_window, app_cx| {
-                let _ = entity_for_close.update(app_cx, |w, _cx| {
-                    w.save_session();
+                entity_for_close.update(app_cx, |w, _cx| {
+                    if !w.save_session_now() { return false; }
                     w.release_session_window();
-                });
-                true
+                    true
+                })
             });
 
             workspace_entity

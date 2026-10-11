@@ -1544,7 +1544,7 @@ pub(crate) fn propagate_theme_to_all_workspaces(mode: crate::theme::ThemeMode, c
             let _ = ws_handle.update(cx, |ws, _, cx| {
                 if ws.theme_mode != mode {
                     ws.theme_mode = mode;
-                    ws.save_session();
+                    ws.save_session(cx);
                 }
                 cx.notify();
             });

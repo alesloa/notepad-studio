@@ -1114,7 +1114,7 @@ impl Workspace {
         // its workspace iteration, but the active workspace's session also
         // needs the manifest write so a restart restores the same theme
         // before Settings is consulted (manifest takes precedence).
-        self.save_session();
+        self.save_session(cx);
     }
 
     /// Toggle the host window between windowed and full-screen state. Uses
@@ -1141,7 +1141,7 @@ impl Workspace {
         cx: &mut Context<Self>,
     ) {
         self.show_whitespace = !self.show_whitespace;
-        self.save_session();
+        self.save_session(cx);
         cx.notify();
     }
 
@@ -3089,7 +3089,7 @@ impl Workspace {
                 tab.scroll_left = gpui::px(0.);
             }
         }
-        self.save_session();
+        self.save_session(cx);
         // Re-derive the cursor's visible position under the new layout.
         self.ensure_cursor_visible(cx);
         cx.notify();

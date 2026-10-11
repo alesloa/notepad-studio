@@ -147,7 +147,7 @@ impl Workspace {
         }
         self.last_lines.clear();
         self.caret_visible = true;
-        self.save_session();
+        self.save_session(cx);
         // Push to MRU and rebuild the File ▸ Open Recent submenu. Order
         // matters: `record_opened` writes the new TOML before the menu
         // rebuild reads the global snapshot, so the new entry is the first
@@ -464,7 +464,7 @@ impl Workspace {
                 self.set_status(format!("Save failed: {err}"));
             }
         }
-        self.save_session();
+        self.save_session(cx);
         cx.notify();
     }
 
@@ -536,7 +536,7 @@ impl Workspace {
                         false
                     }
                 };
-                w.save_session();
+                w.save_session(cx);
                 if saved {
                     recent::record_opened(path);
                     rebuild_menus(&mut *cx);
@@ -638,7 +638,7 @@ impl Workspace {
             )
         };
         self.set_status(status);
-        self.save_session();
+        self.save_session(cx);
         cx.notify();
     }
 }

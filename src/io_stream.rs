@@ -702,7 +702,7 @@ fn start_streaming(
             }
             w.last_lines.clear();
             w.caret_visible = true;
-            w.save_session();
+            w.save_session(cx);
             recent::record_opened(path.clone());
             rebuild_menus(&mut *cx);
             cx.notify();

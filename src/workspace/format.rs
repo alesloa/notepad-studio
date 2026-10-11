@@ -32,7 +32,7 @@ impl Workspace {
         tab.buffer.dirty = true;
         let label = le.status_label();
         self.set_status(format!("Line ending: {label}"));
-        self.save_session();
+        self.save_session(cx);
         cx.notify();
     }
 
@@ -79,7 +79,7 @@ impl Workspace {
         tab.buffer.dirty = true;
         let label = enc.label();
         self.set_status(format!("Encoding: {label}"));
-        self.save_session();
+        self.save_session(cx);
         cx.notify();
     }
 

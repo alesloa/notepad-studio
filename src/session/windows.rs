@@ -7,6 +7,7 @@ use uuid::Uuid;
 struct WindowSnapshots {
     snapshots: Vec<(Uuid, SessionManifest)>,
     live: BTreeSet<Uuid>,
+    generation: u128,
 }
 
 impl WindowSnapshots {
@@ -26,7 +27,23 @@ impl WindowSnapshots {
         self.live.remove(&id);
     }
 
-    fn update(&mut self, id: Uuid, snapshot: SessionManifest) -> SessionManifest {
+    fn update(&mut self, id: Uuid, mut snapshot: SessionManifest) -> SessionManifest {
+        if let Some((_, previous)) = self.snapshots.iter().find(|(key, _)| *key == id) {
+            // An eager save leaves path-backed buffers at their last full
+            // recovery point. Keep that point's metadata and captured bytes.
+            for backup in &mut snapshot.backups {
+                if !matches!(backup.as_ref(), super::persistence::Backup::Keep { .. }) { continue; }
+                let tab_id = backup.id();
+                if let (Some(tab), Some(old)) = (snapshot.tabs.iter_mut().find(|tab| tab.id == tab_id), previous.tabs.iter().find(|tab| tab.id == tab_id)) {
+                    tab.dirty = old.dirty;
+                    tab.line_ending = old.line_ending;
+                    tab.encoding = old.encoding;
+                }
+                if let Some(old) = previous.backups.iter().find(|old| old.id() == tab_id) {
+                    *backup = old.clone();
+                }
+            }
+        }
         let incoming: BTreeSet<Uuid> = snapshot.tabs.iter().map(|tab| tab.id)
             .chain(snapshot.closed_tabs.iter().map(|tab| tab.id)).collect();
         for (key, previous) in &mut self.snapshots {
@@ -39,6 +56,7 @@ impl WindowSnapshots {
             previous.tabs.retain(|tab| !incoming.contains(&tab.id));
             previous.closed_tabs.retain(|tab| !incoming.contains(&tab.id));
             previous.mru.retain(|tab| !incoming.contains(tab));
+            previous.backups.retain(|backup| !incoming.contains(&backup.id()));
             previous.active = active_id.and_then(|active| previous.tabs.iter().position(|tab| tab.id == active))
                 .unwrap_or_else(|| previous.active.min(previous.tabs.len().saturating_sub(1)));
         }
@@ -60,6 +78,7 @@ impl WindowSnapshots {
             combined.tabs.extend(window.tabs.iter().cloned());
             combined.closed_tabs.extend(window.closed_tabs.iter().cloned());
             combined.mru.extend(window.mru.iter().copied());
+            combined.backups.extend(window.backups.iter().cloned());
         }
         combined.active = combined.active.min(combined.tabs.len().saturating_sub(1));
         combined
@@ -86,12 +105,14 @@ pub(crate) fn release_workspace(id: Uuid) {
     }
 }
 
-pub(super) fn update(id: Uuid, snapshot: SessionManifest) -> Option<SessionManifest> {
+pub(super) fn update(id: Uuid, snapshot: SessionManifest) -> Option<(u128, SessionManifest)> {
     let Ok(mut windows) = store().lock() else {
         eprintln!("[session] cannot save windows: session lock is poisoned");
         return None;
     };
-    Some(windows.update(id, snapshot))
+    let combined = windows.update(id, snapshot);
+    windows.generation = windows.generation.saturating_add(1);
+    Some((windows.generation, combined))
 }
 
 #[cfg(test)]
@@ -100,6 +121,27 @@ mod tests {
 
     fn draft(id: Uuid, label: &str) -> super::super::SessionTab {
         toml::from_str(&format!("id = '{id}'\ndirty = true\nnew_label = '{label}'")).expect("draft")
+    }
+
+    #[test]
+    fn eager_snapshot_retains_the_previous_full_backup_and_its_metadata() {
+        let mut snapshots = WindowSnapshots::default();
+        let mut tab = crate::tab::Tab::empty();
+        tab.buffer.file_path = Some(std::path::PathBuf::from("source.txt"));
+        tab.buffer.dirty = true;
+        tab.buffer.line_ending = crate::text::line_ending::LineEnding::Lf;
+        tab.buffer.rope = ropey::Rope::from_str("full snapshot");
+        let owner = Uuid::new_v4();
+        let capture = |tab: &crate::tab::Tab, policy| super::super::snapshot_workspace_with_policy(
+            std::slice::from_ref(tab), 0, &[], crate::theme::ThemeMode::Dark, false, false, &[], policy,
+        );
+        snapshots.update(owner, capture(&tab, super::super::BakPolicy::Full));
+        tab.buffer.rope = ropey::Rope::from_str("new edits pending full save");
+        tab.buffer.line_ending = crate::text::line_ending::LineEnding::Crlf;
+        let combined = snapshots.update(owner, capture(&tab, super::super::BakPolicy::UntitledOnly));
+        assert!(combined.tabs[0].dirty);
+        assert!(matches!(combined.tabs[0].line_ending, super::super::LineEndingTag::Lf));
+        assert!(matches!(combined.backups[0].as_ref(), super::super::persistence::Backup::Write { rope, .. } if rope == "full snapshot"));
     }
 
     #[test]

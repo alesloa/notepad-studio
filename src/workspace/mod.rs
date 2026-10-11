@@ -30,6 +30,7 @@ mod menu_state;
 mod tabs;
 
 use gpui::{
+    AppContext,
     App, Bounds, Context, FocusHandle, Focusable, Pixels, Point, ScrollHandle, Subscription, Task,
     Window, WindowAppearance, WindowHandle, point, px, size,
 };
@@ -1046,24 +1047,54 @@ impl Workspace {
         }
     }
 
-    /// Snapshot the entire workspace into the session manifest and write it
-    /// atomically to `<config>/Notepad Studio/session.toml`. Cheap enough to call
-    /// after every tab open / close / save / theme toggle — the dirty-tab
-    /// `.bak` files only get rewritten when their generation actually changed.
-    pub(crate) fn save_session(&self) {
-        if self.window_closed {
-            return;
-        }
-        session::save_workspace(self.session_window_id, self.session_snapshot(session::BakPolicy::Full), session::BakPolicy::Full);
+    /// Capture recovery state on the UI thread; serialize and write it in the
+    /// background. Each job owns all windows' buffers at this recovery point.
+    pub(crate) fn save_session(&mut self, cx: &mut Context<Self>) {
+        self.save_session_background(session::BakPolicy::Full, cx);
     }
 
-    /// Keep untitled drafts current while path-backed buffers wait for the
-    /// full autosave. Their existing backups remain owned by this window.
-    pub(crate) fn save_session_eager(&self) {
-        if self.window_closed {
-            return;
+    pub(crate) fn save_session_eager(&mut self, cx: &mut Context<Self>) {
+        self.save_session_background(session::BakPolicy::UntitledOnly, cx);
+    }
+
+    fn save_session_background(&mut self, policy: session::BakPolicy, cx: &mut Context<Self>) {
+        if self.window_closed { return; }
+        let pending = match session::prepare_save(self.session_window_id, self.session_snapshot(policy), policy) {
+            Ok(pending) => pending,
+            Err(err) => {
+                self.set_status(format!("Session recovery could not be saved: {err}"));
+                cx.notify();
+                return;
+            }
+        };
+        let task = cx.background_spawn(async move { session::write_prepared(pending) });
+        cx.spawn(async move |this, cx| {
+            if let Err(err) = task.await {
+                eprintln!("[session] recovery write failed: {err}");
+                let _ = this.update(cx, |w, cx| {
+                    w.set_status(format!("Session recovery could not be saved: {err}"));
+                    cx.notify();
+                });
+            }
+        }).detach();
+    }
+
+    /// Close/reopen must see the final snapshot immediately. gpui allows only
+    /// 100 ms for quit futures, so shutdown cannot rely on a detached write.
+    pub(crate) fn save_session_now(&self) -> bool {
+        if self.window_closed { return true; }
+        let policy = session::BakPolicy::Full;
+        let result = session::prepare_save(self.session_window_id, self.session_snapshot(policy), policy)
+            .and_then(session::write_prepared);
+        if let Err(err) = result {
+            eprintln!("[session] final recovery write failed: {err}");
+            rfd::MessageDialog::new().set_level(rfd::MessageLevel::Error)
+                .set_title(crate::consts::APP_NAME)
+                .set_description(format!("Session recovery could not be saved: {err}"))
+                .show();
+            return false;
         }
-        session::save_workspace(self.session_window_id, self.session_snapshot(session::BakPolicy::UntitledOnly), session::BakPolicy::UntitledOnly);
+        true
     }
 
     fn session_snapshot(&self, policy: session::BakPolicy) -> SessionManifest {
@@ -1102,9 +1133,9 @@ impl Workspace {
         let gen = self.autosave_generation;
         cx.spawn(async move |this, cx| {
             gpui::Timer::after(Duration::from_millis(250)).await;
-            let _ = this.update(cx, |w, _cx| {
+            let _ = this.update(cx, |w, cx| {
                 if w.autosave_generation == gen {
-                    w.save_session();
+                    w.save_session(cx);
                 }
             });
         })
@@ -1133,7 +1164,7 @@ impl Workspace {
                     return;
                 };
                 tab.buffer.reparse_highlights();
-                w.save_session_eager();
+                w.save_session_eager(cx);
                 cx.notify();
             });
         })

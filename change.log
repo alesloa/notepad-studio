@@ -122,6 +122,11 @@ v0.0.5 — current
        unmatched rich-document backups from their original files. Invalid
        native documents report an error instead of reopening as plain text.
 
+   35. Autosave serializes and writes recovery files in the background. Older
+       jobs cannot replace newer snapshots, and failed writes preserve the
+       previous manifest. Closing flushes the final snapshot; a failed
+       recovery write reports an error and prevents a normal window close.
+
   v0.1.0 — syntax & language:
 
     1. Tree-sitter syntax highlighting for 24 languages: Rust, Python, C,

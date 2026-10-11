@@ -323,7 +323,9 @@ impl LinkAllocator {
         if let Some(rid) = self.existing.get(url) {
             return rid.clone();
         }
-        let rid = format!("rIdRD{}", self.rd_counter_seed + self.entries.len() + 1);
+        // u128 so a seed parsed from the file as usize::MAX still counts up.
+        let next = self.rd_counter_seed as u128 + self.entries.len() as u128 + 1;
+        let rid = format!("rIdRD{next}");
         self.entries.push((url.to_string(), rid.clone()));
         rid
     }
@@ -1032,11 +1034,14 @@ fn extract_paragraph_image(
 }
 
 /// Convert English Metric Units to pixels at 96 DPI. 914400 EMUs per inch.
+/// Computed in u128 because the extent comes from the file; results past
+/// `u32::MAX` saturate, as the ODT length conversion does.
 fn emu_to_px(emu: u64) -> Option<u32> {
     if emu == 0 {
         return None;
     }
-    Some(((emu * 96) / 914400) as u32)
+    let px = u128::from(emu) * 96 / 914_400;
+    Some(u32::try_from(px).unwrap_or(u32::MAX))
 }
 
 fn mime_from_filename(name: &str) -> Option<&'static str> {
@@ -1878,6 +1883,27 @@ mod tests {
         assert_eq!(emu_to_px(914400), Some(96));
         assert_eq!(emu_to_px(0), None);
         assert_eq!(emu_to_px(914400 * 2), Some(192));
+    }
+
+    #[test]
+    fn emu_to_px_saturates_huge_extents() {
+        // `<wp:extent cx="18446744073709551615">` comes straight from the file.
+        assert_eq!(emu_to_px(u64::MAX), Some(u32::MAX));
+        assert_eq!(emu_to_px(u64::MAX / 96 + 1), Some(u32::MAX));
+    }
+
+    #[test]
+    fn link_ids_past_usize_max_do_not_overflow() {
+        // An existing rels file can carry any rIdRD number; the next id is
+        // one past the largest, even when that is usize::MAX.
+        let existing = HashMap::from([(
+            "http://a.example/".to_string(),
+            format!("rIdRD{}", usize::MAX),
+        )]);
+        let mut links = LinkAllocator::with_existing(existing);
+        assert_eq!(links.intern("http://b.example/"), format!("rIdRD{}", usize::MAX as u128 + 1));
+        assert_eq!(links.intern("http://c.example/"), format!("rIdRD{}", usize::MAX as u128 + 2));
+        assert_eq!(links.intern("http://a.example/"), format!("rIdRD{}", usize::MAX));
     }
 
     #[test]

@@ -106,6 +106,9 @@ v0.0.5 — current
    30. DOCX parsing uses a bounded stack instead of depending on the caller's
        stack size. DOCX and ODT archives with excessive XML nesting, corrupt
        XML, oversized entries or false ZIP sizes are refused before parsing.
+   31. Copy in Doc View handles selections through multi-byte characters and
+       stale document positions. Extreme DOCX image sizes and hyperlink IDs
+       no longer overflow or crash the editor.
 
   v0.1.0 — syntax & language:
 

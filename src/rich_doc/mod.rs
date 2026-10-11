@@ -578,7 +578,13 @@ impl RichDocPayload {
         if sel.is_collapsed() {
             return String::new();
         }
-        let (lo, hi) = sel.range_full();
+        let (lo, mut hi) = sel.range_full();
+        if lo.block >= self.ast.blocks.len() {
+            return String::new();
+        }
+        if hi.block >= self.ast.blocks.len() {
+            hi = self.block_end(self.ast.blocks.len().saturating_sub(1));
+        }
         if lo.block == hi.block {
             return self.text_between_in_block(lo.block, lo.run, lo.byte, hi.run, hi.byte);
         }
@@ -592,7 +598,7 @@ impl RichDocPayload {
             ));
         }
         // Middle blocks: whole text
-        for b in (lo.block + 1)..hi.block {
+        for b in lo.block.saturating_add(1)..hi.block {
             out.push('\n');
             out.push_str(&self.block_text(b));
         }
@@ -618,10 +624,14 @@ impl RichDocPayload {
             if i < run_lo || i > run_hi {
                 continue;
             }
-            let start = if i == run_lo { byte_lo.min(r.text.len()) } else { 0 };
-            let end = if i == run_hi { byte_hi.min(r.text.len()) } else { r.text.len() };
-            if end > start {
-                out.push_str(&r.text[start..end]);
+            let start = if i == run_lo { nearest_char_boundary_down(&r.text, byte_lo) } else { 0 };
+            let end = if i == run_hi {
+                nearest_char_boundary_down(&r.text, byte_hi)
+            } else {
+                r.text.len()
+            };
+            if let Some(slice) = r.text.get(start..end) {
+                out.push_str(slice);
             }
         }
         out
@@ -877,6 +887,51 @@ mod tests {
             undo_stack: Vec::new(),
             redo_stack: Vec::new(),
         }
+    }
+
+    #[test]
+    fn selected_text_with_mid_char_offsets_does_not_panic() {
+        // "aé中😀b": é is 2 bytes, 中 3, 😀 4. Every offset inside one of
+        // them is off a char boundary.
+        let text = "a\u{e9}\u{4e2d}\u{1f600}b";
+        let mut p = single_para_payload(text);
+        for lo in 0..=text.len() + 2 {
+            for hi in 0..=text.len() + 2 {
+                p.selection = Some(TextSelection {
+                    anchor: TextPos { block: 0, run: 0, byte: lo },
+                    cursor: TextPos { block: 0, run: 0, byte: hi },
+                });
+                let got = p.selected_text();
+                assert!(text.contains(got.as_str()), "{lo}..{hi} gave {got:?}");
+            }
+        }
+        // Cross-block selection whose ends sit mid-char (inside é and 中);
+        // both ends round down to the char start.
+        p.ast.blocks.push(p.ast.blocks[0].clone());
+        p.selection = Some(TextSelection {
+            anchor: TextPos { block: 0, run: 0, byte: 2 },
+            cursor: TextPos { block: 1, run: 0, byte: 5 },
+        });
+        assert_eq!(p.selected_text(), "\u{e9}\u{4e2d}\u{1f600}b\na\u{e9}");
+    }
+
+    #[test]
+    fn selected_text_does_not_invent_missing_blocks() {
+        let mut payload = single_para_payload("hello");
+        for last_block in [10_000, usize::MAX] {
+            payload.selection = Some(TextSelection {
+                anchor: TextPos { block: 0, run: 0, byte: 0 },
+                cursor: TextPos { block: last_block, run: 0, byte: 0 },
+            });
+            assert_eq!(payload.selected_text(), "hello");
+        }
+        payload.selection = Some(TextSelection {
+            anchor: TextPos { block: usize::MAX - 1, run: 0, byte: 0 },
+            cursor: TextPos { block: usize::MAX, run: 0, byte: 0 },
+        });
+        assert!(payload.selected_text().is_empty());
+        payload.ast.blocks.clear();
+        assert!(payload.selected_text().is_empty());
     }
 
     #[test]

@@ -462,9 +462,11 @@ fn source_caret_find_result_selection_aba_retires_immediately() {
     with_sources(|entity, visual| {
         visual.update_window_entity(entity, |w, _, cx| {
             let path = w.buffer().file_path.clone().unwrap();
+            let source = crate::find_in_files::OpenBufferResultSource::capture(&mut w.tabs[0]);
             w.find_in_files.results = [0..5, 6..9].into_iter().map(|range| crate::find_in_files::FindResult {
                 path: path.clone(), line: 0, line_text: "first 中😀".into(), match_in_line: range,
                 tab_idx: Some(0), display_label: None,
+                identity: std::sync::Arc::new(()), source: Some(source.clone()),
             }).collect();
             w.jump_to_find_result(0, cx);
         });

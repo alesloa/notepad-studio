@@ -467,6 +467,10 @@ v0.0.5 — current
     119. macOS text input guards optional output storage and overflowing native
          text ranges when handling substring requests.
 
+    120. Search results follow their original document after tabs move or close.
+         Results from changed or reopened documents ask you to search again,
+         and old painted rows cannot select results from a newer search.
+
   v0.1.0 — syntax & language:
 
     1. Tree-sitter syntax highlighting for 25 modes: Rust, Python, C,

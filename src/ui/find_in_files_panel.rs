@@ -370,6 +370,7 @@ fn result_row(
     let (pre, hit, post) = split_match(&result.line_text, &result.match_in_line);
 
     let click_idx = idx;
+    let identity = result.identity.clone();
     let click_ws = workspace.clone();
 
     let row = div();
@@ -423,7 +424,11 @@ fn result_row(
                 .child(div().text_color(rgb(theme.text)).child(post)),
         )
         .on_mouse_down(MouseButton::Left, move |_e, _window, cx| {
-            click_ws.update(cx, |w, cx| w.jump_to_find_result(click_idx, cx));
+            click_ws.update(cx, |w, cx| {
+                if w.find_in_files.results.get(click_idx).is_some_and(|r| std::sync::Arc::ptr_eq(&r.identity, &identity)) {
+                    w.jump_to_find_result(click_idx, cx);
+                }
+            });
         })
 }
 

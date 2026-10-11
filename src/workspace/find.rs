@@ -1232,7 +1232,8 @@ impl Workspace {
         };
 
         let tab_idx = self.active;
-        let Some(tab) = self.tabs.get(tab_idx) else { return; };
+        let Some(tab) = self.tabs.get_mut(tab_idx) else { return; };
+        let source = crate::find_in_files::OpenBufferResultSource::capture(tab);
         let buffer = &tab.buffer;
         let content = buffer.rope.to_string();
         let scope = if !super::find_view::uses_rich_text(tab) && self.find_state.in_selection
@@ -1266,6 +1267,7 @@ impl Workspace {
                 Some(tab_idx), Some(&display_label), &mut results);
         }
 
+        for result in &mut results { result.source = Some(source.clone()); }
         let total = results.len();
         let truncated = total >= crate::find_in_files::FIND_IN_FILES_RESULT_CAP;
 
@@ -1526,8 +1528,8 @@ impl Workspace {
     /// Reuses the FIF results panel rather than building a parallel sink:
     /// the result row already does file-name + line + snippet + click-to-jump,
     /// which is exactly what Notepad++ shows for this command. Each result is
-    /// tagged with the originating tab index so jump-to-result skips the
-    /// path-based tab lookup (which would fail for Untitled buffers).
+    /// tagged with the originating runtime document identity, including Untitled
+    /// buffers. Navigation remains valid after reordering but refuses stale text.
     pub(crate) fn find_all_in_all_opened(
         &mut self,
         _: &EditFindAllOpened,
@@ -1547,7 +1549,8 @@ impl Workspace {
         let mut results: Vec<FindResult> = Vec::new();
         let mut docs_with_hits: usize = 0;
 
-        for (tab_idx, tab) in self.tabs.iter().enumerate() {
+        for (tab_idx, tab) in self.tabs.iter_mut().enumerate() {
+            let start = results.len();
             let buffer = &tab.buffer;
             let content = buffer.rope.to_string();
 
@@ -1576,6 +1579,10 @@ impl Workspace {
                 &mut results,
             );
             if added > 0 {
+                let source = crate::find_in_files::OpenBufferResultSource::capture(tab);
+                if let Some(rows) = results.get_mut(start..) {
+                    for result in rows { result.source = Some(source.clone()); }
+                }
                 docs_with_hits += 1;
             }
             if results.len() >= crate::find_in_files::FIND_IN_FILES_RESULT_CAP {
@@ -2365,3 +2372,7 @@ mod current_route_tests;
 #[cfg(test)]
 #[path="find_rich_source_tests.rs"]
 mod rich_source_tests;
+
+#[cfg(test)]
+#[path = "find_result_owner_tests.rs"]
+mod result_owner_tests;

@@ -88,12 +88,40 @@ pub(crate) struct FindResult {
     pub(crate) line: usize,
     pub(crate) line_text: String,
     pub(crate) match_in_line: Range<usize>,
-    /// Set when the result came from an open buffer (Find All in All Opened
-    /// Documents). Bypasses the path-based tab lookup on click.
+    /// Original index for an open-buffer result. Navigation resolves its source
+    /// identity instead, since tabs can move or close after the search.
     pub(crate) tab_idx: Option<usize>,
     /// Optional display override for the path column. Used by the all-opened
     /// flow so untitled buffers show "Untitled" instead of an empty cell.
     pub(crate) display_label: Option<String>,
+    /// One painted row must never dispatch a newer result occupying its index.
+    pub(crate) identity: std::sync::Arc<()>,
+    pub(crate) source: Option<std::sync::Arc<OpenBufferResultSource>>,
+}
+
+/// Search coordinates belong to a runtime document and its observed edit activity.
+/// Retain only identity tokens, not the document's Rope or full text.
+pub(crate) struct OpenBufferResultSource {
+    pub(crate) tab: uuid::Uuid,
+    instance: std::sync::Arc<()>,
+    revision: crate::buffer::ContentRevision,
+    activity: crate::buffer::ContentRevision,
+}
+
+impl OpenBufferResultSource {
+    pub(crate) fn capture(tab: &mut crate::tab::Tab) -> std::sync::Arc<Self> {
+        tab.observe_content_activity();
+        std::sync::Arc::new(Self {
+            tab: tab.session_id, instance: tab.instance.clone(),
+            revision: tab.buffer.raw_revision.clone(), activity: tab.content_activity.clone(),
+        })
+    }
+
+    pub(crate) fn matches(&self, tab: &crate::tab::Tab) -> bool {
+        self.tab == tab.session_id && std::sync::Arc::ptr_eq(&self.instance, &tab.instance)
+            && self.revision == tab.buffer.raw_revision && self.activity == tab.content_activity
+            && tab.buffer.loading.is_none()
+    }
 }
 
 /// Outcome surface for the panel — separates the success path from the two
@@ -398,6 +426,7 @@ fn collect_results_from_ranges(
             match_in_line: local_start..local_end,
             tab_idx,
             display_label: display_label.map(str::to_string),
+            identity: std::sync::Arc::new(()), source: None,
         });
         added += 1;
     }

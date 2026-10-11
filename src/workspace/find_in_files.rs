@@ -479,9 +479,8 @@ impl Workspace {
     /// load it via `open_path`. Then place the selection on the match span
     /// and scroll into view. Panel stays open for follow-up jumps.
     ///
-    /// "Find All in All Opened Documents" results carry an explicit
-    /// `tab_idx` so we skip the path lookup (which would fail on Untitled
-    /// buffers and is racy if the user renamed the file since the search).
+    /// Open-buffer results resolve their original runtime document identity;
+    /// stored indices and paths cannot identify a moved, closed or reopened tab.
     pub(crate) fn jump_to_find_result(&mut self, idx: usize, cx: &mut Context<Self>) {
         let Some(result) = self.find_in_files.results.get(idx).cloned() else {
             return;
@@ -489,16 +488,22 @@ impl Workspace {
         let path = result.path.clone();
 
         let prev_tab = self.active;
-        let tab_idx = if let Some(i) = result.tab_idx {
-            // All-opened result — index is authoritative. Bounds-check so a
-            // tab closed between search and click can't panic.
-            if i >= self.tabs.len() {
-                return;
+        let tab_idx = if let Some(source) = &result.source {
+            let Some(i) = self.tabs.iter().position(|tab| tab.session_id == source.tab) else {
+                self.set_status("This search result's document is closed; run the search again");
+                cx.notify(); return;
+            };
+            let Some(tab) = self.tabs.get_mut(i) else { return; };
+            tab.observe_content_activity();
+            if !source.matches(tab) {
+                self.set_status("This search result is out of date; run the search again");
+                cx.notify(); return;
             }
-            if i != self.active {
-                self.set_active_tab(i, cx);
-            }
+            if i != self.active { self.set_active_tab(i, cx); }
             i
+        } else if result.tab_idx.is_some() {
+            self.set_status("This search result has no current document; run the search again");
+            cx.notify(); return;
         } else {
             let existing = self
                 .tabs

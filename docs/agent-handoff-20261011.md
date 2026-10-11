@@ -118,26 +118,58 @@ Inventory: 581 appearances, 481 unique IDs, 45 separators, 275 catalog rows;
 182 routed, 285 missing, 8 partial, 2 alternate-only, 2 action-only, 1 status-only
 and 1 stub. Routing proves wiring only. Behavior records remain pending.
 
-Next independent safety leaves have read-only preparations, with no deciding
-baseline reproduction yet:
+The next safety batch is active in three fresh detached worktrees at `088e8d2`.
+Its baseline reproductions and approved policies are recorded in
+[the safety validation record](windows-safety-validation-20261011.md). Verify
+the current tree before integrating: the save patch below is already applied
+to main, while the column and physical-line candidates are still in review.
 
-1. Save durability: the writer can fall back to an in-memory original after a
-   rescue-copy failure. Use a temporary controlled child, write/sync barrier,
-   and owned-child-only termination to establish interruption behavior. Process
-   interruption does not prove power-loss durability. Contract:
-   `gates/windows-save-durability.md`; preparation:
-   `../notepad-studio-agents/windows-file-routes/gates/windows-save-durability-preparation.md`.
-2. Column safety: prove extreme virtual-space/stale-row arithmetic through
-   registered callers. Validate before clipboard/selection/transaction/history
-   or row mutations. Preserve ordinary Unicode, virtual-space, macro, read-only
-   and IME controls. Contract: `gates/windows-column-safety.md`. Extend mutating
-   bookmark rectangles only after safety is established.
-3. Physical lines: test VT, FF, NEL, line separator and paragraph separator in
-   actual movement/bookmark/edit callers. Ropey defaults enable Unicode lines;
-   the oracle defaults to CR/LF. Confirm callers and dependency unification
-   before changing policy; preserve bytes and restored bookmark offsets.
-   Contract: `gates/windows-physical-lines.md`; preparation:
-   `../notepad-studio-agents/windows-sort-parity/gates/physical-lines-preflight.md`.
+1. Save durability: `windows-save-durability` passes its required leaf checks
+   (2,586 unit plus 3 integration tests, build and Clippy). Main already contains
+   reviewed source patch `d850cb37ee91c4f85d39c15381f734a88c43fa6301d217b11e0425edea3c6aa6`
+   and doc suffix `12e637049ed60aca02e5c7d0dacb22de19014f77045fb543a903bda0d39d2917`;
+   new-file line endings were normalized by Git, with equivalent bytes verified.
+   The writer requires a created and synced sibling rescue before touching an
+   existing target. Three actual child-interruption baseline runs showed why
+   the memory fallback was insufficient. Main save-only build, 2,586 unit plus
+   three integration tests (29 ignored), Clippy and inventory checks pass.
+   Canonical diagnostics have zero additions: 334 occurrences/195 unique pairs.
+   Tested Rust inventory SHA-256 is
+   `8781129422befa76ef7db9f6cca68a4709693d6b4aace91a0b84d89ef30b23a8`.
+   The later column/physical composition requires new combined checks.
+   The quiet 18 MiB writer-helper comparison adds 194.542 ms at the medians;
+   normal Save background capture/publication is the next read-only contract.
+   That local contract is
+   `../notepad-studio-agents/windows-save-durability/gates/windows-normal-save-background-contract.md`,
+   SHA-256 `a5a429745879784779e04abb34c09422e700c42b453b35b3e856d4320aafff4e`.
+   It maps Save/Save As/Save All/popup/close and quit ownership. Capture must be
+   bounded; success publishes the captured savepoint so later edits stay dirty.
+   Preserve picker-time edits, UUID/Arc/path ownership, optional backup policy,
+   mandatory rescue refusal and critical failed-restore diagnostics, including
+   Cancel/stale replies. Settle destructive jobs before accepted close/Exit.
+   Legacy `.doc` conversion and whole-file restoration allocation require
+   explicit separate scope decisions; background scheduling alone does not
+   prove either safe. No normal-Save implementation is started yet.
+2. Column safety: `windows-column-safety` has five actual hostile-state REDs
+   and two classic-case rectangle behavior REDs. Its first five regression
+   reruns pass. The candidate validates geometry, payload and history plans
+   before publication, with temporary 128 KiB work, 4,096-row and 1 MiB
+   metadata limits. The corrected candidate passes 35 column controls, 13
+   macro-context controls and nine macro-Undo controls; full frozen gates are
+   running. Root requested a single captured clipboard read for macro Paste
+   and persistence sinks instead of an artificial closed-workspace fixture.
+   No asynchronous input queue or new macro schema is authorized in
+   this safety batch; mutating bookmark rectangles remain separate work.
+3. Physical lines: `windows-physical-lines` has 20 caller behavior REDs and
+   two real Find in Files result/navigation REDs. The corrected candidate
+   focus passes 36 controls, with one optimized control ignored. Production
+   scope is Ropey's explicit `cr_lines`/`simd` feature policy and two Find in
+   Files helpers; bytes, version and word classification stay unchanged.
+   The final frozen candidate passes build, 2,605 unit plus three integration
+   tests (30 ignored), and Clippy with zero new canonical diagnostics. Its patch
+   SHA-256 is `fa56bd046f6e6090ece6d3a810ed4de605ff0c0a90a2cc41f29d2da44a3f212a`.
+   Recent-file isolation and legacy case/marker fixture corrections are
+   included. Optimized streaming controls and main integration remain pending.
 
 Then continue older sort/reverse/shuffle/dedup performance/macro/fidelity repair,
 hash tools, brace navigation/highlighting, session/pinning/printing, Search

@@ -1,5 +1,5 @@
 {
-  "studio_source_sha256": "0b28fcc1c0ac5f2c2b5d4c6f005aa3857ffe8cf656c7cdc3b597b9d6d0dfd7d3",
+  "studio_source_sha256": "8781129422befa76ef7db9f6cca68a4709693d6b4aace91a0b84d89ef30b23a8",
   "studio_sources": {
     "src/actions/bookmarks.rs": "eeaf95badc144e0fa7f8c2445495e706f1209291c1285ddd3578fef0c84eb5fc",
     "src/actions/edit.rs": "90200c45bc846149a2a05b8ce0b1ab98118b185094686abacccc0ddc882969b4",
@@ -87,10 +87,11 @@
     "src/io/copy_snapshot.rs": "ffa012c2df868d18ecfea86d4fe3b41eff389d1e25871f1d79e5c571d8724717",
     "src/io/copy_stage.rs": "90b06c4b9bb148ae6fec1085b4330e1822b6faf8fc7d22f73b94e07183de9267",
     "src/io/copy_writer.rs": "7fce5b2251728b311c5d11c002efa1abf4f2b914f7bfc540c179e3aa5df78ed1",
+    "src/io/safety_copy.rs": "d1bcfa37d3057ad8ca6b081511b8f5b44139113a365e1e47bc2a5d2cb05a433a",
     "src/io/save_all.rs": "2799cad7525aa0d4db3b97634942c415ac92c8ad2fb3046b64200bfc5f287b9e",
     "src/io/save_as_dialog.rs": "870b9d7970e5c213b5b07c1465881f07862073f6d14dde9a586dabeda6d89a68",
-    "src/io/save_copy.rs": "d348265847bf05002e12fc41c7b2c98900a713d2043478f0506260f76c859396",
-    "src/io.rs": "6cc257b2c9486d5f59472a7f9f2793f058eec3f72c52e222c9f6425ae28df346",
+    "src/io/save_copy.rs": "0259c3bcca793cdff4b1b0ceff0dd70b405fec89984c932c36cfede3c07fa23f",
+    "src/io.rs": "b5f9edaeb8744d7ba5baa0f280d401f2a7f4353ee87356a11437159b407f9711",
     "src/io_reload.rs": "6d167ea8cfea21d1b86b131f6cd9d31fe7c78affb5829de7a54cd83d5e0ea47a",
     "src/io_stream.rs": "450a533562310b8c50d18cb4b2a425be85bd830eac2ce321537ef20ed1126f61",
     "src/locale_date.rs": "b7c0a84062bcd5a8142bf9ff3c3c62dcce03f40fa5fc3ff7824b858f52b1f7c8",
@@ -545,7 +546,7 @@
         {
           "method": "open_new_tab",
           "path": "src/io.rs",
-          "line": 49,
+          "line": 57,
           "wire_path": "src/workspace/render.rs",
           "wire_line": 289
         }
@@ -604,7 +605,7 @@
         {
           "method": "open_dialog",
           "path": "src/io.rs",
-          "line": 248,
+          "line": 256,
           "wire_path": "src/workspace/render.rs",
           "wire_line": 290
         }
@@ -928,7 +929,7 @@
         {
           "method": "open_folder_as_workspace",
           "path": "src/io.rs",
-          "line": 280,
+          "line": 288,
           "wire_path": "src/workspace/render.rs",
           "wire_line": 291
         }
@@ -1048,7 +1049,7 @@
         {
           "method": "save_active",
           "path": "src/io.rs",
-          "line": 429,
+          "line": 437,
           "wire_path": "src/workspace/render.rs",
           "wire_line": 301
         }
@@ -1107,7 +1108,7 @@
         {
           "method": "save_active_as",
           "path": "src/io.rs",
-          "line": 460,
+          "line": 468,
           "wire_path": "src/workspace/render.rs",
           "wire_line": 302
         }
@@ -1222,7 +1223,7 @@
         {
           "method": "save_all",
           "path": "src/io.rs",
-          "line": 532,
+          "line": 540,
           "wire_path": "src/workspace/render.rs",
           "wire_line": 304
         }
@@ -22220,7 +22221,7 @@
         {
           "method": "open_new_tab",
           "path": "src/io.rs",
-          "line": 49,
+          "line": 57,
           "wire_path": "src/workspace/render.rs",
           "wire_line": 289
         }

@@ -18,6 +18,10 @@ v0.0.5 — current
 
   Recent additions:
 
+    Saving over an existing file now requires a synced recovery copy before
+    changing the destination. If that copy cannot be created or synced,
+    the save reports the error and keeps the existing destination intact.
+
     File ▸ Save a Copy As preserves the original document's path, edits and
     undo history, and can open the saved copy. Rename and Move to Trash /
     Recycle Bin are now in the File menu. Open Containing Folder includes

@@ -175,7 +175,11 @@
       ],
       "route_at_baseline": "routed",
       "behavior": "pending",
-      "evidence": []
+      "evidence": [
+        "docs/windows-save-durability.md",
+        "docs/windows-safety-validation-20261011.md"
+      ],
+      "implementation": "existing-target synced rescue integrated; automated leaf and main save-only checks passed; normal-save background work and native verification pending"
     },
     {
       "id": "IDM_FILE_SAVEAS",
@@ -190,7 +194,11 @@
       ],
       "route_at_baseline": "routed",
       "behavior": "pending",
-      "evidence": []
+      "evidence": [
+        "docs/windows-save-durability.md",
+        "docs/windows-safety-validation-20261011.md"
+      ],
+      "implementation": "existing-target synced rescue integrated; automated leaf and main save-only checks passed; normal-save background work and native verification pending"
     },
     {
       "id": "IDM_FILE_SAVECOPYAS",
@@ -206,7 +214,9 @@
       "route_at_baseline": "missing",
       "behavior": "pending",
       "evidence": [
-        "docs/windows-file-routes-validation.md"
+        "docs/windows-file-routes-validation.md",
+        "docs/windows-save-durability.md",
+        "docs/windows-safety-validation-20261011.md"
       ],
       "remaining": [
         "Native Windows behavior inspection"
@@ -227,7 +237,11 @@
       ],
       "route_at_baseline": "routed",
       "behavior": "pending",
-      "evidence": []
+      "evidence": [
+        "docs/windows-save-durability.md",
+        "docs/windows-safety-validation-20261011.md"
+      ],
+      "implementation": "existing-target synced rescue integrated; automated leaf and main save-only checks passed; normal-save background work and native verification pending"
     },
     {
       "id": "IDM_FILE_RENAME",
@@ -7806,7 +7820,7 @@
       "evidence": []
     }
   ],
-  "current_source_sha256": "0b28fcc1c0ac5f2c2b5d4c6f005aa3857ffe8cf656c7cdc3b597b9d6d0dfd7d3",
+  "current_source_sha256": "8781129422befa76ef7db9f6cca68a4709693d6b4aace91a0b84d89ef30b23a8",
   "current_route_counts": {
     "action-only": 2,
     "alternate-only": 2,

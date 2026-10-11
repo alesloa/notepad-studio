@@ -245,4 +245,4 @@ impl Workspace {
 
 #[cfg(test)]
 #[path = "save_copy_tests.rs"]
-mod tests;
+pub(super) mod tests;

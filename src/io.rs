@@ -4,6 +4,8 @@ mod copy_writer;
 mod copy_stage;
 mod copy_snapshot;
 mod background_drop;
+mod safety_copy;
+use safety_copy::make_safety_copy;
 pub(crate) use background_drop::BackgroundDrop;
 pub(crate) use copy_stage::Progress as CopyProgress;
 pub(crate) use save_as_dialog::pick_rename as pick_rename_path;
@@ -17,6 +19,12 @@ pub(crate) use save_as_dialog::RequestCapture as SaveDialogRequestCaptureForTest
 mod save_as_identity_tests;
 #[cfg(test)]
 mod save_all_tests;
+#[cfg(all(test, target_os = "windows"))]
+#[path = "io/save_durability_tests.rs"]
+mod save_durability_tests;
+#[cfg(all(test, target_os = "windows"))]
+#[path = "io/save_durability_caller_tests.rs"]
+mod save_durability_caller_tests;
 
 // File I/O — open / save / save-as flows plus the async dialog helpers
 // invoked from the close-tab path.
@@ -647,7 +655,7 @@ fn save_bytes_with_backup(
     write_file_safely(path, bytes)
 }
 
-/// Write `bytes` to `path` without ever leaving it half-written.
+/// Write `bytes` to `path`, keeping its previous version recoverable first.
 ///
 /// The file is rewritten in place, as Notepad++ does (Buffer.cpp
 /// `FileManager::saveBuffer` opens the existing file and writes over it),
@@ -657,8 +665,8 @@ fn save_bytes_with_backup(
 /// through a read-only file's permissions.
 ///
 /// Before the first byte changes, the original is copied next to itself
-/// (`<name>.notepad-studio-save`), or held in memory if that copy can't be
-/// made. If the write fails part-way (disk full, device gone, I/O error)
+/// (`<name>.notepad-studio-save`) and synced. If that cannot be done, the
+/// write is refused. If the write fails part-way (disk full, device gone, I/O error)
 /// the original bytes go back and the copy is removed. Only when putting
 /// them back also fails does the copy stay, and the error names it.
 pub(crate) fn write_file_safely(path: &Path, bytes: &[u8]) -> Result<(), SaveError> {
@@ -737,31 +745,16 @@ fn write_file_safely_with_restore(
     }
 
     // Keep the original before touching it.
-    let (copy, in_memory) = match make_safety_copy(path) {
-        Ok(copy) => (Some(copy), None),
-        Err(copy_err) => match std::fs::read(path) {
-            Ok(original) => (None, Some(original)),
-            Err(_) => {
-                return Err(SaveError::NoSafetyCopy {
-                    path: path.to_path_buf(),
-                    source: copy_err,
-                })
-            }
-        },
-    };
-    let discard_copy = |copy: &Option<PathBuf>| {
-        if let Some(c) = copy {
-            let _ = std::fs::remove_file(c);
-        }
-    };
+    let copy = make_safety_copy(path).map_err(|source| SaveError::NoSafetyCopy {
+        path: path.to_path_buf(), source,
+    })?;
 
-    // Open without truncating: the new bytes overwrite the old ones in
-    // place and `set_len` trims any tail, so a save that doesn't grow the
-    // file never needs more disk space.
+    // Open without truncating so the existing file and its hard links keep
+    // their identity. `set_len` trims any tail after the data write.
     let mut file = match std::fs::OpenOptions::new().write(true).open(path) {
         Ok(f) => f,
         Err(e) => {
-            discard_copy(&copy);
+            safety_copy::discard(&copy);
             return Err(io_err(e));
         }
     };
@@ -770,24 +763,17 @@ fn write_file_safely_with_restore(
         .and_then(|()| file.sync_all());
     let Err(source) = result else {
         drop(file);
-        discard_copy(&copy);
+        safety_copy::discard(&copy);
         return Ok(());
     };
 
     // Put the original back.
-    let original = match (&in_memory, &copy) {
-        (Some(bytes), _) => Ok(bytes.clone()),
-        (None, Some(c)) => std::fs::read(c),
-        (None, None) => Err(std::io::Error::new(
-            std::io::ErrorKind::NotFound,
-            "no copy of the original",
-        )),
-    };
+    let original = std::fs::read(&copy);
     let restored = original.and_then(|original| restore(&mut file, &original));
     drop(file);
     match restored {
         Ok(()) => {
-            discard_copy(&copy);
+            safety_copy::discard(&copy);
             Err(SaveError::Restored {
                 path: path.to_path_buf(),
                 source,
@@ -797,51 +783,9 @@ fn write_file_safely_with_restore(
             path: path.to_path_buf(),
             source,
             restore,
-            copy,
+            copy: Some(copy),
         }),
     }
-}
-
-/// Copy `path` to an unused `<name>.notepad-studio-save[.N]` beside it and
-/// return the copy's path. An existing copy is never overwritten: it may be
-/// the only good version left by a save that crashed half-way.
-fn make_safety_copy(path: &Path) -> std::io::Result<PathBuf> {
-    let Some(name) = path.file_name() else {
-        return Err(std::io::Error::new(
-            std::io::ErrorKind::InvalidInput,
-            "path has no file name",
-        ));
-    };
-    let dir = path.parent().unwrap_or_else(|| Path::new("."));
-    for n in 0u32..100 {
-        let mut candidate = name.to_os_string();
-        candidate.push(".notepad-studio-save");
-        if n > 0 {
-            candidate.push(format!(".{n}"));
-        }
-        let target = dir.join(candidate);
-        // `create_new` reserves the name atomically; then copy into it.
-        match std::fs::OpenOptions::new()
-            .write(true)
-            .create_new(true)
-            .open(&target)
-        {
-            Ok(f) => {
-                drop(f);
-                if let Err(e) = std::fs::copy(path, &target) {
-                    let _ = std::fs::remove_file(&target);
-                    return Err(e);
-                }
-                return Ok(target);
-            }
-            Err(e) if e.kind() == std::io::ErrorKind::AlreadyExists => continue,
-            Err(e) => return Err(e),
-        }
-    }
-    Err(std::io::Error::new(
-        std::io::ErrorKind::AlreadyExists,
-        "too many leftover .notepad-studio-save copies",
-    ))
 }
 
 /// Status line for a file whose bytes didn't decode cleanly. Shared by the

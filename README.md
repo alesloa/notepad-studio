@@ -58,6 +58,8 @@ A lightweight, cross-platform text editor inspired by Notepad++, written in Rust
 > Copy preparation and cross-volume rename run in the background with progress
 > and Cancel. Edited native-document copy snapshots have a 512 MiB memory limit;
 > exceeding it leaves both files unchanged and directs the user to Save As.
+> [Save protection](docs/windows-save-durability.md) requires a created and synced
+> recovery copy before overwriting an existing destination; failure refuses the save.
 
 Optional [API completion definitions](docs/api-completion.md) supply language
 names for Function Completion and signatures for parameter hints, including

@@ -34,8 +34,8 @@ impl WorkerGates {
 }
 impl Drop for WorkerGates { fn drop(&mut self) { WORKER_GATES.with(|slot| slot.replace(std::mem::take(&mut self.0))); } }
 pub(super) fn open_copy_answer() -> Option<Option<bool>> { OPEN_COPY.with(|answer| *answer.borrow()) }
-struct Options(Option<Option<bool>>);
-impl Options { fn new(answer: Option<bool>) -> Self { Self(OPEN_COPY.with(|slot| slot.replace(Some(answer)))) } }
+pub(crate) struct Options(Option<Option<bool>>);
+impl Options { pub(crate) fn new(answer: Option<bool>) -> Self { Self(OPEN_COPY.with(|slot| slot.replace(Some(answer)))) } }
 impl Drop for Options { fn drop(&mut self) { OPEN_COPY.with(|slot| slot.replace(self.0)); } }
 
 fn with_editor(buffer: Buffer, test: impl FnOnce(&Entity<Workspace>, &mut VisualTestContext)) {

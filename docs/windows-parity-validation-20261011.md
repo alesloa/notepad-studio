@@ -4,7 +4,7 @@ This batch adds 17 main-menu commands: six File routes, five bookmark commands,
 and six line sorts. It also adds their guarded background preparation, clipboard
 ownership, Undo/Redo and macro continuation. Full Notepad++ parity remains open.
 
-The combined source is identified by inventory SHA-256
+The combined Rust source is identified by inventory SHA-256
 `0b28fcc1c0ac5f2c2b5d4c6f005aa3857ffe8cf656c7cdc3b597b9d6d0dfd7d3`.
 Root reviewed and integrated the isolated workers' patches before checking main.
 The Rust source remained unchanged through the checks below.

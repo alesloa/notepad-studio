@@ -322,6 +322,10 @@ v0.0.5 — current
        Exit. Final shutdown fences queued recovery writes before releasing
        the instance lock and retains the OS shutdown fallback.
 
+   81. Final Source IME commits and unmarking can open completion at the
+       configured character threshold. Preedit, cancelled input and selected
+       replacements keep lists closed; Unicode, encoding and undo are preserved.
+
   v0.1.0 — syntax & language:
 
     1. Tree-sitter syntax highlighting for 25 modes: Rust, Python, C,

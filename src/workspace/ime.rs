@@ -108,7 +108,7 @@ impl Workspace {
         crate::macros::record(event);
     }
 
-    fn finish_ime_state(&mut self, mut state: ImeComposition, window: &mut Window, cx: &mut Context<Self>) {
+    fn finish_ime_state(&mut self, mut state: ImeComposition, allow_completion: bool, window: &mut Window, cx: &mut Context<Self>) {
         if !state.valid(self, window) { return; }
         let ImeTarget::Source { before_revision, undo_index, prior_redo, .. } = &mut state.target else { return; };
         let Some(tab) = self.tabs.get_mut(self.active) else { return; };
@@ -122,14 +122,17 @@ impl Workspace {
             tab.redo_stack = std::mem::take(prior_redo);
         } else {
             let text = op.inserted.clone();
+            let complete = allow_completion && op.removed.is_empty() && !text.is_empty()
+                && text.chars().all(super::autocomplete::is_word_char);
             self.record_ime_text(&text);
+            if complete { self.maybe_auto_trigger_autocomplete(window, cx); }
             self.update_function_hint_after_input(&text, window, cx);
         }
         cx.notify();
     }
 
     pub(super) fn finish_ime_composition(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if let Some(state) = self.ime_composition.take() { self.finish_ime_state(state, window, cx); }
+        if let Some(state) = self.ime_composition.take() { self.finish_ime_state(state, true, window, cx); }
     }
 
     pub(super) fn replace_ime_text(
@@ -189,7 +192,7 @@ impl Workspace {
             })
         };
         if previous.as_ref().is_some_and(|state| byte_range.start < state.marked.start || byte_range.end > state.marked.end) {
-            if let Some(state) = previous.take() { self.finish_ime_state(state, window, cx); }
+            if let Some(state) = previous.take() { self.finish_ime_state(state, false, window, cx); }
         }
         let tab_id = self.tabs[self.active].session_id;
         let mode = self.tabs[self.active].view_mode;
@@ -243,9 +246,13 @@ impl Workspace {
         let state = ImeComposition { tab_id, mode, focus: handle, target, marked, selection: (anchor, cursor), text: normalized };
         if mark && !state.text.is_empty() {
             self.ime_composition = Some(state);
-        } else { self.finish_ime_state(state, window, cx); }
+        } else { self.finish_ime_state(state, true, window, cx); }
         self.schedule_autosave(cx);
         cx.notify();
         true
     }
 }
+
+#[cfg(test)]
+#[path = "ime_completion_tests.rs"]
+mod completion_tests;

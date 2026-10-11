@@ -63,8 +63,10 @@ dismiss hints. Hint navigation does not edit the document or add Undo entries.
 Call scanning uses fresh text from the document's start on a background
 executor. It scans at most 8 MiB before the caret, with nesting limited to
 128 levels, and does not guess the lexical state of a truncated window.
-A manual request reports when a limit prevents a hint. Completion list
-auto-triggering after an IME final commit remains a separate behavior.
+A manual request reports when a limit prevents a hint. Completion lists
+can open after a final Source commit or unmarking, using the configured mode
+and character threshold. Preedit, cancellation, nonword text and selected
+replacements do not open a new list.
 
 Invoke an Edit → Auto-Completion command to reload an edited definition file.
 Reads and parsing run in the background. Original static completion, or the

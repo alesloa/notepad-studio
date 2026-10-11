@@ -185,6 +185,10 @@ v0.0.5 — current
        words beyond the initial list limit as a prefix narrows. Manual Word,
        Function and combined modes keep their selected candidate source.
 
+   50. Recorded auto-completion replaces its typed prefix during macro
+       replay, with the same single Undo and caret as accepting the list.
+       Mismatched prefixes and invalid editor contexts are skipped safely.
+
   v0.1.0 — syntax & language:
 
     1. Tree-sitter syntax highlighting for 25 modes: Rust, Python, C,

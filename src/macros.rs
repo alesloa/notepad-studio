@@ -29,6 +29,9 @@ use crate::consts::APP_NAME;
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub(crate) enum MacroEvent {
     InsertText(String),
+    /// Accepted completion replaces a prefix rather than inserting after it.
+    /// Existing saved event names remain unchanged.
+    CompleteWord { prefix: String, candidate: String },
     Backspace,
     Delete,
     InsertNewline,
@@ -217,19 +220,31 @@ fn global() -> &'static Mutex<MacroRecorder> {
 /// five separate single-char events from the OS input handler, but stores
 /// as one `InsertText("hello")` so the recorded macro stays compact.
 pub(crate) fn record(event: MacroEvent) {
-    let Ok(mut g) = global().lock() else {
-        return;
-    };
-    if !g.recording || g.replaying {
-        return;
-    }
-    if let MacroEvent::InsertText(text) = &event {
-        if let Some(MacroEvent::InsertText(prev)) = g.in_progress.last_mut() {
-            prev.push_str(text);
-            return;
+    let Ok(mut g) = global().lock() else { return; };
+    g.record_event(event);
+}
+
+impl MacroRecorder {
+    pub(crate) fn record_event(&mut self, event: MacroEvent) {
+        if !self.recording || self.replaying { return; }
+        if let MacroEvent::InsertText(text) = &event {
+            if let Some(MacroEvent::InsertText(prev)) = self.in_progress.last_mut() {
+                prev.push_str(text);
+                return;
+            }
         }
+        self.in_progress.push(event);
     }
-    g.in_progress.push(event);
+
+    #[cfg(test)]
+    pub(crate) fn recording_for_test() -> Self { Self { recording: true, ..Self::default() } }
+
+    #[cfg(test)]
+    pub(crate) fn captured_events(&self) -> &[MacroEvent] { &self.in_progress }
+}
+
+pub(crate) fn completion_event(prefix: &str, candidate: &str) -> MacroEvent {
+    MacroEvent::CompleteWord { prefix: prefix.to_string(), candidate: candidate.to_string() }
 }
 
 /// Set the replaying flag and return its previous value. Used by the replay
@@ -390,6 +405,22 @@ mod tests {
             ]) if t == "a\r\nb\u{1F600}\"\\"
         ));
         assert!(!dir.join("macros.toml.tmp").exists());
+    }
+
+    #[test]
+    fn completion_events_round_trip_alongside_existing_macro_names() {
+        let dir = TempDir::new("macro-completion-save");
+        let path = dir.join("macros.toml");
+        let mut saved = BTreeMap::new();
+        saved.insert("completion".into(), vec![
+            MacroEvent::InsertText("café".into()), completion_event("café", "caféine"), MacroEvent::MoveRight,
+        ]);
+        assert!(persist_at(&path, &saved).is_ok());
+        let loaded = load_saved_at(&path);
+        assert!(matches!(loaded.get("completion").map(Vec::as_slice), Some([
+            MacroEvent::InsertText(text), MacroEvent::CompleteWord { prefix, candidate }, MacroEvent::MoveRight,
+        ]) if text == "café" && prefix == "café" && candidate == "caféine"));
+        assert!(!dir.join("macros.toml.corrupt").exists());
     }
 
     #[test]

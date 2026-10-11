@@ -1,0 +1,106 @@
+// scintilla/src/ScintillaBase.cxx:242, 489 — completion replaces the entered prefix.
+use super::super::autocomplete::is_word_char;
+use crate::{tab::InputFocus, workspace::Workspace};
+use gpui::{Context, Window};
+use std::ops::Range;
+
+// Matches the completion UI's identifier limit; config events are hostile input.
+const MAX_COMPLETION_BYTES: usize = 256;
+
+fn completion_range(
+    rope: &ropey::Rope,
+    prefix: &str,
+    candidate: &str,
+    caret: usize,
+) -> Option<Range<usize>> {
+    if prefix.len() > MAX_COMPLETION_BYTES
+        || candidate.is_empty()
+        || candidate.len() > MAX_COMPLETION_BYTES
+        || prefix == candidate
+        || !prefix.chars().all(is_word_char)
+        || !candidate
+            .to_ascii_lowercase()
+            .starts_with(&prefix.to_ascii_lowercase())
+    {
+        return None;
+    }
+    let start = caret.checked_sub(prefix.len())?;
+    let slice = rope.get_byte_slice(start..caret)?;
+    if !slice.chars().eq(prefix.chars()) {
+        return None;
+    }
+    let before = rope
+        .byte_to_char(start)
+        .checked_sub(1)
+        .and_then(|idx| rope.get_char(idx));
+    if before.is_some_and(is_word_char) {
+        return None;
+    }
+    Some(start..caret)
+}
+
+impl Workspace {
+    pub(crate) fn replay_completion_word(
+        &mut self,
+        prefix: &str,
+        candidate: &str,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
+        self.close_autocomplete(cx);
+        let Some(tab) = self.tabs.get(self.active) else {
+            return;
+        };
+        let selection = tab.selection.clamped(&tab.buffer.rope);
+        if !self.focus_handle.is_focused(window)
+            || self.input_focus(window) != InputFocus::Editor
+            || tab.buffer.read_only
+            || !selection.is_empty()
+            || tab.block_selection.is_some()
+            || selection.head != tab.selection.head
+            || selection.anchor != tab.selection.anchor
+        {
+            self.set_status("Macro completion skipped: editor context changed");
+            cx.notify();
+            return;
+        }
+        let Some(range) = completion_range(&tab.buffer.rope, prefix, candidate, selection.head)
+        else {
+            self.set_status("Macro completion skipped: prefix changed or event is invalid");
+            cx.notify();
+            return;
+        };
+        self.replace_byte_range(range, candidate, cx);
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn corrupt_completion_events_do_not_replace_text() {
+        let rope = ropey::Rope::from_str("before café");
+        let end = rope.len_bytes();
+        for (prefix, candidate, caret) in [
+            ("café", "caféine", usize::MAX),
+            ("café", "caféine", end - 1),
+            ("afé", "aféine", end),
+            ("café", "", end),
+            ("café", "zebra", end),
+            ("café", "café", end),
+            ("", "android", end),
+            ("re café", "re caféine", end),
+        ] {
+            assert_eq!(completion_range(&rope, prefix, candidate, caret), None);
+        }
+        let oversized = "a".repeat(MAX_COMPLETION_BYTES + 1);
+        assert!(completion_range(&rope, &oversized, &oversized, end).is_none());
+        assert!(completion_range(&rope, "café", &oversized, end).is_none());
+        assert_eq!(
+            completion_range(&rope, "café", "caféine", end),
+            Some(7..end)
+        );
+        assert_eq!(completion_range(&rope, "", "android", 0), Some(0..0));
+    }
+}

@@ -32,6 +32,9 @@ use crate::macros::{self, MacroEvent, set_replaying};
 use crate::tab::InputFocus;
 use crate::workspace::Workspace;
 
+#[path = "completion_macro.rs"]
+mod completion_macro;
+
 impl Workspace {
     /// Replay `events` `times` times against the active editor. Recording is
     /// suspended for the duration so a replay-while-recording session
@@ -61,6 +64,9 @@ impl Workspace {
             MacroEvent::InsertText(text) => {
                 let r = self.selection().ordered();
                 self.replace_byte_range(r, text, cx);
+            }
+            MacroEvent::CompleteWord { prefix, candidate } => {
+                self.replay_completion_word(prefix, candidate, window, cx);
             }
             MacroEvent::Backspace => self.backspace(&EditBackspace, window, cx),
             MacroEvent::Delete => self.delete(&EditDelete, window, cx),
@@ -336,3 +342,7 @@ impl Workspace {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "completion_macro_tests.rs"]
+mod completion_macro_tests;

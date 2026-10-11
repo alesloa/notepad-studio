@@ -644,7 +644,7 @@ impl Workspace {
         if (prefix.is_empty() && !state.allow_empty_prefix)
             || !pick.to_ascii_lowercase().starts_with(&prefix.to_ascii_lowercase())
         { return false; }
-        crate::macros::record(crate::macros::MacroEvent::InsertText(pick.to_string()));
+        crate::macros::record(crate::macros::completion_event(&prefix, pick));
         self.replace_byte_range(range, pick, cx);
         true
     }

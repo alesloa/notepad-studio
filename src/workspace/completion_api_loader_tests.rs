@@ -14,6 +14,98 @@ fn held_request(w: &mut Workspace, window: &mut Window, cx: &mut Context<Workspa
 }
 
 #[test]
+fn stale_manual_api_reply_retires_only_its_loading_status() {
+    for outcome in ["loaded", "missing", "invalid"] {
+        for newer_status in [false, true] {
+            let _settings = crate::settings::override_for_test(preferences());
+            let temp = crate::persist::TempDir::new("api-stale-loading-status");
+            let _directory = override_directory_for_test(temp.path().to_owned());
+            let mut cx = TestAppContext::single();
+            let (workspace, visual) = fixture(&mut cx, "head\r\ncaféZe");
+            visual.update_window_entity(&workspace, |w, window, cx| {
+                let request = held_request(w, window, cx);
+                assert!(w.autocomplete.is_none());
+                assert!(w.status_message.as_ref().unwrap().starts_with("Loading API definitions from "));
+                let rope = w.buffer().rope.clone();
+                let revision = w.buffer().raw_revision.clone();
+                let selection = w.selection();
+                window.focus(&w.find_focus, cx);
+                window.focus(&w.focus_handle, cx);
+                if newer_status { w.set_status("A newer command finished"); }
+                let result = match outcome {
+                    "loaded" => ApiRegistry::parse(&document("<KeyWord name='caféZeta'/>")).map(Some),
+                    "missing" => Ok(None),
+                    _ => ApiRegistry::parse("broken").map(Some),
+                };
+                w.finish_completion_api(request, temp.join("rust.xml"), result, window, cx);
+                assert_eq!(w.status_message.as_deref(), newer_status.then_some("A newer command finished"));
+                assert!(w.completion_api.pending.is_none());
+                assert!(w.autocomplete.is_none());
+                assert_eq!(w.loaded_api_snapshot(Some(LanguageId::Rust)).is_some(), outcome == "loaded");
+                assert!(w.buffer().rope.is_instance(&rope));
+                assert_eq!(w.buffer().raw_revision, revision);
+                assert_eq!((w.selection().anchor, w.selection().head), (selection.anchor, selection.head));
+                assert!(w.active_tab_mut().undo_stack.is_empty());
+                assert!(w.active_tab_mut().redo_stack.is_empty());
+            });
+            cx.quit();
+        }
+    }
+}
+
+#[test]
+fn stale_manual_api_reload_keeps_a_status_it_did_not_create() {
+    let _settings = crate::settings::override_for_test(preferences());
+    let temp = crate::persist::TempDir::new("api-reload-status-owner");
+    let _directory = override_directory_for_test(temp.path().to_owned());
+    let mut cx = TestAppContext::single();
+    let (workspace, visual) = fixture(&mut cx, "ret");
+    visual.update_window_entity(&workspace, |w, window, cx| {
+        let first = held_request(w, window, cx);
+        assert!(w.autocomplete.is_some());
+        w.set_status("Loading API definitions from a user note");
+        w.request_completion_api(CandidateKind::Function(Some(LanguageId::Rust)), true, window, cx);
+        w.completion_api.task = None;
+        let request = w.completion_api.pending.clone().unwrap();
+        assert_ne!(request.id, first.id);
+        assert_eq!(request.status.as_deref(), Some("Loading API definitions from a user note"));
+        window.focus(&w.find_focus, cx);
+        window.focus(&w.focus_handle, cx);
+        w.finish_completion_api(request, temp.join("rust.xml"), Ok(None), window, cx);
+        assert_eq!(w.status_message.as_deref(), Some("Loading API definitions from a user note"));
+        assert!(w.completion_api.pending.is_none());
+        assert_eq!(w.buffer().rope.to_string(), "ret");
+    });
+    cx.quit();
+}
+
+#[test]
+fn an_older_manual_api_reply_cannot_clear_a_newer_loading_request() {
+    let _settings = crate::settings::override_for_test(preferences());
+    let temp = crate::persist::TempDir::new("api-newer-loading-owner");
+    let _directory = override_directory_for_test(temp.path().to_owned());
+    let mut cx = TestAppContext::single();
+    let (workspace, visual) = fixture(&mut cx, "caféZe");
+    visual.update_window_entity(&workspace, |w, window, cx| {
+        let older = held_request(w, window, cx);
+        let current = held_request(w, window, cx);
+        assert_ne!(older.id, current.id);
+        assert_eq!(older.status, current.status);
+        w.finish_completion_api(older, temp.join("rust.xml"), Ok(None), window, cx);
+        assert_eq!(w.status_message, current.status);
+        assert_eq!(w.completion_api.pending.as_ref().map(|request| request.id), Some(current.id));
+        w.finish_completion_api(current, temp.join("rust.xml"),
+            ApiRegistry::parse(&document("<KeyWord name='caféZeta'/>")).map(Some), window, cx);
+        assert!(w.completion_api.pending.is_none());
+        assert!(w.status_message.as_ref().is_none_or(|status| !status.starts_with("Loading API definitions from ")));
+        assert_eq!(w.autocomplete.as_ref().unwrap().candidates, ["caféZeta"]);
+        assert_eq!(w.buffer().rope.to_string(), "caféZe");
+        assert!(w.active_tab_mut().undo_stack.is_empty());
+    });
+    cx.quit();
+}
+
+#[test]
 fn pending_load_preserves_a_newer_status_even_when_the_editor_context_stays_valid() {
     for invalid in [false, true] {
         let _settings = crate::settings::override_for_test(preferences());

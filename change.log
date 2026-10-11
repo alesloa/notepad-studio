@@ -357,6 +357,11 @@ v0.0.5 — current
         read error, including files removed or locked after discovery. Failed
         reads leave file contents unchanged.
 
+    89. A retired manual API-completion request now clears its own Loading
+        message when the reply arrives. Newer messages, newer requests and
+        unrelated reload status remain intact; stale replies cannot reopen
+        the completion list.
+
   v0.1.0 — syntax & language:
 
     1. Tree-sitter syntax highlighting for 25 modes: Rust, Python, C,

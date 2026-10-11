@@ -49,6 +49,7 @@ struct ApiRequest {
     rope: ropey::Rope,
     popup: Option<Uuid>,
     status: Option<String>,
+    loading_status: bool,
 }
 
 pub(super) struct CompletionApiCache {
@@ -232,6 +233,7 @@ impl Workspace {
             rope: self.buffer().rope.clone(),
             popup: self.autocomplete.as_ref().map(|state| state.session_id),
             status: self.status_message.clone(),
+            loading_status: false,
         };
         let ticket = request.id;
         let focus = self.focus_handle.clone();
@@ -265,6 +267,7 @@ impl Workspace {
             ApiPurpose::FunctionHint => !self.function_hint_visible(),
         } {
             self.set_status(format!("Loading API definitions from {}…", path.display()));
+            request.loading_status = true;
             if matches!(request.purpose, ApiPurpose::FunctionHint) { self.own_function_hint_loading_status(); }
             cx.notify();
         }
@@ -354,6 +357,10 @@ impl Workspace {
         }
         self.function_hint_registry_changed(window, cx);
         if !context_valid {
+            if request.loading_status && self.status_message == request.status {
+                self.status_message = None;
+                cx.notify();
+            }
             return;
         }
         let previous_status = self.status_message.clone();

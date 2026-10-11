@@ -110,6 +110,9 @@ v0.0.5 — current
        stale document positions. Extreme DOCX image sizes and hyperlink IDs
        no longer overflow or crash the editor.
 
+   32. Opening a new blank window after the last window closes keeps the
+       closed windows' unsaved drafts available for session recovery.
+
   v0.1.0 — syntax & language:
 
     1. Tree-sitter syntax highlighting for 24 languages: Rust, Python, C,

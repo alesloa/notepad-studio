@@ -11,13 +11,13 @@ struct WindowSnapshots {
 
 impl WindowSnapshots {
     fn register(&mut self, id: Uuid, snapshot: SessionManifest) {
-        // After the last window closes, a dock reopen restores the on-disk
-        // session into the first new workspace. Retire the old owners first.
-        if self.live.is_empty() {
-            self.snapshots.clear();
-        }
         self.live.insert(id);
         self.update(id, snapshot);
+        // A restored snapshot takes ownership of its recovered documents.
+        // A fresh blank window has no documents to claim: keep the drafts
+        // belonging to closed windows until they are actually restored.
+        self.snapshots.retain(|(key, snapshot)| self.live.contains(key)
+            || !snapshot.tabs.is_empty() || !snapshot.closed_tabs.is_empty());
     }
 
     fn release(&mut self, id: Uuid) {
@@ -196,6 +196,20 @@ mod tests {
         let manifest = snapshots.update(reopened, manifest);
         assert_eq!(manifest.tabs.len(), 2);
         assert_eq!(snapshots.snapshots.len(), 1);
+    }
+
+    #[test]
+    fn blank_window_after_last_close_keeps_the_unrestored_drafts() {
+        let mut snapshots = WindowSnapshots::default();
+        let closed_window = Uuid::new_v4();
+        let tab = Uuid::new_v4();
+        snapshots.register(closed_window, SessionManifest { tabs: vec![draft(tab, "draft")], ..Default::default() });
+        snapshots.release(closed_window);
+        let blank_window = Uuid::new_v4();
+        snapshots.register(blank_window, SessionManifest::default());
+        let manifest = snapshots.update(blank_window, SessionManifest::default());
+        assert_eq!(manifest.tabs.len(), 1);
+        assert_eq!(manifest.tabs[0].id, tab);
     }
 
     #[test]

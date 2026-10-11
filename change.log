@@ -388,6 +388,10 @@ v0.0.5 — current
         It checks array bounds before allocation, preserves key/state order
         and reserves the correct size when serializing the list.
 
+    96. X11 input replies containing both text and a key symbol now insert
+        their text. Synchronous character and key-symbol replies receive the
+        required acknowledgement; asynchronous replies remain asynchronous.
+
   v0.1.0 — syntax & language:
 
     1. Tree-sitter syntax highlighting for 25 modes: Rust, Python, C,

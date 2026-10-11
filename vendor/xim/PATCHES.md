@@ -27,12 +27,26 @@ Changes from the pinned revision:
   Public parser/writer regressions cover count, truncation and state errors.
   The upstream infallible writer API and general attribute-size limits
   remain unchanged; this does not make arbitrary oversized values safe.
+- `xim-parser/src/parser.rs` and `xim-gen/res/snippet.rs`: preserve the
+  synchronous bit in character and keysym commits. `src/client.rs` forwards
+  Both text through the character callback and acknowledges successful
+  synchronous Chars, Keysym and Both requests exactly once. Keysym-only
+  commits still do not dispatch keys. Wire tests cover every flag, Unicode
+  delivery, callback-before-reply ordering and send/callback errors.
 
 Two imported whitespace-only lines in `xim-parser/Cargo.toml` and
 `xim-parser/xim-format.yaml` were normalized for the repository diff check.
 Package configuration, other source, examples and benchmarks remain unchanged.
-No platform composition reset, routing or synchronous-flag behavior is changed. The test
-connection does not exercise a native X11 desktop.
+No platform composition reset or routing is changed. The test connection
+does not exercise a native X11 desktop.
+
+Commit flags and replies follow the X11 XIM
+[specification](https://xorg.freedesktop.org/archive/X11R7.6/doc/libX11/specs/XIM/xim.html),
+sections Synchronizing with the IM Server and Sending a committed string.
+As before, malformed text or a refused callback returns an error before
+acknowledging; Both uses that same behavior. Recovery of a synchronous
+request after these errors remains open: a caller that only logs the error
+can leave the server waiting. This patch establishes valid-path behavior.
 
 ASCII designation behavior follows the X Consortium Compound Text 1.1
 [standard](https://xorg.freedesktop.org/archive/current/doc/xorg-docs/ctext/ctext.html),

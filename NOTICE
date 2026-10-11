@@ -61,6 +61,9 @@ The X11 input-method client is patched locally under `vendor/xim/`.
     Bound HotKeyTriggers counts before allocation, assign parsed states to
     their matching keys, and include all fields in its serialized size.
     Keep that fix in the generator snippet as well as generated parser.
+    Preserve XIM synchronous flags for character and keysym commits;
+    forward combined keysym/text commits through the text callback, and
+    acknowledge successful synchronous commits after callback processing.
     Added actual X11 property-transport/parser tests with an in-memory
     connection, and compound-text decoding regressions. The optional
     parser generator is retained to preserve the original manifests.

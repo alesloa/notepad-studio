@@ -175,13 +175,24 @@ pub fn handle_request<C: ClientCore>(
             input_context_id,
             data,
         } => match data {
-            CommitData::Keysym { keysym: _, .. } => {
+            CommitData::Keysym { syncronous, .. } => {
                 log::warn!("Keysym commit is not supported");
+                if syncronous {
+                    client.send_req(Request::SyncReply {
+                        input_method_id,
+                        input_context_id,
+                    })?;
+                }
                 Ok(())
             }
             CommitData::Chars {
                 commited,
                 syncronous,
+            }
+            | CommitData::Both {
+                commited,
+                syncronous,
+                ..
             } => {
                 let text = xim_ctext::compound_text_to_utf8(&commited)
                     .map_err(|_| ClientError::InvalidReply)?;
@@ -199,10 +210,6 @@ pub fn handle_request<C: ClientCore>(
                     })?;
                 }
 
-                Ok(())
-            }
-            CommitData::Both { .. } => {
-                log::warn!("Both commit data is not supported");
                 Ok(())
             }
         },

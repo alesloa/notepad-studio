@@ -324,7 +324,7 @@ impl XimRead for CommitData {
                 reader.pad4()?;
                 Ok(Self::Chars {
                     commited: bytes.to_vec(),
-                    syncronous: ty == 5,
+                    syncronous: ty == 3,
                 })
             }
             4 | 5 => {
@@ -332,7 +332,7 @@ impl XimRead for CommitData {
                 let keysym = reader.u32()?;
                 Ok(Self::Keysym {
                     keysym,
-                    syncronous: ty == 3,
+                    syncronous: ty == 5,
                 })
             }
             6 | 7 => {

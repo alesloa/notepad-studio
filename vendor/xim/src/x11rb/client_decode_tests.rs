@@ -16,6 +16,8 @@ struct WireConnection {
     setup: Setup,
     property: Vec<u8>,
     sent: RefCell<Vec<Vec<u8>>>,
+    send_attempts: RefCell<usize>,
+    reject_send: bool,
 }
 
 impl HasConnection for WireConnection {
@@ -34,6 +36,8 @@ impl RequestConnection for WireConnection {
     fn send_request_without_reply(&self, bufs: &[IoSlice<'_>], _: Vec<RawFdContainer>)
         -> Result<VoidCookie<'_, Self>, ConnectionError>
     {
+        *self.send_attempts.borrow_mut() += 1;
+        if self.reject_send { return Err(ConnectionError::UnsupportedExtension); }
         self.sent.borrow_mut().push(bufs.iter().flat_map(|buf| buf.iter().copied()).collect());
         Ok(VoidCookie::new(self, 2))
     }
@@ -79,6 +83,9 @@ impl Connection for WireConnection {
 struct Handler {
     delivered: Vec<(u16, u16, String)>,
     reject_reset: bool,
+    reject_commit: bool,
+    commit_calls: usize,
+    ack_seen_during_commit: bool,
 }
 
 impl ClientHandler<X11rbClient<WireConnection>> for Handler {
@@ -89,9 +96,12 @@ impl ClientHandler<X11rbClient<WireConnection>> for Handler {
         self.delivered.push((im, ic, text.into()));
         Ok(())
     }
-    fn handle_commit(&mut self, _: &mut X11rbClient<WireConnection>, im: u16, ic: u16, text: &str)
+    fn handle_commit(&mut self, client: &mut X11rbClient<WireConnection>, im: u16, ic: u16, text: &str)
         -> Result<(), ClientError>
     {
+        self.commit_calls += 1;
+        self.ack_seen_during_commit = !client.has_conn.sent.borrow().is_empty();
+        if self.reject_commit { return Err(ClientError::UnsupportedTransport); }
         self.delivered.push((im, ic, text.into()));
         Ok(())
     }
@@ -260,3 +270,5 @@ fn truncated_wire_returns_protocol_error() {
     assert!(matches!(client.filter_event(&event(2), &mut handler), Err(ClientError::ReadProtocol(_))));
     assert!(handler.delivered.is_empty());
 }
+
+mod commit_tests;

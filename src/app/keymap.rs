@@ -71,7 +71,7 @@ fn dialog_common() -> Vec<(&'static str, Box<dyn Action>)> {
         ("escape", act(EditFindClose)),
         ("f3", act(EditFindNext)),
         ("shift-f3", act(EditFindPrev)),
-        ("shift-enter", act(EditFindPrev)),
+        ("shift-enter", act(EditInsertNewline)),
         ("enter", act(EditInsertNewline)),
         ("backspace", act(EditBackspace)),
         ("delete", act(EditDelete)),

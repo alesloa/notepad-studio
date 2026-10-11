@@ -749,6 +749,8 @@ where
         .text_color(rgb(fg))
         .cursor(cursor)
         .child("▲");
+    #[cfg(test)]
+    let node = node.debug_selector(|| "dialog-direction-previous".to_string());
     if enabled {
         // Same hover/press tones whether the toggle is selected or not. When
         // selected, the resting fill is the accent, and the standard hover

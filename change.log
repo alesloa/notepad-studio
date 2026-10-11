@@ -588,6 +588,9 @@ v0.0.5 — current
     149. Trim Trailing Space now respects selected physical lines and
          refuses rectangular selections. CR-only lines trim correctly;
          Undo and recorded macros preserve the selected scope.
+    150. Find Next/Previous and F3/Shift+F3 keep their explicit directions
+         regardless of the Find dialog's Backward option. The primary
+         button and Enter follow that option; Shift reverses them once.
 
   v0.1.0 — syntax & language:
 

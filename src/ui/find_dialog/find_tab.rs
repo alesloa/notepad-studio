@@ -23,14 +23,14 @@
 // Every checkbox / radio / button routes through a real workspace handler:
 // `In selection` captures the live linear-selection range as the search
 // scope (block selection falls back to full-buffer scan); `Backward
-// direction` inverts both Find Next and Find Prev. The query-history
+// direction` controls the primary button and Enter. The query-history
 // chevron opens a per-input recall ring buffer (see
 // `widgets::text_input_with_chevron` + `FindHistorySlot`).
 
 use gpui::{AnyElement, Entity, div, prelude::*, rems};
 
 use crate::actions::{
-    EditFindAllCurrent, EditFindAllOpened, EditFindCount, EditFindNext, EditFindPrev,
+    EditFindAllCurrent, EditFindAllOpened, EditFindCount, EditFindPrev,
     EditFindToggleCase, EditFindToggleExtended, EditFindToggleRegex, EditFindToggleWord,
     EditFindToggleWrap,
 };
@@ -85,7 +85,7 @@ pub(super) fn render(
         prev_ws.update(cx, |ws, cx| ws.find_prev(&EditFindPrev, w, cx));
     });
     let find_next = dialog_action_button(theme, "Find Next", true, true, move |w, cx| {
-        next_ws.update(cx, |ws, cx| ws.find_next(&EditFindNext, w, cx));
+        next_ws.update(cx, |ws, cx| ws.find_dialog_step(w.modifiers().shift, cx));
     });
     let find_next_row = div()
         .flex()

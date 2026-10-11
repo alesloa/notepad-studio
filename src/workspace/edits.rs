@@ -3,7 +3,7 @@ use std::time::Duration;
 
 use crate::actions::{
     EditBackspace, EditBlockComment, EditCopy, EditCut, EditDelete, EditDeleteLine,
-    EditDuplicateLine, EditFillRight, EditFindNext, EditFindPrev, EditInsertBlankLineAbove,
+    EditDuplicateLine, EditFillRight, EditFindPrev, EditInsertBlankLineAbove,
     EditInsertBlankLineBelow, EditInsertNewline, EditInsertNowTime, EditInsertTab,
     EditInsertTodayDate, EditLowercase, EditMoveLineDown, EditMoveLineUp,
     EditPaste, EditRedo, EditSelectAll, EditStreamComment, EditTrimTrailingWs, EditUndo,
@@ -647,7 +647,8 @@ impl Workspace {
         let focus = self.input_focus(window);
         // Shift+Enter shares this action with Enter (Notepad++ binds both
         // to SCI_NEWLINE). In the find bar and the CSV grid it runs the
-        // reverse step instead; `find_prev` routes each of those.
+        // reverse step instead. Dialog inputs reverse the checkbox's
+        // direction; `find_prev` routes the CSV controls.
         if window.modifiers().shift
             && matches!(
                 focus,
@@ -659,12 +660,16 @@ impl Workspace {
                     | InputFocus::CsvReplaceBar
             )
         {
-            self.find_prev(&EditFindPrev, window, cx);
+            if matches!(focus, InputFocus::FindQuery | InputFocus::Replacement) {
+                self.find_dialog_step(true, cx);
+            } else {
+                self.find_prev(&EditFindPrev, window, cx);
+            }
             return;
         }
         match focus {
             InputFocus::FindQuery | InputFocus::Replacement => {
-                self.find_next(&EditFindNext, window, cx);
+                self.find_dialog_step(false, cx);
             }
             InputFocus::Goto => {
                 self.commit_goto_line(cx);

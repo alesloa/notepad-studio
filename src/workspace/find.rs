@@ -688,7 +688,7 @@ impl Workspace {
     }
 
     /// Flip the Backward direction flag. No match-list refresh needed —
-    /// the flag only affects step direction in find_next / find_prev.
+    /// the flag only affects the dialog's primary search direction.
     pub(crate) fn toggle_find_backward(&mut self, cx: &mut Context<Self>) {
         self.find_state.backward = !self.find_state.backward;
         cx.notify();
@@ -988,14 +988,13 @@ impl Workspace {
     }
 
     pub(crate) fn find_next(&mut self, _: &EditFindNext, _w: &mut Window, cx: &mut Context<Self>) {
-        // Backward direction radio inverts both Find Next and Find Prev so
-        // the persistent toggle behaves like NPP's Up/Down direction radio.
-        let forward = !self.find_state.backward;
+        // PowerEditor/src/NppCommands.cpp:1598-1615 — explicit Find Next
+        // searches down regardless of the dialog's Backward direction.
         crate::settings::push_find_history(
             crate::settings::FindHistorySlot::FindQuery,
             &self.find_state.query,
         );
-        self.step_match(forward, cx);
+        self.step_match(true, cx);
     }
 
     pub(crate) fn find_prev(&mut self, _: &EditFindPrev, _w: &mut Window, cx: &mut Context<Self>) {
@@ -1019,12 +1018,21 @@ impl Workspace {
             crate::ui::csv_doc::actions::replace_all_action(self, cx);
             return;
         }
-        let forward = self.find_state.backward;
         crate::settings::push_find_history(
             crate::settings::FindHistorySlot::FindQuery,
             &self.find_state.query,
         );
-        self.step_match(forward, cx);
+        self.step_match(false, cx);
+    }
+
+    /// PowerEditor/src/ScintillaComponent/FindReplaceDlg.cpp:2080-2110 —
+    /// the primary button/Enter uses the checkbox; Shift reverses it once.
+    pub(crate) fn find_dialog_step(&mut self, reverse: bool, cx: &mut Context<Self>) {
+        crate::settings::push_find_history(
+            crate::settings::FindHistorySlot::FindQuery,
+            &self.find_state.query,
+        );
+        self.step_match(self.find_state.backward == reverse, cx);
     }
 
     /// Apply a replace to a rich-doc match. `range` is a half-open byte
@@ -2491,3 +2499,7 @@ mod all_opened_rich_tests;
 #[cfg(test)]
 #[path = "find_rich_barrier_tests.rs"]
 mod rich_barrier_tests;
+
+#[cfg(test)]
+#[path = "find_direction_tests.rs"]
+mod direction_tests;

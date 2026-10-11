@@ -4,8 +4,8 @@
 // Documents, Close).
 //
 // Every checkbox / radio / button routes through a real workspace handler:
-// `Backward direction` inverts the default Find Next direction (and Find
-// Prev with it); the ▲ button next to Find Next is a one-shot Find
+// `Backward direction` controls the primary button and Enter; the ▲
+// button next to Find Next is a one-shot Find
 // Previous that does NOT mutate the persistent `backward` toggle.
 // `In selection` captures the live linear-selection range as the scope —
 // Replace All only walks matches inside that scope, and the scope's end
@@ -17,7 +17,7 @@
 use gpui::{AnyElement, Entity, div, prelude::*, rems};
 
 use crate::actions::{
-    EditFindAllCurrent, EditFindCount, EditFindNext, EditFindPrev, EditFindToggleCase,
+    EditFindAllCurrent, EditFindCount, EditFindPrev, EditFindToggleCase,
     EditFindToggleExtended, EditFindToggleRegex, EditFindToggleWord, EditFindToggleWrap,
     EditReplaceAll, EditReplaceAllOpened, EditReplaceCurrent,
 };
@@ -88,7 +88,7 @@ pub(super) fn render(
         prev_ws.update(cx, |ws, cx| ws.find_prev(&EditFindPrev, w, cx));
     });
     let find_next = dialog_action_button(theme, "Find Next", true, true, move |w, cx| {
-        next_ws.update(cx, |ws, cx| ws.find_next(&EditFindNext, w, cx));
+        next_ws.update(cx, |ws, cx| ws.find_dialog_step(w.modifiers().shift, cx));
     });
     let find_next_row = div()
         .flex()

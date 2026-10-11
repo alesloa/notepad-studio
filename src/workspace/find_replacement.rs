@@ -128,6 +128,7 @@ impl Workspace {
         cx: &mut Context<Self>,
     ) -> Option<Confirmation> {
         self.cancel_regex_replacement();
+        if self.window_closed { return None; }
         if self.find_state.query.len() > replacement::MAX_TEMPLATE_BYTES
             || self.find_state.replacement.len() > replacement::MAX_TEMPLATE_BYTES
         {
@@ -169,7 +170,8 @@ impl Workspace {
     }
 
     pub(super) fn replacement_confirmation_valid(&self, confirmation: &Confirmation) -> bool {
-        self.regex_replacement.pending == Some(confirmation.id)
+        !self.window_closed
+            && self.regex_replacement.pending == Some(confirmation.id)
             && self
                 .tabs
                 .get(self.active)
@@ -227,6 +229,7 @@ impl Workspace {
 
     pub(super) fn start_regex_replacement(&mut self, mode: Mode, cx: &mut Context<Self>) {
         self.cancel_regex_replacement();
+        if self.window_closed { return; }
         self.close_function_hint(cx);
         let Some(active) = self.tabs.get(self.active) else {
             return;
@@ -479,7 +482,8 @@ impl Workspace {
     }
 
     fn request_valid(&self, request: &Request) -> bool {
-        self.regex_replacement.pending == Some(request.id)
+        !self.window_closed
+            && self.regex_replacement.pending == Some(request.id)
             && self
                 .tabs
                 .get(self.active)
@@ -1004,5 +1008,153 @@ mod tests {
             })
         });
         cx.quit();
+    }
+
+    fn retained_close_fixture(cx: &mut TestAppContext, rich: bool, saved: bool)
+        -> (gpui::Entity<Workspace>, &mut gpui::VisualTestContext)
+    {
+        let (entity, visual) = cx.add_window_view(|_, cx| {
+            let mut w = Workspace::new(
+                cx.focus_handle(), cx.focus_handle(), cx.focus_handle(),
+                cx.focus_handle(), cx.focus_handle(), cx.focus_handle(),
+                1., gpui::WindowAppearance::Dark,
+            );
+            w.active_tab_mut().buffer.rope = ropey::Rope::from_str("a a");
+            if rich {
+                w.active_tab_mut().buffer.rich_doc = Some(
+                    crate::rich_doc::rtf::open_bytes(br"{\rtf1\ansi a a}".to_vec()).unwrap(),
+                );
+                w.active_tab_mut().view_mode = TabViewMode::RichDocView;
+            }
+            let mut other = crate::tab::Tab::empty();
+            other.buffer.rope = ropey::Rope::from_str("a a");
+            w.tabs.push(other);
+            w.session_snapshot_sink = Some(std::sync::mpsc::channel().0);
+            w.session_final_save_result = Some(saved);
+            w.dialog_tab = DialogTab::Replace;
+            w.find_state.open = true;
+            w.find_state.query = "(a)".into();
+            w.find_state.replacement = "$1$1".into();
+            w.find_state.regex = true;
+            w.find_state.match_case = true;
+            w.refresh_matches();
+            w
+        });
+        visual.update(|window, cx| {
+            window.activate_window();
+            window.focus(&entity.read(cx).focus_handle.clone(), cx);
+            let close_entity = entity.clone();
+            window.on_window_should_close(cx, move |_, cx| {
+                close_entity.update(cx, crate::app::quit::save_before_window_close)
+            });
+        });
+        visual.run_until_parked();
+        (entity, visual)
+    }
+
+    fn retained_close_case(rich: bool, mode: Mode, saved: bool) {
+        let _settings = crate::settings::override_for_test(Settings {
+            toolbar_hidden: true,
+            folder_panel_visible: false,
+            ..Settings::default()
+        });
+        let mut cx = TestAppContext::single();
+        let (entity, visual) = retained_close_fixture(&mut cx, rich, saved);
+        let (request, result, original) = visual.update(|_, cx| {
+            entity.update(cx, |w, cx| {
+                assert!(!w.window_closed);
+                w.regex_replacement.hold_worker = true;
+                w.start_regex_replacement(mode, cx);
+                let (request, job) = w.regex_replacement.held.take().unwrap();
+                let original = w.tabs.iter().map(|tab| (
+                    tab.session_id, tab.buffer.rope.clone(), tab.buffer.raw_revision.clone(),
+                )).collect::<Vec<_>>();
+                (request, prepare(job), original)
+            })
+        });
+        assert_eq!(visual.simulate_close(), saved);
+        if saved { visual.update(|window, _| window.remove_window()); }
+        visual.cx.update(|cx| {
+            assert_eq!(cx.windows().is_empty(), saved);
+            entity.update(cx, |w, cx| {
+                assert_eq!(w.window_closed, saved);
+                assert_eq!(w.tabs.len(), original.len());
+                w.finish_regex_replacement(request, result, cx);
+                let expected = if saved { "a a" } else if mode == Mode::Current { "aa a" } else { "aa aa" };
+                if rich {
+                    let payload = w.buffer().rich_doc.as_ref().unwrap();
+                    assert_eq!(payload.flat_search_text().0, expected);
+                    assert_eq!(payload.undo_stack.len(), usize::from(!saved));
+                } else {
+                    assert_eq!(w.buffer().rope.to_string(), expected);
+                    assert_eq!(w.tabs[0].undo_stack.len(), usize::from(!saved));
+                }
+                assert_eq!(w.tabs[1].buffer.rope.to_string(),
+                    if !saved && mode == Mode::AllOpened { "aa aa" } else { "a a" });
+                if saved {
+                    for (tab, (id, rope, revision)) in w.tabs.iter().zip(&original) {
+                        assert_eq!(tab.session_id, *id);
+                        assert!(tab.buffer.rope.is_instance(rope));
+                        assert_eq!(tab.buffer.raw_revision, *revision);
+                        assert!(tab.undo_stack.is_empty());
+                    }
+                    w.start_regex_replacement(mode, cx);
+                    assert!(w.regex_replacement.pending.is_none());
+                    assert!(w.regex_replacement.held.is_none());
+                } else {
+                    assert!(w.status_message.as_deref().unwrap().contains("recovery could not be saved"));
+                }
+            });
+        });
+        visual.run_until_parked();
+        cx.quit();
+    }
+
+    #[test]
+    fn regex_source_close_refuses_late_workers_with_retained_original_buffers() {
+        for mode in [Mode::Current, Mode::All, Mode::AllOpened] { retained_close_case(false, mode, true); }
+    }
+
+    #[test]
+    fn regex_rich_close_refuses_late_workers_with_retained_original_buffers() {
+        for mode in [Mode::Current, Mode::All, Mode::AllOpened] { retained_close_case(true, mode, true); }
+    }
+
+    #[test]
+    fn regex_failed_close_keeps_source_and_rich_workers_usable() {
+        for rich in [false, true] {
+            for mode in [Mode::Current, Mode::All, Mode::AllOpened] { retained_close_case(rich, mode, false); }
+        }
+    }
+
+    #[test]
+    fn replacement_confirmation_cannot_resume_after_successful_application_close() {
+        for regex in [false, true] {
+            let _settings = crate::settings::override_for_test(Settings {
+                toolbar_hidden: true, folder_panel_visible: false,
+                ..Settings::default()
+            });
+            let mut cx = TestAppContext::single();
+            let (entity, visual) = retained_close_fixture(&mut cx, false, true);
+            let confirmation = visual.update(|_, cx| entity.update(cx, |w, cx| {
+                w.find_state.regex = regex;
+                if !regex { w.find_state.query = "a".into(); }
+                w.begin_replace_all_confirmation(cx).unwrap()
+            }));
+            assert!(visual.simulate_close());
+            visual.update(|window, _| window.remove_window());
+            visual.cx.update(|cx| entity.update(cx, |w, cx| {
+                assert!(w.window_closed);
+                assert!(!w.replacement_confirmation_valid(&confirmation));
+                w.resume_replace_all_confirmation(confirmation, cx);
+                assert!(w.begin_replace_all_confirmation(cx).is_none());
+            }));
+            visual.run_until_parked();
+            visual.cx.update(|cx| {
+                let w = entity.read(cx);
+                assert!(w.tabs.iter().all(|tab| tab.buffer.rope.chars().eq("a a".chars()) && tab.undo_stack.is_empty()));
+            });
+            cx.quit();
+        }
     }
 }

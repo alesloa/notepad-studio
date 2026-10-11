@@ -23,7 +23,8 @@ pub(super) fn fixture<'a>(
             WindowAppearance::Dark,
         );
         w.active_tab_mut().buffer.rope = ropey::Rope::from_str(text);
-        w.window_closed = true;
+        w.session_snapshot_sink = Some(std::sync::mpsc::channel().0);
+        w.session_final_save_result = Some(true);
         w.dialog_tab = DialogTab::Replace;
         w.find_state.open = true;
         w.find_state.query = query.into();

@@ -392,6 +392,10 @@ v0.0.5 — current
         their text. Synchronous character and key-symbol replies receive the
         required acknowledgement; asynchronous replies remain asynchronous.
 
+    97. Closing an editor now cancels pending replacements and confirmations.
+        Late workers cannot change the closed window's Source or rich documents;
+        failed recovery saves keep the window and replacement usable.
+
   v0.1.0 — syntax & language:
 
     1. Tree-sitter syntax highlighting for 25 modes: Rust, Python, C,

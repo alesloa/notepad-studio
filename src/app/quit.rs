@@ -186,7 +186,7 @@ pub(super) fn quit_with_recovery(cx: &mut App) {
     }).detach();
 }
 
-pub(super) fn save_before_window_close(
+pub(crate) fn save_before_window_close(
     workspace: &mut crate::workspace::Workspace, cx: &mut gpui::Context<crate::workspace::Workspace>,
 ) -> bool {
     if let Err(err) = workspace.save_session_now() {

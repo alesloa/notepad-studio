@@ -1203,6 +1203,7 @@ impl Workspace {
 
     pub(crate) fn release_session_window(&mut self) {
         self.window_closed = true;
+        self.cancel_regex_replacement();
         session::release_workspace(self.session_window_id);
     }
 

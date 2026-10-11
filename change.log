@@ -164,6 +164,10 @@ v0.0.5 — current
        the complete text, formatting and selection. Empty or blocked edits
        preserve Redo, including nested batches and long history.
 
+   45. Word documents retain styled soft line breaks and tabs, including
+       legacy DOC conversion to DOCX. Invalid XML characters in source or
+       edited text/links report an error before changing a file.
+
   v0.1.0 — syntax & language:
 
     1. Tree-sitter syntax highlighting for 25 modes: Rust, Python, C,

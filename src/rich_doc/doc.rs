@@ -70,7 +70,7 @@ pub fn open(path: &Path) -> Result<RichDocPayload> {
 /// package by hand (Content Types, rels, styles).
 pub fn save_as_docx(payload: &RichDocPayload, target_path: &Path) -> Result<()> {
     super::ensure_text_only(&payload.ast)?;
-    let document_xml = docx_body_for(&payload.ast);
+    let document_xml = docx_body_for(&payload.ast)?;
     let bytes = build_minimal_docx(&document_xml)?;
     super::write_document_bytes(target_path, &bytes)?;
     Ok(())
@@ -78,7 +78,7 @@ pub fn save_as_docx(payload: &RichDocPayload, target_path: &Path) -> Result<()> 
 
 /// Public for `save_as_docx` and tests — produces a `word/document.xml`
 /// payload from a `Document` with no `original_xml` to merge with.
-fn docx_body_for(doc: &ast::Document) -> String {
+fn docx_body_for(doc: &ast::Document) -> Result<String> {
     // Pass an empty doc shell so `serialize_document_xml` finds no namespace
     // attrs or `<w:sectPr>` in the source and falls back to its safe defaults
     // (the canonical `xmlns:w=…` and a self-closed `<w:sectPr/>`).
@@ -894,7 +894,7 @@ mod tests {
 
     #[test]
     fn native_utf16_blank_paragraphs_survive_open_and_docx_export() {
-        let body = "\r\u{FEFF}\u{00E9}\r\rUTF-16 \u{1F600}\tline\r\r";
+        let body = "\r\u{FEFF}\u{00E9}\r\rUTF-16 \u{1F600}\tline\u{000B}break\nnext\r\r";
         let units: Vec<u16> = body.encode_utf16().collect();
         let encoded: Vec<u8> = units.iter().copied().flat_map(u16::to_le_bytes).collect();
         let original = make_doc_bytes(4096);
@@ -914,12 +914,18 @@ mod tests {
         std::fs::write(&source, &bytes).expect("fixture");
         let payload = open(&source).expect("open legacy Word");
         assert_eq!(payload.raw_view_text, body);
-        let expected = vec!["", "\u{FEFF}\u{00E9}", "", "UTF-16 \u{1F600}\tline", ""];
+        let expected = vec!["", "\u{FEFF}\u{00E9}", "", "UTF-16 \u{1F600}\tline\u{000B}break\nnext", ""];
         assert_eq!(paragraph_texts(&payload.ast), expected);
         save_as_docx(&payload, &target).expect("export");
         let reopened = docx::open(&target).expect("reopen DOCX");
-        assert_eq!(paragraph_texts(&reopened.ast), expected);
+        let exported: Vec<String> = expected.iter().map(|text| text.replace('\u{000B}', "\n")).collect();
+        assert_eq!(paragraph_texts(&reopened.ast), exported);
         assert_eq!(std::fs::read(&source).expect("source unchanged"), bytes);
+        let mut invalid = payload.clone();
+        invalid.apply_edit(super::super::edits::Edit::InsertText { block: 1, run: 0, byte: 0, text: "\0".into() });
+        let target_bytes = std::fs::read(&target).expect("exported file");
+        assert!(matches!(save_as_docx(&invalid, &target), Err(RichDocError::Docx(_))));
+        assert_eq!(std::fs::read(&target).expect("target unchanged"), target_bytes);
     }
 
     #[test]

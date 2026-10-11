@@ -7,7 +7,7 @@
 use super::{ast, container, DocFormat, RichDocError, RichDocPayload, Result};
 use docx_rust::{
     document::{
-        BodyContent, ParagraphContent, RunContent, Table, TableCellContent, TableRowContent,
+        BodyContent, BreakType, ParagraphContent, RunContent, Table, TableCellContent, TableRowContent,
     },
     formatting::{CharacterProperty, ParagraphProperty},
     DocxFile,
@@ -22,6 +22,7 @@ pub fn open(path: &Path) -> Result<RichDocPayload> {
     let original_bytes = std::fs::read(path)?;
     container::check_archive(&original_bytes)?;
     let raw_view_text = container::read_zip_entry_text(path, "word/document.xml")?;
+    validate_xml_characters(&raw_view_text)?;
     let rels_xml =
         container::read_zip_entry_text(path, "word/_rels/document.xml.rels").unwrap_or_default();
     let rels = parse_rels(&rels_xml);
@@ -71,7 +72,7 @@ pub fn save(payload: &RichDocPayload, path: &Path) -> Result<()> {
     let original_rels = read_rels_from_bytes(&payload.original_bytes).unwrap_or_default();
     let existing_hyperlinks = parse_existing_hyperlinks(&original_rels);
     let mut links = LinkAllocator::with_existing(existing_hyperlinks);
-    let new_doc_xml = serialize_document_xml_with_links(&payload.ast, &payload.raw_view_text, &mut links);
+    let new_doc_xml = serialize_document_xml_with_links(&payload.ast, &payload.raw_view_text, &mut links)?;
 
     // If any block in the AST carries list membership, the saved file must
     // include matching numbering definitions or Word/LibreOffice will
@@ -123,12 +124,15 @@ pub fn save(payload: &RichDocPayload, path: &Path) -> Result<()> {
     let mut replacements: Vec<(&str, Vec<u8>)> = Vec::new();
     replacements.push(("word/document.xml", new_doc_xml.into_bytes()));
     if let Some(r) = final_rels {
+        validate_xml_characters(&r)?;
         replacements.push(("word/_rels/document.xml.rels", r.into_bytes()));
     }
     if let Some(n) = new_numbering {
+        validate_xml_characters(&n)?;
         replacements.push(("word/numbering.xml", n.into_bytes()));
     }
     if let Some(ct) = new_content_types {
+        validate_xml_characters(&ct)?;
         replacements.push(("[Content_Types].xml", ct.into_bytes()));
     }
     let ref_replacements: Vec<(&str, &[u8])> = replacements
@@ -343,7 +347,7 @@ impl LinkAllocator {
 /// we don't model (alignment, indentation, font color, lists, tables, images,
 /// custom run properties) is *dropped*. That's Phase 2 scope: bold/italic/underline
 /// round-trip without claiming to preserve arbitrary Word formatting.
-pub(super) fn serialize_document_xml(ast: &ast::Document, original_xml: &str) -> String {
+pub(super) fn serialize_document_xml(ast: &ast::Document, original_xml: &str) -> Result<String> {
     // External callers (Phase 4 Save As .docx) don't care about link rels —
     // they build fresh documents from scratch with no hyperlinks. Drop the
     // allocator on the floor for them.
@@ -355,7 +359,7 @@ pub(super) fn serialize_document_xml_with_links(
     ast: &ast::Document,
     original_xml: &str,
     links: &mut LinkAllocator,
-) -> String {
+) -> Result<String> {
     let ns_attrs = extract_namespace_attrs(original_xml);
     let sect_pr = extract_sect_pr(original_xml).unwrap_or_else(|| "<w:sectPr/>".to_string());
 
@@ -368,11 +372,52 @@ pub(super) fn serialize_document_xml_with_links(
     }
     out.push_str("><w:body>");
     for b in &ast.blocks {
+        if let ast::Block::Paragraph { runs, .. } | ast::Block::Heading { runs, .. } = b {
+            for run in runs {
+                if let Some(url) = run.style.link.as_deref() {
+                    validate_characters(url)?;
+                }
+            }
+        }
         serialize_block(&mut out, b, links);
     }
     out.push_str(&sect_pr);
     out.push_str("</w:body></w:document>");
-    out
+    validate_xml_characters(&out)?;
+    Ok(out)
+}
+
+// XML 1.0 section 2.2: numeric character references must obey Char as well.
+// https://www.w3.org/TR/xml/#charsets
+fn validate_characters(text: &str) -> Result<()> {
+    if let Some(ch) = text.chars().find(|ch| !matches!(*ch,
+        '\t' | '\n' | '\r' | '\u{0020}'..='\u{D7FF}' | '\u{E000}'..='\u{FFFD}' | '\u{10000}'..='\u{10FFFF}')) {
+        return Err(RichDocError::Docx(format!("forbidden XML character U+{:04X}", ch as u32)));
+    }
+    Ok(())
+}
+
+fn validate_xml_characters(xml: &str) -> Result<()> {
+    validate_characters(xml)?;
+    let mut reader = QxReader::from_str(xml);
+    loop {
+        match reader.read_event().map_err(|err| RichDocError::Docx(err.to_string()))? {
+            QxEvent::Eof => return Ok(()),
+            QxEvent::Text(text) => {
+                let decoded = text.unescape().map_err(|err| RichDocError::Docx(err.to_string()))?;
+                validate_characters(&decoded)?;
+            }
+            QxEvent::Start(element) | QxEvent::Empty(element) => {
+                for attr in element.attributes() {
+                    let attr = attr.map_err(|err| RichDocError::Docx(err.to_string()))?;
+                    let decoded = attr.decode_and_unescape_value(reader.decoder())
+                        .map_err(|err| RichDocError::Docx(err.to_string()))?;
+                    validate_characters(&decoded)?;
+                }
+            }
+            _ => {}
+        }
+    }
 }
 
 /// Pull the attribute list from the opening `<w:document …>` element of the
@@ -469,22 +514,23 @@ fn serialize_block(out: &mut String, block: &ast::Block, links: &mut LinkAllocat
         ast::Block::Paragraph { runs, .. } | ast::Block::Heading { runs, .. } => runs,
         ast::Block::Table { .. } | ast::Block::Image { .. } => return,
     };
+    let mut previous_was_cr = false;
     for r in runs {
         if let Some(url) = r.style.link.as_deref() {
             let rid = links.intern(url);
             out.push_str("<w:hyperlink r:id=\"");
             push_xml_escaped(out, &rid);
             out.push_str("\">");
-            serialize_run(out, r);
+            serialize_run(out, r, &mut previous_was_cr);
             out.push_str("</w:hyperlink>");
         } else {
-            serialize_run(out, r);
+            serialize_run(out, r, &mut previous_was_cr);
         }
     }
     out.push_str("</w:p>");
 }
 
-fn serialize_run(out: &mut String, run: &ast::InlineRun) {
+fn serialize_run(out: &mut String, run: &ast::InlineRun, previous_was_cr: &mut bool) {
     out.push_str("<w:r>");
     let has_rpr = run.style.bold
         || run.style.italic
@@ -514,9 +560,32 @@ fn serialize_run(out: &mut String, run: &ast::InlineRun) {
         }
         out.push_str("</w:rPr>");
     }
-    out.push_str("<w:t xml:space=\"preserve\">");
-    xml_escape_into(out, &run.text);
-    out.push_str("</w:t></w:r>");
+    let mut text_open = false;
+    for ch in run.text.chars() {
+        let follows_cr = *previous_was_cr;
+        *previous_was_cr = ch == '\r';
+        if ch == '\n' && follows_cr {
+            continue;
+        }
+        if matches!(ch, '\t' | '\r' | '\n' | '\u{000B}') {
+            if text_open {
+                out.push_str("</w:t>");
+                text_open = false;
+            }
+            out.push_str(if ch == '\t' { "<w:tab/>" } else { "<w:br/>" });
+        } else {
+            if !text_open {
+                out.push_str("<w:t xml:space=\"preserve\">");
+                text_open = true;
+            }
+            let mut utf8 = [0; 4];
+            xml_escape_into(out, ch.encode_utf8(&mut utf8));
+        }
+    }
+    if text_open {
+        out.push_str("</w:t>");
+    }
+    out.push_str("</w:r>");
 }
 
 fn push_hex6(out: &mut String, rgb: u32) {
@@ -1073,6 +1142,7 @@ fn read_header_footer_blocks(
             continue;
         }
         let xml = container::read_zip_entry_text(path, &name)?;
+        validate_xml_characters(&xml)?;
         out.push(parse_paragraphs_from_xml(&xml));
     }
     Ok(out)
@@ -1080,7 +1150,7 @@ fn read_header_footer_blocks(
 
 /// Lightweight DOCX paragraph walker — handles `<w:p>` with optional `<w:pStyle
 /// w:val="HeadingN"/>`, `<w:r>` runs whose `<w:rPr>` may carry `<w:b/>`,
-/// `<w:i/>`, `<w:u w:val="..."/>`, and `<w:t>` text. Drops everything else
+/// `<w:i/>`, `<w:u w:val="..."/>`, `<w:t>` text, soft breaks and tabs. Drops everything else
 /// (drawings, fields, comments, math). Used for headers and footers where
 /// docx-rust doesn't give us a typed entry point without re-exporting hard_xml.
 fn parse_paragraphs_from_xml(xml: &str) -> Vec<ast::Block> {
@@ -1122,12 +1192,18 @@ fn parse_paragraphs_from_xml(xml: &str) -> Vec<ast::Block> {
                         in_t = true;
                         run_text.clear();
                     }
+                    b"br" | b"cr" | b"tab" if in_r && !in_rpr => {
+                        append_xml_control(&mut cur_runs, local, e, &run_style);
+                    }
                     _ => {}
                 }
             }
             Ok(QxEvent::Empty(ref e)) => {
                 let name = e.name();
                 let local = name.as_ref().rsplit(|b| *b == b':').next().unwrap_or(name.as_ref());
+                if in_r && !in_rpr {
+                    append_xml_control(&mut cur_runs, local, e, &run_style);
+                }
                 if in_rpr {
                     match local {
                         b"b" => run_style.bold = true,
@@ -1208,6 +1284,16 @@ fn parse_paragraphs_from_xml(xml: &str) -> Vec<ast::Block> {
         buf.clear();
     }
     blocks
+}
+
+fn append_xml_control(runs: &mut Vec<ast::InlineRun>, name: &[u8], element: &quick_xml::events::BytesStart, style: &ast::InlineStyle) {
+    let text = match name {
+        b"tab" => "\t",
+        b"cr" => "\n",
+        b"br" if read_xml_attr(element, "type").is_none_or(|ty| ty == "textWrapping") => "\n",
+        _ => return,
+    };
+    runs.push(ast::InlineRun { text: text.into(), style: style.clone() });
 }
 
 fn read_xml_attr(e: &quick_xml::events::BytesStart, target_local: &str) -> Option<String> {
@@ -1348,15 +1434,15 @@ fn collect_runs_with_rels(
 
 fn emit_run_text(out: &mut Vec<ast::InlineRun>, r: &docx_rust::document::Run, style: &ast::InlineStyle) {
     for rc in &r.content {
-        if let RunContent::Text(t) = rc {
-            let text: String = t.text.as_ref().to_owned();
-            if text.is_empty() {
-                continue;
-            }
-            out.push(ast::InlineRun {
-                text,
-                style: style.clone(),
-            });
+        let text = match rc {
+            RunContent::Text(text) => text.text.as_ref(),
+            RunContent::Tab(_) => "\t",
+            RunContent::CarriageReturn(_) => "\n",
+            RunContent::Break(br) if matches!(br.ty, None | Some(BreakType::TextWrapping)) => "\n",
+            _ => continue,
+        };
+        if !text.is_empty() {
+            out.push(ast::InlineRun { text: text.into(), style: style.clone() });
         }
     }
 }
@@ -1395,6 +1481,131 @@ mod tests {
         p.push("src/rich_doc/fixtures");
         p.push(name);
         p
+    }
+
+    const CONTROL_PARAGRAPHS: &str = "<w:p><w:r><w:rPr><w:b/><w:i/><w:u w:val=\"single\"/></w:rPr><w:t>A\u{00E9}</w:t><w:br/><w:t>B</w:t><w:br w:type=\"textWrapping\"></w:br><w:t>C</w:t><w:cr/><w:t>D</w:t><w:tab/><w:t>E\u{1F600}</w:t></w:r><w:r><w:t>plain</w:t></w:r></w:p><w:p><w:r><w:tab/><w:cr></w:cr></w:r></w:p>";
+
+    fn control_fixture(path: &Path) -> Vec<u8> {
+        let original = std::fs::read(fixture("hello.docx")).expect("fixture");
+        let document = format!("<w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\" xmlns:r=\"http://schemas.openxmlformats.org/officeDocument/2006/relationships\"><w:body>{CONTROL_PARAGRAPHS}</w:body></w:document>");
+        let header = format!("<w:hdr xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\">{CONTROL_PARAGRAPHS}</w:hdr>");
+        let footer = header.replace("w:hdr", "w:ftr");
+        let bytes = container::replace_zip_entries(&original, &[
+            ("word/document.xml", document.as_bytes()), ("word/header1.xml", header.as_bytes()),
+            ("word/footer1.xml", footer.as_bytes()),
+        ]).expect("parts");
+        std::fs::write(path, &bytes).expect("fixture");
+        bytes
+    }
+
+    fn block_runs(block: &ast::Block) -> &[ast::InlineRun] {
+        match block {
+            ast::Block::Paragraph { runs, .. } | ast::Block::Heading { runs, .. } => runs,
+            _ => panic!("text fixture"),
+        }
+    }
+
+    fn block_text(block: &ast::Block) -> String {
+        block_runs(block).iter().map(|run| run.text.as_str()).collect()
+    }
+
+    fn check_control_blocks(blocks: &[ast::Block]) {
+        assert_eq!(blocks.len(), 2);
+        assert_eq!(block_text(&blocks[0]), "A\u{00E9}\nB\nC\nD\tE\u{1F600}plain");
+        assert_eq!(block_text(&blocks[1]), "\t\n");
+        let runs = block_runs(&blocks[0]);
+        for run in runs.iter().filter(|run| run.text != "plain") {
+            assert!(run.style.bold && run.style.italic && run.style.underline, "{run:?}");
+        }
+        assert_eq!(runs.last().expect("plain").style, ast::InlineStyle::default());
+    }
+
+    #[test]
+    fn body_breaks_and_tabs_keep_their_text_and_style() {
+        let dir = crate::persist::TempDir::new("docx-body-controls");
+        let path = dir.join("controls.docx");
+        let bytes = control_fixture(&path);
+        let payload = open(&path).expect("open");
+        check_control_blocks(&payload.ast.blocks);
+        save(&payload, &path).expect("unchanged save");
+        assert_eq!(std::fs::read(path).expect("unchanged bytes"), bytes);
+    }
+
+    #[test]
+    fn header_and_footer_breaks_and_tabs_keep_their_text_and_style() {
+        let dir = crate::persist::TempDir::new("docx-header-controls");
+        let path = dir.join("controls.docx");
+        control_fixture(&path);
+        let payload = open(&path).expect("open");
+        assert_eq!(payload.headers.len(), 1);
+        assert_eq!(payload.footers.len(), 1);
+        check_control_blocks(&payload.headers[0]);
+        check_control_blocks(&payload.footers[0]);
+    }
+
+    #[test]
+    fn edited_soft_breaks_and_tabs_reopen_without_doubling_crlf() {
+        let dir = crate::persist::TempDir::new("docx-edited-controls");
+        let path = dir.join("controls.docx");
+        control_fixture(&path);
+        let mut payload = open(&path).expect("open");
+        let bold = ast::InlineStyle { bold: true, ..Default::default() };
+        let italic = ast::InlineStyle { italic: true, color: Some(0x123456), link: Some("https://example.test/".into()), ..Default::default() };
+        payload.ast.blocks = vec![ast::Block::Paragraph { runs: vec![
+            ast::InlineRun { text: "\u{00E9}\r".into(), style: bold.clone() },
+            ast::InlineRun { text: "\n\u{1F600}\tX\u{000B} Y\r\nZ\n".into(), style: italic.clone() },
+        ], props: Default::default() }];
+        payload.apply_edit(super::super::edits::Edit::InsertText { block: 0, run: 0, byte: 0, text: "!".into() });
+        let header = container::read_zip_entry_text(&path, "word/header1.xml").expect("header");
+        let footer = container::read_zip_entry_text(&path, "word/footer1.xml").expect("footer");
+        save(&payload, &path).expect("save");
+        let xml = container::read_zip_entry_text(&path, "word/document.xml").expect("XML");
+        assert!(!xml.contains('\u{000B}'));
+        assert_eq!(xml.matches("<w:br/>").count(), 4);
+        assert_eq!(xml.matches("<w:tab/>").count(), 1);
+        let reopened = open(&path).expect("reopen");
+        assert_eq!(block_text(&reopened.ast.blocks[0]), "!\u{00E9}\n\u{1F600}\tX\n Y\nZ\n");
+        let actual: Vec<_> = block_runs(&reopened.ast.blocks[0]).iter()
+            .flat_map(|run| run.text.chars().map(|ch| (ch, run.style.clone()))).collect();
+        let expected: Vec<_> = "!\u{00E9}\n".chars().map(|ch| (ch, bold.clone()))
+            .chain("\u{1F600}\tX\n Y\nZ\n".chars().map(|ch| (ch, italic.clone()))).collect();
+        assert_eq!(actual, expected);
+        assert_eq!(container::read_zip_entry_text(&path, "word/header1.xml").expect("header"), header);
+        assert_eq!(container::read_zip_entry_text(&path, "word/footer1.xml").expect("footer"), footer);
+    }
+
+    #[test]
+    fn forbidden_xml_text_and_links_refuse_save_without_changing_file() {
+        let dir = crate::persist::TempDir::new("docx-forbidden-controls");
+        let path = dir.join("controls.docx");
+        let original = control_fixture(&path);
+        for ch in ['\0', '\u{0001}', '\u{000C}', '\u{001F}', '\u{FFFE}', '\u{FFFF}'] {
+            let mut payload = open(&path).expect("open");
+            payload.apply_edit(super::super::edits::Edit::InsertText { block: 0, run: 0, byte: 0, text: ch.to_string() });
+            assert!(matches!(save(&payload, &path), Err(RichDocError::Docx(_))), "U+{:04X}", ch as u32);
+            assert_eq!(std::fs::read(&path).expect("original bytes"), original);
+        }
+        let mut payload = open(&path).expect("open");
+        payload.apply_edit(super::super::edits::Edit::SetBlockLink { block: 0, url: Some("https://example.test/\u{000B}".into()) });
+        assert!(matches!(save(&payload, &path), Err(RichDocError::Docx(_))));
+        assert_eq!(std::fs::read(path).expect("original bytes"), original);
+    }
+
+    #[test]
+    fn forbidden_source_xml_and_character_references_are_rejected() {
+        let dir = crate::persist::TempDir::new("docx-forbidden-input");
+        let path = dir.join("controls.docx");
+        let original = std::fs::read(fixture("hello.docx")).expect("fixture");
+        for (part, root) in [("word/document.xml", "document"), ("word/header1.xml", "hdr"), ("word/footer1.xml", "ftr")] {
+            for text in ["<w:t>\u{000B}</w:t>", "<w:t>&#xB;</w:t>", "<w:t data-test=\"&#xB;\">valid</w:t>"] {
+                let paragraph = format!("<w:p><w:r>{text}</w:r></w:p>");
+                let content = if root == "document" { format!("<w:body>{paragraph}</w:body>") } else { paragraph };
+                let xml = format!("<w:{root} xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\">{content}</w:{root}>");
+                let bytes = container::replace_zip_entry(&original, part, xml.as_bytes()).expect("parts");
+                std::fs::write(&path, bytes).expect("fixture");
+                assert!(open(&path).is_err(), "{part}: {text:?}");
+            }
+        }
     }
 
     #[test]
@@ -1471,7 +1682,7 @@ mod tests {
                 props: ast::BlockProps::default(),
             }],
         };
-        let xml = serialize_document_xml(&doc, "<w:document xmlns:w=\"ns\"><w:body></w:body></w:document>");
+        let xml = serialize_document_xml(&doc, "<w:document xmlns:w=\"ns\"><w:body></w:body></w:document>").expect("serialize");
         assert!(xml.contains("<w:body>"));
         assert!(xml.contains("<w:p>"));
         assert!(xml.contains("<w:b/>"));
@@ -1487,7 +1698,7 @@ mod tests {
                 props: ast::BlockProps::default(),
             }],
         };
-        let xml = serialize_document_xml(&doc, "<w:document xmlns:w=\"ns\"></w:document>");
+        let xml = serialize_document_xml(&doc, "<w:document xmlns:w=\"ns\"></w:document>").expect("serialize");
         assert!(xml.contains("<w:pStyle w:val=\"Heading2\"/>"));
         assert!(xml.contains(">Title</w:t>"));
     }

@@ -35,6 +35,8 @@ use super::completion_api::ApiSnapshot;
 pub(crate) struct AutocompleteState {
     /// Identifies this opening even if another popup has identical candidates.
     pub(crate) session_id: uuid::Uuid,
+    /// Pinned once; focus returning before a frame cannot revive this opening.
+    input_context: Option<gpui::InputContextToken>,
     pub(crate) candidates: Vec<String>,
     /// Refilter until the prefix broadens or a capped pool needs new matches.
     pub(crate) candidate_pool: Vec<String>,
@@ -360,6 +362,7 @@ impl Workspace {
         });
         self.autocomplete = Some(AutocompleteState {
             session_id: uuid::Uuid::new_v4(),
+            input_context: None,
             candidate_pool: candidates.clone(),
             pool_prefix,
             source,
@@ -456,7 +459,9 @@ impl Workspace {
     }
 
     pub(super) fn watch_autocomplete_focus(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        let Some(session_id) = self.autocomplete.as_ref().map(|state| state.session_id) else { return; };
+        let Some(state) = self.autocomplete.as_mut() else { return; };
+        state.input_context.get_or_insert_with(|| window.input_context_token());
+        let session_id = state.session_id;
         if self.autocomplete_blur_subscription.is_none() {
             let focus = self.focus_handle.clone();
             self.autocomplete_blur_subscription = Some(cx.on_blur(&focus, window, move |w, _, cx| {
@@ -484,6 +489,7 @@ impl Workspace {
     pub(crate) fn autocomplete_context_valid(&self, window: &Window) -> bool {
         let Some(state) = self.autocomplete.as_ref() else { return false; };
         window.is_window_active() && self.focus_handle.is_focused(window)
+            && state.input_context.as_ref().is_some_and(|token| *token == window.input_context_token())
             && self.input_focus(window) == InputFocus::Editor
             && self.autocomplete_editable()
             && self.tabs.get(self.active).is_some_and(|tab| tab.session_id == state.tab_id)

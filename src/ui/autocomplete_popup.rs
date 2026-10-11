@@ -553,6 +553,90 @@ mod tests {
     }
 
     #[test]
+    fn painted_suggestion_cannot_accept_after_same_frame_focus_round_trip() {
+        let mut cx = gpui::TestAppContext::single();
+        let (fixture, visual) = fixture(&mut cx, 120.);
+        let popup = visual.debug_bounds("autocomplete-menu").unwrap();
+        visual.update(|window, cx| {
+            let workspace = fixture.read(cx).workspace.clone();
+            workspace.update(cx, |w, cx| {
+                let context = window.input_context_token();
+                window.focus(&w.find_focus, cx);
+                window.focus(&w.focus_handle, cx);
+                assert!(window.input_context_token() != context);
+            });
+            // Deliver the row event from the painted frame before deferred blur runs.
+            window.simulate_mouse_down(gpui::MouseDownEvent {
+                position: popup.origin + point(px(12.), px(12.)),
+                ..Default::default()
+            }, cx);
+            let w = workspace.read(cx);
+            assert_eq!(w.buffer().rope.to_string(), "al\nalpha albatross alpine");
+            assert!(w.autocomplete.is_none());
+            assert!(w.tabs[w.active].undo_stack.is_empty());
+            assert_eq!(fixture.read(cx).outside_clicks, 0);
+        });
+        cx.quit();
+    }
+
+    #[test]
+    fn current_suggestion_survives_noop_focus_activation_and_repaint() {
+        let mut cx = gpui::TestAppContext::single();
+        let (fixture, visual) = fixture(&mut cx, 120.);
+        visual.update(|window, cx| {
+            let workspace = fixture.read(cx).workspace.clone();
+            let focus = workspace.read(cx).focus_handle.clone();
+            let context = window.input_context_token();
+            window.focus(&focus, cx);
+            window.activate_window();
+            let _ = window.draw(cx);
+            assert!(window.input_context_token() == context);
+        });
+        let popup = visual.debug_bounds("autocomplete-menu").unwrap();
+        visual.simulate_click(popup.origin + point(px(12.), px(12.)), gpui::Modifiers::none());
+        visual.update(|_, cx| {
+            let w = fixture.read(cx).workspace.read(cx);
+            assert_eq!(w.buffer().rope.to_string(), "albatross\nalpha albatross alpine");
+            assert!(w.autocomplete.is_none());
+            assert_eq!(w.tabs[w.active].undo_stack.len(), 1);
+        });
+        cx.quit();
+    }
+
+    #[test]
+    fn fresh_suggestion_after_focus_return_rejects_the_old_painted_row() {
+        let mut cx = gpui::TestAppContext::single();
+        let (fixture, visual) = fixture(&mut cx, 120.);
+        let popup = visual.debug_bounds("autocomplete-menu").unwrap();
+        visual.update(|window, cx| {
+            let workspace = fixture.read(cx).workspace.clone();
+            let session = workspace.update(cx, |w, cx| {
+                let old = w.autocomplete.as_ref().unwrap().session_id;
+                window.focus(&w.find_focus, cx);
+                window.focus(&w.focus_handle, cx);
+                w.autocomplete_word(&crate::actions::EditAutocompleteWord, window, cx);
+                let fresh = w.autocomplete.as_ref().unwrap().session_id;
+                assert_ne!(old, fresh);
+                fresh
+            });
+            window.simulate_mouse_down(gpui::MouseDownEvent {
+                position: popup.origin + point(px(12.), px(12.)),
+                ..Default::default()
+            }, cx);
+            let w = workspace.read(cx);
+            assert_eq!(w.autocomplete.as_ref().map(|state| state.session_id), Some(session));
+            assert_eq!(w.buffer().rope.to_string(), "al\nalpha albatross alpine");
+            assert!(w.tabs[w.active].undo_stack.is_empty());
+        });
+        visual.run_until_parked();
+        let popup = visual.debug_bounds("autocomplete-menu").unwrap();
+        visual.simulate_click(popup.origin + point(px(12.), px(12.)), gpui::Modifiers::none());
+        visual.update(|_, cx| assert_eq!(fixture.read(cx).workspace.read(cx).buffer().rope.to_string(),
+            "albatross\nalpha albatross alpine"));
+        cx.quit();
+    }
+
+    #[test]
     fn clicking_menu_padding_does_not_move_the_editor_caret() {
         let mut cx = gpui::TestAppContext::single();
         let (fixture, visual) = fixture(&mut cx, 120.);

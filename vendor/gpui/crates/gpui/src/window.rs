@@ -4952,6 +4952,12 @@ impl Window {
         });
         let _ = self.dispatch_event(event, cx);
     }
+
+    /// Dispatch a painted mouse callback without draining deferred focus events.
+    #[cfg(any(test, feature = "test-support"))]
+    pub fn simulate_mouse_down(&mut self, event: crate::MouseDownEvent, cx: &mut App) {
+        let _ = self.dispatch_event(PlatformInput::MouseDown(event), cx);
+    }
 }
 
 // #[derive(Clone, Copy, Eq, PartialEq, Hash)]

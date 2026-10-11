@@ -157,6 +157,8 @@ mod test_snapshot;
 pub(crate) use test_snapshot::override_for_test as override_snapshot_for_test;
 
 fn global() -> &'static Mutex<RecentFiles> {
+    #[cfg(test)]
+    assert!(test_snapshot::snapshot().is_none(), "isolated recent fixture reached user state");
     GLOBAL.get_or_init(|| Mutex::new(load()))
 }
 
@@ -175,6 +177,8 @@ pub(crate) fn snapshot() -> Vec<PathBuf> {
 
 /// Push `path` to the front of the global MRU list and persist to disk.
 pub(crate) fn record_opened(path: PathBuf) {
+    #[cfg(test)]
+    if test_snapshot::mutate(|recent| recent.push(path.clone())) { return; }
     if let Ok(mut g) = global().lock() {
         g.push(path);
         save(&g);
@@ -183,6 +187,8 @@ pub(crate) fn record_opened(path: PathBuf) {
 
 /// Empty the global MRU list and persist the cleared state.
 pub(crate) fn clear_global() {
+    #[cfg(test)]
+    if test_snapshot::mutate(RecentFiles::clear) { return; }
     if let Ok(mut g) = global().lock() {
         g.clear();
         save(&g);
@@ -192,6 +198,8 @@ pub(crate) fn clear_global() {
 /// Drop a single entry from the MRU list. Used when the user confirms
 /// removal of a stale recent (file no longer exists on disk).
 pub(crate) fn remove_path(path: &Path) {
+    #[cfg(test)]
+    if test_snapshot::mutate(|recent| recent.paths.retain(|entry| entry != path)) { return; }
     if let Ok(mut g) = global().lock() {
         let before = g.paths.len();
         g.paths.retain(|p| p != path);

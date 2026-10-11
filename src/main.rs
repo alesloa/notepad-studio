@@ -23,6 +23,7 @@ mod config;
 mod consts;
 mod edit_ops;
 mod editor_element;
+mod find_block_map;
 mod find_in_files;
 mod find_state;
 mod fonts;

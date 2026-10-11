@@ -611,7 +611,7 @@ impl Workspace {
                 active_matches = Some((
                     plan.matches,
                     plan.scope,
-                    plan.rich.as_ref().map(|p| p.offsets.clone()),
+                    plan.rich.as_ref().map(|p| crate::find_block_map::FindBlockMap::legacy(p.offsets.clone())),
                 ));
             }
             if plan.edits.is_empty() {
@@ -666,7 +666,7 @@ impl Workspace {
                 .map_or(self.selection().head, |(payload, offsets)| {
                     payload
                         .selection
-                        .map_or(0, |s| payload.global_flat_for_pos(offsets, s.cursor))
+                        .map_or(0, |s| payload.global_flat_for_pos(offsets.as_slice(), s.cursor))
                 });
             self.find_state.matches = matches;
             self.find_state.rich_doc_block_offsets = rich_offsets;

@@ -593,7 +593,7 @@ impl Render for Workspace {
                             self.find_state.rich_doc_block_offsets.as_ref(),
                             self.tabs[self.active].buffer.rich_doc.as_ref(),
                         ) {
-                            let per_block = payload.matches_per_block(offsets, &self.find_state.matches);
+                            let per_block = payload.matches_per_block(offsets.as_slice(), &self.find_state.matches);
                             let current = self.find_state.current;
                             for (block_idx, lo, hi, mi) in per_block {
                                 let is_current = current == Some(mi);

@@ -172,7 +172,7 @@ fn no_op_rich_document_actions_do_not_schedule_recovery() {
         w.rich_doc_shift_heading(HeadingShift::Demote, cx); // Plain paragraph.
         w.rich_doc_paste_formatted(Vec::new(), cx);
         let payload = w.buffer().rich_doc.as_ref().expect("rich fixture");
-        w.find_state.rich_doc_block_offsets = Some(payload.flat_search_text().1);
+        w.find_state.rich_doc_block_offsets = Some(crate::find_block_map::FindBlockMap::legacy(payload.flat_search_text().1));
         assert_eq!(w.replace_rich_doc_ranges(&[], "中", cx), 0);
         assert_eq!(w.replace_rich_doc_ranges(std::slice::from_ref(&(0..0)), "", cx), 0);
         let payload = w.active_tab_mut().buffer.rich_doc.as_mut().expect("rich fixture");
@@ -195,7 +195,7 @@ fn rich_replace_schedules_one_recovery_for_the_batch() {
         let entity = workspace(&mut cx);
         entity.update(&mut cx, |w, cx| {
             let payload = w.buffer().rich_doc.as_ref().expect("rich fixture");
-            w.find_state.rich_doc_block_offsets = Some(payload.flat_search_text().1);
+            w.find_state.rich_doc_block_offsets = Some(crate::find_block_map::FindBlockMap::legacy(payload.flat_search_text().1));
             let generation = w.autosave_generation;
             assert_eq!(w.replace_rich_doc_ranges(&ranges, "中", cx), ranges.len());
             let expected = if ranges.len() == 1 { "中é" } else { "中中é" };
@@ -218,7 +218,7 @@ fn read_only_rich_replace_preserves_the_document() {
             w.active_tab_mut().buffer.read_only = true;
             let payload = w.buffer().rich_doc.as_ref().expect("rich fixture");
             let before = payload.ast.clone();
-            w.find_state.rich_doc_block_offsets = Some(payload.flat_search_text().1);
+            w.find_state.rich_doc_block_offsets = Some(crate::find_block_map::FindBlockMap::legacy(payload.flat_search_text().1));
             let generation = w.autosave_generation;
             assert_eq!(w.replace_rich_doc_ranges(&ranges, "中", cx), 0);
             let payload = w.buffer().rich_doc.as_ref().expect("rich fixture");
@@ -388,7 +388,7 @@ fn rich_replace_batches_with_insertions_are_single_undo_actions() {
             cx.update_window_entity(&entity, |w, window, cx| {
                 Mutation::Text.prepare(w);
                 let payload = w.buffer().rich_doc.as_ref().expect("rich fixture");
-                w.find_state.rich_doc_block_offsets = Some(payload.flat_search_text().1);
+                w.find_state.rich_doc_block_offsets = Some(crate::find_block_map::FindBlockMap::legacy(payload.flat_search_text().1));
                 assert_single_history_action(w, window, cx, |w, _, cx| {
                     assert_eq!(w.replace_rich_doc_ranges(&ranges, "中", cx), ranges.len());
                 });

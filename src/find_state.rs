@@ -81,7 +81,7 @@ pub(crate) struct FindState {
     /// map captured at `refresh_matches` time. `Some(_)` means `matches`
     /// indexes the joined flat text; navigation / replace / highlight all
     /// branch on this. `None` for plain-text tabs.
-    pub(crate) rich_doc_block_offsets: Option<Vec<(usize, usize, usize)>>,
+    pub(crate) rich_doc_block_offsets: Option<std::sync::Arc<crate::find_block_map::FindBlockMap>>,
     /// Index into `matches` for the one the cursor is currently on.
     /// `None` when there are no matches.
     pub(crate) current: Option<usize>,

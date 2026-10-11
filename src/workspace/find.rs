@@ -182,7 +182,7 @@ impl Workspace {
                 Some(matches.iter().position(|r| r.start >= cursor_flat).unwrap_or(0))
             };
             self.find_state.matches = matches;
-            self.find_state.rich_doc_block_offsets = Some(block_offsets);
+            self.find_state.rich_doc_block_offsets = Some(crate::find_block_map::FindBlockMap::legacy(block_offsets));
             self.find_state.current = current;
             self.find_state.error = None;
             self.find_state.status = None;
@@ -928,8 +928,8 @@ impl Workspace {
         if let Some(offsets) = self.find_state.rich_doc_block_offsets.clone() {
             let payload_opt = self.tabs[self.active].buffer.rich_doc.as_ref();
             let (Some(anchor_pos), Some(cursor_pos)) = (
-                payload_opt.and_then(|p| p.pos_from_global_flat(&offsets, range.start, true)),
-                payload_opt.and_then(|p| p.pos_from_global_flat(&offsets, range.end, true)),
+                payload_opt.and_then(|p| p.pos_from_global_flat(offsets.as_slice(), range.start, true)),
+                payload_opt.and_then(|p| p.pos_from_global_flat(offsets.as_slice(), range.end, true)),
             ) else {
                 return;
             };
@@ -1025,8 +1025,8 @@ impl Workspace {
         };
         let payload_opt = self.tabs[self.active].buffer.rich_doc.as_ref();
         let (Some(lo), Some(hi)) = (
-            payload_opt.and_then(|p| p.pos_from_global_flat(&offsets, range.start, true)),
-            payload_opt.and_then(|p| p.pos_from_global_flat(&offsets, range.end, true)),
+            payload_opt.and_then(|p| p.pos_from_global_flat(offsets.as_slice(), range.start, true)),
+            payload_opt.and_then(|p| p.pos_from_global_flat(offsets.as_slice(), range.end, true)),
         ) else {
             return false;
         };
@@ -1177,7 +1177,7 @@ impl Workspace {
             };
             let (lo, hi) = sel.range_full();
             let pos = if forward { hi } else { lo };
-            return payload.global_flat_for_pos(offsets, pos);
+            return payload.global_flat_for_pos(offsets.as_slice(), pos);
         }
         let sel = tab.selection.ordered();
         if forward { sel.end } else { sel.start }

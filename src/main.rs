@@ -11,6 +11,7 @@
 use gpui::{App, Application, QuitMode};
 
 mod actions;
+mod api_registry;
 mod app;
 mod assets;
 mod buffer;

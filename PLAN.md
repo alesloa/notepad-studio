@@ -5,7 +5,7 @@ Continue the authorized clean-room Rust/gpui work. The primary acceptance ledger
 ## Current ownership
 
 - Root: review branch commits, integrate exact source hunks, run the full main-tree build/test/clippy gate, update records and commit each batch. Pure API registry and call-context helpers remain root-owned.
-- language_menu: completion and inline input routing. Brief-list behavior integrated; API loading/manual Function lists ready for integration; next leaf: parameter hint UI. Root owns the pure registry parser.
+- language_menu: completion and inline input routing. Brief-list behavior integrated; API loading/manual Function lists integrated; next leaf: parameter hint UI. Root owns the pure registry parser.
 - doc_parser: CSV draft recovery integrated; clean-grid focus integrated and first-character input integrated; next leaf: Source/CSV IME composition. Own CSV helper/test seams, preserve tabUUID and newer focus.
 - undo_readonly: File menu commands integrated; context Reload integrated; next leaf: submenu/hover/Rename UUID targets and collision-safe rename.
 
@@ -52,3 +52,5 @@ Shared-file edits are surgical, re-read before integration. Agent branches are a
 - 2026-10-10: async Close batch;1476 units+1 integration pass,8ignored;build/clippy pass with no new touched warnings. Six red data-loss cases now preserve late source/rich/live/lazy/detached CSV and metadata/loading changes; post-save dirty input refuses close. Recovery drafts refuse Save/Close before model construction while Preview can expose them. API/cache and grid-input leaves ready, IME and parameter hints underway; G7/G8 remain open.
 
 - 2026-10-10: reviewed grid input1b6005baa integrated;1485units+1integration/8ignored,build/clippy pass,no new touched warnings. Nine real-frame/input-protocol cases prove first body/header character autosave and Unicode/UTF16 cell input routes without hidden source mutation. IME None-range composition continues separately; optional API completion next.
+
+- 2026-10-10: reviewed API completionf592c22 + rootc1 parser integrated;1513units+1integration/8ignored,build/clippy pass,no new warnings.28 new pure/actual-frame lifecycle/manual/cache/encoding/case tests; optional background definitions and original static fallback shipped. Parameter hints+IME composition remain active; G14 met,G7/G8 open.

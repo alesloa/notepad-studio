@@ -13,7 +13,10 @@ A lightweight, cross-platform text editor inspired by Notepad++, written in Rust
 > menu, column/multi-cursor edit, macro record / replay, plugin host, session
 > restore, and large-file streaming reads have all landed. Currently in flight:
 > Notepad++ behavior parity and correctness audit, including autocomplete
-> API completion and parameter hints, remaining focus bugs, and menu gaps.
+> parameter hints, IME composition, remaining focus bugs, and menu gaps.
+
+Optional [API completion definitions](docs/api-completion.md) supply language
+names for Function Completion; parameter-hint UI remains in progress.
 
 ## Goals
 

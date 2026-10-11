@@ -12,6 +12,16 @@ pub(crate) fn collect_word_candidates(
     ignore_numbers: bool,
     caret: usize,
 ) -> Vec<String> {
+    collect_word_candidates_with_environment(rope, prefix, ignore_numbers, caret, None)
+}
+
+pub(super) fn collect_word_candidates_with_environment(
+    rope: &ropey::Rope,
+    prefix: &str,
+    ignore_numbers: bool,
+    caret: usize,
+    environment: Option<&crate::api_registry::ApiEnvironment>,
+) -> Vec<String> {
     if prefix.len() > MAX_CANDIDATE_BYTES {
         return Vec::new();
     }
@@ -29,19 +39,23 @@ pub(crate) fn collect_word_candidates(
     let mut seen = BTreeSet::new();
     let mut current = String::new();
     // A token cut by either scan boundary is not a complete identifier.
-    let mut skipping = start_char > 0 && rope.get_char(start_char - 1).is_some_and(is_word_char);
+    let is_word = |ch| environment.map_or_else(|| is_word_char(ch), |env| env.is_word_char(ch));
+    let mut skipping = start_char > 0 && rope.get_char(start_char - 1).is_some_and(is_word);
     let lower_prefix = prefix.to_ascii_lowercase();
     let push = |word: &str, seen: &mut BTreeSet<String>| {
         if word.len() >= MIN_CANDIDATE_LEN
-            && !word.eq_ignore_ascii_case(prefix)
-            && word.to_ascii_lowercase().starts_with(&lower_prefix)
+            && word.len() > prefix.len()
+            && environment.map_or_else(
+                || word.to_ascii_lowercase().starts_with(&lower_prefix),
+                |env| env.matches_prefix(word, prefix),
+            )
             && !(ignore_numbers && word.chars().next().is_some_and(|c| c.is_ascii_digit()))
         {
             seen.insert(word.to_string());
         }
     };
     for ch in slice.chars() {
-        if is_word_char(ch) {
+        if is_word(ch) {
             if !skipping {
                 if current.len().saturating_add(ch.len_utf8()) > MAX_CANDIDATE_BYTES {
                     current.clear();
@@ -61,7 +75,7 @@ pub(crate) fn collect_word_candidates(
             break;
         }
     }
-    if !skipping && (end_char == rope.len_chars() || !rope.get_char(end_char).is_some_and(is_word_char)) {
+    if !skipping && (end_char == rope.len_chars() || !rope.get_char(end_char).is_some_and(is_word)) {
         push(&current, &mut seen);
     }
     seen.into_iter().take(MAX_CANDIDATES).collect()

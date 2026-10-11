@@ -3,13 +3,11 @@
 // Scope:
 //   * Word Completion — buffer-scans for unique identifiers sharing the
 //     prefix at the caret, opens a popup with the candidates.
-//   * Function Completion — pulls from a per-language static keyword +
-//     common-builtin list (`syntax::keywords`). NPP loads identifiers and
-//     parameter metadata from per-language `autoCompletion/<lang>.xml`.
-//     Notepad Studio's API registry and parameter signatures remain pending.
+//   * Function Completion — optional per-language API definitions, with
+//     original static keywords and common builtins while a file loads or is absent.
 //   * Function and Word Completion — merges both candidate pools.
 //   * Function Parameters Hint — toasts a status message. Real call-tip
-//     popup needs signature data that the static lists don't carry.
+//     popup integration remains pending; loaded registries retain signatures.
 //
 // Settings wiring map (so future readers don't have to grep):
 //   * `autocompletion_insert_with_tab` — gates Tab acceptance, lives in
@@ -17,8 +15,7 @@
 //     popup state is here).
 //   * `autocompletion_insert_with_enter` — same story in
 //     `edits.rs::insert_newline`.
-//   * `autocompletion_ignore_numbers` — read in the three `try_open_*`
-//     candidate collectors below.
+//   * `autocompletion_ignore_numbers` — captured by the candidate source.
 //   * `autocompletion_brief` — captured on opening; controls whether rows
 //     shrink or stay visible while the prefix narrows.
 
@@ -31,6 +28,7 @@ use crate::settings;
 use crate::syntax::{LanguageId, keywords};
 use crate::tab::InputFocus;
 use crate::workspace::Workspace;
+use super::completion_api::ApiSnapshot;
 
 /// Current completion session. Placement resolves fresh editor geometry at prepaint.
 #[derive(Clone)]
@@ -42,6 +40,8 @@ pub(crate) struct AutocompleteState {
     pub(crate) candidate_pool: Vec<String>,
     pool_prefix: String,
     source: CandidateSource,
+    /// Only an unchanged initial manual Function list may select another member.
+    manual_prefix: Option<ManualFunctionPrefix>,
     pub(crate) caret: usize,
     pub(crate) allow_empty_prefix: bool,
     pub(crate) selected: usize,
@@ -53,36 +53,102 @@ pub(crate) struct AutocompleteState {
     pub(crate) tab_id: uuid::Uuid,
 }
 
-#[derive(Clone, Copy)]
-enum CandidateKind {
-    Word,
-    Function(LanguageId),
-    Combined(LanguageId),
+#[derive(Clone)]
+struct ManualFunctionPrefix {
+    prefix: String,
+    range: std::ops::Range<usize>,
+    revision: crate::buffer::ContentRevision,
+    rope: ropey::Rope,
+    generation: Option<uuid::Uuid>,
 }
 
 #[derive(Clone, Copy)]
+pub(super) enum CandidateKind {
+    Word,
+    Function(Option<LanguageId>),
+    Combined(Option<LanguageId>),
+}
+
+#[derive(Clone)]
 struct CandidateSource {
     kind: CandidateKind,
     ignore_numbers: bool,
     brief: bool,
+    api: Option<ApiSnapshot>,
 }
 
 impl CandidateSource {
+    fn prefix_at(&self, rope: &ropey::Rope, caret: usize) -> Option<(usize, usize, String)> {
+        let caret = super::edits::floor_rope_char_boundary(rope, caret);
+        let start = find_prefix_start_with(rope, caret, |ch| {
+            self.api.as_ref().map_or_else(|| is_word_char(ch), |api| api.registry.environment.is_word_char(ch))
+        })?;
+        Some((start, caret, rope.byte_slice(start..caret).to_string()))
+    }
+
+    fn prefix_key(&self, prefix: &str) -> String {
+        if self.api.as_ref().is_some_and(|api| !api.registry.environment.ignore_case) {
+            prefix.to_owned()
+        } else { prefix.to_ascii_lowercase() }
+    }
+
+    fn matches_prefix(&self, name: &str, prefix: &str) -> bool {
+        name.len() > prefix.len() && self.api.as_ref().map_or_else(
+            || matches_prefix(name, prefix), |api| api.registry.environment.matches_prefix(name, prefix),
+        )
+    }
+
+    fn sort_names(&self, names: &mut [String]) {
+        if self.api.as_ref().is_some_and(|api| api.registry.environment.ignore_case) {
+            names.sort_by(|a, b| a.to_ascii_lowercase().cmp(&b.to_ascii_lowercase()).then_with(|| a.cmp(b)));
+        } else { names.sort(); }
+    }
+
+    fn functions(&self, prefix: &str, language: Option<LanguageId>) -> Vec<String> {
+        self.function_matches(prefix, language, false)
+    }
+
+    fn function_matches(&self, prefix: &str, language: Option<LanguageId>, include_exact: bool) -> Vec<String> {
+        if let Some(api) = &self.api {
+            if api.registry.entries().is_empty() { return Vec::new(); }
+            api.registry.matching(prefix).filter(|entry| {
+                (include_exact || self.matches_prefix(&entry.name, prefix))
+                    && !(self.ignore_numbers && entry.name.chars().next().is_some_and(|ch| ch.is_ascii_digit()))
+            }).take(MAX_CANDIDATES).map(|entry| entry.name.clone()).collect()
+        } else {
+            language.map(|language| {
+                if include_exact { keyword_candidates(prefix, language, self.ignore_numbers, true) }
+                else { collect_keyword_candidates(prefix, language, self.ignore_numbers) }
+            }).unwrap_or_default()
+        }
+    }
+
     fn collect(&self, rope: &ropey::Rope, prefix: &str, caret: usize) -> Vec<String> {
-        match self.kind {
-            CandidateKind::Word => collect_word_candidates(rope, prefix, self.ignore_numbers, caret),
-            CandidateKind::Function(lang) => collect_keyword_candidates(prefix, lang, self.ignore_numbers),
-            CandidateKind::Combined(lang) => merge_candidates(
-                collect_keyword_candidates(prefix, lang, self.ignore_numbers),
-                collect_word_candidates(rope, prefix, self.ignore_numbers, caret),
+        let words = || self.api.as_ref().map_or_else(
+            || collect_word_candidates(rope, prefix, self.ignore_numbers, caret),
+            |api| candidates::collect_word_candidates_with_environment(
+                rope, prefix, self.ignore_numbers, caret, Some(&api.registry.environment),
             ),
+        );
+        match self.kind {
+            CandidateKind::Word => words(),
+            CandidateKind::Function(lang) => self.functions(prefix, lang),
+            CandidateKind::Combined(lang) => merge_candidates(self.functions(prefix, lang), words()),
         }
     }
 }
 
-/// Maximum candidates surfaced. NPP caps the popup at this kind of size
-/// implicitly via scroll; here we hard-cap to keep the scan + render cheap on
-/// large buffers. 50 is well above what a user would scroll through anyway.
+impl AutocompleteState {
+    pub(super) fn api_generation(&self) -> Option<uuid::Uuid> {
+        self.source.api.as_ref().map(|api| api.generation)
+    }
+
+    pub(super) fn matches_live_prefix(&self, rope: &ropey::Rope, caret: usize, name: &str) -> bool {
+        self.source.prefix_at(rope, caret).is_some_and(|(_, _, prefix)| self.source.matches_prefix(name, &prefix))
+    }
+}
+
+/// Bound collection and rendering while retaining a matching selected row.
 const MAX_CANDIDATES: usize = 50;
 
 /// Minimum identifier length for a candidate to be considered. NPP also
@@ -90,10 +156,7 @@ const MAX_CANDIDATES: usize = 50;
 /// be more noise than help.
 const MIN_CANDIDATE_LEN: usize = 2;
 
-/// True for chars that belong inside an identifier. Mirrors NPP's
-/// `isCharWordChar` (`Notepad_plus::isCharWordChar`) which uses ASCII
-/// alphanumerics + `_`, with Scintilla's allow-list opt-in for additional
-/// chars deferred (NPP exposes it as a per-syntax setting).
+/// Default identifier chars. Loaded API environments can add word characters.
 pub(crate) fn is_word_char(c: char) -> bool {
     c.is_alphanumeric() || c == '_'
 }
@@ -102,6 +165,10 @@ pub(crate) fn is_word_char(c: char) -> bool {
 /// Oversized prefixes refuse completion rather than replacing a token suffix.
 /// Empty prefixes return the caret, clamped and floored to a char start.
 pub(crate) fn find_prefix_start(rope: &ropey::Rope, caret: usize) -> Option<usize> {
+    find_prefix_start_with(rope, caret, is_word_char)
+}
+
+fn find_prefix_start_with(rope: &ropey::Rope, caret: usize, is_word: impl Fn(char) -> bool) -> Option<usize> {
     let caret = super::edits::floor_rope_char_boundary(rope, caret);
     if caret == 0 {
         return Some(0);
@@ -111,7 +178,7 @@ pub(crate) fn find_prefix_start(rope: &ropey::Rope, caret: usize) -> Option<usiz
     let mut char_idx = char_caret;
     while char_idx > 0 {
         let c = rope.char(char_idx - 1);
-        if !is_word_char(c) {
+        if !is_word(c) {
             break;
         }
         char_idx -= 1;
@@ -161,6 +228,10 @@ pub(crate) fn collect_keyword_candidates(
     lang: LanguageId,
     ignore_numbers: bool,
 ) -> Vec<String> {
+    keyword_candidates(prefix, lang, ignore_numbers, false)
+}
+
+fn keyword_candidates(prefix: &str, lang: LanguageId, ignore_numbers: bool, include_exact: bool) -> Vec<String> {
     let kws = keywords::keywords_for(lang);
     if kws.is_empty() {
         return Vec::new();
@@ -171,7 +242,7 @@ pub(crate) fn collect_keyword_candidates(
         if word.len() < MIN_CANDIDATE_LEN {
             continue;
         }
-        if word.eq_ignore_ascii_case(prefix) {
+        if !include_exact && word.eq_ignore_ascii_case(prefix) {
             continue;
         }
         if !prefix.is_empty()
@@ -240,97 +311,63 @@ impl Workspace {
         Some(gpui::Bounds::new(point(x, line.bounds.top()), gpui::size(gpui::px(1.), line.bounds.size.height)))
     }
 
-    /// Compute prefix + open a popup for it. Empty candidate list = no
-    /// popup, ephemeral status message instead (NPP also no-ops when the
-    /// scan finds nothing). Returns true when a popup was opened.
-    fn try_open_word_popup(&mut self, cx: &mut Context<Self>) -> bool {
-        self.close_autocomplete(cx);
-        if !self.autocomplete_editable() { return false; }
-        let caret = self.selection().head;
-        let prefix_start;
-        let prefix;
-        let snap = settings::snapshot();
-        let candidates;
-        {
-            let rope = &self.buffer().rope;
-            let Some(found) = prefix_at(rope, caret) else { return false; };
-            (prefix_start, _, prefix) = found;
-            candidates = collect_word_candidates(
-                rope,
-                &prefix,
-                snap.autocompletion_ignore_numbers,
-                caret,
-            );
-        }
-        if candidates.is_empty() {
-            self.status_message = Some(if prefix.is_empty() {
-                "Auto-completion: no candidates in buffer".to_string()
-            } else {
-                format!("Auto-completion: no match for \"{prefix}\"")
-            });
-            cx.notify();
-            return false;
-        }
-        self.autocomplete = Some(AutocompleteState {
-            session_id: uuid::Uuid::new_v4(),
-            candidate_pool: candidates.clone(),
-            pool_prefix: prefix.to_ascii_lowercase(),
-            source: CandidateSource {
-                kind: CandidateKind::Word,
-                ignore_numbers: snap.autocompletion_ignore_numbers,
-                brief: snap.autocompletion_brief,
-            },
-            candidates,
-            caret,
-            allow_empty_prefix: prefix.is_empty(),
-            selected: 0,
-            replace_start: prefix_start,
-            tab_id: self.tabs[self.active].session_id,
-        });
-        self.status_message = None;
-        cx.notify();
-        true
-    }
-
-    /// Open a popup using only the per-language keyword pool. Empty pool /
-    /// no matches falls through to a status message.
-    fn try_open_function_popup(
-        &mut self,
-        lang: LanguageId,
-        cx: &mut Context<Self>,
+    /// Lists pin one immutable registry generation for their whole opening.
+    pub(super) fn open_completion_kind(
+        &mut self, kind: CandidateKind, manual: bool, cx: &mut Context<Self>,
     ) -> bool {
         self.close_autocomplete(cx);
         if !self.autocomplete_editable() { return false; }
         let caret = self.selection().head;
         let snap = settings::snapshot();
-        let Some((prefix_start, _, prefix)) = prefix_at(&self.buffer().rope, caret) else { return false; };
-        let candidates = collect_keyword_candidates(
-            &prefix,
-            lang,
-            snap.autocompletion_ignore_numbers,
-        );
+        let source = CandidateSource {
+            kind, ignore_numbers: snap.autocompletion_ignore_numbers, brief: snap.autocompletion_brief,
+            api: self.loaded_api_snapshot(self.buffer().language),
+        };
+        let Some((prefix_start, _, prefix)) = source.prefix_at(&self.buffer().rope, caret) else { return false; };
+        if !manual && !prefix_reaches_threshold(&prefix, snap.autocompletion_from_chars) { return false; }
+        let initial_function = manual && matches!(kind, CandidateKind::Function(_));
+        let matching = match kind {
+            CandidateKind::Function(language) if initial_function => source.function_matches(&prefix, language, true),
+            _ => source.collect(&self.buffer().rope, &prefix, caret),
+        };
+        let selected_name = matching.first().cloned();
+        // PowerEditor/src/ScintillaComponent/AutoCompletion.cpp:451-454 —
+        // manual Function Completion starts with names outside the prefix too.
+        // ScintillaBase.cxx:369-372 / AutoComplete.cxx:249-300 — cancel if no
+        // prefix match exists; an explicitly selected member can complete it.
+        let mut candidates = if let CandidateKind::Function(language) = kind {
+            if initial_function && !matching.is_empty() {
+                retain_visible_rows(&matching, &source.functions("", language))
+            } else { matching }
+        } else { matching };
+        source.sort_names(&mut candidates);
+        let selected = selected_name.and_then(|name| candidates.iter().position(|candidate| *candidate == name)).unwrap_or(0);
         if candidates.is_empty() {
-            self.status_message = Some(if prefix.is_empty() {
-                format!("Function completion: no keywords for {}", lang.label())
-            } else {
-                format!("Function completion: no match for \"{prefix}\"")
+            self.status_message = Some(match kind {
+                CandidateKind::Function(language) if prefix.is_empty() => {
+                    format!("Function completion: no API definitions or original keywords for {}", language.map(LanguageId::label).unwrap_or("Normal Text"))
+                }
+                _ if prefix.is_empty() => "Auto-completion: no candidates available".to_string(),
+                _ => format!("Auto-completion: no match for \"{prefix}\""),
             });
             cx.notify();
             return false;
         }
+        let pool_prefix = source.prefix_key(&prefix);
+        let manual_prefix = initial_function.then(|| ManualFunctionPrefix {
+            prefix, range: prefix_start..caret, revision: self.buffer().raw_revision.clone(),
+            rope: self.buffer().rope.clone(), generation: source.api.as_ref().map(|api| api.generation),
+        });
         self.autocomplete = Some(AutocompleteState {
             session_id: uuid::Uuid::new_v4(),
             candidate_pool: candidates.clone(),
-            pool_prefix: prefix.to_ascii_lowercase(),
-            source: CandidateSource {
-                kind: CandidateKind::Function(lang),
-                ignore_numbers: snap.autocompletion_ignore_numbers,
-                brief: snap.autocompletion_brief,
-            },
+            pool_prefix,
+            source,
+            manual_prefix,
             candidates,
             caret,
-            allow_empty_prefix: prefix.is_empty(),
-            selected: 0,
+            allow_empty_prefix: prefix_start == caret,
+            selected,
             replace_start: prefix_start,
             tab_id: self.tabs[self.active].session_id,
         });
@@ -338,69 +375,6 @@ impl Workspace {
         cx.notify();
         true
     }
-
-    /// Open a popup with keyword pool + buffer-word pool merged. Used by
-    /// `Function and Word Completion`. Empty merged set surfaces the same
-    /// "no match" status as the individual paths.
-    fn try_open_combined_popup(
-        &mut self,
-        lang: LanguageId,
-        cx: &mut Context<Self>,
-    ) -> bool {
-        self.close_autocomplete(cx);
-        if !self.autocomplete_editable() { return false; }
-        let caret = self.selection().head;
-        let snap = settings::snapshot();
-        let prefix_start;
-        let prefix;
-        let words;
-        {
-            let rope = &self.buffer().rope;
-            let Some(found) = prefix_at(rope, caret) else { return false; };
-            (prefix_start, _, prefix) = found;
-            words = collect_word_candidates(
-                rope,
-                &prefix,
-                snap.autocompletion_ignore_numbers,
-                caret,
-            );
-        }
-        let kws = collect_keyword_candidates(
-            &prefix,
-            lang,
-            snap.autocompletion_ignore_numbers,
-        );
-        let candidates = merge_candidates(kws, words);
-        if candidates.is_empty() {
-            self.status_message = Some(if prefix.is_empty() {
-                "Auto-completion: no candidates available".to_string()
-            } else {
-                format!("Auto-completion: no match for \"{prefix}\"")
-            });
-            cx.notify();
-            return false;
-        }
-        self.autocomplete = Some(AutocompleteState {
-            session_id: uuid::Uuid::new_v4(),
-            candidate_pool: candidates.clone(),
-            pool_prefix: prefix.to_ascii_lowercase(),
-            source: CandidateSource {
-                kind: CandidateKind::Combined(lang),
-                ignore_numbers: snap.autocompletion_ignore_numbers,
-                brief: snap.autocompletion_brief,
-            },
-            candidates,
-            caret,
-            allow_empty_prefix: prefix.is_empty(),
-            selected: 0,
-            replace_start: prefix_start,
-            tab_id: self.tabs[self.active].session_id,
-        });
-        self.status_message = None;
-        cx.notify();
-        true
-    }
-
     /// Edit ▸ Auto-Completion ▸ Word Completion (NPP `IDM_EDIT_AUTOCOMPLETE`).
     /// Buffer-scan word completion — always runs against the active buffer
     /// regardless of language.
@@ -414,13 +388,14 @@ impl Workspace {
             self.close_autocomplete(cx);
             return;
         }
-        self.try_open_word_popup(cx);
+        self.open_completion_kind(CandidateKind::Word, true, cx);
         self.watch_autocomplete_focus(window, cx);
+        self.request_completion_api(CandidateKind::Word, true, window, cx);
     }
 
     /// Edit ▸ Auto-Completion ▸ Function Completion (NPP
     /// `IDM_EDIT_FUNCCOMPLETION`). Surfaces the active buffer's per-language
-    /// static keyword + builtin list. NPP behaviour: Function alone does NOT
+    /// API names or original static keywords. NPP behaviour: Function alone does NOT
     /// include buffer words — those are reached via Word Completion (or the
     /// combined Function-and-Word path).
     pub(crate) fn autocomplete_function(
@@ -433,22 +408,15 @@ impl Workspace {
             self.close_autocomplete(cx);
             return;
         }
-        self.close_autocomplete(cx);
-        let Some(lang) = self.buffer().language else {
-            self.status_message = Some(
-                "Function completion: no language detected for this buffer".to_string(),
-            );
-            cx.notify();
-            return;
-        };
-        self.try_open_function_popup(lang, cx);
+        let kind = CandidateKind::Function(self.buffer().language);
+        self.open_completion_kind(kind, true, cx);
         self.watch_autocomplete_focus(window, cx);
+        self.request_completion_api(kind, true, window, cx);
     }
 
     /// Edit ▸ Auto-Completion ▸ Function and Word Completion (NPP
     /// `IDM_EDIT_AUTOCOMPLETE_CURRENTFILE`). Merges the per-language keyword
-    /// pool with the buffer-word scan. When the buffer has no detected
-    /// language, falls through to pure Word Completion.
+    /// pool with the buffer-word scan. Normal Text can load normal.xml.
     pub(crate) fn autocomplete_function_and_word(
         &mut self,
         _: &EditAutocompleteFuncAndWord,
@@ -459,18 +427,15 @@ impl Workspace {
             self.close_autocomplete(cx);
             return;
         }
-        if let Some(lang) = self.buffer().language {
-            self.try_open_combined_popup(lang, cx);
-        } else {
-            self.try_open_word_popup(cx);
-        }
+        let kind = CandidateKind::Combined(self.buffer().language);
+        self.open_completion_kind(kind, true, cx);
         self.watch_autocomplete_focus(window, cx);
+        self.request_completion_api(kind, true, window, cx);
     }
 
     /// Edit ▸ Auto-Completion ▸ Function Parameters Hint (NPP
-    /// `IDM_EDIT_FUNCCALLTIP`). Gated on the same language API registry as
-    /// Function Completion — surface a status notice so the menu entry
-    /// doesn't appear broken.
+    /// `IDM_EDIT_FUNCCALLTIP`). Surface an actionable notice until the
+    /// parameter-hint popup integration is available.
     pub(crate) fn autocomplete_function_params(
         &mut self,
         _: &EditAutocompleteFuncParams,
@@ -482,12 +447,13 @@ impl Workspace {
             return;
         }
         self.status_message =
-            Some("Function parameter hints: language API registry not loaded".to_string());
+            Some("Function parameter hint popup is not yet implemented".to_string());
         cx.notify();
     }
 
     /// Close the popup. Idempotent — safe to call when no popup is up.
     pub(crate) fn close_autocomplete(&mut self, cx: &mut Context<Self>) {
+        self.completion_api.epoch = uuid::Uuid::new_v4();
         self.autocomplete_blur_subscription = None;
         self.autocomplete_activation_subscription = None;
         if self.autocomplete.take().is_some() {
@@ -495,7 +461,7 @@ impl Workspace {
         }
     }
 
-    fn watch_autocomplete_focus(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+    pub(super) fn watch_autocomplete_focus(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         let Some(session_id) = self.autocomplete.as_ref().map(|state| state.session_id) else { return; };
         if self.autocomplete_blur_subscription.is_none() {
             let focus = self.focus_handle.clone();
@@ -514,7 +480,7 @@ impl Workspace {
         }
     }
 
-    fn autocomplete_editable(&self) -> bool {
+    pub(super) fn autocomplete_editable(&self) -> bool {
         self.tabs.get(self.active).is_some_and(|tab| {
             tab.view_mode == crate::tab::TabViewMode::Edit && !tab.buffer.read_only
                 && tab.selection.is_empty() && tab.block_selection.is_none()
@@ -571,6 +537,8 @@ impl Workspace {
     // NppNotification.cpp:200-217 and ScintillaBase.cxx:415-434 — keep an
     // active list aligned with inserted/deleted characters, cancel on stop chars.
     pub(crate) fn refresh_autocomplete_after_edit(&mut self, cx: &mut Context<Self>) {
+        // Revoke permanently, even if a later Undo restores the same revision.
+        if let Some(state) = self.autocomplete.as_mut() { state.manual_prefix = None; }
         let Some(state) = self.autocomplete.as_ref() else { return; };
         if !self.autocomplete_editable()
             || !self.tabs.get(self.active).is_some_and(|tab| tab.session_id == state.tab_id)
@@ -578,7 +546,7 @@ impl Workspace {
             self.close_autocomplete(cx);
             return;
         }
-        let Some((start, caret, prefix)) = prefix_at(&self.buffer().rope, self.selection().head) else {
+        let Some((start, caret, prefix)) = state.source.prefix_at(&self.buffer().rope, self.selection().head) else {
             self.close_autocomplete(cx);
             return;
         };
@@ -587,7 +555,7 @@ impl Workspace {
             return;
         }
         let previous = state.candidates.get(state.selected).cloned();
-        let lower = prefix.to_ascii_lowercase();
+        let lower = state.source.prefix_key(&prefix);
         // Requery only when cached matches cannot represent the new prefix.
         // Word collection still visits at most 128 KiB around the caret.
         let broadening = !lower.starts_with(&state.pool_prefix);
@@ -595,27 +563,28 @@ impl Workspace {
             || (state.candidate_pool.len() == MAX_CANDIDATES && lower != state.pool_prefix);
         let pool = refill.then(|| state.source.collect(&self.buffer().rope, &prefix, caret));
         let mut filtered: Vec<String> = pool.as_ref().unwrap_or(&state.candidate_pool).iter()
-            .filter(|word| matches_prefix(word, &prefix)).cloned().collect();
+            .filter(|word| state.source.matches_prefix(word, &prefix)).cloned().collect();
         // A broader query may cap out before a still-matching selected row.
         // Retain that row without increasing the existing candidate bound.
-        if let Some(pick) = previous.as_ref().filter(|pick| matches_prefix(pick, &prefix)) {
+        if let Some(pick) = previous.as_ref().filter(|pick| state.source.matches_prefix(pick, &prefix)) {
             if !filtered.contains(pick) {
                 filtered.truncate(MAX_CANDIDATES.saturating_sub(1));
                 filtered.push(pick.clone());
-                filtered.sort();
+                state.source.sort_names(&mut filtered);
             }
         }
         if filtered.is_empty() {
             self.close_autocomplete(cx);
             return;
         }
-        let selected = previous.filter(|pick| matches_prefix(pick, &prefix))
+        let selected = previous.filter(|pick| state.source.matches_prefix(pick, &prefix))
             .unwrap_or_else(|| filtered.first().cloned().unwrap_or_default());
-        let visible = if state.source.brief || broadening {
+        let mut visible = if state.source.brief || broadening {
             filtered
         } else {
             retain_visible_rows(&filtered, &state.candidates)
         };
+        state.source.sort_names(&mut visible);
         if let Some(state) = self.autocomplete.as_mut() {
             if let Some(pool) = pool {
                 state.candidate_pool = pool;
@@ -646,9 +615,8 @@ impl Workspace {
 
     /// Apply the currently-selected candidate at the caret, then dismiss the
     /// popup. Replaces `[replace_start, caret)` with the candidate string.
-    /// Returns false when nothing was inserted (no popup, or the popup went
-    /// stale and was closed), so the Enter / Tab caller can run the key's
-    /// normal action instead.
+    /// Returns true for a handled exact-name no-op too. A missing or stale
+    /// popup returns false so Enter / Tab can run their normal actions.
     pub(crate) fn accept_autocomplete(&mut self, window: &mut Window, cx: &mut Context<Self>) -> bool {
         let Some(state) = self.autocomplete.as_ref() else {
             return false;
@@ -683,14 +651,25 @@ impl Workspace {
         self.autocomplete_activation_subscription = None;
         cx.notify();
         if !state.candidates.iter().any(|candidate| candidate == pick) { return false; }
-        let caret = self.selection().head;
-        let Some(range) = accept_range(&self.buffer().rope, state.replace_start, caret) else {
-            return false;
-        };
-        let Some((_, _, prefix)) = prefix_at(&self.buffer().rope, caret) else { return false; };
-        if (prefix.is_empty() && !state.allow_empty_prefix)
-            || !matches_prefix(pick, &prefix)
+        if matches!(state.source.kind, CandidateKind::Function(_))
+            && state.source.api.as_ref().is_some_and(|api| api.registry.find(pick).is_none())
         { return false; }
+        let caret = self.selection().head;
+        let Some((start, caret, prefix)) = state.source.prefix_at(&self.buffer().rope, caret) else { return false; };
+        let range = if state.source.api.is_some() {
+            (start == state.replace_start).then_some(start..caret)
+        } else { accept_range(&self.buffer().rope, state.replace_start, caret) };
+        let Some(range) = range else { return false; };
+        let initial_member = state.manual_prefix.as_ref().is_some_and(|pin| {
+            matches!(state.source.kind, CandidateKind::Function(_))
+                && pin.range == range && pin.prefix == prefix
+                && pin.revision == self.buffer().raw_revision && pin.rope.is_instance(&self.buffer().rope)
+                && pin.generation == state.api_generation()
+        });
+        if (prefix.is_empty() && !state.allow_empty_prefix)
+            || (!initial_member && !state.source.matches_prefix(pick, &prefix))
+        { return false; }
+        if prefix == pick { return true; }
         crate::macros::record(crate::macros::completion_event(&prefix, pick));
         self.replace_byte_range(range, pick, cx);
         true
@@ -710,34 +689,28 @@ impl Workspace {
         if matches!(snap.autocompletion_mode, settings::AutocompletionMode::None) {
             return;
         }
+        let kind = match snap.autocompletion_mode {
+            settings::AutocompletionMode::None => return,
+            settings::AutocompletionMode::Word => CandidateKind::Word,
+            settings::AutocompletionMode::Function => CandidateKind::Function(self.buffer().language),
+            settings::AutocompletionMode::FunctionAndWord => CandidateKind::Combined(self.buffer().language),
+        };
+        let source = CandidateSource {
+            kind, ignore_numbers: snap.autocompletion_ignore_numbers, brief: snap.autocompletion_brief,
+            api: self.loaded_api_snapshot(self.buffer().language),
+        };
         let caret = self.selection().head;
-        let Some((_, _, prefix)) = prefix_at(&self.buffer().rope, caret) else { return; };
+        let Some((_, _, prefix)) = source.prefix_at(&self.buffer().rope, caret) else { return; };
         if !prefix_reaches_threshold(&prefix, snap.autocompletion_from_chars) {
             return;
         }
         let prev_status = self.status_message.clone();
-        match snap.autocompletion_mode {
-            settings::AutocompletionMode::Word => {
-                self.try_open_word_popup(cx);
-            }
-            settings::AutocompletionMode::Function => {
-                if let Some(lang) = self.buffer().language {
-                    self.try_open_function_popup(lang, cx);
-                }
-            }
-            settings::AutocompletionMode::FunctionAndWord => {
-                if let Some(lang) = self.buffer().language {
-                    self.try_open_combined_popup(lang, cx);
-                } else {
-                    self.try_open_word_popup(cx);
-                }
-            }
-            settings::AutocompletionMode::None => {}
-        }
+        self.open_completion_kind(kind, false, cx);
         if self.autocomplete.is_none() {
             self.status_message = prev_status;
         }
         self.watch_autocomplete_focus(window, cx);
+        self.request_completion_api(kind, false, window, cx);
     }
 }
 
@@ -822,3 +795,7 @@ mod completion_routing_tests;
 #[cfg(test)]
 #[path = "autocomplete_brief_tests.rs"]
 mod completion_brief_tests;
+
+#[cfg(test)]
+#[path = "autocomplete_api_tests.rs"]
+pub(super) mod completion_api_tests;

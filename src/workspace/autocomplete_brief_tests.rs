@@ -71,8 +71,8 @@ fn brief_preference_controls_rows_for_each_source_and_accepts_the_live_prefix() 
         let _settings = crate::settings::override_for_test(preferences(brief));
         for kind in [
             CandidateKind::Word,
-            CandidateKind::Function(LanguageId::Rust),
-            CandidateKind::Combined(LanguageId::Rust),
+            CandidateKind::Function(Some(LanguageId::Rust)),
+            CandidateKind::Combined(Some(LanguageId::Rust)),
         ] {
             let mut cx = TestAppContext::single();
             let (workspace, visual) = fixture(&mut cx, "re\nref return relic", 2, kind);

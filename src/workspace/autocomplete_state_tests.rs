@@ -370,7 +370,13 @@ fn broadening_retains_function_and_combined_sources() {
             } else {
                 w.autocomplete_function(&EditAutocompleteFunc, window, cx);
             }
-            assert_eq!(candidates(w), ["return"]);
+            if combined {
+                assert_eq!(candidates(w), ["return"]);
+            } else {
+                assert!(candidates(w).contains(&"Arc"));
+                let state = w.autocomplete.as_ref().unwrap();
+                assert_eq!(state.candidates.get(state.selected).map(String::as_str), Some("return"));
+            }
             w.backspace(&EditBackspace, window, cx);
             let words = candidates(w);
             assert!(words.contains(&"ref"), "keyword source remains available");

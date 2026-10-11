@@ -283,6 +283,11 @@ v0.0.5 — current
       first body or header character reaches recovery autosave; later Unicode
       and IME input stays in the cell without editing hidden source text.
 
+  72. Function and combined completion load optional language API definitions
+      in the background. Missing files use original keywords; malformed files
+      keep the last valid definitions. Manual Function lists select the typed
+      prefix and allow choosing another visible member before editing.
+
   v0.1.0 — syntax & language:
 
     1. Tree-sitter syntax highlighting for 25 modes: Rust, Python, C,

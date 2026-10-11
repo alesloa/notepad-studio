@@ -27,14 +27,14 @@ Scope: Continue the requested cross-platform Notepad++ parity audit and fix the 
   EVIDENCE: partial; immutable8a1a353 built on Ubuntu24.04/WSL with Rust1.99.0;1425 units+1 integration passed,8ignored (Windows-only test omitted), logs log/linux-8a1a353-{build,tests}.txt. Current native computer-use transport is unavailable and CUA native surfaces are disabled. macOS/current later batches/native exercised UI remain open; headless GPUI tests are not native screenshots.
 
 - [x] G9: The integrated main tree builds and passes its required unit/integration/clippy checks with no new warnings on touched code.
-  CHECK: powershell -NoProfile -Command "Get-Content log/csv-grid-input-integration-tests.txt -Tail 16"
-  EXPECT: 1485 passed; 0 failed
-  EVIDENCE: reviewed1b6005baa CSV grid input batch; cargo build and clippy all-targets passed;1485 units + 1 integration passed,8 ignored, no new touched-code warnings. Refresh for each source batch.
+  CHECK: powershell -NoProfile -Command "Get-Content log/api-completion-integration-tests.txt -Tail 16"
+  EXPECT: 1513 passed; 0 failed
+  EVIDENCE: reviewedf592c22 API completion plus rootc1 parser batch; cargo build and clippy all-targets passed;1513 units + 1 integration passed,8 ignored, no new touched-code warnings. Refresh for each source batch.
 
 - [x] G10: Completed source batches have separate conventional commits and current change.log/devlog entries; the main working tree is clean before beginning a new batch.
   CHECK: git status --porcelain
   EXPECT: /^$/
-  EVIDENCE: main5da440c was clean before this CSV grid input batch;71 current-version release notes and a devlog entry accompany it. Refresh after each source batch.
+  EVIDENCE: main9402342 was clean before this API completion batch;72 current-version release notes and a devlog entry accompany it. Refresh after each source batch.
 
 - [x] G11: View > Tab exposes every oracle Tab command in order with rebindable shortcuts; selection/reordering/color commands preserve document UUID, text, encoding/EOL, saved state and history, with edge and pending-cell refusal coverage.
   EVIDENCE: oracle RC789-817 / Commands1304-1412,3532-3537; red missing-menu contract then 7 new menu/actual-dispatch/refusal/edge tests pass. 1332-unit main gate; existing shortcut parity/collision tests cover added rows. Native appearance remains G8.
@@ -44,3 +44,6 @@ Scope: Continue the requested cross-platform Notepad++ parity audit and fix the 
 
 - [x] G13: Macro editing playback is a single Undo operation across repetitions and nested command groups; no-op/refused replay preserves Redo, failures close their group and saved-state/Unicode/EOL/caret history remains correct.
   EVIDENCE: behavior-only oracle NppCommands.cpp83-149 and shortcut.cpp925-1054; six red failures then nine new handler/history/recording regressions pass in the 1367-unit gate. Balanced nested source transactions defer to the outer group; failed replay closes its group before restoring its reason. New recordings omit Undo/Redo; older persisted history events remain readable and replay on their legacy timeline.
+
+- [x] G14: Optional API definitions load off the UI thread with bounded parsing/cache, environment-aware names and current-document/session guards; malformed or missing files preserve usable completion.
+  EVIDENCE: reviewedf592c22 + rootc1 parser;28 new tests include actual key/mouse/manual lists, Unicode/BOM/UTF16/CRLF/history, schema/caps, aliases/negative-cache/last-valid fallback and stale context/reply/focus/activation/status checks. Four cached languages; no bundled GPL API definitions or new persisted settings.1513-unit main gate; native appearance remainsG8, parameter hint UI remainsG7.

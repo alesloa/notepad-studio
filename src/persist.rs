@@ -16,25 +16,24 @@ use serde::de::DeserializeOwned;
 
 /// Replace `path` with `contents` without ever leaving it half-written.
 ///
-/// The bytes go to `<name>.tmp` beside the target, are synced to disk, and
-/// the temp file is renamed over the target (an atomic replace on the same
-/// volume). On any error the temp file is removed and the old file is left
-/// exactly as it was.
+/// The bytes go to a uniquely named sibling reserved with `create_new`, are
+/// synced to disk, and then renamed over the target on the same volume.
+/// Failed writes remove only this call's owned temporary, leaving the old
+/// target and any pre-existing temporary files untouched.
 pub(crate) fn atomic_write(path: &Path, contents: &[u8]) -> io::Result<()> {
-    let tmp = sibling_with_suffix(path, ".tmp");
-    let result = write_and_sync(&tmp, contents).and_then(|()| fs::rename(&tmp, path));
+    let tmp = path.with_file_name(format!(".notepad-studio-{}.tmp", uuid::Uuid::new_v4()));
+    // A failed reservation owns nothing: return before any cleanup can touch it.
+    let mut file = fs::OpenOptions::new().write(true).create_new(true).open(&tmp)?;
+    let result = file.write_all(contents).and_then(|()| file.sync_all());
+    // Close the write handle before replacement, including on Windows.
+    drop(file);
+    let result = result.and_then(|()| fs::rename(&tmp, path));
     if result.is_err() {
         let _ = fs::remove_file(&tmp);
     }
     result?;
     sync_parent_dir(path);
     Ok(())
-}
-
-fn write_and_sync(path: &Path, contents: &[u8]) -> io::Result<()> {
-    let mut file = fs::File::create(path)?;
-    file.write_all(contents)?;
-    file.sync_all()
 }
 
 /// Make the rename itself durable. Only Unix exposes directory fsync;
@@ -395,6 +394,40 @@ mod tests {
         assert!(!dir.join("a.toml.tmp").exists());
     }
 
+    #[test]
+    fn atomic_write_keeps_an_existing_temp_sibling() {
+        let dir = TempDir::new("persist-owned-temp");
+        let path = dir.join("state.toml");
+        let tmp = dir.join("state.toml.tmp");
+        fs::write(&path, b"old state").expect("write state fixture");
+        fs::write(&tmp, b"recovery bytes").expect("write existing sibling");
+
+        let result = atomic_write(&path, b"new state");
+
+        assert_eq!(fs::read(&tmp).expect("existing sibling survives"), b"recovery bytes");
+        let expected: &[u8] = if result.is_ok() { b"new state" } else { b"old state" };
+        assert_eq!(fs::read(&path).expect("state survives"), expected);
+    }
+
+    #[test]
+    fn atomic_write_keeps_a_document_hard_linked_to_the_temp_sibling() {
+        let dir = TempDir::new("persist-linked-temp");
+        let path = dir.join("state.toml");
+        let tmp = dir.join("state.toml.tmp");
+        let document = dir.join("document.txt");
+        let original = b"unrelated document\r\n";
+        fs::write(&path, b"old state").expect("write state fixture");
+        fs::write(&document, original).expect("write document fixture");
+        fs::hard_link(&document, &tmp).expect("link existing sibling");
+
+        let result = atomic_write(&path, b"new state");
+
+        assert_eq!(fs::read(&document).expect("document survives"), original);
+        assert_eq!(fs::read(&tmp).expect("existing link survives"), original);
+        let expected: &[u8] = if result.is_ok() { b"new state" } else { b"old state" };
+        assert_eq!(fs::read(&path).expect("state survives"), expected);
+    }
+
     /// Cost of the fsync `atomic_write` adds over a plain write + rename,
     /// for the session autosave sizes. Timing only:
     /// `cargo test --release -p notepad-studio --bin notepad-studio atomic_write_cost -- --ignored --nocapture`
@@ -425,11 +458,50 @@ mod tests {
     #[test]
     fn failed_atomic_write_keeps_the_old_file() {
         let dir = TempDir::new("persist-atomic-fail");
-        let p = dir.join("a.toml");
-        assert!(atomic_write(&p, b"original").is_ok());
-        // A directory squatting on the temp name makes the write fail.
-        assert!(fs::create_dir(dir.join("a.toml.tmp")).is_ok());
-        assert!(atomic_write(&p, b"replacement").is_err());
-        assert_eq!(fs::read(&p).ok().as_deref(), Some(&b"original"[..]));
+        let target = dir.join("a.toml");
+        fs::create_dir(&target).expect("create target directory");
+        let original = target.join("original.txt");
+        fs::write(&original, b"original").expect("write directory contents");
+        // A nonempty target directory refuses replacement after the temp write.
+        assert!(atomic_write(&target, b"replacement").is_err());
+        assert_eq!(fs::read(&original).expect("original survives"), b"original");
+        assert_eq!(fs::read_dir(dir.path()).expect("list scratch directory").count(), 1);
+    }
+
+    #[test]
+    fn atomic_write_keeps_a_directory_at_the_old_temp_name() {
+        let dir = TempDir::new("persist-temp-directory");
+        let target = dir.join("a.toml");
+        let legacy = dir.join("a.toml.tmp");
+        fs::create_dir(&legacy).expect("create existing temporary directory");
+        let original = legacy.join("original.txt");
+        fs::write(&original, b"recovery bytes").expect("write directory contents");
+        atomic_write(&target, b"new state").expect("save beside existing directory");
+        assert_eq!(fs::read(&target).expect("read target"), b"new state");
+        assert_eq!(fs::read(&original).expect("directory contents survive"), b"recovery bytes");
+        assert_eq!(fs::read_dir(dir.path()).expect("list scratch directory").count(), 2);
+    }
+
+    #[test]
+    fn parallel_atomic_writes_publish_one_complete_payload() {
+        let dir = TempDir::new("persist-parallel");
+        let target = dir.join("state.toml");
+        fs::write(&target, b"old state").expect("write old target");
+        let barrier = std::sync::Arc::new(std::sync::Barrier::new(4));
+        let writers: Vec<_> = (0u8..4).map(|index| {
+            let path = target.clone();
+            let ready = barrier.clone();
+            std::thread::spawn(move || {
+                let payload = vec![b'a' + index; 16 * 1024];
+                ready.wait();
+                atomic_write(&path, &payload)
+            })
+        }).collect();
+        for writer in writers {
+            writer.join().expect("writer joins").expect("atomic save succeeds");
+        }
+        let final_bytes = fs::read(&target).expect("read published target");
+        assert!((0u8..4).any(|index| final_bytes == vec![b'a' + index; 16 * 1024]));
+        assert_eq!(fs::read_dir(dir.path()).expect("list scratch directory").count(), 1);
     }
 }

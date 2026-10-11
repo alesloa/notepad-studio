@@ -155,14 +155,38 @@ fn bounded_snapshot_preserves_unicode_and_refuses_whole_hostile_lists() {
 fn failed_real_atomic_write_does_not_replace_previous_recent_file() {
     let dir = crate::persist::TempDir::new("recent-atomic-failure");
     let destination = dir.join("recent.toml");
-    save_at(&destination, &recent(&["previous"])).unwrap();
-    std::fs::create_dir(dir.join("recent.toml.tmp")).unwrap();
+    std::fs::create_dir(&destination).unwrap();
+    let previous = destination.join("previous.toml");
+    save_at(&previous, &recent(&["previous"])).unwrap();
+    let original = std::fs::read(&previous).unwrap();
+    let mut cx = TestAppContext::single();
+    let writer = writer::Writer::new(cx.background_executor.clone(), destination.clone());
+    // Replacing the nonempty destination directory must fail after temp creation.
+    queue(&writer, &["newest"]);
+    cx.run_until_parked();
+    assert_eq!(load_paths_at(&previous), vec![PathBuf::from("previous")]);
+    assert_eq!(std::fs::read(&previous).unwrap(), original);
+    assert_eq!(writer.probe.completed.lock().unwrap().iter().map(|(_, ok)| *ok).collect::<Vec<_>>(), vec![false]);
+    assert_eq!(std::fs::read_dir(dir.path()).unwrap().count(), 1, "owned temporary is cleaned");
+    cx.quit();
+}
+
+#[test]
+fn recent_writer_succeeds_beside_an_existing_fixed_temp_directory() {
+    let dir = crate::persist::TempDir::new("recent-old-temp");
+    let destination = dir.join("recent.toml");
+    let legacy = dir.join("recent.toml.tmp");
+    std::fs::create_dir(&legacy).unwrap();
+    let retained = legacy.join("recovery.txt");
+    std::fs::write(&retained, b"keep recovery bytes").unwrap();
     let mut cx = TestAppContext::single();
     let writer = writer::Writer::new(cx.background_executor.clone(), destination.clone());
     queue(&writer, &["newest"]);
     cx.run_until_parked();
-    assert_eq!(load_paths_at(&destination), vec![PathBuf::from("previous")]);
-    assert!(!writer.probe.completed.lock().unwrap()[0].1);
+    assert_eq!(load_paths_at(&destination), vec![PathBuf::from("newest")]);
+    assert_eq!(writer.probe.completed.lock().unwrap().iter().map(|(_, ok)| *ok).collect::<Vec<_>>(), vec![true]);
+    assert_eq!(std::fs::read(&retained).unwrap(), b"keep recovery bytes");
+    assert_eq!(std::fs::read_dir(dir.path()).unwrap().count(), 2, "no owned temporary remains");
     cx.quit();
 }
 

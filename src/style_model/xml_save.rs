@@ -222,12 +222,30 @@ mod tests {
     #[test]
     fn failed_theme_save_keeps_the_old_theme() {
         let dir = TempDir::new("theme-save-fail");
-        let p = dir.join("Mine.xml");
-        assert!(std::fs::write(&p, MINIMAL).is_ok());
-        // A directory squatting on the temp name makes the write fail.
-        assert!(std::fs::create_dir(dir.join("Mine.xml.tmp")).is_ok());
-        assert!(write_to(&p, &ThemeDocument::default()).is_err());
-        assert_eq!(std::fs::read_to_string(&p).ok().as_deref(), Some(MINIMAL));
+        let target = dir.join("Mine.xml");
+        std::fs::create_dir(&target).expect("create destination directory");
+        let previous = target.join("previous.xml");
+        std::fs::write(&previous, MINIMAL).expect("write previous theme");
+        // A nonempty target directory refuses replacement after the temp write.
+        assert!(write_to(&target, &ThemeDocument::default()).is_err());
+        assert_eq!(std::fs::read_to_string(&previous).expect("previous theme survives"), MINIMAL);
+        assert_eq!(std::fs::read_dir(dir.path()).expect("list scratch directory").count(), 1, "owned temporary is cleaned");
+    }
+
+    #[test]
+    fn theme_save_succeeds_beside_an_existing_fixed_temp_directory() {
+        let dir = TempDir::new("theme-old-temp");
+        let target = dir.join("Mine.xml");
+        let legacy = dir.join("Mine.xml.tmp");
+        std::fs::create_dir(&legacy).expect("create previous temporary directory");
+        let retained = legacy.join("recovery.txt");
+        std::fs::write(&retained, b"keep recovery bytes").expect("write retained bytes");
+        let document = parse(MINIMAL).expect("parse theme fixture");
+        write_to(&target, &document).expect("save beside old temporary");
+        let reopened = parse(&std::fs::read_to_string(&target).expect("read saved theme")).expect("reload theme");
+        assert_eq!(reopened, document);
+        assert_eq!(std::fs::read(&retained).expect("retained bytes survive"), b"keep recovery bytes");
+        assert_eq!(std::fs::read_dir(dir.path()).expect("list scratch directory").count(), 2, "no owned temporary remains");
     }
 
     const MINIMAL: &str = r#"<?xml version="1.0" encoding="UTF-8" ?>

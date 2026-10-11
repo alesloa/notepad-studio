@@ -334,6 +334,9 @@ v0.0.5 — current
        selection markers. Invalid offsets cannot overflow or leave highlights
        inside a Unicode character; valid annotation positions keep their behavior.
 
+   84. Smart highlighting clears above its 1 MiB limit before copying the
+       current line, so a long line or cached word cannot bypass the limit.
+
   v0.1.0 — syntax & language:
 
     1. Tree-sitter syntax highlighting for 25 modes: Rust, Python, C,

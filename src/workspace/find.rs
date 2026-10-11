@@ -253,7 +253,9 @@ impl Workspace {
         let head = self.tabs[self.active].selection.head;
         let buffer = &self.tabs[self.active].buffer;
         let total = buffer.rope.len_bytes();
-        if head > total {
+        // Apply the buffer limit before copying a physical line or accepting
+        // a cached word. One line can span the whole document.
+        if total > Self::SMART_HILITE_BUFFER_LIMIT_BYTES || head > total {
             self.smart_match_ranges.clear();
             self.smart_match_word = None;
             return;
@@ -294,12 +296,6 @@ impl Workspace {
         // Cache hit — caret moved within the same word; existing ranges still
         // apply, no work needed.
         if self.smart_match_word.as_deref() == Some(word) {
-            return;
-        }
-
-        if total > Self::SMART_HILITE_BUFFER_LIMIT_BYTES {
-            self.smart_match_ranges.clear();
-            self.smart_match_word = None;
             return;
         }
 
@@ -2206,5 +2202,76 @@ mod tests {
         // An empty query compiles to an empty pattern: no matches, no loop.
         let re = search_regex("", &flags(false)).unwrap();
         assert!(collect_matches("abc", &re, None).is_empty());
+    }
+}
+
+#[cfg(test)]
+mod smart_highlight_tests {
+    use super::Workspace;
+    use crate::tab::Tab;
+    use gpui::{AppContext, TestAppContext, VisualContext, WindowAppearance};
+
+    fn with_workspace(text: &str, test: impl FnOnce(&mut Workspace)) {
+        let _settings = crate::settings::override_for_test(crate::settings::Settings {
+            smart_highlight_enabled: true,
+            ..crate::settings::Settings::default()
+        });
+        let mut cx = TestAppContext::single();
+        let workspace = cx.new(|cx| {
+            let mut w = Workspace::new(
+                cx.focus_handle(), cx.focus_handle(), cx.focus_handle(),
+                cx.focus_handle(), cx.focus_handle(), cx.focus_handle(),
+                1., WindowAppearance::Dark,
+            );
+            let mut tab = Tab::empty();
+            tab.buffer.rope = ropey::Rope::from_str(text);
+            tab.buffer.dirty = false;
+            w.tabs = vec![tab];
+            w.active = 0;
+            w.window_closed = true;
+            w
+        });
+        cx.add_empty_window().update_window_entity(&workspace, |w, _, _| test(w));
+        cx.quit();
+    }
+
+    #[test]
+    fn cached_word_cannot_bypass_the_large_buffer_cutoff() {
+        with_workspace("anchor anchor\r\ncafé 中😀", |w| {
+            w.tabs[0].selection.collapse_to(2);
+            w.refresh_smart_highlight();
+            assert_eq!(w.smart_match_word.as_deref(), Some("anchor"));
+            assert_eq!(w.smart_match_ranges.len(), 1);
+            assert_eq!(w.smart_match_ranges.first(), Some(&(7..13)));
+            // Keep the caret on the cached word while this physical line
+            // grows beyond the limit. Even a cache hit must clear the band.
+            w.tabs[0].buffer.rope.insert(0,
+                &" ".repeat(Workspace::SMART_HILITE_BUFFER_LIMIT_BYTES));
+            w.tabs[0].selection.collapse_to(Workspace::SMART_HILITE_BUFFER_LIMIT_BYTES + 2);
+            w.refresh_smart_highlight();
+            assert!(w.smart_match_ranges.is_empty());
+            assert!(w.smart_match_word.is_none());
+            assert!(w.tabs[0].undo_stack.is_empty());
+            assert!(w.tabs[0].redo_stack.is_empty());
+            assert!(!w.buffer().dirty);
+        });
+    }
+
+    #[test]
+    fn cutoff_includes_the_exact_limit_and_preserves_unicode_source() {
+        let suffix = "café 中😀\r\nanchor anchor";
+        let text = format!("{}{}",
+            " ".repeat(Workspace::SMART_HILITE_BUFFER_LIMIT_BYTES - suffix.len()), suffix);
+        with_workspace(&text, |w| {
+            w.tabs[0].selection.collapse_to(text.len() - "anchor anchor".len() + 2);
+            w.refresh_smart_highlight();
+            assert_eq!(w.smart_match_word.as_deref(), Some("anchor"));
+            assert_eq!(w.smart_match_ranges.len(), 1);
+            assert_eq!(w.smart_match_ranges.first(), Some(&(text.len() - 6..text.len())));
+            assert_eq!(w.buffer().rope.to_string(), text);
+            assert!(!w.buffer().dirty);
+            assert!(w.tabs[0].undo_stack.is_empty());
+            assert!(w.tabs[0].redo_stack.is_empty());
+        });
     }
 }

@@ -27,14 +27,14 @@ Scope: Continue the requested cross-platform Notepad++ parity audit and fix the 
   EVIDENCE: Immutable e6f5cab (including annotation offset safety) built/tested/all-target Clippy on Ubuntu24.04/WSL Rust1.99.0;1633 units+3 integration passed,8 ignored (Windows-only test omitted),195app/209test192duplicate inherited warnings,no touched warnings. Build51.59s,test compile1m57s/unit runtime5.36s,Clippy41.34s. Logs log/linux-e6f5cab-{build,tests,clippy}.txt. Earlier12c3fe0/f4d1a4f/80d23fd/8a1a353 remain historical evidence. Native computer-use transport remains unavailable and CUA native surfaces are disabled. Current macOS build, later source batches and native visual/OSIME flows remain open; headless GPUI checks are not native screenshots.
 
 - [x] G9: The integrated main tree builds and passes its required unit/integration/clippy checks with no new warnings on touched code.
-  CHECK: powershell -NoProfile -Command "Get-Content log/annotation-safety-tests.txt -Tail 24"
-  EXPECT: 1634 passed; 0 failed
-  EVIDENCE: Annotation safety batch; cargo build/test/clippy all-targets passed;1634 units+3 integration/8ignored,196app210test193duplicate inherited warnings,no owned warnings. Six synthetic helper/actual painted native-input/history tests: bookmark/mark/Begin-End overflow, malformed UTF8 boundaries, extreme lengths and valid insertion/deletion affinities. Logs log/annotation-safety-{red,focused,build,tests,clippy}.txt and log/annotation-marker-red.txt. Refresh for each source batch.
+  CHECK: powershell -NoProfile -Command "Get-Content log/smart-highlight-tests.txt -Tail 24"
+  EXPECT: 1636 passed; 0 failed
+  EVIDENCE: Smart-highlight cutoff batch; cargo build/test/clippy all-targets passed;1636 units+3 integration/8ignored,196app210test193duplicate inherited warnings,no owned warnings. Cached-word regression failed before the fix; exact1MiB boundary and Unicode/CRLF source/history positive control pass. Cutoff now precedes physical-line copying and cache hits. Logs log/smart-highlight-{red,build,tests,clippy}.txt. Release publication timing is being measured in the separate bulk-edit leaf; no native latency claim. Refresh for each source batch.
 
 - [x] G10: Completed source batches have separate conventional commits and current change.log/devlog entries; the main working tree is clean before beginning a new batch.
   CHECK: git status --porcelain
   EXPECT: /^$/
-  EVIDENCE: main8a3a93b was clean before the annotation safety batch.83 current-version release notes and a devlog entry accompany the source change. Refresh after each source batch.
+  EVIDENCE: main7733739 was clean before the smart-highlight cutoff batch.84 current-version release notes and a devlog entry accompany the source change. Refresh after each source batch.
 
 - [x] G11: View > Tab exposes every oracle Tab command in order with rebindable shortcuts; selection/reordering/color commands preserve document UUID, text, encoding/EOL, saved state and history, with edge and pending-cell refusal coverage.
   EVIDENCE: oracle RC789-817 / Commands1304-1412,3532-3537; red missing-menu contract then 7 new menu/actual-dispatch/refusal/edge tests pass. 1332-unit main gate; existing shortcut parity/collision tests cover added rows. Native appearance remains G8.
@@ -70,3 +70,5 @@ Scope: Continue the requested cross-platform Notepad++ parity audit and fix the 
 - 2026-10-10: immutable12c3fe0 Linux current full gates passed on Ubuntu24.04/WSL Rust1.99:1627units+3integration/8ignored;build1m19s,test27.08s,Clippy27.62s,195app209test192duplicate inherited warnings,no owned warnings. Native Windows/Linux/macOS UI/OSIME and currentMac build remain G8.
 
 - 2026-10-10: actual native-input/helper regressions reproduce bookmark/mark and Begin-End signed-offset overflows; checked unsigned shifts now repair/discard malformed metadata and enforce mark/marker character boundaries. Six new tests preserve valid affinities, Unicode/CRLF text and saved Undo/Redo identity.1634units+3integration/8ignored,build/clippy green,no owned warnings. Bulk editing and captured Source origin leaves remain separate.
+
+- 2026-10-11: smart-highlight buffer cutoff now runs before physical-line copying and cached-word acceptance. One stale cached-band RED regression and one exact-limit Unicode/CRLF source/history positive control;1636units+3integration/8ignored,build/clippy green,no owned warnings. Bulk leaf will measure large-line publication; native/currentMac/laterLinux remain open.

@@ -645,3 +645,7 @@ impl Workspace {
          self.syntax_refresh.install_time, self.syntax_refresh.initial.callback_time)
     }
 }
+
+#[cfg(test)]
+#[path = "session_startup_identity_tests.rs"]
+mod session_startup_identity_tests;

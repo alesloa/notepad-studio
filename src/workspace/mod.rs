@@ -87,7 +87,7 @@ use crate::find_in_files::FindInFilesState;
 use crate::find_state::{
     DialogTab, FindState, GotoState, MacroPromptState, MarkState, TabRenameState,
 };
-use crate::session::{self, RestoreOutcome, SessionManifest};
+use crate::session::{self, SessionManifest};
 use crate::tab::{ClosedTab, InputFocus, Tab};
 use crate::theme::{Theme, ThemeMode};
 use crate::ui::find_dialog::FindDialog;
@@ -277,6 +277,8 @@ pub(crate) struct Workspace {
     pub(crate) autosave_generation: u64,
     #[cfg(test)]
     pub(crate) session_snapshot_sink: Option<std::sync::mpsc::Sender<SessionManifest>>,
+    #[cfg(test)]
+    pub(crate) session_registration_sink: Option<std::sync::mpsc::Sender<SessionManifest>>,
     #[cfg(test)]
     pub(crate) session_final_save_result: Option<bool>,
     /// Independent post-edit eager-recovery debounce; syntax work is tracked per tab.
@@ -684,6 +686,7 @@ impl Default for Viewport {
 }
 
 impl Workspace {
+    #[cfg(test)]
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn new(
         focus_handle: FocusHandle,
@@ -695,10 +698,20 @@ impl Workspace {
         zoom_level: f32,
         system_appearance: WindowAppearance,
     ) -> Self {
+        Self::new_with_welcome(focus_handle, find_focus, replace_focus, goto_focus,
+            fif_query_focus, fif_filter_focus, zoom_level, system_appearance, uuid::Uuid::new_v4())
+    }
+
+    #[allow(clippy::too_many_arguments)]
+    pub(crate) fn new_with_welcome(
+        focus_handle: FocusHandle, find_focus: FocusHandle, replace_focus: FocusHandle,
+        goto_focus: FocusHandle, fif_query_focus: FocusHandle, fif_filter_focus: FocusHandle,
+        zoom_level: f32, system_appearance: WindowAppearance, welcome_id: uuid::Uuid,
+    ) -> Self {
         let mut welcome = Tab::welcome();
         // First tab in a fresh window is always "new 1".
         welcome.buffer.new_label = Some(crate::buffer::next_new_label_for(std::iter::empty()));
-        let welcome_id = welcome.session_id;
+        welcome.session_id = welcome_id;
         Self {
             tabs: vec![welcome],
             active: 0,
@@ -764,6 +777,8 @@ impl Workspace {
             autosave_generation: 0,
             #[cfg(test)]
             session_snapshot_sink: None,
+            #[cfg(test)]
+            session_registration_sink: None,
             #[cfg(test)]
             session_final_save_result: None,
             post_edit_generation: 0,
@@ -1235,6 +1250,11 @@ impl Workspace {
     }
 
     pub(crate) fn register_session_window(&self) {
+        #[cfg(test)]
+        if let Some(sink) = &self.session_registration_sink {
+            let _ = sink.send(self.session_snapshot(session::BakPolicy::Full));
+            return;
+        }
         session::register_workspace(self.session_window_id, self.session_snapshot(session::BakPolicy::Full));
     }
 
@@ -1280,85 +1300,54 @@ impl Workspace {
     /// index with the contents of `manifest`. Skipped entries (missing path,
     /// corrupt `.bak`) are reported through the status bar as a single
     /// summary message. Called once during window construction.
-    pub(crate) fn apply_session(&mut self, manifest: SessionManifest) {
-        let mut restored: Vec<Tab> = Vec::with_capacity(manifest.tabs.len());
-        let mut skipped = 0usize;
-        let mut raw_recoveries = 0usize;
-        for entry in &manifest.tabs {
-            match session::restore_tab(entry) {
-                RestoreOutcome::Restored(tab) => {
-                    if entry.rich_backup && tab.buffer.rich_doc.is_none() { raw_recoveries += 1; }
-                    restored.push(tab);
-                }
-                RestoreOutcome::Skipped(reason) => {
-                    eprintln!("[session] skipped tab: {reason}");
-                    skipped += 1;
-                }
-            }
+    #[cfg(test)]
+    pub(crate) fn apply_session(&mut self, mut manifest: SessionManifest) {
+        let welcome = self.tabs.first().map(|t| t.session_id).unwrap_or_else(uuid::Uuid::new_v4);
+        let result = session::recovery_identity::prepare(&mut manifest, welcome)
+            .map_err(anyhow::Error::from)
+            .and_then(|ids| session::startup_restore::RestoredSession::read(manifest, ids, welcome).map_err(|failure| failure.error));
+        match result {
+            Ok(restored) => self.adopt_restored_session(restored),
+            Err(err) => self.set_status(format!("Session recovery failed: {err}")),
         }
+    }
 
-        if restored.is_empty() {
-            // Nothing recovered — keep the welcome tab the constructor seeded.
-            return;
+    pub(crate) fn adopt_restored_session(&mut self, restored: session::startup_restore::RestoredSession) {
+        let session::startup_restore::RestoredSession { manifest, tabs, closed, welcome,
+            skipped, raw_recoveries, repaired } = restored;
+        let recovered_count = tabs.len();
+        let has_open = !tabs.is_empty();
+        if has_open {
+            self.tabs = tabs;
+            self.active = manifest.active.min(self.tabs.len().saturating_sub(1));
+        } else if let Some(tab) = self.tabs.first_mut() {
+            // Constructor and input-context identity are chosen before publication.
+            tab.session_id = welcome;
         }
-
-        self.tabs = restored;
-        self.active = manifest.active.min(self.tabs.len().saturating_sub(1));
-        self.seed_initial_syntax(self.active);
-
-        self.closed_tabs.clear();
-        for entry in &manifest.closed_tabs {
-            if let Some(closed) = session::restore_closed_tab(entry) {
-                self.closed_tabs.push(closed);
-            }
-        }
-
-        if let Some(theme) = manifest.theme {
-            self.theme_mode = theme;
-        }
+        self.closed_tabs = closed;
+        if let Some(theme) = manifest.theme { self.theme_mode = theme; }
         self.show_whitespace = manifest.show_whitespace;
         self.word_wrap = manifest.word_wrap;
-
+        let mut status = format!("Restored {recovered_count} tab(s)");
         if raw_recoveries > 0 {
-            self.set_status(format!("Restored {} tab(s); recovered raw source for {raw_recoveries} document(s) because Doc View recovery was damaged; {skipped} couldn't be reopened", self.tabs.len()));
-        } else if skipped > 0 {
-            self.set_status(format!(
-                "Restored {} tab(s); {} couldn't be reopened",
-                self.tabs.len(),
-                skipped
-            ));
-        } else {
-            self.set_status(format!("Restored {} tab(s)", self.tabs.len()));
+            status.push_str(&format!("; recovered raw source for {raw_recoveries} document(s) because Doc View recovery was damaged"));
         }
-
-        // Rehydrate the document-switcher MRU from the manifest. Drop any
-        // ids that didn't make it into `self.tabs` (closed-since-save or
-        // restore-failed tabs); `touch_mru` further normalises by pushing
-        // the active tab to the front. With an empty manifest MRU (legacy
-        // sessions or fresh installs), `touch_mru` alone produces a one-
-        // entry MRU which `cycle_tab_mru` then back-fills lazily from
-        // tab-strip order on first use.
-        let live: std::collections::HashSet<uuid::Uuid> =
-            self.tabs.iter().map(|t| t.session_id).collect();
-        self.tab_mru = manifest
-            .mru
-            .iter()
-            .copied()
-            .filter(|id| live.contains(id))
-            .collect();
-
-        // NPP `New Document ▸ Always open a new document in addition at startup`.
-        // Append a fresh blank tab and make it active so users land on a
-        // scratch buffer regardless of session contents.
-        if crate::settings::snapshot().startup_open_blank {
-            let label = crate::buffer::next_new_label_for(
-                self.tabs.iter().map(|t| t.buffer.new_label.as_ref()),
-            );
+        if skipped > 0 { status.push_str(&format!("; {skipped} couldn't be reopened")); }
+        if repaired > 0 { status.push_str(&format!("; repaired {repaired} duplicate document ID(s) for independent recovery backups")); }
+        self.set_status(status);
+        // First surviving original owner retains persisted MRU semantics.
+        let live: std::collections::HashSet<uuid::Uuid> = self.tabs.iter().map(|t| t.session_id).collect();
+        self.tab_mru = manifest.mru.into_iter().filter(|id| live.contains(id)).collect();
+        if has_open && crate::settings::snapshot().startup_open_blank {
+            let label = crate::buffer::next_new_label_for(self.tabs.iter().map(|t| t.buffer.new_label.as_ref()));
             let mut blank = crate::tab::Tab::empty();
+            blank.session_id = welcome;
             blank.buffer.new_label = Some(label);
             self.tabs.push(blank);
-            self.active = self.tabs.len() - 1;
+            self.active = self.tabs.len().saturating_sub(1);
         }
+        self.sync_source_input_tab();
+        self.seed_initial_syntax(self.active);
         self.touch_mru();
     }
 

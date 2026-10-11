@@ -516,6 +516,11 @@ v0.0.5 — current
          chunks per turn. It yields when the worker queue is full, retains
          cancellation, and limits aggregate text and document-node work.
 
+    132. Session recovery keeps duplicate document IDs independent, restores
+         closed-tab history and preserves the selected surviving document.
+         Failed moves to a new window return unsaved text to its source;
+         failed window creation reports an error and retains recovery data.
+
 
   v0.1.0 — syntax & language:
 

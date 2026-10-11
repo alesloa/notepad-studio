@@ -37,8 +37,7 @@ use crate::theme::ThemeMode;
 mod windows;
 mod persistence;
 mod rich_backup;
-// Foundation only; startup preparation will call this in a subsequent batch.
-#[allow(dead_code)]
+pub(crate) mod startup_restore;
 pub(crate) mod recovery_identity;
 use recovery_identity::RecoveryIdentity;
 use persistence::Backup;
@@ -872,6 +871,10 @@ fn refresh_clean_rich_recovery(path: Option<&Path>, dirty: bool, payload: &mut c
 /// always in a `.bak` — the closed-tab restore stack carries unsaved drafts
 /// across launches the same way the open-tab list does.
 pub(crate) fn restore_closed_tab(entry: &SessionClosedTab) -> Option<ClosedTab> {
+    #[cfg(test)]
+    if let Some(dir) = RESTORE_BACKUP_ROOT.with(|root| root.borrow().clone()) {
+        return restore_closed_tab_in(entry, &dir);
+    }
     restore_closed_tab_in(entry, &bak_dir()?)
 }
 

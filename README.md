@@ -25,6 +25,8 @@ A lightweight, cross-platform text editor inspired by Notepad++, written in Rust
 > Restored-session syntax parsing starts after the window mounts, prioritizes
 > the active document, and refills a bounded background queue. Session file
 > reads, decoding and rich-document imports still run during restoration.
+> Recovery identities are prepared in background before editor registration;
+> recovered documents keep independent backup IDs and closed-tab history.
 > Reload also reads and parses in background, keeping the original document
 > editable and rejecting results after intervening edits or cancellation.
 > Find All in the current Doc View captures live formatted text incrementally,

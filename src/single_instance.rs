@@ -280,6 +280,10 @@ pub(crate) fn release() {
     let _ = std::fs::remove_file(&path);
 }
 
+pub(crate) fn take_ready_open_paths(cx: &mut App) -> Vec<PathBuf> {
+    if crate::app::startup::blocks_editor(cx) { Vec::new() } else { pending_open_paths_drain() }
+}
+
 /// Spawn a foreground gpui task that polls every 250ms for:
 ///   - any pending file paths queued via `pending_open_paths_push` (the
 ///     cold-start argv path, the macOS `on_open_urls` callback path)
@@ -295,7 +299,7 @@ pub(crate) fn start_activation_poller(cx: &mut App) {
 
             // 1. Drain the in-process pending-open queue. Covers cold-start
             //    argv (Linux/Windows) and macOS `on_open_urls` events.
-            let pending = pending_open_paths_drain();
+            let pending = cx.update(take_ready_open_paths);
             if !pending.is_empty() {
                 let _ = cx.update(|cx| {
                     for p in pending {

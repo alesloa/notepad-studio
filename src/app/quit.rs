@@ -87,6 +87,7 @@ fn exit_status(cx: &mut App, message: &str) {
 }
 
 pub(super) fn quit_with_recovery(cx: &mut App) {
+    super::startup::cancel_for_quit(cx);
     if cx.default_global::<ExitState>().pending.is_some() { return; }
     cx.default_global::<ExitState>().accepted = None;
     let windows = cx.windows();

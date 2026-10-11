@@ -944,19 +944,27 @@ fn move_tab_to_new_window(
         // so it does NOT go onto the closed-tab stack.
         let tab = workspace.tabs.remove(idx);
         workspace.settle_after_tab_removal(idx, window, cx);
-        crate::app::window::open_tab_in_new_window(tab, cx);
+        if let Some((tab, error)) = crate::app::window::open_tab_in_new_window(tab, cx) {
+            workspace.adopt_transferred_tab(tab, cx);
+            workspace.set_status(format!("Document kept in this window: {error}"));
+        }
         return;
     }
 
     // Open in New Instance — source untouched.
-    let buffer = &workspace.tabs[idx].buffer;
+    let Some(buffer) = workspace.tabs.get(idx).map(|tab| &tab.buffer) else { return; };
     if let Some(path) = buffer.file_path.clone() {
-        crate::app::window::open_editor_window_with_initial_path(path, cx);
+        if let Err(error) = crate::app::window::open_editor_window_with_initial_path(path, cx) {
+            workspace.set_status(format!("Could not open a destination window: {error}. Try Open in New Instance again."));
+        }
     } else {
         let cloned_buffer = buffer.clone_for_transfer();
         let mut new_tab = crate::tab::Tab::empty();
         new_tab.buffer = cloned_buffer;
-        crate::app::window::open_tab_in_new_window(new_tab, cx);
+        if let Some((tab, error)) = crate::app::window::open_tab_in_new_window(new_tab, cx) {
+            workspace.adopt_transferred_tab(tab, cx);
+            workspace.set_status(format!("Document copy kept in this window: {error}"));
+        }
     }
 }
 
@@ -1115,4 +1123,10 @@ fn submenu_row(
             .on_mouse_move(move |_e, w, cx| on_hover(w, cx));
     }
     row
+}
+
+#[cfg(test)]
+pub(crate) fn transfer_for_startup_test(workspace: &mut Workspace, idx: usize, move_it: bool,
+    window: &mut gpui::Window, cx: &mut gpui::Context<Workspace>) {
+    move_tab_to_new_window(workspace, idx, move_it, window, cx);
 }

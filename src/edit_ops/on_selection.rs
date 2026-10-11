@@ -78,7 +78,9 @@ impl Workspace {
             cx.notify();
             return;
         }
-        crate::app::window::open_editor_window_with_initial_path(path, cx);
+        if let Err(error) = crate::app::window::open_editor_window_with_initial_path(path, cx) {
+            self.set_status(format!("Could not open a destination window: {error}. Try Open in New Instance again."));
+        }
         cx.notify();
     }
 

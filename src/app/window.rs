@@ -2,13 +2,13 @@ use std::path::PathBuf;
 use std::time::Duration;
 
 use gpui::{
-    App, Bounds, Context, Focusable, Pixels, Size, TitlebarOptions, WindowBounds, WindowOptions,
+    App, Bounds, Context, Focusable, Pixels, Size, TitlebarOptions, WindowBounds, WindowOptions, WindowHandle,
     point, prelude::*, px, size,
 };
 
-use crate::config::{WindowEntry, load_windows, record_window_bounds, record_zoom_level};
+use crate::config::{WindowEntry, record_window_bounds, record_zoom_level};
 use crate::consts::{APP_NAME, ZOOM_DEFAULT, ZOOM_REM_BASE};
-use crate::session::load_manifest;
+use crate::session::startup_restore::RestoredSession;
 use crate::tab::Tab;
 use crate::workspace::Workspace;
 
@@ -100,22 +100,14 @@ pub(crate) fn spawn_periodic_backup(cx: &mut Context<Workspace>) {
 /// only applied to the first restored window — matches Notepad++ where
 /// the session belongs to the "main" instance.
 pub(crate) fn restore_windows_on_boot(cx: &mut App) {
-    let entries = load_windows();
-    if entries.is_empty() {
-        spawn_window(cx, None, true);
-        return;
-    }
-    for (idx, entry) in entries.into_iter().enumerate() {
-        // Only the first restored window inherits the session manifest;
-        // additional windows boot empty so we don't double-restore tabs.
-        spawn_window(cx, Some(entry), idx == 0);
-    }
+    super::startup::begin(cx, false);
 }
 
 /// Open a fresh editor window with default placement and no session
 /// restore. Used by `File ▸ New Window`.
 pub(crate) fn open_editor_window(cx: &mut App) {
-    spawn_window(cx, None, false);
+    if super::startup::defer_new_window(cx) { return; }
+    spawn_fresh_window(cx, None);
 }
 
 /// Bring every app window forward as a group.
@@ -157,10 +149,18 @@ fn raise_windows_in_front_order(cx: &mut App) {
 }
 
 /// Lower-level spawn. `entry` carries the persisted bounds + zoom for a
-/// restored window; `None` means "use platform defaults". `restore_session`
-/// gates whether the on-disk session manifest is applied to the new
-/// workspace — only the first window on boot should pick it up.
-fn spawn_window(cx: &mut App, entry: Option<WindowEntry>, restore_session: bool) {
+/// restored window; `None` uses platform defaults. Fresh windows have no
+/// recovered payload; startup readers finish before the prepared spawn.
+pub(super) fn spawn_fresh_window(cx: &mut App, entry: Option<WindowEntry>) {
+    if let Err(err) = spawn_prepared_window(cx, entry, uuid::Uuid::new_v4(), &mut None) {
+        eprintln!("failed to open Notepad Studio window: {err}");
+    }
+}
+
+pub(super) fn spawn_prepared_window(cx: &mut App, entry: Option<WindowEntry>, welcome: uuid::Uuid,
+    restored: &mut Option<RestoredSession>) -> anyhow::Result<WindowHandle<Workspace>> {
+    #[cfg(test)]
+    super::startup::tests::check_open(cx)?;
     let loaded_zoom = entry
         .and_then(|e| e.zoom_level)
         .unwrap_or(ZOOM_DEFAULT)
@@ -170,7 +170,7 @@ fn spawn_window(cx: &mut App, entry: Option<WindowEntry>, restore_session: bool)
         .and_then(WindowEntry::into_bounds)
         .unwrap_or_else(|| Bounds::centered(None, size(px(1100.), px(720.)), cx));
 
-    let window = match cx.open_window(
+    let window = cx.open_window(
         WindowOptions {
             window_bounds: Some(WindowBounds::Windowed(bounds)),
             titlebar: Some(TitlebarOptions {
@@ -235,7 +235,7 @@ fn spawn_window(cx: &mut App, entry: Option<WindowEntry>, restore_session: bool)
                     workspace.release_session_window();
                 })
                 .detach();
-                let mut workspace = Workspace::new(
+                let mut workspace = Workspace::new_with_welcome(
                     editor_focus,
                     find_focus,
                     replace_focus,
@@ -244,12 +244,13 @@ fn spawn_window(cx: &mut App, entry: Option<WindowEntry>, restore_session: bool)
                     fif_filter_focus,
                     loaded_zoom,
                     initial_appearance,
+                    welcome,
                 );
-                if restore_session {
-                    if let Some(manifest) = load_manifest() {
-                        workspace.apply_session(manifest);
-                    }
+                if let Some(restored) = restored.take() {
+                    workspace.adopt_restored_session(restored);
                 }
+                #[cfg(test)]
+                super::startup::tests::configure_workspace(&mut workspace, cx);
                 workspace.register_session_window();
                 spawn_caret_blink(cx);
                 spawn_periodic_backup(cx);
@@ -266,13 +267,7 @@ fn spawn_window(cx: &mut App, entry: Option<WindowEntry>, restore_session: bool)
 
             workspace_entity
         },
-    ) {
-        Ok(window) => window,
-        Err(err) => {
-            eprintln!("failed to open Notepad Studio window: {err}");
-            return;
-        }
-    };
+    )?;
 
     window
         .update(cx, |workspace, window, cx| {
@@ -280,6 +275,7 @@ fn spawn_window(cx: &mut App, entry: Option<WindowEntry>, restore_session: bool)
             workspace.start_initial_syntax(cx);
         })
         .ok();
+    Ok(window)
 }
 
 /// Open `path` in whatever editor window is currently active. Falls through
@@ -292,6 +288,10 @@ fn spawn_window(cx: &mut App, entry: Option<WindowEntry>, restore_session: bool)
 /// On the new-window fallback we hand the path to a one-shot post-mount
 /// hook so the open happens after `Workspace::new` finishes hydrating.
 pub(crate) fn open_path_in_active_or_new_window(path: PathBuf, cx: &mut App) {
+    if super::startup::blocks_editor(cx) {
+        crate::single_instance::pending_open_paths_push(path);
+        return;
+    }
     // Look for any existing Notepad Studio window — `active_window` returns the OS-
     // focused one when there is one, but a Recent click that comes from a
     // dock-icon menu (macOS, no window focused) should still land on the
@@ -340,7 +340,13 @@ pub(crate) fn open_path_in_active_or_new_window(path: PathBuf, cx: &mut App) {
         // through to spawning a new one.
     }
 
-    open_editor_window_with_initial_path(path, cx);
+    if let Err(err) = open_editor_window_with_initial_path(path, cx) {
+        let message = format!("Could not open the file in a new window: {err}. Try Open again.");
+        cx.spawn(async move |_| {
+            rfd::AsyncMessageDialog::new().set_title(APP_NAME).set_description(message)
+                .set_level(rfd::MessageLevel::Error).show().await;
+        }).detach();
+    }
 }
 
 /// Spawn a fresh editor window and adopt a tab handed over from another
@@ -349,56 +355,51 @@ pub(crate) fn open_path_in_active_or_new_window(path: PathBuf, cx: &mut App) {
 /// cloned (Open) the tab; here it just lands in a fresh window. Always
 /// spawns a new window — never folds into the active one, even if one
 /// exists — which is the explicit user intent behind the menu rows.
-pub(crate) fn open_tab_in_new_window(tab: Tab, cx: &mut App) {
-    open_editor_window(cx);
-    let Some(handle) = cx
-        .active_window()
-        .and_then(|h| h.downcast::<Workspace>())
-        .or_else(|| {
-            cx.windows()
-                .into_iter()
-                .find_map(|h| h.downcast::<Workspace>())
-        })
-    else {
-        return;
+#[must_use]
+pub(crate) fn open_tab_in_new_window(tab: Tab, cx: &mut App) -> Option<(Tab, String)> {
+    if super::startup::blocks_editor(cx) {
+        return Some((tab, "Session recovery is not ready for this transfer".into()));
+    }
+    let handle = match spawn_prepared_window(cx, None, uuid::Uuid::new_v4(), &mut None) {
+        Ok(handle) => handle,
+        Err(err) => return Some((tab, format!("Could not open a destination window: {err}"))),
     };
-    handle
-        .update(cx, |workspace, _window, cx| {
-            workspace.adopt_transferred_tab(tab, cx);
-        })
-        .ok();
+    // update can refuse without entering its callback. Keep the owned dirty
+    // document outside that closure until the destination actually accepts it.
+    let mut owned = Some(tab);
+    #[cfg(test)]
+    super::startup::tests::close_transfer_destination(handle, cx);
+    let result = handle.update(cx, |workspace, window, cx| {
+        if workspace.window_closed { return; }
+        if let Some(tab) = owned.take() { workspace.adopt_transferred_tab(tab, cx); }
+        window.activate_window(); window.focus(&workspace.focus_handle, cx);
+    });
+    owned.map(|tab| {
+        let message = match result {
+            Ok(()) => "Destination window closed before accepting the document".to_owned(),
+            Err(err) => format!("Could not update the destination window: {err}"),
+        };
+        (tab, message)
+    })
 }
 
-/// Spawn a fresh editor window and load `path` once the Workspace has
-/// finished hydrating from the session manifest. The session restore happens
-/// inside the `cx.new` closure that builds the Workspace, so the open call
-/// has to land *after* that body returns — we re-enter the window via its
-/// handle from outside.
-pub(crate) fn open_editor_window_with_initial_path(path: PathBuf, cx: &mut App) {
-    open_editor_window(cx);
-    // `cx.active_window()` after `open_editor_window` returns picks up the
-    // newly-spawned one — `cx.activate(true)` + the open_window call drive
-    // the platform's active-window state synchronously.
-    let Some(handle) = cx
-        .active_window()
-        .and_then(|h| h.downcast::<Workspace>())
-        .or_else(|| {
-            cx.windows()
-                .into_iter()
-                .find_map(|h| h.downcast::<Workspace>())
-        })
-    else {
-        return;
-    };
-    handle
-        .update(cx, |workspace, window, cx| {
-            workspace.open_path(path, cx);
-            // Same activation reasoning as the in-place branch in
-            // `open_path_in_active_or_new_window` — the trigger here is
-            // always external (Finder / argv / dock-drop), so bring the
-            // new window forward across Spaces and above aux floaters.
-            window.activate_window();
-        })
-        .ok();
+/// Load the path through the exact fresh destination handle. Startup readers
+/// complete before window construction; this fresh window has no session payload.
+pub(crate) fn open_editor_window_with_initial_path(path: PathBuf, cx: &mut App) -> anyhow::Result<()> {
+    if super::startup::blocks_editor(cx) {
+        crate::single_instance::pending_open_paths_push(path);
+        return Ok(());
+    }
+    let handle = spawn_prepared_window(cx, None, uuid::Uuid::new_v4(), &mut None)?;
+    let mut owned = Some(path);
+    #[cfg(test)]
+    super::startup::tests::close_transfer_destination(handle, cx);
+    handle.update(cx, |workspace, window, cx| {
+        if workspace.window_closed { return; }
+        if let Some(path) = owned.take() { workspace.open_path(path, cx); }
+        window.activate_window();
+    })?;
+    if owned.is_some() { anyhow::bail!("Destination window closed before opening the file"); }
     cx.activate(true);
+    Ok(())
 }

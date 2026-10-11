@@ -124,7 +124,7 @@ fn main() {
         // tracks exactly what the user has on screen.
         cx.on_window_closed(|cx| {
             let alive: Vec<_> = cx.windows().into_iter().map(|h| h.window_id()).collect();
-            flush_window_settings_for_alive(&alive);
+            if !app::startup::protects_placement(cx) { flush_window_settings_for_alive(&alive); }
             // Also force a session snapshot on every window close — the
             // 2s debounced autosave covers steady-state typing, but a
             // user who hits Cmd+W immediately after Cmd+N would otherwise
@@ -145,9 +145,10 @@ fn main() {
         // on_window_closed runs per-window; on_app_quit catches the case where
         // the OS kills the run loop without firing per-window close handlers.
         cx.on_app_quit(|cx: &mut App| {
+            app::startup::cancel_for_app_quit(cx);
             app::quit::save_final_recovery(cx);
             let alive: Vec<_> = cx.windows().into_iter().map(|h| h.window_id()).collect();
-            flush_window_settings_for_alive(&alive);
+            if !app::startup::protects_placement(cx) { flush_window_settings_for_alive(&alive); }
             // Release after window teardown has flushed its recovery state,
             // so the next instance cannot race the final writes.
             // A crash leaves the lock behind; the next launch's stale-PID
@@ -168,11 +169,6 @@ fn main() {
         // process spawn its own window.
         single_instance::start_activation_poller(cx);
         settings::start_settings_refresh_poller(cx);
-        restore_windows_on_boot(cx);
-        // Cold-start only — appears as a read-only ephemeral tab so users
-        // see what shipped on first launch and after every version bump.
-        // Not wired into `app.on_reopen` — dock-icon resume is a session
-        // resurrect, not a fresh launch.
-        crate::changelog::maybe_open_changelog(cx);
+        app::startup::begin(cx, true);
     });
 }

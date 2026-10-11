@@ -1,5 +1,5 @@
 // Runtime recovery keys never enter the persisted schema. Preparation must run
-// before restore/publication; this module is not yet wired into startup.
+// before restore/publication by the owned startup metadata worker.
 use super::{SessionManifest, SessionTab, SessionClosedTab};
 use uuid::Uuid;
 
@@ -140,7 +140,8 @@ fn assign_sorted(manifest: &mut SessionManifest, welcome: Uuid, candidates: &mut
         entry.id = id; entry.recovery_identity.owner = owner;
         previous = Some(source);
     }
-    let welcome_replacement = if manifest.closed_tabs.binary_search_by_key(&welcome, |e| e.recovery_identity.source_id(e.id)).is_ok() {
+    let welcome_replacement = if manifest.tabs.binary_search_by_key(&welcome, |e| e.recovery_identity.source_id(e.id)).is_ok()
+        || manifest.closed_tabs.binary_search_by_key(&welcome, |e| e.recovery_identity.source_id(e.id)).is_ok() {
         Some(candidates.next(&manifest.tabs, &manifest.closed_tabs, welcome)?)
     } else { None };
     // Persisted duplicate IDs cannot encode individual recency. Retain the first

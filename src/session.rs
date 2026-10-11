@@ -1135,7 +1135,9 @@ pub(crate) fn write_save_backup(
                 .extension()
                 .map(|s| format!(".{}", s.to_string_lossy()))
                 .unwrap_or_default();
-            std::ffi::OsString::from(format!("{stem}.{stamp}{ext}.bak"))
+            let source = fs::File::open(source_path).map_err(|e| format!("backup: open source: {e}"))?;
+            let permissions = source.metadata().map_err(|e| format!("backup: source metadata: {e}"))?.permissions();
+            return copy_verbose_backup(source, permissions, &target_dir, &stem, &stamp, &ext);
         }
     };
 
@@ -1145,11 +1147,55 @@ pub(crate) fn write_save_backup(
         .map_err(|e| format!("backup: copy: {e}"))
 }
 
+// Preserve the readable timestamp name, adding a numeric suffix only on collision.
+const VERBOSE_BACKUP_ATTEMPTS: u32 = 100;
+
+fn copy_verbose_backup(
+    mut source: impl io::Read,
+    permissions: fs::Permissions,
+    dir: &Path,
+    stem: &str,
+    stamp: &str,
+    ext: &str,
+) -> Result<(), String> {
+    for attempt in 0..VERBOSE_BACKUP_ATTEMPTS {
+        let name = if attempt == 0 {
+            format!("{stem}.{stamp}{ext}.bak")
+        } else {
+            format!("{stem}.{stamp}-{attempt}{ext}.bak")
+        };
+        let target = dir.join(name);
+        let mut output = match fs::OpenOptions::new().write(true).create_new(true).open(&target) {
+            Ok(file) => file,
+            Err(err) if err.kind() == io::ErrorKind::AlreadyExists => continue,
+            Err(err) => return Err(format!("backup: create {}: {err}", target.display())),
+        };
+        // Streaming keeps the copy independent of the source file's size.
+        let result = io::copy(&mut source, &mut output).and_then(|_| output.sync_all())
+            .and_then(|()| output.set_permissions(permissions));
+        // Close before removing an owned failed backup, including on Windows.
+        drop(output);
+        drop(source);
+        return match result {
+            Ok(()) => Ok(()),
+            Err(err) => match fs::remove_file(&target) {
+                Ok(()) => Err(format!("backup: copy {}: {err}", target.display())),
+                Err(cleanup) => Err(format!("backup: copy {}: {err}; could not remove the failed backup: {cleanup}", target.display())),
+            },
+        };
+    }
+    Err(format!("backup: {VERBOSE_BACKUP_ATTEMPTS} names already exist for {stem}.{stamp}; existing backups were kept"))
+}
+
 /// `YYYY-MM-DD_HHMMSS` UTC timestamp for the verbose-backup filename.
 /// Computes from `SystemTime::now()` directly so we don't pull in `chrono`
 /// for one stamp; lossy if the system clock predates UNIX_EPOCH (we just
 /// fall back to "0" so a stale clock still produces a valid path).
 fn verbose_stamp() -> String {
+    #[cfg(test)]
+    if let Some(stamp) = tests::SAVE_BACKUP_STAMP.with(|value| value.get()) {
+        return stamp.to_string();
+    }
     let secs = std::time::SystemTime::now()
         .duration_since(UNIX_EPOCH)
         .map(|d| d.as_secs() as i64)
@@ -1181,6 +1227,167 @@ fn verbose_stamp() -> String {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    std::thread_local! {
+        pub(super) static SAVE_BACKUP_STAMP: std::cell::Cell<Option<&'static str>> = const { std::cell::Cell::new(None) };
+    }
+
+    #[test]
+    fn verbose_save_backups_keep_distinct_versions_with_the_same_timestamp() {
+        struct ResetStamp(Option<&'static str>);
+        impl Drop for ResetStamp {
+            fn drop(&mut self) { SAVE_BACKUP_STAMP.with(|value| value.set(self.0)); }
+        }
+        let _stamp = ResetStamp(SAVE_BACKUP_STAMP.with(|value| value.replace(Some("2000-01-01_000000"))));
+        let dir = crate::persist::TempDir::new("verbose-save-collision");
+        let source = dir.join("source.txt");
+        let backups = dir.join("backups");
+        let first = b"first version\r\n";
+        let second = b"second version\r\n";
+        std::fs::write(&source, first).expect("write first version");
+        write_save_backup(&source, crate::settings::BackupOnSaveMode::Verbose, Some(&backups)).expect("first backup");
+        std::fs::write(&source, second).expect("write second version");
+        write_save_backup(&source, crate::settings::BackupOnSaveMode::Verbose, Some(&backups)).expect("second backup");
+        let mut versions = std::fs::read_dir(&backups).expect("list backups")
+            .map(|entry| std::fs::read(entry?.path()))
+            .collect::<std::io::Result<Vec<_>>>().expect("read backups");
+        versions.sort();
+        assert_eq!(versions, vec![first.to_vec(), second.to_vec()]);
+        assert_eq!(std::fs::read(&source).expect("source survives"), second);
+    }
+    fn with_fixed_backup_stamp<R>(f: impl FnOnce() -> R) -> R {
+        struct ResetStamp(Option<&'static str>);
+        impl Drop for ResetStamp {
+            fn drop(&mut self) { SAVE_BACKUP_STAMP.with(|value| value.set(self.0)); }
+        }
+        let _stamp = ResetStamp(SAVE_BACKUP_STAMP.with(|value| value.replace(Some("2000-01-01_000000"))));
+        f()
+    }
+
+    #[test]
+    fn verbose_backup_collisions_keep_existing_files_and_hard_links() {
+        with_fixed_backup_stamp(|| {
+            let dir = TempDir::new("verbose-existing");
+            let source = dir.join("source.txt");
+            let other = dir.join("other.txt");
+            fs::write(&source, b"new source\r\n").unwrap();
+            fs::write(&other, b"unrelated bytes\r\n").unwrap();
+            let first = dir.join("source.2000-01-01_000000.txt.bak");
+            let second = dir.join("source.2000-01-01_000000-1.txt.bak");
+            fs::hard_link(&other, &first).unwrap();
+            fs::write(&second, b"older backup").unwrap();
+            write_save_backup(&source, crate::settings::BackupOnSaveMode::Verbose, None).unwrap();
+            assert_eq!(fs::read(&other).unwrap(), b"unrelated bytes\r\n");
+            assert_eq!(fs::read(&first).unwrap(), b"unrelated bytes\r\n");
+            assert_eq!(fs::read(&second).unwrap(), b"older backup");
+            assert_eq!(fs::read(dir.join("source.2000-01-01_000000-2.txt.bak")).unwrap(), b"new source\r\n");
+            assert_eq!(fs::read(&source).unwrap(), b"new source\r\n");
+        });
+    }
+
+    #[test]
+    fn concurrent_verbose_backups_with_one_timestamp_keep_every_copy() {
+        let dir = TempDir::new("verbose-parallel");
+        let source = dir.join("source.txt");
+        let backups = dir.join("backups");
+        fs::create_dir(&backups).unwrap();
+        fs::write(&source, b"source bytes\r\n").unwrap();
+        let barrier = std::sync::Arc::new(std::sync::Barrier::new(4));
+        let workers: Vec<_> = (0..4).map(|_| {
+            let path = source.clone(); let output = backups.clone(); let ready = barrier.clone();
+            std::thread::spawn(move || with_fixed_backup_stamp(|| {
+                ready.wait();
+                write_save_backup(&path, crate::settings::BackupOnSaveMode::Verbose, Some(&output))
+            }))
+        }).collect();
+        for worker in workers { worker.join().unwrap().unwrap(); }
+        let files: Vec<_> = fs::read_dir(&backups).unwrap().collect();
+        assert_eq!(files.len(), 4);
+        for file in files { assert_eq!(fs::read(file.unwrap().path()).unwrap(), b"source bytes\r\n"); }
+        assert_eq!(fs::read(&source).unwrap(), b"source bytes\r\n");
+    }
+
+    #[test]
+    fn simple_backup_still_replaces_its_previous_version() {
+        let dir = TempDir::new("simple-backup");
+        let source = dir.join("source.txt");
+        fs::write(&source, b"first").unwrap();
+        write_save_backup(&source, crate::settings::BackupOnSaveMode::Simple, None).unwrap();
+        fs::write(&source, b"second").unwrap();
+        write_save_backup(&source, crate::settings::BackupOnSaveMode::Simple, None).unwrap();
+        assert_eq!(fs::read(dir.join("source.txt.bak")).unwrap(), b"second");
+        assert_eq!(fs::read_dir(dir.path()).unwrap().count(), 2);
+    }
+
+    #[test]
+    fn verbose_backup_preserves_read_only_source_permissions() {
+        with_fixed_backup_stamp(|| {
+            let dir = TempDir::new("verbose-permissions");
+            let source = dir.join("source.txt");
+            let target = dir.join("source.2000-01-01_000000.txt.bak");
+            fs::write(&source, b"read only\r\n").unwrap();
+            let original = fs::metadata(&source).unwrap().permissions();
+            struct RestorePermissions(PathBuf, PathBuf, fs::Permissions);
+            impl Drop for RestorePermissions {
+                fn drop(&mut self) {
+                    let _ = fs::set_permissions(&self.0, self.2.clone());
+                    let _ = fs::set_permissions(&self.1, self.2.clone());
+                }
+            }
+            let _restore = RestorePermissions(source.clone(), target.clone(), original.clone());
+            let mut read_only = original; read_only.set_readonly(true);
+            fs::set_permissions(&source, read_only).unwrap();
+            write_save_backup(&source, crate::settings::BackupOnSaveMode::Verbose, None).unwrap();
+            assert!(fs::metadata(&source).unwrap().permissions().readonly());
+            assert!(fs::metadata(&target).unwrap().permissions().readonly());
+            assert_eq!(fs::read(&target).unwrap(), b"read only\r\n");
+        });
+    }
+
+    #[test]
+    fn failed_stream_copy_removes_only_its_reserved_backup() {
+        struct FailedReader(bool);
+        impl io::Read for FailedReader {
+            fn read(&mut self, bytes: &mut [u8]) -> io::Result<usize> {
+                if self.0 { return Err(io::Error::other("injected read failure")); }
+                self.0 = true;
+                let count = bytes.len().min(3);
+                bytes.get_mut(..count).unwrap().fill(b'x');
+                Ok(count)
+            }
+        }
+        let dir = TempDir::new("verbose-copy-failure");
+        let source = dir.join("source.txt");
+        fs::write(&source, b"original").unwrap();
+        let previous = dir.join("source.fixed.txt.bak");
+        fs::write(&previous, b"previous backup").unwrap();
+        let permissions = fs::metadata(&source).unwrap().permissions();
+        let result = copy_verbose_backup(FailedReader(false), permissions, dir.path(), "source", "fixed", ".txt");
+        assert!(result.is_err());
+        assert_eq!(fs::read(&previous).unwrap(), b"previous backup");
+        assert_eq!(fs::read(&source).unwrap(), b"original");
+        assert_eq!(fs::read_dir(dir.path()).unwrap().count(), 2);
+    }
+
+    #[test]
+    fn exhausted_verbose_backup_names_preserve_every_existing_version() {
+        with_fixed_backup_stamp(|| {
+            let dir = TempDir::new("verbose-exhaustion");
+            let source = dir.join("source.txt"); fs::write(&source, b"source").unwrap();
+            for attempt in 0..VERBOSE_BACKUP_ATTEMPTS {
+                let suffix = if attempt == 0 { String::new() } else { format!("-{attempt}") };
+                fs::write(dir.join(&format!("source.2000-01-01_000000{suffix}.txt.bak")), b"previous").unwrap();
+            }
+            assert!(write_save_backup(&source, crate::settings::BackupOnSaveMode::Verbose, None).is_err());
+            assert_eq!(fs::read_dir(dir.path()).unwrap().count(), VERBOSE_BACKUP_ATTEMPTS as usize + 1);
+            for entry in fs::read_dir(dir.path()).unwrap() {
+                let path = entry.unwrap().path();
+                if path != source { assert_eq!(fs::read(path).unwrap(), b"previous"); }
+            }
+            assert_eq!(fs::read(&source).unwrap(), b"source");
+        });
+    }
+
     use crate::buffer::{EditOp, UndoEntry, serialize_undo_stack};
     use crate::persist::TempDir;
     use crate::text::encoding;

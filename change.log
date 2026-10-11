@@ -565,6 +565,10 @@ v0.0.5 — current
     143. Recovering partly readable settings preserves documents linked to
          an existing recovery copy, while keeping the original settings bytes.
 
+    144. Verbose save backups keep separate versions when saves share a
+         timestamp. Existing backup files stay intact; failed copies clean
+         up only their own incomplete backup.
+
   v0.1.0 — syntax & language:
 
     1. Tree-sitter syntax highlighting for 25 modes: Rust, Python, C,

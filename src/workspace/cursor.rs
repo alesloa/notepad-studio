@@ -119,6 +119,7 @@ impl Workspace {
     /// manifest, and schedule the debounced autosave. Keeping this out of the
     /// per-edit hot loop is what makes batched edits fast.
     pub(crate) fn after_edit_flush(&mut self, cx: &mut Context<Self>) {
+        self.retire_source_input();
         // The synchronous edit-commit path stays CHEAP so the edit, caret, and
         // repaint land this frame and the UI thread never stalls. The two
         // heavyweight post-edit jobs — a full syntax reparse and session
@@ -519,6 +520,7 @@ impl Workspace {
     }
 
     pub(crate) fn move_to_byte(&mut self, byte: usize, extend: bool, reset_col: bool) {
+        let before = (self.selection().anchor, self.selection().head, self.block_selection().is_some());
         // Linear cursor movement collapses any in-flight block selection.
         // Block-aware actions call `block_extend` directly — they bypass
         // this funnel and keep the block alive.
@@ -533,6 +535,9 @@ impl Workspace {
         if reset_col {
             tab.desired_col_x = None;
         }
+        if before != (tab.selection.anchor, tab.selection.head, false) {
+            self.retire_source_input();
+        }
         self.caret_visible = true;
     }
 
@@ -541,6 +546,7 @@ impl Workspace {
     /// refreshes the smart-highlight band so the green halo on the word at
     /// cursor stays in sync, then notifies, in one call.
     pub(crate) fn commit_caret(&mut self, cx: &mut Context<Self>) {
+        self.retire_source_input();
         self.close_autocomplete(cx);
         self.close_function_hint(cx);
         self.ensure_cursor_visible(cx);

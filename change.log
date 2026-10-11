@@ -337,6 +337,11 @@ v0.0.5 — current
    84. Smart highlighting clears above its 1 MiB limit before copying the
        current line, so a long line or cached word cannot bypass the limit.
 
+   85. Retained Source input callbacks keep their document, caret and focus
+       identity, leaving newer tabs, fields and selections untouched. Current
+       typing and composition still work; saving a clean CSV grid as text
+       restores Source input, including IME.
+
   v0.1.0 — syntax & language:
 
     1. Tree-sitter syntax highlighting for 25 modes: Rust, Python, C,

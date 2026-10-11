@@ -133,8 +133,7 @@ fn build_panel(
                         .iter()
                         .position(|t| t.buffer.file_path.as_deref() == Some(p.as_path()))
                     {
-                        w.active = idx;
-                        cx.notify();
+                        w.set_active_tab(idx, cx);
                     } else {
                         // Not yet open — same as Open.
                         w.open_path(p, cx);

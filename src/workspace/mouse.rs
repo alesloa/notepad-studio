@@ -13,6 +13,7 @@ impl Workspace {
         _window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        self.retire_source_input();
         self.close_autocomplete(cx);
         self.close_function_hint(cx);
         let offset = self.offset_at_position(event.position);

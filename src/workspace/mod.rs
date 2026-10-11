@@ -35,6 +35,7 @@ mod render;
 mod run;
 mod rich_edit;
 mod status;
+pub(crate) mod source_input;
 mod menu_state;
 mod tabs;
 mod tab_actions;
@@ -79,6 +80,7 @@ pub(crate) struct Workspace {
     pub(crate) tab_mru: VecDeque<Uuid>,
     pub(crate) theme_mode: ThemeMode,
     pub(crate) focus_handle: FocusHandle,
+    pub(crate) source_input_context: source_input::SourceInputContext,
     pub(crate) ime_composition: Option<ime::ImeComposition>,
     #[cfg(test)]
     pub(crate) ime_record_sink: Option<std::sync::mpsc::Sender<crate::macros::MacroEvent>>,
@@ -660,6 +662,7 @@ impl Workspace {
             tab_mru: VecDeque::from([welcome_id]),
             theme_mode: ThemeMode::Dark,
             focus_handle,
+            source_input_context: source_input::SourceInputContext::new(welcome_id),
             ime_composition: None,
             #[cfg(test)]
             ime_record_sink: None,

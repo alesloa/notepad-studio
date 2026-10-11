@@ -1,9 +1,13 @@
 // EditorElement — paints text + selection rectangles + caret.
 
+#[cfg(test)]
+#[path = "source_input_origin_tests.rs"]
+pub(crate) mod source_input_origin_tests;
+
 use std::ops::Range;
 
 use gpui::{
-    App, BorderStyle, Bounds, DispatchPhase, ElementId, ElementInputHandler, Entity, Font,
+    App, BorderStyle, Bounds, DispatchPhase, ElementId, Entity, Font,
     GlobalElementId, Hsla, IntoElement, LayoutId, MouseButton, MouseMoveEvent, MouseUpEvent,
     PaintQuad, Pixels, Rgba, ScrollWheelEvent, ShapedLine, SharedString, Style, TextRun,
     UnderlineStyle, Window, fill, outline, point, px, relative, rgb, rgba, size,
@@ -1846,7 +1850,7 @@ impl gpui::Element for EditorElement {
         let focus_handle = self.workspace.read(cx).focus_handle.clone();
         window.handle_input(
             &focus_handle,
-            ElementInputHandler::new(bounds, self.workspace.clone()),
+            crate::workspace::source_input::SourceInputHandler::new(bounds, self.workspace.clone(), window, cx),
             cx,
         );
 
@@ -2049,6 +2053,7 @@ impl gpui::Element for EditorElement {
                             let active = w.active;
                             w.tabs[active].selection.anchor = offset;
                             w.tabs[active].selection.head = offset;
+                            w.retire_source_input();
                             w.caret_visible = true;
                             cx.notify();
                         }
@@ -2110,6 +2115,7 @@ impl gpui::Element for EditorElement {
                     let tab = w.active_tab_mut();
                     tab.selection.anchor = new_anchor;
                     tab.selection.head = new_head;
+                    w.retire_source_input();
                     w.caret_visible = true;
                     cx.notify();
                 }
@@ -2133,6 +2139,7 @@ impl gpui::Element for EditorElement {
                             tab.selection.anchor = state.drop_target;
                             tab.selection.head = state.drop_target;
                             tab.selection.is_dragging = false;
+                            w.retire_source_input();
                             w.caret_visible = true;
                             cx.notify();
                         }

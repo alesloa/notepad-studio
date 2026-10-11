@@ -1197,6 +1197,7 @@ impl Workspace {
         };
         if tab.view_mode != next {
             tab.view_mode = next;
+            self.retire_source_input();
             self.close_autocomplete(cx);
             self.close_function_hint(cx);
             cx.notify();
@@ -1246,6 +1247,7 @@ impl Workspace {
         let tab = self.active_tab_mut();
         if tab.view_mode != next {
             tab.view_mode = next;
+            self.retire_source_input();
             self.close_autocomplete(cx);
             self.close_function_hint(cx);
             cx.notify();
@@ -1351,6 +1353,7 @@ impl Workspace {
         };
         if tab.view_mode != next {
             tab.view_mode = next;
+            self.retire_source_input();
             self.close_autocomplete(cx);
             self.close_function_hint(cx);
             cx.notify();

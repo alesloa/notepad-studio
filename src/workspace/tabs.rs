@@ -66,6 +66,7 @@ impl Workspace {
     /// walks the MRU without scrambling its order; the next external action
     /// commits the chosen tab.
     pub(crate) fn touch_mru(&mut self) {
+        self.sync_source_input_tab();
         if self.autocomplete.as_ref().is_some_and(|state| {
             !self.tabs.get(self.active).is_some_and(|tab| tab.session_id == state.tab_id)
         }) {
@@ -933,6 +934,7 @@ impl Workspace {
         self.close_autocomplete(cx);
         self.close_function_hint(cx);
         self.active = target_idx;
+        self.sync_source_input_tab();
         self.last_lines.clear();
         self.caret_visible = true;
         self.save_session(cx);

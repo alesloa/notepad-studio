@@ -990,6 +990,11 @@ impl PlatformInputHandler {
         Self { cx, handler }
     }
 
+    #[cfg(feature = "test-support")]
+    pub(crate) fn into_handler(self) -> Box<dyn InputHandler> {
+        self.handler
+    }
+
     fn selected_text_range(&mut self, ignore_disabled_input: bool) -> Option<UTF16Selection> {
         self.cx
             .update(|window, cx| {

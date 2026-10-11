@@ -30,6 +30,7 @@ use crate::workspace::Workspace;
 
 impl Render for Workspace {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        self.normalize_saved_csv_source_view(cx);
         csv_actions::restore_committed_cell_focus(self, window, cx);
         self.retire_ime_composition(window, cx);
         let theme = self.theme();

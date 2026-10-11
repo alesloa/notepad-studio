@@ -829,6 +829,20 @@ enum InputModality {
     Keyboard,
 }
 
+/// Identifies uninterrupted native input focus without a wrapping counter.
+#[derive(Clone, Debug)]
+pub struct InputContextToken(Rc<()>);
+
+impl PartialEq for InputContextToken {
+    fn eq(&self, other: &Self) -> bool { Rc::ptr_eq(&self.0, &other.0) }
+}
+
+impl Eq for InputContextToken {}
+
+impl Default for InputContextToken {
+    fn default() -> Self { Self(Rc::new(())) }
+}
+
 /// Holds the state for a specific window.
 pub struct Window {
     pub(crate) handle: AnyWindowHandle,
@@ -884,6 +898,7 @@ pub struct Window {
     pub(crate) refreshing: bool,
     pub(crate) activation_observers: SubscriberSet<(), AnyObserver>,
     pub(crate) focus: Option<FocusId>,
+    input_context: InputContextToken,
     focus_enabled: bool,
     pending_input: Option<PendingInput>,
     pending_modifier: ModifierState,
@@ -1195,6 +1210,9 @@ impl Window {
             move |active| {
                 handle
                     .update(&mut cx, |_, window, cx| {
+                        if window.active.get() != active {
+                            window.input_context = InputContextToken::default();
+                        }
                         window.active.set(active);
                         window.modifiers = window.platform_window.modifiers();
                         window.capslock = window.platform_window.capslock();
@@ -1352,6 +1370,7 @@ impl Window {
             refreshing: false,
             activation_observers: SubscriberSet::new(),
             focus: None,
+            input_context: InputContextToken::default(),
             focus_enabled: true,
             pending_input: None,
             pending_modifier: ModifierState::default(),
@@ -1483,6 +1502,12 @@ impl Window {
             .and_then(|id| FocusHandle::for_id(id, &cx.focus_handles))
     }
 
+    /// Identifies uninterrupted focus and activation, including transitions
+    /// away and back before the next frame. Redraws and no-op focus keep it.
+    pub fn input_context_token(&self) -> InputContextToken {
+        self.input_context.clone()
+    }
+
     /// Move focus to the element associated with the given [`FocusHandle`].
     pub fn focus(&mut self, handle: &FocusHandle, cx: &mut App) {
         if !self.focus_enabled || self.focus == Some(handle.id) {
@@ -1490,6 +1515,7 @@ impl Window {
         }
 
         self.focus = Some(handle.id);
+        self.input_context = InputContextToken::default();
         self.clear_pending_keystrokes();
 
         // Avoid re-entrant entity updates by deferring observer notifications to the end of the
@@ -1512,6 +1538,9 @@ impl Window {
             return;
         }
 
+        if self.focus.is_some() {
+            self.input_context = InputContextToken::default();
+        }
         self.focus = None;
         self.refresh();
     }
@@ -3614,6 +3643,12 @@ impl Window {
                 .input_handlers
                 .push(Some(PlatformInputHandler::new(cx, Box::new(input_handler))));
         }
+    }
+
+    /// Retain the exact handler installed by the most recent paint for input-protocol tests.
+    #[cfg(feature = "test-support")]
+    pub fn take_registered_input_handler(&mut self) -> Option<Box<dyn InputHandler>> {
+        self.platform_window.take_input_handler().map(PlatformInputHandler::into_handler)
     }
 
     /// Register a mouse event listener on the window for the next frame. The type of event

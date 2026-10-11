@@ -34,6 +34,11 @@ Modifications made to the vendored sources (per Apache-2.0 section 4(b)):
         Fibonacci terms, preserving its exact f32 value and avoiding a newer
         standard-library constant requirement. Added application integration
         checks for the float value and pixel/rem geometry.
+      - window.rs/platform.rs: added a test-support-only accessor to retain
+        the exact input handler installed by paint for native protocol tests.
+        Added an opaque input-context token that changes synchronously on
+        true focus, blur and activation transitions, including round trips
+        before repaint. No-op focus and redraw retain the token.
 
 No other source modifications were made; the vendored crate sources are
 otherwise unchanged from upstream.

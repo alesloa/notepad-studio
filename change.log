@@ -241,6 +241,11 @@ v0.0.5 — current
        drawing to the field. Full text, selection, clipboard and IME input
        stay intact; repeated full-value cloning and shaping are removed.
 
+   63. Editing macro playback, including repeated runs and nested commands,
+       undoes in one step and restores the starting caret and saved state.
+       A stopped replay keeps earlier edits in one Undo operation. New
+       recordings omit Undo/Redo; older saved history events still replay.
+
   v0.1.0 — syntax & language:
 
     1. Tree-sitter syntax highlighting for 25 modes: Rust, Python, C,

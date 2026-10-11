@@ -76,23 +76,31 @@ impl Workspace {
             return false;
         }
         self.close_autocomplete(cx);
+        // Old saved macros can contain history commands; replay them on their
+        // existing timeline instead of placing Undo/Redo inside an open group.
+        let grouped = !events.iter().any(|event| matches!(event, MacroEvent::Undo | MacroEvent::Redo));
+        if grouped { self.begin_edit_group(); }
         let prev = set_replaying(true);
         let mut completed = 0usize;
         for _ in 0..times {
             for ev in events {
                 if !self.replay_event(ev, window, cx) {
+                    let reason = self.status_message.as_deref().unwrap_or("event rejected").to_string();
+                    if grouped { self.end_edit_group(cx); }
                     set_replaying(prev);
                     if completed > 0 {
-                        let reason = self.status_message.as_deref().unwrap_or("event rejected");
                         let unit = if completed == 1 { "event" } else { "events" };
                         self.set_status(format!("Macro stopped after {completed} {unit}: {reason}"));
-                        cx.notify();
+                    } else {
+                        self.set_status(reason);
                     }
+                    cx.notify();
                     return false;
                 }
                 completed = completed.saturating_add(1);
             }
         }
+        if grouped { self.end_edit_group(cx); }
         set_replaying(prev);
         true
     }
@@ -392,3 +400,7 @@ mod completion_macro_tests;
 #[cfg(test)]
 #[path = "macro_context_tests.rs"]
 mod macro_context_tests;
+
+#[cfg(test)]
+#[path = "macro_undo_tests.rs"]
+mod macro_undo_tests;

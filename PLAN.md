@@ -34,3 +34,5 @@ Shared-file edits are surgical, re-read before integration. Agent branches are a
 - 2026-10-10: reviewed macro context b57b386 integrated;1353 units+1 integration pass,8 ignored;build/clippy pass with no new touched warnings. G5 met. Macro playback Undo grouping remains under G7; bounded input shaping is ready; CSV recovery and File menu continue.
 
 - 2026-10-10: reviewed bounded inline4ffcf61 integrated;1358 units+1 integration pass,8 ignored;build/clippy pass with warnings reduced199app/211test,195duplicates. Optimized11.2MB preparation improves14-16ms to6-14us; no native-font/paint claim. G12 File actions and G13 macro Undo leaves recorded; brief autocomplete semantics branch active.
+
+- 2026-10-10: macro Undo batch implemented;1367 units+1 integration pass,8 ignored;build/clippy pass with no new touched warnings. G13 met for editing playback, with legacy persisted Undo/Redo timeline compatibility. CSV recovery, File menu and brief-completion leaves remain active.

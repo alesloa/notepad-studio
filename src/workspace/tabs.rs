@@ -1105,7 +1105,7 @@ mod tests {
             anchor_line: 10, head_line: 20, ..Default::default()
         });
         tab.edit_transaction = Some(crate::buffer::EditTransaction {
-            ops: Vec::new(), sel_before_anchor: 40, sel_before_head: 60,
+            depth: 1, ops: Vec::new(), sel_before_anchor: 40, sel_before_head: 60,
         });
         reload_tab_from_disk(&mut tab).expect("reload");
         assert_eq!(tab.session_id, id);

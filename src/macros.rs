@@ -238,6 +238,8 @@ pub(crate) fn record(event: MacroEvent) {
 impl MacroRecorder {
     pub(crate) fn record_event(&mut self, event: MacroEvent) {
         if !self.recording || self.replaying { return; }
+        // PowerEditor/src/WinControls/shortcut/shortcut.cpp:925-1054 excludes history commands.
+        if matches!(event, MacroEvent::Undo | MacroEvent::Redo) { return; }
         if let MacroEvent::InsertText(text) = &event {
             if let Some(MacroEvent::InsertText(prev)) = self.in_progress.last_mut() {
                 prev.push_str(text);

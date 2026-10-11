@@ -15,7 +15,7 @@ use std::{
 
 const TEXT: &str = "\u{feff}café\r\nsource";
 
-fn with_workspace(
+pub(super) fn with_workspace(
     active: bool,
     test: impl FnOnce(&mut Workspace, &mut Window, &mut Context<Workspace>),
 ) {
@@ -324,7 +324,7 @@ fn run_count_hands_focus_back_to_the_source_editor() {
         assert!(w.input_focus(window) == InputFocus::Editor);
         assert!(w.focus_handle.is_focused(window));
         assert_eq!(w.buffer().rope.to_string(), format!("{TEXT}éé"));
-        assert_eq!(w.tabs[0].undo_stack.len(), 2);
+        assert_eq!(w.tabs[0].undo_stack.len(), 1);
     });
 }
 

@@ -13,7 +13,7 @@ A lightweight, cross-platform text editor inspired by Notepad++, written in Rust
 > menu, column/multi-cursor edit, macro record / replay, plugin host, session
 > restore, and large-file streaming reads have all landed. Currently in flight:
 > Notepad++ behavior parity and correctness audit, including autocomplete
-> inline input routing, pending CSV cell recovery, and remaining menu/view gaps.
+> brief-list behavior and API hints, pending CSV cell recovery, and menu gaps.
 
 ## Goals
 

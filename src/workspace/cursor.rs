@@ -188,17 +188,18 @@ impl Workspace {
     /// Open an undo transaction on the active tab. Until the matching
     /// `end_edit_group` call, every `replace_byte_range` op is collected into
     /// the same composite undo entry instead of pushing a fresh per-edit
-    /// entry. Nested `begin_edit_group` calls are a no-op (the outer
-    /// transaction stays in charge), so callers are free to wrap helpers
-    /// that themselves open transactions without doubling up.
+    /// entry. Balanced nested groups leave the outer transaction in charge
+    /// until its matching end, including commands called during macro replay.
     pub(crate) fn begin_edit_group(&mut self) {
         let tab = self.active_tab_mut();
-        if tab.edit_transaction.is_some() {
+        if let Some(txn) = tab.edit_transaction.as_mut() {
+            txn.depth = txn.depth.saturating_add(1);
             return;
         }
         let anchor = tab.selection.anchor;
         let head = tab.selection.head;
         tab.edit_transaction = Some(EditTransaction {
+            depth: 1,
             ops: Vec::new(),
             sel_before_anchor: anchor,
             sel_before_head: head,
@@ -213,6 +214,12 @@ impl Workspace {
     pub(crate) fn end_edit_group(&mut self, cx: &mut Context<Self>) {
         {
             let tab = self.active_tab_mut();
+            if let Some(txn) = tab.edit_transaction.as_mut() {
+                if txn.depth > 1 {
+                    txn.depth -= 1;
+                    return;
+                }
+            }
             let Some(txn) = tab.edit_transaction.take() else {
                 return;
             };
@@ -224,12 +231,12 @@ impl Workspace {
                 // for symmetry with the per-edit case. Keeps the undo history
                 // tidy and avoids an extra layer of indirection at undo time.
                 //
-                // Note: the Single variant uses the op's own `sel_before_*` for
-                // caret restore, which equals the transaction's saved values
-                // because the transaction snapshots before the first op runs and
-                // each `apply_edit` records `sel_before_*` from the same caret.
+                // Navigation before the sole edit still belongs to the group.
+                // Undo returns to the selection where the group opened.
                 let mut ops = txn.ops;
-                if let Some(op) = ops.pop() {
+                if let Some(mut op) = ops.pop() {
+                    op.sel_before_anchor = txn.sel_before_anchor;
+                    op.sel_before_head = txn.sel_before_head;
                     tab.undo_stack.push(UndoEntry::Single(op));
                 }
             } else {

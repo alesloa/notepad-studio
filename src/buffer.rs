@@ -708,6 +708,7 @@ pub(crate) fn rebind_undo_revisions(stack: &mut [UndoEntry], current: &ContentRe
 /// pushing a fresh `UndoEntry::Single` to `undo_stack`. `end_edit_group`
 /// consumes this and emits one `UndoEntry::Group`.
 pub(crate) struct EditTransaction {
+    pub(crate) depth: usize,
     pub(crate) ops: Vec<EditOp>,
     pub(crate) sel_before_anchor: usize,
     pub(crate) sel_before_head: usize,

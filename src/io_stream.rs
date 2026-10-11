@@ -64,7 +64,7 @@ const MAX_IN_MEMORY_BYTES: u64 = isize::MAX as u64;
 
 /// Why a streaming pass has to start over from byte 0.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum Restart {
+pub(crate) enum Restart {
     /// The file isn't valid UTF-8: read it as Latin-1, BOM bytes included,
     /// as `encoding::decode_bytes` does.
     Latin1,
@@ -75,8 +75,8 @@ enum Restart {
 
 /// How a streaming pass decodes the file.
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
-struct StreamMode {
-    encoding: Encoding,
+pub(crate) struct StreamMode {
+    pub(crate) encoding: Encoding,
     /// BOM bytes to skip at the start of the file.
     bom_len: usize,
     /// Keep line endings exactly as they are (the buffer opens as LF).
@@ -86,7 +86,7 @@ struct StreamMode {
 impl StreamMode {
     /// Pick the first pass's mode from the file's leading bytes. `prefix`
     /// must be the first chunk read in full, so a BOM is never cut short.
-    fn sniff(prefix: &[u8]) -> Self {
+    pub(crate) fn sniff(prefix: &[u8]) -> Self {
         let (encoding, bom_len) = if prefix.starts_with(&[0xEF, 0xBB, 0xBF]) {
             (Encoding::Utf8Bom, 3)
         } else if prefix.starts_with(&[0xFF, 0xFE]) {
@@ -103,7 +103,7 @@ impl StreamMode {
         }
     }
 
-    fn after(self, restart: Restart) -> Self {
+    pub(crate) fn after(self, restart: Restart) -> Self {
         match restart {
             Restart::Latin1 => Self {
                 encoding: Encoding::Latin1,
@@ -268,18 +268,18 @@ impl EolNormalizer {
 }
 
 /// Bytes in, rope text out, one chunk at a time.
-struct StreamDecoder {
+pub(crate) struct StreamDecoder {
     mode: StreamMode,
     decoder: encoding_rs::Decoder,
     eol: EolNormalizer,
     /// BOM bytes still to drop.
     skip: usize,
     /// Malformed UTF-16 was replaced with U+FFFD (see `Decoded::lossy`).
-    lossy: bool,
+    pub(crate) lossy: bool,
 }
 
 impl StreamDecoder {
-    fn new(mode: StreamMode) -> Self {
+    pub(crate) fn new(mode: StreamMode) -> Self {
         let decoder = match mode.encoding {
             Encoding::Utf8 | Encoding::Utf8Bom => UTF_8.new_decoder_without_bom_handling(),
             Encoding::Utf16Le => UTF_16LE.new_decoder_without_bom_handling(),
@@ -295,19 +295,19 @@ impl StreamDecoder {
         }
     }
 
-    fn feed(&mut self, bytes: &[u8]) -> Result<String, Restart> {
+    pub(crate) fn feed(&mut self, bytes: &[u8]) -> Result<String, Restart> {
         let text = self.decode(bytes, false)?;
         self.eol.process(text)
     }
 
-    fn finish(&mut self) -> Result<String, Restart> {
+    pub(crate) fn finish(&mut self) -> Result<String, Restart> {
         let text = self.decode(&[], true)?;
         let mut out = self.eol.process(text)?;
         out.push_str(&self.eol.finish());
         Ok(out)
     }
 
-    fn line_ending(&self) -> LineEnding {
+    pub(crate) fn line_ending(&self) -> LineEnding {
         self.eol.line_ending()
     }
 
@@ -367,7 +367,7 @@ fn read_chunk(file: &mut std::fs::File) -> std::io::Result<Vec<u8>> {
 
 /// Format a byte count with a single fractional digit. `0` → "0 B", `1500`
 /// → "1.5 KB", and so on through TB. Used for the status-bar progress chip.
-fn format_bytes(n: u64) -> String {
+pub(crate) fn format_bytes(n: u64) -> String {
     const UNITS: &[&str] = &["B", "KB", "MB", "GB", "TB"];
     let mut value = n as f64;
     let mut idx = 0usize;

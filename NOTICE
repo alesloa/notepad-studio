@@ -108,3 +108,8 @@ File Rename refuses existing destinations through native exclusive rename.
     License: MIT OR Apache-2.0; the MIT notice is in licenses/renamore-MIT.txt.
     Uses renameat2 NOREPLACE on Linux, renamex_np EXCL on macOS, and
     MoveFileExW without replacement flags on Windows. No non-atomic fallback.
+
+Atomic Reload captures rich containers with the existing tempfile dependency.
+    tempfile 3.27.0 - Steven Allen and contributors
+    Source: https://github.com/Stebalien/tempfile
+    License: MIT OR Apache-2.0; MIT notice in licenses/tempfile-MIT.txt.

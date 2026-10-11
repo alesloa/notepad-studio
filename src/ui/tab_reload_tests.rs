@@ -27,7 +27,9 @@ fn with_workspace(
         );
         w.tabs = (0..3).map(|_| Tab::empty()).collect();
         w.active = 1;
-        w.window_closed = true;
+        w.window_closed = false;
+        w.session_snapshot_sink = Some(std::sync::mpsc::channel().0);
+        w.session_final_save_result = Some(true);
         w
     });
     {
@@ -555,4 +557,34 @@ fn lazy_draft_reload_keeps_the_existing_loading_and_untitled_refusal_order() {
             );
         }
     }
+}
+
+#[test]
+fn reload_audit_context_route_keeps_large_original_until_background_publish() {
+    use std::io::Write;
+    let fixture = crate::persist::TempDir::new("reload-audit-large-context");
+    let path = fixture.join("neutral.txt");
+    let mut file = std::fs::File::create(&path).expect("neutral fixture");
+    let chunk = vec![b'x'; 1024 * 1024];
+    for _ in 0..12 { file.write_all(&chunk).expect("fixture chunk"); }
+    drop(file);
+    let original = RefCell::new(None);
+    with_workspace(|w, _, cx| {
+        w.window_closed = false;
+        w.session_snapshot_sink = Some(std::sync::mpsc::channel().0);
+        w.session_final_save_result = Some(true);
+        w.active = 0;
+        w.tabs[1].buffer.file_path = Some(path.clone());
+        w.tabs[1].buffer.rope = ropey::Rope::from_str("original background source");
+        w.tabs[1].buffer.mark_saved();
+        original.replace(Some(w.tabs[1].buffer.rope.clone()));
+        w.show_tab_context_menu(1, gpui::point(px(20.), px(20.)), cx);
+    }, |entity, window, cx| {
+        let started = std::time::Instant::now();
+        dispatch_current_reload(entity, window, cx);
+        eprintln!("reload_audit_context_foreground_ms={:.3}", started.elapsed().as_secs_f64() * 1000.);
+        let w = entity.read(cx);
+        assert_eq!(w.active, 0, "reload cannot switch the active tab");
+        assert!(w.tabs[1].buffer.rope.is_instance(original.borrow().as_ref().expect("original")), "reload must return with the old background document installed");
+    }, |_, _, _| {});
 }

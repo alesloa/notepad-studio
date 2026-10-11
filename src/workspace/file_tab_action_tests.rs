@@ -112,7 +112,9 @@ fn with_workspace_activation(
             })
             .collect();
         w.active = 1;
-        w.window_closed = true; // Never write synthetic session/settings state.
+        w.window_closed = false;
+        w.session_snapshot_sink = Some(std::sync::mpsc::channel().0);
+        w.session_final_save_result = Some(true);
         w
     });
     {
@@ -956,4 +958,29 @@ fn external_launch_fixture_restores_nested_overrides_without_sharing_threads() {
         assert_eq!(requests(), [(FileLaunch::Viewer, path.to_path_buf())]);
     }
     assert!(LAUNCH.with(|slot| slot.borrow().is_none()));
+}
+
+#[test]
+fn reload_audit_file_route_keeps_large_original_until_background_publish() {
+    use std::io::Write;
+    let fixture = crate::persist::TempDir::new("reload-audit-large-file");
+    let path = fixture.join("neutral.txt");
+    let mut file = std::fs::File::create(&path).expect("neutral fixture");
+    let chunk = vec![b'x'; 1024 * 1024];
+    for _ in 0..12 { file.write_all(&chunk).expect("fixture chunk"); }
+    drop(file);
+    with_workspace(|w, window, cx| {
+        w.window_closed = false;
+        w.session_snapshot_sink = Some(std::sync::mpsc::channel().0);
+        w.session_final_save_result = Some(true);
+        let tab = &mut w.tabs[w.active];
+        tab.buffer.file_path = Some(path.clone());
+        tab.buffer.rope = ropey::Rope::from_str("original editable source");
+        tab.buffer.mark_saved();
+        let before = tab.buffer.rope.clone();
+        let started = std::time::Instant::now();
+        w.file_reload_from_disk(&FileReloadFromDisk, window, cx);
+        eprintln!("reload_audit_file_foreground_ms={:.3}", started.elapsed().as_secs_f64() * 1000.);
+        assert!(w.tabs[w.active].buffer.rope.is_instance(&before), "reload must return with the old document installed before background work is polled");
+    }, |_, _, _| {});
 }

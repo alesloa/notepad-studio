@@ -216,6 +216,7 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        self.retire_closed_reloads();
         self.retire_closed_syntax_refresh(cx);
         self.close_autocomplete(cx);
         self.close_function_hint(cx);
@@ -379,6 +380,7 @@ impl Workspace {
                         Err(()) => return false,
                     };
                     let removed = w.tabs.remove(idx);
+                    w.retire_closed_reloads();
                     w.retire_closed_syntax_refresh(cx);
                     w.remember_closed(removed);
                     w.active = active_after_removal(w.active, idx, w.tabs.len());
@@ -585,6 +587,7 @@ impl Workspace {
 
     // PowerEditor/src/NppIO.cpp:588 — doReload confirms discarding dirty edits.
     pub(crate) fn reload_tab(&mut self, idx: usize, window: &mut Window, cx: &mut Context<Self>) {
+        if self.window_closed { return; }
         let Some(tab) = self.tabs.get(idx) else {
             return;
         };
@@ -665,35 +668,7 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        match reload_tab_by_id(&mut self.tabs, id, confirmed) {
-            Ok(Some(idx)) => {
-                let Some(path) = self.tabs[idx].buffer.file_path.clone() else {
-                    return;
-                };
-                self.csv_models.remove(&self.tabs[idx].session_id);
-                if self.tabs[idx].buffer.read_only {
-                    self.set_status(format!("Reloaded {} read-only", path.display()));
-                } else {
-                    self.set_status(format!("Reloaded {}", path.display()));
-                }
-                if idx == self.active {
-                    self.refresh_matches();
-                    self.refresh_smart_highlight();
-                    self.refresh_tag_match();
-                    self.caret_visible = true;
-                }
-                if let Some(handle) = csv_focus {
-                    self.restore_reloaded_csv_focus(id, handle, window, cx);
-                }
-            }
-            Err(err) => {
-                self.set_status(format!("Reload failed: {err}"));
-            }
-            Ok(None) => return,
-        }
-        self.last_lines.clear();
-        self.save_session(cx);
-        cx.notify();
+        self.begin_reload(id, confirmed, csv_focus, window, cx);
     }
 
     /// Rename tab `idx`'s underlying file without replacing an existing path.
@@ -786,6 +761,7 @@ impl Workspace {
                 // Drop the tab without remembering it on the closed-tab stack
                 // — the file's gone, restoring the buffer would orphan it.
                 let removed = self.tabs.remove(idx);
+                self.retire_closed_reloads();
                 drop(removed);
                 if self.tabs.is_empty() {
                     self.close_window_after_last_tab(window, cx);
@@ -1084,6 +1060,7 @@ impl DocumentSnapshot {
     }
 }
 
+#[cfg(test)]
 fn reload_tab_by_id(tabs: &mut [Tab], id: Uuid, confirmed: bool) -> Result<Option<usize>, String> {
     let Some(idx) = tab_index_of(tabs, id) else {
         return Ok(None);
@@ -1098,6 +1075,7 @@ fn reload_tab_by_id(tabs: &mut [Tab], id: Uuid, confirmed: bool) -> Result<Optio
     Ok(Some(idx))
 }
 
+#[cfg(test)]
 fn reload_tab_from_disk(tab: &mut Tab) -> Result<(), String> {
     if tab.buffer.loading.is_some() {
         return Err("file is still loading".to_string());

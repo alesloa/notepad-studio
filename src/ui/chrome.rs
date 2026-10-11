@@ -73,6 +73,7 @@ pub(crate) fn status_bar(
                 div()
                     .px(rems(6. / 16.))
                     .text_color(rgb(theme.toggle_active))
+                    .debug_selector(|| "loading-cancel".into())
                     .child("Cancel")
                     .on_mouse_down(MouseButton::Left, move |_e, _window, _cx| {
                         cancel.store(true, Ordering::Relaxed);

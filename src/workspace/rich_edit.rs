@@ -40,6 +40,7 @@ impl Workspace {
         let Some(tab) = self.tabs.get_mut(self.active) else {
             return;
         };
+        tab.observe_content_activity();
         tab.buffer.refresh_dirty();
         self.schedule_autosave(cx);
         cx.notify();

@@ -432,6 +432,9 @@ v0.0.5 — current
     108. Linux input-method property messages now validate bounded frames and
          retain unread appended data safely, including long-running sessions.
 
+    109. Reload now reads and parses in background while keeping the current
+         document editable. Cancellation or intervening edits keep your text.
+
   v0.1.0 — syntax & language:
 
     1. Tree-sitter syntax highlighting for 25 modes: Rust, Python, C,

@@ -166,7 +166,7 @@ impl Render for Workspace {
         let loading_chip = buffer.loading.as_ref().map(|p| LoadingChip {
             progress_text: crate::io_stream::format_progress(p),
             cancel: p.cancel.clone(),
-        });
+        }).or_else(|| self.reload_chip());
 
         div()
             .key_context("Workspace")

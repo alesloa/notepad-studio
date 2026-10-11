@@ -64,6 +64,7 @@ short_description = "Lightweight cross-platform text editor inspired by Notepad+
 # gpui is vendored in-repo (vendor/gpui) so the project is fully self-contained —
 # no external checkout required. See vendor/gpui/ + NOTICE.
 [dependencies]
+tempfile = { workspace = true }
 sha2 = { workspace = true }
 gpui = { path = "vendor/gpui/crates/gpui" }
 ropey = "1.6"

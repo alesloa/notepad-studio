@@ -8,6 +8,12 @@ use crate::workspace::WrapCache;
 /// column memory, and scroll position. Multiple tabs live inside a single
 /// `Workspace`; switching tabs preserves where each was scrolled to.
 pub(crate) struct Tab {
+    /// Runtime incarnation: reopen/reset cannot adopt an old Reload result.
+    pub(crate) instance: std::sync::Arc<()>,
+    /// Runtime edit activity survives an Undo/Redo return to the same saved revision.
+    pub(crate) content_activity: crate::buffer::ContentRevision,
+    observed_raw: Option<crate::buffer::ContentRevision>,
+    observed_rich: Option<crate::buffer::ContentRevision>,
     pub(crate) buffer: Buffer,
     pub(crate) selection: Selection,
     /// Optional Notepad++ column-mode selection. When `Some`, paint and
@@ -64,6 +70,8 @@ pub(crate) enum TabViewMode {
 impl Tab {
     pub(crate) fn welcome() -> Self {
         Self {
+            instance: std::sync::Arc::new(()),
+            content_activity: Default::default(), observed_raw: None, observed_rich: None,
             buffer: Buffer::untitled(),
             selection: Selection::default(),
             block_selection: None,
@@ -98,6 +106,8 @@ impl Tab {
 
     pub(crate) fn empty() -> Self {
         Self {
+            instance: std::sync::Arc::new(()),
+            content_activity: Default::default(), observed_raw: None, observed_rich: None,
             buffer: Buffer::empty(),
             selection: Selection::default(),
             block_selection: None,
@@ -112,6 +122,13 @@ impl Tab {
             begin_select_marker: None,
             view_mode: TabViewMode::Edit,
             csv_draft: None,
+        }
+    }
+    pub(crate) fn observe_content_activity(&mut self) {
+        let rich = self.buffer.rich_doc.as_ref().map(|payload| payload.revision.clone());
+        if self.observed_raw.as_ref() != Some(&self.buffer.raw_revision) || self.observed_rich != rich {
+            self.content_activity = Default::default();
+            self.observed_raw = Some(self.buffer.raw_revision.clone()); self.observed_rich = rich;
         }
     }
 }

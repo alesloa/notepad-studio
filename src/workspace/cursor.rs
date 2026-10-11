@@ -75,6 +75,7 @@ impl Workspace {
 
         if removed != new_text {
             tab.buffer.raw_revision = crate::buffer::ContentRevision::default();
+            tab.observe_content_activity();
         }
         tab.buffer.refresh_dirty();
         // Any rope mutation invalidates the cached wrap layout — visual rows
@@ -119,6 +120,7 @@ impl Workspace {
     /// manifest, and schedule the debounced autosave. Keeping this out of the
     /// per-edit hot loop is what makes batched edits fast.
     pub(crate) fn after_edit_flush(&mut self, cx: &mut Context<Self>) {
+        if let Some(tab) = self.tabs.get_mut(self.active) { tab.observe_content_activity(); }
         self.retire_source_input_after_edit();
         self.cancel_prepared_edit(cx);
         // The synchronous edit-commit path stays CHEAP so the edit, caret, and

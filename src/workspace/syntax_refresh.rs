@@ -245,7 +245,7 @@ impl Workspace {
                 .is_some_and(|tab| tab.buffer.raw_revision == request.revision)
     }
 
-    fn retire_syntax_tab(&mut self, tab: Uuid, cx: &mut Context<Self>) {
+    pub(super) fn retire_syntax_tab(&mut self, tab: Uuid, cx: &mut Context<Self>) {
         self.syntax_refresh.latest.remove(&tab);
         if let Some(running) = self
             .syntax_refresh

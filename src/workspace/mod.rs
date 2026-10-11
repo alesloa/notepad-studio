@@ -25,6 +25,9 @@ mod folder_panel;
 mod format;
 mod history;
 mod prepared_edits;
+mod reload;
+mod reload_guard;
+mod reload_csv;
 mod ime;
 mod input_handler;
 mod language;
@@ -257,6 +260,7 @@ pub(crate) struct Workspace {
     /// Independent post-edit eager-recovery debounce; syntax work is tracked per tab.
     pub(crate) post_edit_generation: u64,
     syntax_refresh: syntax_refresh::Runtime,
+    reload: reload::Runtime,
     /// Set once the last tab has closed and the window is torn down. The
     /// entity can outlive its window (Preferences and Text Tools hold it),
     /// so session saves from late timers and `on_release` become no-ops
@@ -736,6 +740,7 @@ impl Workspace {
             session_final_save_result: None,
             post_edit_generation: 0,
             syntax_refresh: syntax_refresh::Runtime::default(),
+            reload: reload::Runtime::default(),
             window_closed: false,
             session_window_id: Uuid::new_v4(),
             input_drag: None,
@@ -1208,6 +1213,7 @@ impl Workspace {
         self.window_closed = true;
         self.cancel_regex_replacement();
         self.syntax_refresh.close();
+        self.reload.close();
         session::release_workspace(self.session_window_id);
     }
 

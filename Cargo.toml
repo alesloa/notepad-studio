@@ -79,7 +79,7 @@ libloading = "0.8"
 trash = "5"
 chrono = "0.4"
 pulldown-cmark = { version = "0.13", default-features = false }
-open = "5"
+open = { version = "5", features = ["shellexecute-on-windows"] }
 quick-xml = "0.36"
 docx-rust = "0.1.11"
 scrivener-rtf = "0.1"

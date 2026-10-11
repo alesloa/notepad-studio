@@ -207,6 +207,7 @@ pub(super) const NPP_DEFAULTS: &[(&str, &str, u32)] = &[
 
 /// Notepad++ commands without a default chord.
 pub(super) const NPP_NO_DEFAULT: &[(&str, u32)] = &[
+    ("IDM_EXECUTE_VALIDATE_SHORTCUTSXML", 488),
     ("IDM_SEARCH_CLEAR_BOOKMARKS", 305),
     ("IDM_SETTING_PREFERENCE", 473),
     ("IDM_LANGSTYLE_CONFIG_DLG", 474),

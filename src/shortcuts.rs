@@ -307,6 +307,10 @@ static CATALOG: &[ActionEntry] = &[
     row!(MacroRunMultipleTimes,   "Run a Macro Multiple Times",    Some("IDM_MACRO_RUNMULTIMACRODLG"),     W, [],               ["cmd-shift-m"]),
     row!(MacroSaveCurrent,        "Save Currently Recorded Macro", Some("IDM_MACRO_SAVECURRENTMACRO"),     W, [],               []),
 
+    // --- Run ---
+    row!(RunCommand,           "Run...",                 Some("IDM_EXECUTE"),                       W, ["f5"], ["f5"]),
+    row!(RunValidateShortcuts, "Validate shortcuts.xml", Some("IDM_EXECUTE_VALIDATE_SHORTCUTSXML"), W, [],     []),
+
     // --- Bookmarks ---
     // Notepad++: Ctrl+F2 toggles, F2 / Shift+F2 jump next / previous.
     row!(BookmarkToggle,   "Toggle Bookmark",     Some("IDM_SEARCH_TOGGLE_BOOKMARK"), W, ["ctrl-f2"],  ["cmd-f2"]),

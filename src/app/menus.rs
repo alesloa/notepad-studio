@@ -11,6 +11,7 @@ mod help;
 mod language;
 mod macros;
 mod plugins;
+mod run;
 mod search;
 mod settings;
 mod state;
@@ -44,6 +45,7 @@ pub(crate) fn install_menus(cx: &mut App) {
         language::build(&state),
         settings::build(&state),
         macros::build(&state),
+        run::build(&state),
         plugins::build(&state),
         help::build(&state),
     ]);

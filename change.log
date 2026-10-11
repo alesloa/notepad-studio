@@ -194,6 +194,12 @@ v0.0.5 — current
        line-ending changes stay unsaved until restored or written. Invalid
        undo history is refused before it can change unrelated text.
 
+    52. Run menu and F5 open a native command dialog with Browse, document
+        variables and recent commands. Arguments are passed literally; launch
+        failures keep the command available. Save named commands to the Run
+        menu and update, rename or delete them without changing editor Undo.
+        Saved-command keyboard shortcuts remain unassigned.
+
   v0.1.0 — syntax & language:
 
     1. Tree-sitter syntax highlighting for 25 modes: Rust, Python, C,

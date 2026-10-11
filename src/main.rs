@@ -36,6 +36,7 @@ mod plugins;
 mod print;
 mod recent;
 mod rich_doc;
+mod run_command;
 mod scrollbar;
 mod session;
 mod settings;
@@ -155,6 +156,7 @@ fn main() {
         install_global_actions(cx);
         bind_app_keys(cx);
         install_menus(cx);
+        run_command::init_saved_commands(cx);
         // Watch for a sentinel file from a second-launch attempt so we can
         // raise this instance to the foreground instead of letting the new
         // process spawn its own window.

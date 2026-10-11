@@ -39,3 +39,13 @@ Session recovery also uses serde_json (already included through GPUI).
     Source: https://github.com/serde-rs/json
     Version: 1.0.149
     License: MIT OR Apache-2.0; the MIT notice is in licenses/serde_json-MIT.txt.
+
+Run command file/URL associations use the existing open dependency with its
+Windows ShellExecute feature (no command-shell wrapper).
+    open 5.3.4 — Sebastian Thiel and contributors
+    Source: https://github.com/Byron/open-rs
+    License: MIT; notice in licenses/open-MIT.txt.
+    The feature also uses dunce 1.0.5 — Kornel Lesinski
+    Source: https://gitlab.com/kornelski/dunce
+    License: CC0-1.0 OR MIT-0 OR Apache-2.0; distributed CC0 text is in
+    licenses/dunce-LICENSE.txt.

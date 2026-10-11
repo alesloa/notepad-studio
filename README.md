@@ -12,8 +12,8 @@ A lightweight, cross-platform text editor inspired by Notepad++, written in Rust
 > single-undo, user-customisable Shortcut Mapper, in-window right-click context
 > menu, column/multi-cursor edit, macro record / replay, plugin host, session
 > restore, and large-file streaming reads have all landed. Currently in flight:
-> Notepad++ behavior parity and correctness audit, including undo save points,
-> session handling across windows, and remaining menu/view gaps.
+> Notepad++ behavior parity and correctness audit, including autocomplete
+> input routing, CSV undo save points, and remaining menu/view gaps.
 
 ## Goals
 
@@ -212,6 +212,7 @@ icons from new source art → [`docs/icons.md`](docs/icons.md).
 - [x] Notepad++-style icon toolbar above the tab strip — File / Edit / Search / View / Macro / Plugins groups, monochrome SVGs tinted from the active theme, hover + pressed states, disabled state for unavailable actions
 
 ### Beyond
+- [x] Run dialog — `F5` or `Run ▸ Run...`; Browse, document/app variables, literal argument launching and recent commands in `run.toml`. Save named commands to the Run menu; select them in the dialog to edit, rename, copy or delete. Command and name fields have their own undo/redo. Named-command keyboard shortcuts remain open.
 - [x] Column-mode selection + multi-edit — alt-drag a rectangle, virtual columns extend past EOL, typing/Backspace/Delete/Cut/Copy/Paste all operate rectangularly in a single undo step, sentinel-tagged clipboard so Notepad Studio→Notepad Studio block paste lands as column paste; `Cmd/Ctrl+Alt+Shift+Arrow` extends the block by keyboard. Word-wrap + block paint together, and the Column Editor numeric-series dialog, deferred
 - [x] Macro record / replay — `Cmd/Ctrl+Shift+R` toggle recording, `Cmd/Ctrl+Shift+P` playback, `Cmd/Ctrl+Shift+M` opens an inline "Run N times" prompt; Save Currently Recorded prompts for a name, persists to `<config>/Notepad Studio/macros.toml`, and the saved entries appear under the `Macro` menu for one-click replay
 - [x] Plugin host — native cdylib plugins drop into `<config>/Notepad Studio/plugins/` and load at startup via `libloading`; the [`notepad-studio-plugin`](crates/notepad-studio-plugin) crate defines the C-ABI (`PluginInfo` / `HostApi`) and ships a safe `Plugin` trait + `declare_plugin!` macro for authors. The Plugins menu lists every loaded plugin with one submenu per plugin and one menu item per command. See the [Plugins](#plugins) section below

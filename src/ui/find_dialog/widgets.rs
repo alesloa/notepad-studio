@@ -119,6 +119,9 @@ where
                 .child(label),
         );
 
+    #[cfg(test)]
+    let row = row.debug_selector(|| format!("dialog-checkbox-{label}"));
+
     if enabled {
         // Row hover is a click-affordance cue — like Win32 native
         // checkboxes, the row is the hit target, not just the box itself.
@@ -399,6 +402,9 @@ where
                 .line_height(rems(14. / 16.))
                 .child(label),
         );
+
+    #[cfg(test)]
+    let node = node.debug_selector(|| format!("dialog-button-{label}"));
 
     if enabled {
         node.hover(move |s| s.bg(rgb(hover_bg)))

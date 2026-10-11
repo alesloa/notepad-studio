@@ -327,25 +327,68 @@ pub(crate) fn collect_results(
     display_label: Option<&str>,
     out: &mut Vec<FindResult>,
 ) -> usize {
+    collect_results_from_ranges(text, re.find_iter(text).map(|m| m.range()), path,
+        tab_idx, display_label, out)
+}
+
+/// Notepad++ boostregex/BoostRegExSearch.cxx:377-384: selection bounds limit
+/// the target, while anchors retain document context before the target start.
+pub(crate) fn collect_scoped_results(
+    text: &str,
+    re: &Regex,
+    scope: &Range<usize>,
+    path: &Path,
+    tab_idx: Option<usize>,
+    display_label: Option<&str>,
+    out: &mut Vec<FindResult>,
+) -> usize {
+    let end = text.floor_char_boundary(scope.end.min(text.len()));
+    let mut start = text.floor_char_boundary(scope.start.min(end));
+    let prefix = text.get(..end).unwrap_or_default();
+    let ranges = std::iter::from_fn(|| {
+        while start <= end {
+            let m = re.find_at(prefix, start)?;
+            if m.start() != m.end() {
+                start = m.end();
+                return Some(m.range());
+            }
+            let Some(ch) = prefix.get(m.end()..).and_then(|tail| tail.chars().next()) else {
+                break;
+            };
+            start = m.end().saturating_add(ch.len_utf8());
+        }
+        None
+    });
+    collect_results_from_ranges(text, ranges, path, tab_idx, display_label, out)
+}
+
+fn collect_results_from_ranges(
+    text: &str,
+    ranges: impl Iterator<Item = Range<usize>>,
+    path: &Path,
+    tab_idx: Option<usize>,
+    display_label: Option<&str>,
+    out: &mut Vec<FindResult>,
+) -> usize {
     let mut lines = LineWalker::new(text);
     let mut added = 0usize;
-    for m in re.find_iter(text) {
+    for m in ranges {
         if out.len() >= FIND_IN_FILES_RESULT_CAP {
             break;
         }
         // Skip zero-length matches (e.g. `^`, `\b`) — they'd otherwise spam
         // a result on every line for a pattern like `\b`.
-        if m.start() == m.end() {
+        if m.start == m.end {
             continue;
         }
-        let (line, line_start) = lines.seek(m.start());
+        let (line, line_start) = lines.seek(m.start);
         let content_len = lines.content_end().saturating_sub(line_start);
         let shown_end = text.floor_char_boundary(
             line_start.saturating_add(content_len.min(RESULT_LINE_TEXT_MAX_BYTES)),
         );
         let line_text = text.get(line_start..shown_end).unwrap_or_default().to_string();
-        let local_start = m.start().saturating_sub(line_start).min(content_len);
-        let local_end = m.end().saturating_sub(line_start).min(content_len).max(local_start);
+        let local_start = m.start.saturating_sub(line_start).min(content_len);
+        let local_end = m.end.saturating_sub(line_start).min(content_len).max(local_start);
         out.push(FindResult {
             path: path.to_path_buf(),
             line,
@@ -570,6 +613,54 @@ mod tests {
         });
         rx.recv_timeout(std::time::Duration::from_secs(secs))
             .expect("timed out")
+    }
+
+    #[test]
+    fn scoped_current_results_keep_context_and_global_utf8_coordinates() {
+        let text = "outside hit\r\n\u{4e2d} hit caf\u{e9}\r\noutside hit";
+        let start = text.find('\u{4e2d}').unwrap();
+        let end = text.rfind("\r\n").unwrap();
+        let mut results = Vec::new();
+        collect_scoped_results(text, &Regex::new("hit").unwrap(), &(start..end),
+            Path::new("sample"), Some(0), None, &mut results);
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].line, 1);
+        assert_eq!(results[0].match_in_line, 4..7);
+        assert_eq!(results[0].line_text, "\u{4e2d} hit caf\u{e9}");
+        let mut anchors = Vec::new();
+        collect_scoped_results(text, &Regex::new("(?m)^hit").unwrap(), &(start + 4..start + 7),
+            Path::new("sample"), Some(0), None, &mut anchors);
+        assert!(anchors.is_empty());
+    }
+
+    #[test]
+    fn scoped_current_results_bound_greedy_end_without_inventing_start() {
+        let mut results = Vec::new();
+        collect_scoped_results("x hit outside", &Regex::new("hit.*").unwrap(), &(2..5),
+            Path::new("sample"), None, None, &mut results);
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].match_in_line, 2..5);
+        let mut words = Vec::new();
+        collect_scoped_results("xhit", &Regex::new(r"\bhit").unwrap(), &(1..4),
+            Path::new("sample"), None, None, &mut words);
+        assert!(words.is_empty());
+        let mut boundary = Vec::new();
+        collect_scoped_results("hit outside", &Regex::new("hit$").unwrap(), &(0..3),
+            Path::new("sample"), None, None, &mut boundary);
+        assert_eq!(boundary.len(), 1);
+    }
+
+    #[test]
+    fn scoped_current_results_clamp_hostile_utf8_bounds_and_skip_empty_matches() {
+        let mut results = Vec::new();
+        collect_scoped_results("\u{4e2d}hit", &Regex::new("hit|^").unwrap(), &(1..usize::MAX),
+            Path::new("sample"), None, None, &mut results);
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].match_in_line, 3..6);
+        let mut empty = Vec::new();
+        collect_scoped_results("\u{4e2d}", &Regex::new("^").unwrap(), &(0..usize::MAX),
+            Path::new("sample"), None, None, &mut empty);
+        assert!(empty.is_empty());
     }
 
     #[test]

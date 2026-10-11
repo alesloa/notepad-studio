@@ -1235,8 +1235,16 @@ impl Workspace {
         };
 
         let tab_idx = self.active;
-        let buffer = &self.tabs[tab_idx].buffer;
+        let Some(tab) = self.tabs.get(tab_idx) else { return; };
+        let buffer = &tab.buffer;
         let content = buffer.rope.to_string();
+        let scope = if buffer.rich_doc.is_none() && self.find_state.in_selection
+            && tab.block_selection.is_none()
+        {
+            self.find_state.in_selection_scope.as_ref()
+        } else {
+            None
+        };
 
         let display_label = buffer
             .file_path
@@ -1253,14 +1261,13 @@ impl Workspace {
         let path = buffer.file_path.clone().unwrap_or_default();
 
         let mut results: Vec<FindResult> = Vec::new();
-        crate::find_in_files::collect_results(
-            &content,
-            &re,
-            &path,
-            Some(tab_idx),
-            Some(&display_label),
-            &mut results,
-        );
+        if let Some(scope) = scope {
+            crate::find_in_files::collect_scoped_results(&content, &re, scope,
+                &path, Some(tab_idx), Some(&display_label), &mut results);
+        } else {
+            crate::find_in_files::collect_results(&content, &re, &path,
+                Some(tab_idx), Some(&display_label), &mut results);
+        }
 
         let total = results.len();
         let truncated = total >= crate::find_in_files::FIND_IN_FILES_RESULT_CAP;
@@ -2330,3 +2337,7 @@ mod smart_highlight_tests {
 #[cfg(test)]
 #[path = "find_all_opened_tests.rs"]
 mod all_opened_tests;
+
+#[cfg(test)]
+#[path = "find_current_tests.rs"]
+mod current_route_tests;

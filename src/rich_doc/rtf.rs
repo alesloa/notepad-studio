@@ -61,8 +61,74 @@ pub fn save(payload: &RichDocPayload, path: &Path, raw_view_override: Option<&st
 }
 
 fn parse_bytes(bytes: &[u8]) -> Result<ast::Document> {
+    check_lexable(bytes)?;
     let doc = srtf::parse(bytes).map_err(|e| RichDocError::Rtf(format!("{e:?}")))?;
     Ok(flatten_to_ast(&doc))
+}
+
+/// Refuse input that scrivener-rtf 0.1 would panic on instead of returning
+/// an error. Its lexer (`lexer.rs` `lex_control_word`) reads a control word
+/// as `\` + ASCII letters + optional `-` + digits and `expect`s the digits to
+/// parse as an i32, so `\b99999999999` aborts the app. This scan tokenizes
+/// control words the same way and reports the bad parameter instead. It also
+/// counts group nesting: the crate's parser and `walk_group` recurse once
+/// per `{`, so nesting past `MAX_NESTING_DEPTH` is refused.
+fn check_lexable(bytes: &[u8]) -> Result<()> {
+    let mut i = 0usize;
+    let mut depth = 0usize;
+    while let Some(&b) = bytes.get(i) {
+        if b == b'{' {
+            depth = depth.saturating_add(1);
+            if depth > super::MAX_NESTING_DEPTH {
+                return Err(RichDocError::Rtf(format!(
+                    "groups nest more than {} deep at byte {i}",
+                    super::MAX_NESTING_DEPTH
+                )));
+            }
+        } else if b == b'}' {
+            depth = depth.saturating_sub(1);
+        }
+        if b != b'\\' {
+            i += 1;
+            continue;
+        }
+        let name_start = i + 1;
+        let mut j = name_start;
+        while bytes.get(j).is_some_and(u8::is_ascii_alphabetic) {
+            j += 1;
+        }
+        if j == name_start {
+            // Control symbol (`\{`, `\\`, `\'`, `\*`, …): one byte follows.
+            i = name_start.saturating_add(1);
+            continue;
+        }
+        let mut k = j;
+        if bytes.get(k) == Some(&b'-') {
+            k += 1;
+        }
+        let digits_start = k;
+        while bytes.get(k).is_some_and(u8::is_ascii_digit) {
+            k += 1;
+        }
+        if k == digits_start {
+            // No parameter; a lone `-` stays in the text stream.
+            i = j;
+            continue;
+        }
+        let param = bytes.get(j..k).unwrap_or_default();
+        let fits = std::str::from_utf8(param)
+            .ok()
+            .and_then(|s| s.parse::<i32>().ok())
+            .is_some();
+        if !fits {
+            let name = String::from_utf8_lossy(bytes.get(name_start..j).unwrap_or_default());
+            return Err(RichDocError::Rtf(format!(
+                "control word \\{name} at byte {i} has a parameter outside the 32-bit range"
+            )));
+        }
+        i = k;
+    }
+    Ok(())
 }
 
 /// Walk the parsed RTF tree and produce a paragraph/run AST. The root group's
@@ -658,6 +724,82 @@ fn build_hyperlink_group(url: &str, run: &ast::InlineRun, colors: &[u32]) -> srt
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn control_word_param_outside_i32_is_an_error() {
+        // scrivener-rtf's lexer `expect`s every `\wordN` parameter to fit
+        // an i32; one digit too many used to abort the app.
+        for src in [
+            &br"{\rtf1 \b99999999999 x}"[..],
+            &br"{\rtf1 \fs-2147483649 x}"[..],
+            &br"{\rtf1 \cf4294967296 x}"[..],
+        ] {
+            assert!(parse_bytes(src).is_err(), "{}", String::from_utf8_lossy(src));
+        }
+        // The i32 extremes themselves still parse.
+        assert!(parse_bytes(br"{\rtf1 \fs2147483647 \li-2147483648 x}").is_ok());
+    }
+
+    fn nested_rtf(depth: usize) -> Vec<u8> {
+        let mut s = b"{\\rtf1 ".to_vec();
+        s.extend(std::iter::repeat_n(b'{', depth));
+        s.push(b'x');
+        s.extend(std::iter::repeat_n(b'}', depth));
+        s.push(b'}');
+        s
+    }
+
+    #[test]
+    fn group_nesting_past_the_limit_is_an_error() {
+        // scrivener-rtf and `walk_group` recurse once per `{`; 100k levels
+        // overflowed the stack.
+        let err = parse_bytes(&nested_rtf(100_000)).expect_err("too deep");
+        assert!(matches!(err, RichDocError::Rtf(_)), "{err:?}");
+        // The root group counts as one level.
+        assert!(parse_bytes(&nested_rtf(crate::rich_doc::MAX_NESTING_DEPTH)).is_err());
+        assert!(parse_bytes(&nested_rtf(crate::rich_doc::MAX_NESTING_DEPTH - 1)).is_ok());
+        // Escaped braces are text, not groups.
+        let mut escaped = b"{\\rtf1 ".to_vec();
+        for _ in 0..100_000 {
+            escaped.extend_from_slice(b"\\{");
+        }
+        escaped.push(b'}');
+        assert!(parse_bytes(&escaped).is_ok());
+    }
+
+    #[test]
+    fn hostile_rtf_is_an_error_or_a_document() {
+        // Built with `bs` so no `\u` escape appears in source.
+        let bs = '\\';
+        let unicode = format!(
+            "{{{bs}rtf1 {bs}u-70000? {bs}u2147483647 {bs}u-2147483648? {bs}uc0{bs}u65 x}}"
+        );
+        let refused: [&[u8]; 5] = [
+            b"{",
+            b"}",
+            b"{\\rtf1 x",
+            b"{\\rtf1\\",
+            b"{\\rtf1 \\'",
+        ];
+        for src in refused {
+            assert!(parse_bytes(src).is_err(), "{}", String::from_utf8_lossy(src));
+        }
+        let parsed: [&[u8]; 10] = [
+            b"",
+            b"{}",
+            unicode.as_bytes(),
+            b"{\\rtf1 \\'ZZ \\'4 \\'\\'}",
+            b"{\\rtf1 \\bin2147483647 x}",
+            b"{\\rtf1 \x00\xff\xfe x}",
+            b"{\\rtf1\\ansicpg65001 \\'ff\\'fe\\'c3}",
+            b"{\\rtf1{\\colortbl;\\red999\\green-5\\blue;}\\cf2147483647 a\\cf-1 b\\cf1 c}",
+            b"{\\rtf1{\\*\\pn\\pnlvl-2147483648}\\outlinelevel-1 \\li2147483647 x\\par}",
+            b"{\\rtf1 a}{\\rtf1 b}",
+        ];
+        for src in parsed {
+            assert!(parse_bytes(src).is_ok(), "{}", String::from_utf8_lossy(src));
+        }
+    }
 
     #[test]
     fn parses_plain_hello() {

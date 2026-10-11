@@ -90,6 +90,8 @@ v0.0.5 — current
    24. Reload asks before discarding unsaved changes. Cancelling keeps the
        document, and switching or moving tabs while the prompt is open
        cannot make it reload a different file.
+   25. Malformed RTF control parameters and excessive group nesting are
+       reported as errors instead of crashing the editor.
 
   v0.1.0 — syntax & language:
 

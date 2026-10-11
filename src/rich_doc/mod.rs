@@ -14,6 +14,9 @@ pub mod rtf;
 
 use std::path::Path;
 
+/// Refuse recursive document input deeper than this before calling a parser.
+pub(crate) const MAX_NESTING_DEPTH: usize = 256;
+
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum DocFormat {
     Docx,

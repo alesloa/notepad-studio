@@ -262,6 +262,11 @@ v0.0.5 — current
        Grid Save/Enter/Tab keep keyboard focus; very large values render in a
        bounded viewport while copy, edit and recovery retain all text.
 
+   67. Closing the last document, Close All and Close Unchanged no longer
+       render an empty tab strip and crash. The replacement blank tab exists
+       before the next frame. Close All keeps documents opened after its
+       original batch started.
+
   v0.1.0 — syntax & language:
 
     1. Tree-sitter syntax highlighting for 25 modes: Rust, Python, C,

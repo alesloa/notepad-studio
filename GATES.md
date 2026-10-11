@@ -27,14 +27,14 @@ Scope: Continue the requested cross-platform Notepad++ parity audit and fix the 
   EVIDENCE: pending; current native computer-use transport is unavailable and CUA native surfaces are disabled. Headless GPUI tests are not native screenshots.
 
 - [x] G9: The integrated main tree builds and passes its required unit/integration/clippy checks with no new warnings on touched code.
-  CHECK: powershell -NoProfile -Command "Get-Content log/csv-recovery-integration-tests.txt -Tail 16"
-  EXPECT: 1422 passed; 0 failed
-  EVIDENCE: reviewedbab3c30 recovery batch; cargo build and clippy all-targets passed;1422 units + 1 integration passed,8 ignored. Refresh for each source batch.
+  CHECK: powershell -NoProfile -Command "Get-Content log/close-batch-integration-tests.txt -Tail 16"
+  EXPECT: 1426 passed; 0 failed
+  EVIDENCE: atomic close batch; cargo build and clippy all-targets passed;1426 units + 1 integration passed,8 ignored, no new touched-code warnings. Four rendered crash/captured-target regressions reproduced red then green. Refresh for each source batch.
 
 - [x] G10: Completed source batches have separate conventional commits and current change.log/devlog entries; the main working tree is clean before beginning a new batch.
   CHECK: git status --porcelain
   EXPECT: /^$/
-  EVIDENCE: maind38afbc was clean before this recovery batch;66 current-version release notes and a devlog entry accompany it. Refresh after each source batch.
+  EVIDENCE: mainf7e5c4b was clean before this close batch;67 current-version release notes and a devlog entry accompany it. Refresh after each source batch.
 
 - [x] G11: View > Tab exposes every oracle Tab command in order with rebindable shortcuts; selection/reordering/color commands preserve document UUID, text, encoding/EOL, saved state and history, with edge and pending-cell refusal coverage.
   EVIDENCE: oracle RC789-817 / Commands1304-1412,3532-3537; red missing-menu contract then 7 new menu/actual-dispatch/refusal/edge tests pass. 1332-unit main gate; existing shortcut parity/collision tests cover added rows. Native appearance remains G8.

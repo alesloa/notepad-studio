@@ -55,6 +55,12 @@ impl Workspace {
 
     pub(crate) fn new_tab(&mut self, cx: &mut Context<Self>) {
         if !crate::ui::csv_doc::actions::commit_cell_edit(self, cx) { return; }
+        self.append_blank_tab(cx);
+    }
+
+    // Closing has already settled drafts and may have removed the last tab.
+    // Create its replacement without asking an absent source to commit again.
+    fn append_blank_tab(&mut self, cx: &mut Context<Self>) {
         let label = crate::buffer::next_new_label_for(
             self.tabs.iter().map(|t| t.buffer.new_label.as_ref()),
         );
@@ -158,7 +164,7 @@ impl Workspace {
             } else {
                 // NPP "Exit on close the last tab" unchecked — keep the window
                 // open with a fresh blank tab in place of the just-closed one.
-                self.new_tab(cx);
+                self.append_blank_tab(cx);
                 return;
             }
         }
@@ -226,94 +232,10 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        cx.spawn_in(window, async move |this, cx| {
-            // Walk rightmost-first so already-removed indices don't shift the
-            // ones we still have to handle. Cancel at any tab aborts the
-            // entire batch — tabs already removed stay removed (matches
-            // Notepad++).
-            // The prompt is not modal, so the strip can change while it is
-            // up: each tab is tracked by `session_id`, never by a captured
-            // index, and `active` is re-settled after every removal so a
-            // render during the next prompt (or after Cancel) stays in range.
-            loop {
-                let next = this
-                    .update(cx, |w, cx| {
-                        let Some(id) = w.tabs.last().map(|tab| tab.session_id) else { return Ok(None); };
-                        crate::ui::csv_doc::actions::commit_cell_edit_for_tab(w, id, cx)?;
-                        let tab = w.tabs.iter().find(|tab| tab.session_id == id).ok_or("tab gone")?;
-                        let name = tab.buffer.display_short_name().to_string();
-                        Ok::<_, String>(Some((id, tab.buffer.dirty, name)))
-                    });
-                let Some((id, dirty, name)) = (match next { Ok(Ok(next)) => next, _ => return }) else { break };
-
-                if dirty {
-                    match show_dirty_close_dialog(name).await {
-                        CloseDecision::Cancel => {
-                            this.update(cx, |w, cx| {
-                                w.set_status("Close All cancelled".to_string());
-                                cx.notify();
-                            })
-                            .ok();
-                            return;
-                        }
-                        CloseDecision::DontSave => {}
-                        CloseDecision::Save => {
-                            let Some(idx) = this
-                                .update(cx, |w, _| tab_index_of(&w.tabs, id))
-                                .ok()
-                                .flatten()
-                            else {
-                                continue;
-                            };
-                            if let Err(err) = save_tab_for_close(&this, cx, idx).await {
-                                this.update(cx, |w, cx| {
-                                    w.set_status(format!(
-                                        "Close All aborted — save failed: {err}"
-                                    ));
-                                    cx.notify();
-                                })
-                                .ok();
-                                return;
-                            }
-                        }
-                    }
-                }
-
-                let last = this
-                    .update(cx, |w, cx| {
-                        let Some(idx) = tab_index_of(&w.tabs, id) else {
-                            return w.tabs.is_empty();
-                        };
-                        let removed = w.tabs.remove(idx);
-                        w.remember_closed(removed);
-                        w.active = active_after_removal(w.active, idx, w.tabs.len());
-                        w.last_lines.clear();
-                        cx.notify();
-                        w.tabs.is_empty()
-                    })
-                    .unwrap_or(true);
-                if last {
-                    break;
-                }
-            }
-
-            this.update(cx, |w, cx| {
-                let label = crate::buffer::next_new_label_for(
-                    w.tabs.iter().map(|t| t.buffer.new_label.as_ref()),
-                );
-                let mut tab = Tab::empty();
-                tab.buffer.new_label = Some(label);
-                w.tabs.push(tab);
-                w.active = 0;
-                w.touch_mru();
-                w.last_lines.clear();
-                w.caret_visible = true;
-                w.save_session(cx);
-                cx.notify();
-            })
-            .ok();
-        })
-        .detach();
+        // The prompt is asynchronous: documents opened after this command
+        // belong to the next interaction, not to the captured close batch.
+        let targets = self.tabs.iter().map(|tab| tab.session_id).collect();
+        self.close_tab_batch(targets, true, window, cx);
     }
 
     /// Close every tab whose `session_id` is in `targets`, prompting for
@@ -331,8 +253,10 @@ impl Workspace {
         cx: &mut Context<Self>,
     ) {
         if targets.is_empty() {
+            if self.tabs.is_empty() { self.append_blank_tab(cx); }
             return;
         }
+        self.close_autocomplete(cx);
         cx.spawn_in(window, async move |this, cx| {
             for id in targets.into_iter().rev() {
                 let next = this
@@ -378,15 +302,23 @@ impl Workspace {
                     }
                 }
 
-                this.update(cx, |w, cx| {
+                this.update_in(cx, |w, window, cx| {
                     let Some(idx) = tab_index_of(&w.tabs, id) else {
                         return;
                     };
                     let removed = w.tabs.remove(idx);
                     w.remember_closed(removed);
                     w.active = active_after_removal(w.active, idx, w.tabs.len());
-                    w.last_lines.clear();
-                    cx.notify();
+                    if w.tabs.is_empty() {
+                        // No render or observer may see an empty strip between
+                        // this removal and the batch's final update.
+                        if leave_blank_if_empty { w.append_blank_tab(cx); }
+                        else { w.close_window_after_last_tab(window); }
+                    } else {
+                        w.touch_mru();
+                        w.last_lines.clear();
+                        cx.notify();
+                    }
                 })
                 .ok();
             }
@@ -394,13 +326,7 @@ impl Workspace {
             this.update_in(cx, |w, window, cx| {
                 if w.tabs.is_empty() {
                     if leave_blank_if_empty {
-                        let label = crate::buffer::next_new_label_for(
-                            w.tabs.iter().map(|t| t.buffer.new_label.as_ref()),
-                        );
-                        let mut tab = Tab::empty();
-                        tab.buffer.new_label = Some(label);
-                        w.tabs.push(tab);
-                        w.active = 0;
+                        w.append_blank_tab(cx);
                     } else {
                         w.close_window_after_last_tab(window);
                         return;
@@ -1264,3 +1190,7 @@ mod tests {
         assert_eq!(active_after_removal(7, 5, 3), 2);
     }
 }
+
+#[cfg(test)]
+#[path = "close_batch_tests.rs"]
+mod close_batch_tests;

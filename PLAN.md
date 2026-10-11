@@ -4,7 +4,7 @@ Continue the authorized clean-room Rust/gpui work. The primary acceptance ledger
 
 ## Current ownership
 
-- Root: review branch commits, integrate exact source hunks, run the full main-tree build/test/clippy gate, update records and commit each batch. Completion macro helper/tests remain root-owned.
+- Root: review branch commits, integrate exact source hunks, run the full main-tree build/test/clippy gate, update records and commit each batch. Pure API registry and call-context helpers remain root-owned.
 - language_menu: completion and inline input routing. Brief-list behavior integrated; next leaf: optional user API loading and manual Function lists. Root owns the pure registry parser.
 - doc_parser: CSV draft recovery integrated; next leaf: clean-grid tab/new/close focus with real rendered keyboard/mouse routes. Own CSV helper/test seams, preserve tabUUID and newer focus.
 - undo_readonly: File menu commands integrated; next leaf: legacy/context Reload draft and focus guards.
@@ -42,3 +42,5 @@ Shared-file edits are surgical, re-read before integration. Agent branches are a
 - 2026-10-10: reviewed File5e6efe0 integrated;1397 units+1 integration pass,8ignored;build/clippy pass,no new touched warnings. G12met for File entrypoints/menu/defaults/UUID/draft/focus/literal paths. Shared catalog preserved root folder row/defaultless114 and View rows; tabs fixture depth1 retained. Legacy/context Reload remains active separateleaf. CSV recovery next.
 
 - 2026-10-10: reviewed recoverybab3c30 integrated;1422 units+1 integration pass,8ignored;build/clippy pass,196app210test193duplicates,no new touchedwarnings. G3met. Immutablebasis/hash/publication-failure/detacheddraft and boundedUTF8focus/debounce coverage complete. CleanCSVgrid and legacycontextReload leaves continue; APIcompletion wiring underway. NativeG8 and broadinventoryG7 remainopen.
+
+- 2026-10-10: atomic close batch implemented;1426 units+1 integration pass,8 ignored;build/clippy pass with no new touched-code warnings. Four actual rendered regressions prove final-tab Close/Close All/Close Unchanged cannot publish an empty strip, and Close All preserves documents opened after dispatch. CSV grid input/focus, context Reload and API completion continue.

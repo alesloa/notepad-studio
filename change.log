@@ -160,6 +160,10 @@ v0.0.5 — current
        scales with zoom, supports mouse-wheel selection, and dismisses
        without swallowing outside clicks or leaving invisible suggestions.
 
+   44. Doc View paste and Replace/Replace All undo as one action, restoring
+       the complete text, formatting and selection. Empty or blocked edits
+       preserve Redo, including nested batches and long history.
+
   v0.1.0 — syntax & language:
 
     1. Tree-sitter syntax highlighting for 25 modes: Rust, Python, C,

@@ -185,8 +185,8 @@ pub struct RichDocPayload {
     pub headers: Vec<Vec<ast::Block>>,
     /// Document footers. Same shape and lifecycle as `headers`.
     pub footers: Vec<Vec<ast::Block>>,
-    /// Snapshot-based undo stack. Each entry captures the pre-edit ast +
-    /// selection + active_block + edit_log length. apply_edit pushes a
+    /// Snapshot-based undo stack. Each entry captures the pre-action ast +
+    /// selection + active_block + edit_log. apply_edit pushes a
     /// snapshot of the current state before mutating, then clears redo so
     /// any new edit forks the timeline. Capped at UNDO_STACK_LIMIT entries
     /// (oldest dropped on overflow) to bound memory on long sessions.
@@ -196,6 +196,9 @@ pub struct RichDocPayload {
     /// Cleared by every fresh apply_edit so a redo never crosses a forked
     /// timeline.
     pub redo_stack: Vec<UndoSnapshot>,
+    /// Transient outer edit group's starting log length. The first edit saves
+    /// its pre-action state; later edits in the group reuse that history entry.
+    pub(crate) edit_group_start: Option<usize>,
 }
 
 /// Snapshot of a `RichDocPayload`'s mutable state at one point in time —
@@ -219,13 +222,29 @@ pub const UNDO_STACK_LIMIT: usize = 200;
 impl RichDocPayload {
     /// Apply an edit and record it on the log. Marks the payload as
     /// "needs container-replay save" implicitly via `edit_log.is_empty()`.
-    /// Pushes a pre-edit snapshot onto the undo stack and wipes redo so the
-    /// edit forks any prior redo timeline.
+    /// Saves one pre-action snapshot for a group (or each standalone edit)
+    /// and wipes redo so the edit forks any prior redo timeline.
     pub fn apply_edit(&mut self, edit: edits::Edit) {
-        self.push_undo_snapshot();
-        self.redo_stack.clear();
+        if self.edit_group_start.is_none_or(|start| self.edit_log.len() == start) {
+            self.push_undo_snapshot();
+            self.redo_stack.clear();
+        }
         edits::apply(&edit, &mut self.ast);
         self.edit_log.push(edit);
+    }
+
+    // PowerEditor/src/ScintillaComponent/FindReplaceDlg.cpp:2523-2525 —
+    // Replace All is one Undo action; empty actions retain the Redo timeline.
+    pub(crate) fn begin_edit_group(&mut self) -> Option<usize> {
+        let previous = self.edit_group_start;
+        if previous.is_none() {
+            self.edit_group_start = Some(self.edit_log.len());
+        }
+        previous
+    }
+
+    pub(crate) fn end_edit_group(&mut self, previous: Option<usize>) {
+        self.edit_group_start = previous;
     }
 
     /// Snapshot the current mutable state for undo. Internal — apply_edit
@@ -899,6 +918,7 @@ mod tests {
             footers: Vec::new(),
             undo_stack: Vec::new(),
             redo_stack: Vec::new(),
+            edit_group_start: None,
         };
         let target = std::env::temp_dir().join("notepad-studio-doc-save-rejected.doc");
         let err = save(&payload, &target, None).expect_err("save must reject .doc");
@@ -938,6 +958,7 @@ mod tests {
             footers: Vec::new(),
             undo_stack: Vec::new(),
             redo_stack: Vec::new(),
+            edit_group_start: None,
         }
     }
 
@@ -1075,5 +1096,77 @@ mod tests {
             });
         }
         assert_eq!(p.undo_stack.len(), UNDO_STACK_LIMIT);
+    }
+
+    #[test]
+    fn nested_edit_groups_restore_the_full_log_and_selection() {
+        let mut p = single_para_payload("café");
+        let pos = p.block_end(0);
+        p.selection = Some(TextSelection { anchor: p.block_start(0), cursor: pos });
+        p.active_block = Some(0);
+        let before = p.current_snapshot();
+        let outer = p.begin_edit_group();
+        p.apply_edit(edits::Edit::InsertText { block: 0, run: 0, byte: 0, text: "中".into() });
+        let inner = p.begin_edit_group();
+        p.apply_edit(edits::Edit::InsertText { block: 0, run: 0, byte: 0, text: "😀".into() });
+        p.end_edit_group(inner);
+        p.apply_edit(edits::Edit::SetBlockBold { block: 0, on: true });
+        p.end_edit_group(outer);
+        assert!(p.edit_group_start.is_none());
+        assert_eq!(p.undo_stack.len(), 1);
+        assert_eq!(p.edit_log.len(), 3);
+        let after = p.current_snapshot();
+        assert!(p.undo());
+        assert_eq!(p.ast, before.ast);
+        assert_eq!(p.selection, before.selection);
+        assert_eq!(p.active_block, before.active_block);
+        assert_eq!(p.edit_log, before.edit_log);
+        assert!(p.redo());
+        assert_eq!(p.ast, after.ast);
+        assert_eq!(p.edit_log, after.edit_log);
+        // Ending the outer scope must let the next edit start a new Undo action.
+        p.apply_edit(edits::Edit::InsertText { block: 0, run: 0, byte: 0, text: "next".into() });
+        assert_eq!(p.undo_stack.len(), 2);
+        assert!(p.undo());
+        assert_eq!(p.ast, after.ast);
+    }
+
+    #[test]
+    fn empty_nested_edit_groups_preserve_redo() {
+        let mut p = single_para_payload("café");
+        p.apply_edit(edits::Edit::InsertText { block: 0, run: 0, byte: 0, text: "中".into() });
+        assert!(p.undo());
+        let outer = p.begin_edit_group();
+        let inner = p.begin_edit_group();
+        p.end_edit_group(inner);
+        p.end_edit_group(outer);
+        assert!(p.edit_group_start.is_none());
+        assert!(p.undo_stack.is_empty());
+        assert_eq!(p.redo_stack.len(), 1);
+        assert!(p.redo());
+        assert_eq!(p.block_text(0), "中café");
+    }
+
+    #[test]
+    fn large_edit_group_preserves_prior_history_at_the_cap() {
+        let mut p = single_para_payload("");
+        for _ in 0..UNDO_STACK_LIMIT {
+            p.apply_edit(edits::Edit::InsertText { block: 0, run: 0, byte: 0, text: "x".into() });
+        }
+        let before = p.current_snapshot();
+        let group = p.begin_edit_group();
+        for _ in 0..UNDO_STACK_LIMIT + 20 {
+            p.apply_edit(edits::Edit::InsertText { block: 0, run: 0, byte: 0, text: "中".into() });
+        }
+        p.end_edit_group(group);
+        assert_eq!(p.undo_stack.len(), UNDO_STACK_LIMIT);
+        assert!(p.undo());
+        assert_eq!(p.ast, before.ast);
+        assert_eq!(p.edit_log, before.edit_log);
+        for _ in 1..UNDO_STACK_LIMIT {
+            assert!(p.undo(), "the group must evict only the oldest prior action");
+        }
+        assert!(!p.undo());
+        assert_eq!(p.block_text(0), "x");
     }
 }

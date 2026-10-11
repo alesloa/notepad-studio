@@ -6,6 +6,24 @@ use gpui::Context;
 use super::Workspace;
 
 impl Workspace {
+    pub(super) fn with_rich_doc_edit_group<R>(
+        &mut self,
+        cx: &mut Context<Self>,
+        edit: impl FnOnce(&mut Self, &mut Context<Self>) -> R,
+    ) -> R {
+        let active = self.active;
+        let previous = self.tabs.get_mut(active)
+            .and_then(|tab| tab.buffer.rich_doc.as_mut())
+            .map(|payload| payload.begin_edit_group());
+        let result = edit(self, cx);
+        if let Some(previous) = previous {
+            if let Some(payload) = self.tabs.get_mut(active).and_then(|tab| tab.buffer.rich_doc.as_mut()) {
+                payload.end_edit_group(previous);
+            }
+        }
+        result
+    }
+
     pub(super) fn rich_doc_edit_allowed(&mut self, cx: &mut Context<Self>) -> bool {
         let Some(tab) = self.tabs.get(self.active) else {
             return false;

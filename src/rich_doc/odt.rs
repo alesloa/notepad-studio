@@ -70,6 +70,7 @@ pub fn open(path: &Path) -> Result<RichDocPayload> {
         pending_drag_anchor: None,
         undo_stack: Vec::new(),
         redo_stack: Vec::new(),
+        edit_group_start: None,
         headers,
         footers,
     })

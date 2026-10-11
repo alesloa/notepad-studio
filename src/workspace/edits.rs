@@ -2426,16 +2426,20 @@ impl Workspace {
             return;
         }
         let normalized = cleaned.replace("\r\n", "\n").replace('\r', "\n");
-        let mut first = true;
-        for segment in normalized.split('\n') {
-            if !first {
-                self.rich_doc_insert_paragraph_break(cx);
+        // scintilla/win32/ScintillaWin.cxx:3171-3175 — paste replaces the
+        // selection and inserts every line as one Undo action.
+        self.with_rich_doc_edit_group(cx, |w, cx| {
+            let mut first = true;
+            for segment in normalized.split('\n') {
+                if !first {
+                    w.rich_doc_insert_paragraph_break(cx);
+                }
+                if !segment.is_empty() {
+                    w.rich_doc_insert_text(segment, cx);
+                }
+                first = false;
             }
-            if !segment.is_empty() {
-                self.rich_doc_insert_text(segment, cx);
-            }
-            first = false;
-        }
+        });
     }
 
     /// Phase 2g.K — splice pre-decoded formatted blocks at the caret. Driven
@@ -2456,6 +2460,14 @@ impl Workspace {
         if blocks.is_empty() {
             return;
         }
+        self.with_rich_doc_edit_group(cx, |w, cx| w.rich_doc_paste_formatted_inner(blocks, cx));
+    }
+
+    fn rich_doc_paste_formatted_inner(
+        &mut self,
+        blocks: Vec<crate::rich_doc::ast::Block>,
+        cx: &mut Context<Self>,
+    ) {
         let tab = self.active_tab_mut();
         let Some(payload) = tab.buffer.rich_doc.as_mut() else {
             return;

@@ -1,6 +1,6 @@
 // Headless handler/state tests; these do not verify native rendering.
 
-use gpui::{AppContext, Context, Entity, TestAppContext, WindowAppearance};
+use gpui::{AppContext, Context, Entity, TestAppContext, VisualContext, WindowAppearance};
 
 use super::{HeadingShift, RichDocStyleAxis, Workspace};
 use crate::rich_doc::{TextSelection, ast::{Alignment, Block, BlockProps, InlineRun}, edits::Edit};
@@ -229,6 +229,172 @@ fn read_only_rich_replace_preserves_the_document() {
             assert_eq!(w.autosave_generation, generation);
             w.window_closed = true;
         });
+        cx.quit();
+    }
+}
+
+
+fn assert_single_history_action(
+    w: &mut Workspace,
+    window: &mut gpui::Window,
+    cx: &mut Context<Workspace>,
+    action: impl FnOnce(&mut Workspace, &mut gpui::Window, &mut Context<Workspace>),
+) {
+    let focus = w.ensure_rich_doc_body_focus(cx);
+    window.focus(&focus, cx);
+    let before = w.buffer().rich_doc.as_ref().expect("rich fixture").clone();
+    action(w, window, cx);
+    let after = w.buffer().rich_doc.as_ref().expect("rich fixture").clone();
+    assert_ne!(after.ast, before.ast);
+    assert_eq!(after.undo_stack.len(), before.undo_stack.len() + 1, "one user action must create one history entry");
+    w.undo(&crate::actions::edit::EditUndo, window, cx);
+    let restored = w.buffer().rich_doc.as_ref().expect("rich fixture");
+    assert_eq!(restored.ast, before.ast);
+    assert_eq!(restored.selection, before.selection);
+    assert_eq!(restored.active_block, before.active_block);
+    assert_eq!(restored.edit_log, before.edit_log);
+    w.redo(&crate::actions::edit::EditRedo, window, cx);
+    let restored = w.buffer().rich_doc.as_ref().expect("rich fixture");
+    assert_eq!(restored.ast, after.ast);
+    assert_eq!(restored.selection, after.selection);
+    assert_eq!(restored.active_block, after.active_block);
+    assert_eq!(restored.edit_log, after.edit_log);
+}
+
+#[test]
+fn plain_rich_paste_is_a_single_undo_action() {
+    let mut cx = TestAppContext::single();
+    let entity = workspace(&mut cx);
+    {
+        let cx = cx.add_empty_window();
+        cx.update_window_entity(&entity, |w, window, cx| {
+            let payload = w.active_tab_mut().buffer.rich_doc.as_mut().expect("rich fixture");
+            payload.apply_edit(Edit::SplitBlock { block: 0, run: 0, byte: 2 });
+            payload.selection = Some(TextSelection { anchor: payload.block_start(0), cursor: payload.block_end(1) });
+            payload.active_block = Some(1);
+            assert_single_history_action(w, window, cx, |w, _, cx| w.rich_doc_paste("中\r\n😀\rtrail", cx));
+            w.window_closed = true;
+        });
+    }
+    cx.quit();
+}
+
+#[test]
+fn formatted_rich_paste_is_a_single_undo_action() {
+    let mut cx = TestAppContext::single();
+    let entity = workspace(&mut cx);
+    {
+        let cx = cx.add_empty_window();
+        cx.update_window_entity(&entity, |w, window, cx| {
+            let payload = w.active_tab_mut().buffer.rich_doc.as_mut().expect("rich fixture");
+            payload.selection = Some(TextSelection { anchor: payload.block_start(0), cursor: payload.block_end(0) });
+            payload.active_block = Some(0);
+            assert_single_history_action(w, window, cx, |w, _, cx| w.rich_doc_paste_formatted(vec![
+                Block::Paragraph { runs: vec![InlineRun::plain("中")], props: BlockProps::default() },
+                Block::Paragraph { runs: vec![InlineRun::plain("😀")], props: BlockProps::default() },
+            ], cx));
+            w.window_closed = true;
+        });
+    }
+    cx.quit();
+}
+
+#[test]
+fn rich_replace_all_is_a_single_undo_action() {
+    let mut cx = TestAppContext::single();
+    let entity = workspace(&mut cx);
+    {
+        let cx = cx.add_empty_window();
+        cx.update_window_entity(&entity, |w, window, cx| {
+            let payload = w.active_tab_mut().buffer.rich_doc.as_mut().expect("rich fixture");
+            payload.ast.blocks.extend([
+                Block::Paragraph { runs: vec![InlineRun::plain("中")], props: BlockProps::default() },
+                Block::Paragraph { runs: vec![InlineRun::plain("😀")], props: BlockProps::default() },
+            ]);
+            let start = payload.block_start(0);
+            payload.selection = Some(TextSelection { anchor: start, cursor: start });
+            payload.active_block = Some(0);
+            // Newline-only entries skip persistent Find MRU writes in these synthetic tests.
+            w.find_state.query = "\n".into();
+            w.find_state.replacement.clear();
+            assert_single_history_action(w, window, cx, |w, window, cx| {
+                w.replace_all_matches(&crate::actions::search::EditReplaceAll, window, cx);
+                assert_eq!(w.buffer().rich_doc.as_ref().expect("rich fixture").block_text(0), "café中😀");
+            });
+            w.window_closed = true;
+        });
+    }
+    cx.quit();
+}
+
+
+#[test]
+fn rich_no_op_and_read_only_groups_preserve_redo() {
+    let mut cx = TestAppContext::single();
+    let entity = workspace(&mut cx);
+    {
+        let cx = cx.add_empty_window();
+        cx.update_window_entity(&entity, |w, window, cx| {
+            Mutation::Text.prepare(w);
+            let focus = w.ensure_rich_doc_body_focus(cx);
+            window.focus(&focus, cx);
+            w.rich_doc_insert_text("中", cx);
+            w.undo(&crate::actions::edit::EditUndo, window, cx);
+            let before = w.buffer().rich_doc.as_ref().expect("rich fixture").clone();
+            w.active_tab_mut().buffer.dirty = false;
+            let generation = w.autosave_generation;
+            w.with_rich_doc_edit_group(cx, |w, cx| {
+                w.rich_doc_paste("\x00\x01", cx); // Cleaned clipboard is empty.
+                w.rich_doc_paste_formatted(Vec::new(), cx);
+                assert_eq!(w.replace_rich_doc_ranges(&[], "中", cx), 0);
+                // Returning from the inner formatted-paste handler must also end its group.
+                w.active_tab_mut().buffer.rich_doc.as_mut().expect("rich fixture").selection = None;
+                w.rich_doc_paste("ignored without a caret", cx);
+                w.rich_doc_paste_formatted(vec![Block::Paragraph {
+                    runs: vec![InlineRun::plain("ignored without a caret")], props: BlockProps::default(),
+                }], cx);
+                w.active_tab_mut().buffer.read_only = true;
+                w.rich_doc_paste("blocked\ntext", cx);
+                w.rich_doc_paste_formatted(vec![Block::Paragraph {
+                    runs: vec![InlineRun::plain("blocked")], props: BlockProps::default(),
+                }], cx);
+                assert_eq!(w.replace_rich_doc_ranges(std::slice::from_ref(&(0..3)), "blocked", cx), 0);
+            });
+            let payload = w.buffer().rich_doc.as_ref().expect("rich fixture");
+            assert!(payload.edit_group_start.is_none());
+            assert_eq!(payload.ast, before.ast);
+            assert_eq!(payload.edit_log, before.edit_log);
+            assert_eq!((payload.undo_stack.len(), payload.redo_stack.len()), (before.undo_stack.len(), before.redo_stack.len()));
+            assert!(!w.buffer().dirty);
+            assert_eq!(w.autosave_generation, generation);
+            w.active_tab_mut().buffer.read_only = false;
+            w.redo(&crate::actions::edit::EditRedo, window, cx);
+            assert_eq!(w.buffer().rich_doc.as_ref().expect("rich fixture").block_text(0), "中café");
+            w.window_closed = true;
+        });
+    }
+    cx.quit();
+}
+
+
+#[test]
+fn rich_replace_batches_with_insertions_are_single_undo_actions() {
+    let single = std::iter::once(0..3).collect::<Vec<_>>();
+    for ranges in [single, vec![2..3, 0..2]] {
+        let mut cx = TestAppContext::single();
+        let entity = workspace(&mut cx);
+        {
+            let cx = cx.add_empty_window();
+            cx.update_window_entity(&entity, |w, window, cx| {
+                Mutation::Text.prepare(w);
+                let payload = w.buffer().rich_doc.as_ref().expect("rich fixture");
+                w.find_state.rich_doc_block_offsets = Some(payload.flat_search_text().1);
+                assert_single_history_action(w, window, cx, |w, _, cx| {
+                    assert_eq!(w.replace_rich_doc_ranges(&ranges, "中", cx), ranges.len());
+                });
+                w.window_closed = true;
+            });
+        }
         cx.quit();
     }
 }

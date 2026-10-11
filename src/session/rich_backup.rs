@@ -267,7 +267,7 @@ fn read_inner(path: &Path) -> io::Result<(RichDocPayload, String)> {
     Ok((RichDocPayload {
         format: state.format, ast, raw_view_text: state.raw, original_bytes: original, edit_log,
         headers, footers, active_block: None, selection: None, drag_active: false,
-        pending_drag_anchor: None, undo_stack: Vec::new(), redo_stack: Vec::new(),
+        pending_drag_anchor: None, undo_stack: Vec::new(), redo_stack: Vec::new(), edit_group_start: None,
     }, source))
 }
 

@@ -1067,16 +1067,18 @@ impl Workspace {
         if !self.rich_doc_edit_allowed(cx) {
             return 0;
         }
-        let mut replaced = 0usize;
-        for range in ranges {
-            if self.replace_rich_doc_range(range.clone(), replacement) {
-                replaced = replaced.saturating_add(1);
+        self.with_rich_doc_edit_group(cx, |w, cx| {
+            let mut replaced = 0usize;
+            for range in ranges {
+                if w.replace_rich_doc_range(range.clone(), replacement) {
+                    replaced = replaced.saturating_add(1);
+                }
             }
-        }
-        if replaced > 0 {
-            self.after_rich_doc_edit(cx);
-        }
-        replaced
+            if replaced > 0 {
+                w.after_rich_doc_edit(cx);
+            }
+            replaced
+        })
     }
 
     fn step_match(&mut self, forward: bool, cx: &mut Context<Self>) {

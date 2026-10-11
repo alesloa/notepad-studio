@@ -475,6 +475,10 @@ v0.0.5 — current
          window mounts, prioritizes the active document and refills a bounded
          queue without changing recovered text or undo history.
 
+    122. Clicking a search result preserves its destination selection when
+         a pending CSV cell edit prevents switching documents. Committing the
+         cell edit lets you retry the result normally.
+
   v0.1.0 — syntax & language:
 
     1. Tree-sitter syntax highlighting for 25 modes: Rust, Python, C,

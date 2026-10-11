@@ -153,3 +153,62 @@ fn raw_result_owner_all_opened_surviving_row_follows_tab_after_another_closes() 
         });
     });
 }
+
+
+#[test]
+fn raw_result_owner_refused_csv_switch_does_not_select_a_hidden_document() {
+    with_sources(|entity, visual| {
+        search(entity, visual, false);
+        visual.update_window_entity(entity, |w, window, cx| {
+            let text = "name,value\r\nrow,original\r\n";
+            let tab = &mut w.tabs[1];
+            tab.buffer.rope = ropey::Rope::from_str(text);
+            tab.view_mode = crate::tab::TabViewMode::CsvPreview;
+            let mut model = crate::ui::csv_doc::CsvModel::empty(b',');
+            model.rebuild_from_source(text, w.autosave_generation);
+            model.bind_source(&tab.buffer.rope, &tab.buffer.raw_revision);
+            w.csv_models.insert(tab.session_id, model);
+            w.set_active_tab(1, cx);
+            crate::ui::csv_doc::actions::open_cell_editor(w, 0, 1, window, cx);
+        });
+        visual.simulate_input("draft");
+        visual.update_window_entity(entity, |w, _, cx| {
+            w.tabs[1].buffer.read_only = true;
+            cx.notify();
+        });
+        visual.run_until_parked();
+        let before = visual.update(|_, cx| {
+            let w = entity.read(cx);
+            assert_eq!(w.active, 1);
+            assert!(w.csv_models[&w.tabs[1].session_id].cell_input.is_some());
+            w.tabs[0].selection
+        });
+        let bounds = visual.debug_bounds("fif-result-0").unwrap();
+        visual.simulate_click(bounds.center(), gpui::Modifiers::none());
+        visual.update(|_, cx| {
+            let w = entity.read(cx);
+            assert_eq!(w.active, 1);
+            assert!(w.status_message.as_deref().unwrap_or_default().starts_with("Cell edit not committed:"));
+            assert!(w.csv_models[&w.tabs[1].session_id].cell_input.is_some());
+            assert_eq!((w.tabs[0].selection.anchor, w.tabs[0].selection.head), (before.anchor, before.head));
+            assert_eq!(w.tabs[1].buffer.rope.to_string(), "name,value\r\nrow,original\r\n");
+            assert!(w.tabs.iter().all(|tab| tab.undo_stack.is_empty()));
+        });
+        visual.update_window_entity(entity, |w, _, cx| {
+            w.tabs[1].buffer.read_only = false;
+            cx.notify();
+        });
+        visual.run_until_parked();
+        let bounds = visual.debug_bounds("fif-result-0").unwrap();
+        visual.simulate_click(bounds.center(), gpui::Modifiers::none());
+        visual.update(|_, cx| {
+            let w = entity.read(cx);
+            assert_eq!(w.active, 0);
+            assert_eq!(w.buffer().slice_bytes(w.selection().ordered()), "hit");
+            assert!(w.csv_models[&w.tabs[1].session_id].cell_input.is_none());
+            assert!(w.tabs[1].buffer.rope.to_string().contains("draft"));
+            assert_eq!(w.tabs[1].undo_stack.len(), 1);
+            assert!(w.tabs[0].undo_stack.is_empty());
+        });
+    });
+}

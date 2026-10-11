@@ -528,6 +528,10 @@ impl Workspace {
             }
         };
 
+        // A pending CSV draft can refuse tab activation; retain that refusal
+        // and leave the destination selection untouched.
+        if self.active != tab_idx { return; }
+
         // Raw search rows carry rope coordinates, never rendered Doc View positions.
         if self.tabs.get(tab_idx).is_some_and(super::find_view::uses_rich_text) {
             self.set_status("This result is from Raw View; switch to Raw View to select it");

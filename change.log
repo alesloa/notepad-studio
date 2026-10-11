@@ -527,7 +527,8 @@ v0.0.5 — current
 
     134. Rich-document search highlighting locates intersecting paragraphs
          without scanning every paragraph for each match. Cross-paragraph
-         matches and the current-match order stay unchanged.
+         matches and the current-match order stay unchanged. Empty results
+         skip paragraph-map validation.
 
     135. Session recovery reads and decodes documents, imports rich files
          and restores history in background before opening the editor.

@@ -9,6 +9,7 @@ pub(super) fn project(offsets: &[Offset], matches: &[Range<usize>]) -> Vec<Highl
 }
 
 fn project_with_visit(offsets: &[Offset], matches: &[Range<usize>], mut visit: impl FnMut()) -> Vec<Highlight> {
+    if offsets.is_empty() || matches.is_empty() { return Vec::new(); }
     let mut previous_end = None;
     let ordered = offsets.iter().all(|&(_, start, end)| {
         visit();
@@ -52,6 +53,18 @@ mod tests {
             }
         }
         (out, visits)
+    }
+
+    #[test]
+    fn empty_matches_or_offsets_do_not_visit_any_offsets() {
+        let offsets = [(0, 0, 3), (1, 4, 7)];
+        let mut visits = 0;
+        assert!(project_with_visit(&offsets, &[], || visits += 1).is_empty());
+        assert_eq!(visits, 0, "no-hit render must skip map validation");
+        let range = 1..2;
+        let mut visits = 0;
+        assert!(project_with_visit(&[], std::slice::from_ref(&range), || visits += 1).is_empty());
+        assert_eq!(visits, 0);
     }
 
     #[test]

@@ -562,6 +562,9 @@ v0.0.5 — current
          Existing temporary files and linked documents stay intact;
          failed writes clean up only the temporary they created.
 
+    143. Recovering partly readable settings preserves documents linked to
+         an existing recovery copy, while keeping the original settings bytes.
+
   v0.1.0 — syntax & language:
 
     1. Tree-sitter syntax highlighting for 25 modes: Rust, Python, C,

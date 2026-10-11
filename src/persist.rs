@@ -83,10 +83,10 @@ pub(crate) fn quarantine(path: &Path) -> Option<PathBuf> {
 
 /// Copy a state file that only partly loaded to `<name>.corrupt` before the
 /// next save rewrites it with just the parts that survived.
-fn keep_copy(path: &Path) {
+fn keep_copy(path: &Path, raw: &[u8]) {
     let target = sibling_with_suffix(path, ".corrupt");
-    match fs::copy(path, &target) {
-        Ok(_) => eprintln!(
+    match atomic_write(&target, raw) {
+        Ok(()) => eprintln!(
             "[persist] {} only partly loaded; the original is kept as {}",
             path.display(),
             target.display()
@@ -142,7 +142,7 @@ pub(crate) fn load_toml<T: DeserializeOwned>(
                     "[persist] {} doesn't match the current format, keeping what fits: {strict}",
                     path.display()
                 );
-                keep_copy(path);
+                keep_copy(path, &raw);
                 Loaded::Salvaged(salvage(&table))
             }
             Err(_) => {
@@ -277,6 +277,10 @@ impl Drop for TempDir {
         let _ = std::fs::remove_dir_all(&self.0);
     }
 }
+
+#[cfg(test)]
+#[path = "persist_corrupt_copy_tests.rs"]
+mod corrupt_copy_tests;
 
 #[cfg(test)]
 mod tests {

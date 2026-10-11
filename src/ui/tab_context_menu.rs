@@ -626,6 +626,7 @@ fn copy_panel(
                         .get(target)
                         .and_then(|t| t.buffer.file_path.clone())
                     {
+                        w.cancel_bookmark_copy(cx);
                         cx.write_to_clipboard(gpui::ClipboardItem::new_string(
                             p.display().to_string(),
                         ));
@@ -653,6 +654,7 @@ fn copy_panel(
                         .and_then(|t| t.buffer.file_path.clone())
                     {
                         if let Some(name) = p.file_name() {
+                            w.cancel_bookmark_copy(cx);
                             cx.write_to_clipboard(gpui::ClipboardItem::new_string(
                                 name.to_string_lossy().into_owned(),
                             ));
@@ -681,6 +683,7 @@ fn copy_panel(
                         .and_then(|t| t.buffer.file_path.clone())
                     {
                         if let Some(parent) = p.parent() {
+                            w.cancel_bookmark_copy(cx);
                             cx.write_to_clipboard(gpui::ClipboardItem::new_string(
                                 parent.display().to_string(),
                             ));
@@ -1040,6 +1043,10 @@ mod tab_reload_tests;
 #[cfg(test)]
 #[path = "tab_popup_tests.rs"]
 mod tab_popup_tests;
+
+#[cfg(test)]
+#[path = "tab_trash_tests.rs"]
+mod tab_trash_tests;
 
 fn color_row(
     theme: &Theme,

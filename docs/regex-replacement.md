@@ -67,7 +67,8 @@ Replace in Files uses the same template parser on its background worker, with
 at most one million replacements per file. Its existing UTF-8-only file policy
 is retained; UTF-8 BOM and line endings are preserved. Each file is planned
 fully before an atomic write, and failures report the first affected path.
-Search/replace macro event recording and replay remain a separate parity gap.
+New Find/Replace recordings capture their parameters and support saved playback;
+see [search macros](search-macros.md) for scope, cancellation and legacy limits.
 
 Clean-room behavior references: `FindReplaceDlg.cpp:3198,3667`,
 `ScintillaEditView.cpp:2954–2963`, and `boostregex/BoostRegExSearch.cxx:475–476`

@@ -5,7 +5,9 @@
 
 pub(crate) mod begin_end_select;
 pub(crate) mod blank_ops;
+pub(crate) mod bookmark_clipboard;
 pub(crate) mod case_ops;
+pub(crate) mod clipboard_all;
 pub(crate) mod clipboard_ops;
 pub(crate) mod comment_ops;
 pub(crate) mod delimiter_select;

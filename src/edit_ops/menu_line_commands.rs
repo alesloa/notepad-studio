@@ -110,6 +110,37 @@ fn line_at(rope: &Rope, at: usize) -> Line {
     }
 }
 
+pub(super) fn physical_line_range(rope: &Rope, at: usize, cancel: &AtomicBool) -> Result<std::ops::Range<usize>, &'static str> {
+    let at = floor_char_boundary(rope, at);
+    let row = rope.byte_to_line(at);
+    let mut start = rope.line_to_byte(row);
+    let mut previous = rope.get_byte(start);
+    let mut bytes = rope.get_bytes_at(start).ok_or("A bookmarked line is no longer available")?;
+    let mut scanned = 0usize;
+    while let Some(byte) = bytes.prev() {
+        if byte == b'\n' || (byte == b'\r' && previous != Some(b'\n')) { break; }
+        start = start.saturating_sub(1);
+        previous = Some(byte);
+        scanned = scanned.saturating_add(1);
+        if scanned.is_multiple_of(8192) && cancel.load(Ordering::Relaxed) { return Err("Copy Bookmarked Lines cancelled"); }
+    }
+    let mut end = if row.saturating_add(1) < rope.len_lines() { rope.line_to_byte(row + 1) } else { rope.len_bytes() };
+    if !matches!(end.checked_sub(1).and_then(|at| rope.get_byte(at)), Some(b'\r' | b'\n')) {
+        let mut bytes = rope.get_bytes_at(end).ok_or("A bookmarked line is no longer available")?;
+        while let Some(byte) = bytes.next() {
+            end = end.saturating_add(1);
+            if byte == b'\n' { break; }
+            if byte == b'\r' {
+                if bytes.next() == Some(b'\n') { end = end.saturating_add(1); }
+                break;
+            }
+            scanned = scanned.saturating_add(1);
+            if scanned.is_multiple_of(8192) && cancel.load(Ordering::Relaxed) { return Err("Copy Bookmarked Lines cancelled"); }
+        }
+    }
+    Ok(start..end)
+}
+
 fn shift_after(position: usize, removed: usize, inserted: usize) -> usize {
     if inserted >= removed {
         position.saturating_add(inserted - removed)

@@ -9,7 +9,7 @@ use super::Workspace;
 
 // UI-owned context identity, shared with sibling editor guards.
 #[derive(Clone, Debug)]
-pub(super) struct SourceInputToken(Rc<()>);
+pub(crate) struct SourceInputToken(Rc<()>);
 
 impl PartialEq for SourceInputToken {
     fn eq(&self, other: &Self) -> bool { Rc::ptr_eq(&self.0, &other.0) }
@@ -98,7 +98,7 @@ impl Workspace {
         }
     }
 
-    pub(super) fn source_input_token(&self) -> SourceInputToken {
+    pub(crate) fn source_input_token(&self) -> SourceInputToken {
         self.source_input_context.epoch.clone()
     }
 

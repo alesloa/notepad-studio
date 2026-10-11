@@ -82,6 +82,58 @@ fn clipboard(cx: &mut gpui::App) -> String {
 }
 
 #[test]
+fn bookmark_clipboard_tab_popup_copy_retires_pending_request() {
+    for row in 0..3 {
+        let _settings = override_for_test(Settings::default());
+        let _recording = crate::macros::override_execution_for_test(false);
+        let directory = crate::persist::TempDir::new("bookmark-popup-copy");
+        let mut cx = TestAppContext::single();
+        let w = workspace(&mut cx, directory.path());
+        w.update(&mut cx, |w, cx| {
+            w.open_tab_submenu(TabSubmenu::CopyToClipboard, gpui::point(px(230.), px(20.)), cx);
+        });
+        let state = w.read_with(&cx, |w, _| w.tab_context_menu.unwrap());
+        let flags = w.read_with(&cx, |w, _| flags_for(w, 1).unwrap());
+        let (_, visual) = cx.add_window_view(|_, _| PaintedMenu {
+            workspace: w.clone(), state, flags, panel: Panel::Submenu(TabSubmenu::CopyToClipboard),
+        });
+        visual.update_window_entity(&w, |w, window, cx| {
+            window.activate_window();
+            w.focus_input(InputFocus::Editor, window, cx);
+        });
+        visual.run_until_parked();
+        let (release, gate) = futures::channel::oneshot::channel();
+        visual.update_window_entity(&w, |w, window, cx| {
+            w.tabs[1].buffer.rope = ropey::Rope::from_str(&"x\n".repeat(140_000));
+            w.tabs[1].buffer.bookmarks.insert(0);
+            w.bookmark_copy_test_gate = Some(gate);
+            w.copy_bookmarked_lines(&crate::actions::CopyBookmarkedLines, window, cx);
+            assert!(w.pending_bookmark_copy.is_some(), "{:?}", w.status_message);
+        });
+        visual.run_until_parked();
+        visual.simulate_click(gpui::point(px(30.), px(16. + row as f32 * 22.)), gpui::Modifiers::none());
+        let expected = match row {
+            0 => directory.join("neutral-1.txt").display().to_string(),
+            1 => "neutral-1.txt".into(),
+            _ => directory.path().display().to_string(),
+        };
+        visual.update(|_, cx| {
+            assert_eq!(clipboard(cx), expected);
+            assert!(w.read(cx).pending_bookmark_copy.is_none(), "tab popup copy must retire earlier work");
+        });
+        release.send(()).unwrap();
+        visual.run_until_parked();
+        visual.update(|_, cx| {
+            assert_eq!(clipboard(cx), expected);
+            let tab = &w.read(cx).tabs[1];
+            assert_eq!(tab.buffer.rope.len_bytes(), 280_000);
+            assert!(tab.undo_stack.is_empty() && tab.redo_stack.is_empty());
+        });
+        cx.quit();
+    }
+}
+
+#[test]
 fn tab_popup_submenu_rows_resolve_reordered_targets_and_reject_stale_popups() {
     for which in [
         TabSubmenu::CopyToClipboard,

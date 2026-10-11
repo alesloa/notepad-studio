@@ -751,48 +751,15 @@ impl Workspace {
         cx.notify();
     }
 
-    /// Move the underlying file to the OS trash via the `trash` crate, then
-    /// remove the tab from the strip. No dirty-prompt — Notepad++ doesn't
-    /// double-confirm: the menu already showed "Move to Trash" and the tab's
-    /// next state is gone.
+    /// Notepad++ confirms deletion before filesystem or document effects.
+    /// PowerEditor/src/NppIO.cpp:2355; Notepad_plus.cpp:2619-2628.
     pub(crate) fn move_tab_to_trash(
         &mut self,
         idx: usize,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if idx >= self.tabs.len() {
-            return;
-        }
-        let Some(path) = self.tabs[idx].buffer.file_path.clone() else {
-            self.set_status("Cannot move to trash — tab has no file path");
-            cx.notify();
-            return;
-        };
-        match trash::delete(&path) {
-            Ok(()) => {
-                self.set_status(format!("Moved {} to trash", path.display()));
-                // Drop the tab without remembering it on the closed-tab stack
-                // — the file's gone, restoring the buffer would orphan it.
-                let removed = self.tabs.remove(idx);
-                self.retire_closed_reloads();
-                drop(removed);
-                if self.tabs.is_empty() {
-                    self.close_window_after_last_tab(window, cx);
-                    return;
-                }
-                self.active = active_after_removal(self.active, idx, self.tabs.len());
-                self.activate_initial_syntax(cx);
-                self.touch_mru();
-                self.last_lines.clear();
-                self.caret_visible = true;
-                self.save_session(cx);
-            }
-            Err(err) => {
-                self.set_status(format!("Move to trash failed: {err}"));
-            }
-        }
-        cx.notify();
+        self.confirm_tab_trash(idx, window, cx);
     }
 
     /// Save tab `idx` to its current path. If untitled, the caller is

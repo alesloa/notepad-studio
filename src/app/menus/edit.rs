@@ -1,12 +1,5 @@
-// Edit submenu. Layout mirrors Notepad++'s Edit menu (Edit menu screenshot
-// from NPP 8.x) item-for-item, including submenu groupings. Items that need
-// big infrastructure (multi-cursor, column mode) are deliberately omitted
-// from this round; their menuCmdIDs in NPP are:
-// IDM_EDIT_MULTISELECT*, IDM_EDIT_COLUMNMODE, IDM_EDIT_COLUMNMODETIP.
-// IDM_EDIT_AUTOCOMPLETE* / IDM_EDIT_FUNCCALLTIP* are wired (see
-// `autocompletion_menu()` below) — Word completion runs a real buffer scan;
-// Function / Function-and-Word delegate to Word until a per-language API
-// registry exists; Function Parameters Hint stubs as a status notice.
+// Edit menu labels and grouping follow PowerEditor/src/Notepad_plus.rc:488.
+// Remaining command gaps are tracked in docs/notepadpp-parity-inventory.md.
 
 use gpui::{Menu, MenuItem};
 
@@ -16,6 +9,10 @@ use super::MenuState;
 #[cfg(test)]
 #[path = "edit_line_command_tests.rs"]
 mod line_command_tests;
+
+#[cfg(test)]
+#[path = "edit_clipboard_all_tests.rs"]
+mod clipboard_all_tests;
 
 pub(crate) fn build(_state: &MenuState) -> Menu {
     Menu {
@@ -81,6 +78,10 @@ fn copy_to_clipboard_menu() -> Menu {
             MenuItem::action("Current Full File path to Clipboard", EditCopyFullPath),
             MenuItem::action("Current Filename to Clipboard", EditCopyFilename),
             MenuItem::action("Current Dir. Path to Clipboard", EditCopyDirPath),
+            // PowerEditor/src/Notepad_plus.rc:510-512.
+            MenuItem::separator(),
+            MenuItem::action("Copy All Filenames", EditCopyAllFilenames),
+            MenuItem::action("Copy All File Paths", EditCopyAllFilePaths),
         ],
     }
 }

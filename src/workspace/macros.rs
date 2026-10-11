@@ -38,6 +38,13 @@ use crate::workspace::Workspace;
 #[path = "completion_macro.rs"]
 mod completion_macro;
 
+#[path = "search_macro.rs"]
+pub(super) mod search_macro;
+
+#[cfg(test)]
+#[path = "search_macro_tests.rs"]
+mod search_macro_tests;
+
 fn unsupported_macro_operation(event: &MacroEvent) -> Option<&'static str> {
     match event {
         MacroEvent::FindNext => Some("Find Next"),
@@ -80,6 +87,8 @@ impl Workspace {
             Some("Wait for the file to finish loading before running a macro")
         } else if tab.buffer.read_only {
             Some("Buffer is read-only")
+        } else if self.is_composing_text(window) {
+            Some("Finish the active composition before running a macro")
         } else {
             None
         };
@@ -94,6 +103,20 @@ impl Workspace {
             self.set_status(format!("Macro playback does not support {operation} yet"));
             cx.notify();
             return false;
+        }
+        if self.regex_replacement.macro_playback.is_some() {
+            self.set_status("A macro replacement is preparing; finish or cancel it first");
+            cx.notify();
+            return false;
+        }
+        if events.iter().any(search_macro::needs_background) {
+            return self.start_search_macro_playback(events, times, window, cx);
+        }
+        if events.iter().any(search_macro::is_search) {
+            self.find_state.matches.clear();
+            self.find_state.current = None;
+            self.find_state.in_selection_scope = None;
+            self.find_state.in_selection_scope_owner = None;
         }
         self.close_autocomplete(cx);
         self.close_function_hint(cx);
@@ -126,7 +149,7 @@ impl Workspace {
         true
     }
 
-    fn replay_event(&mut self, event: &MacroEvent, window: &mut Window, cx: &mut Context<Self>) -> bool {
+    pub(super) fn replay_event(&mut self, event: &MacroEvent, window: &mut Window, cx: &mut Context<Self>) -> bool {
         let prepared = match event {
             MacroEvent::Undo => self.tabs.get(self.active).and_then(|tab| tab.undo_stack.last()),
             MacroEvent::Redo => self.tabs.get(self.active).and_then(|tab| tab.redo_stack.last()),
@@ -183,6 +206,9 @@ impl Workspace {
             MacroEvent::SpaceToTabLeading => self.space_to_tab_leading(&EditSpaceToTabLeading, window, cx),
             MacroEvent::Cut => self.cut(&EditCut, window, cx),
             MacroEvent::Copy => self.copy(&EditCopy, window, cx),
+            MacroEvent::CopyAllFilenames => return self.copy_all_tab_labels(false, cx),
+            MacroEvent::CopyAllFilePaths => return self.copy_all_tab_labels(true, cx),
+            MacroEvent::CopyBookmarkedLines => return self.run_copy_bookmarked_lines(window, cx),
             MacroEvent::Paste => self.paste(&EditPaste, window, cx),
             MacroEvent::SelectAll => self.select_all(&EditSelectAll, window, cx),
             MacroEvent::Undo => self.undo(&EditUndo, window, cx),
@@ -211,6 +237,12 @@ impl Workspace {
             MacroEvent::MoveWordRight => self.move_word_right(&MoveWordRight, window, cx),
             MacroEvent::SelectWordLeft => self.select_word_left(&SelectWordLeft, window, cx),
             MacroEvent::SelectWordRight => self.select_word_right(&SelectWordRight, window, cx),
+            MacroEvent::FindNextWithOptions(search)
+            | MacroEvent::FindPrevWithOptions(search)
+            | MacroEvent::ReplaceCurrentWithOptions(search)
+            | MacroEvent::ReplaceAllWithOptions(search) => {
+                return self.replay_search_event(event, search, window, cx);
+            }
             // Checked before any edit by replay_macro; never report a skipped
             // legacy operation as successful playback.
             MacroEvent::FindNext

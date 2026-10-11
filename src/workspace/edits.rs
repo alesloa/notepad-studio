@@ -218,6 +218,7 @@ impl Workspace {
     }
 
     pub(crate) fn copy(&mut self, _: &EditCopy, window: &mut Window, cx: &mut Context<Self>) {
+        self.cancel_bookmark_copy(cx);
         let focus = self.input_focus(window);
         if focus == InputFocus::RichDocBody {
             self.rich_doc_copy_selection(cx);

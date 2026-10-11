@@ -34,6 +34,14 @@ pub(crate) use playback_fixture::override_execution_for_test;
 #[path = "blank_ops_macro_tests.rs"]
 mod blank_ops_macro_tests;
 
+#[cfg(test)]
+#[path = "clipboard_all_macro_tests.rs"]
+mod clipboard_all_macro_tests;
+
+#[cfg(test)]
+#[path = "edit_ops/bookmark_clipboard_macro_tests.rs"]
+mod bookmark_clipboard_macro_tests;
+
 /// Events captured during recording. Each variant maps onto a single
 /// keyboard-driven editor action. Replay dispatches these by calling the
 /// matching `Workspace` method directly (not via gpui action dispatch) so
@@ -72,6 +80,9 @@ pub(crate) enum MacroEvent {
     SpaceToTabLeading,
     Cut,
     Copy,
+    CopyAllFilenames,
+    CopyAllFilePaths,
+    CopyBookmarkedLines,
     Paste,
     SelectAll,
     Undo,
@@ -104,6 +115,10 @@ pub(crate) enum MacroEvent {
     FindPrev,
     ReplaceCurrent,
     ReplaceAll,
+    FindNextWithOptions(SearchMacro),
+    FindPrevWithOptions(SearchMacro),
+    ReplaceCurrentWithOptions(SearchMacro),
+    ReplaceAllWithOptions(SearchMacro),
     Save,
     /// Edit ▸ Insert ▸ Date/Time Short. Replay re-resolves the OS locale at
     /// playback time, matching NPP: the recorded macro inserts whatever the
@@ -126,6 +141,32 @@ pub(crate) enum MacroEvent {
     ScrollLineUp,
     ScrollLineDown,
     ToggleOvertype,
+}
+
+// PowerEditor/src/ScintillaComponent/FindReplaceDlg.cpp:4328-4389 records
+// strings and options, including In Selection rather than document offsets.
+#[derive(Clone, Debug, Serialize, Deserialize, PartialEq, Eq)]
+pub(crate) struct SearchMacro {
+    pub(crate) query: String,
+    pub(crate) replacement: String,
+    pub(crate) match_case: bool,
+    pub(crate) whole_word: bool,
+    pub(crate) regex: bool,
+    pub(crate) extended: bool,
+    pub(crate) dot_matches_newline: bool,
+    pub(crate) wrap_around: bool,
+    pub(crate) backward: bool,
+    pub(crate) in_selection: bool,
+    #[serde(default)]
+    pub(crate) dont_move_to_next: bool,
+}
+
+#[cfg(test)]
+pub(crate) fn saved_round_trip_for_test(
+    path: &Path, saved: &BTreeMap<String, Vec<MacroEvent>>,
+) -> std::io::Result<BTreeMap<String, Vec<MacroEvent>>> {
+    persist_at(path, saved)?;
+    Ok(load_saved_at(path))
 }
 
 #[derive(Default)]

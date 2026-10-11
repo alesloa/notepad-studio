@@ -9,5 +9,6 @@ gpui::actions!(
         BookmarkNext,
         BookmarkPrev,
         BookmarkClearAll,
+        CopyBookmarkedLines,
     ]
 );

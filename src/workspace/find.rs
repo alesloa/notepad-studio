@@ -553,6 +553,16 @@ impl Workspace {
             window.focus(&self.focus_handle, cx);
             return;
         }
+        if self.pending_bookmark_copy.is_some()
+            && window.is_window_active()
+            && self.focus_handle.is_focused(window)
+            && self.input_focus(window) == InputFocus::Editor
+        {
+            self.cancel_bookmark_copy(cx);
+            self.set_status("Copy Bookmarked Lines cancelled; clipboard unchanged");
+            cx.notify();
+            return;
+        }
         // Notepad++ column-mode block selection collapses on Esc, same
         // as a linear selection-clear in NPP. Returns the caret to the
         // block's head corner.
@@ -582,6 +592,11 @@ impl Workspace {
         if self.find_in_files.open {
             self.find_in_files.open = false;
             window.focus(&self.focus_handle, cx);
+            cx.notify();
+            return;
+        }
+        if self.regex_replacement.macro_playback.is_some() {
+            self.cancel_regex_replacement();
             cx.notify();
             return;
         }
@@ -995,6 +1010,7 @@ impl Workspace {
             &self.find_state.query,
         );
         self.step_match(true, cx);
+        self.record_search_macro(crate::macros::MacroEvent::FindNextWithOptions, cx);
     }
 
     pub(crate) fn find_prev(&mut self, _: &EditFindPrev, _w: &mut Window, cx: &mut Context<Self>) {
@@ -1023,6 +1039,7 @@ impl Workspace {
             &self.find_state.query,
         );
         self.step_match(false, cx);
+        self.record_search_macro(crate::macros::MacroEvent::FindPrevWithOptions, cx);
     }
 
     /// PowerEditor/src/ScintillaComponent/FindReplaceDlg.cpp:2080-2110 —
@@ -1033,6 +1050,11 @@ impl Workspace {
             &self.find_state.query,
         );
         self.step_match(self.find_state.backward == reverse, cx);
+        if self.find_state.backward == reverse {
+            self.record_search_macro(crate::macros::MacroEvent::FindNextWithOptions, cx);
+        } else {
+            self.record_search_macro(crate::macros::MacroEvent::FindPrevWithOptions, cx);
+        }
     }
 
     /// Apply a replace to a rich-doc match. `range` is a half-open byte
@@ -1385,6 +1407,14 @@ impl Workspace {
         cx: &mut Context<Self>,
     ) {
         self.close_function_hint(cx);
+        let record = !self.buffer().read_only;
+        self.run_replace_current_match(cx);
+        if record {
+            self.record_search_macro(crate::macros::MacroEvent::ReplaceCurrentWithOptions, cx);
+        }
+    }
+
+    fn run_replace_current_match(&mut self, cx: &mut Context<Self>) {
         if self.find_state.regex {
             self.start_regex_replacement(super::find_replacement::Mode::Current, cx);
             return;
@@ -1430,7 +1460,7 @@ impl Workspace {
                 scope.end = (scope.end as isize + delta).max(scope.start as isize) as usize;
             }
             self.refresh_matches();
-            if crate::settings::snapshot().replace_dont_move_to_next
+            if self.replacement_dont_move_to_next()
                 && !self.find_state.matches.is_empty()
             {
                 let clamped = idx.min(self.find_state.matches.len() - 1);
@@ -1456,7 +1486,7 @@ impl Workspace {
         // that advance, retarget the highlight at the same logical index —
         // clamped because a Replace can shrink the match list (a replacement
         // text that itself doesn't match, etc.).
-        if crate::settings::snapshot().replace_dont_move_to_next
+        if self.replacement_dont_move_to_next()
             && !self.find_state.matches.is_empty()
         {
             let clamped = idx.min(self.find_state.matches.len() - 1);
@@ -1478,6 +1508,14 @@ impl Workspace {
         cx: &mut Context<Self>,
     ) {
         self.close_function_hint(cx);
+        let record = !self.buffer().read_only;
+        self.run_replace_all_matches(cx);
+        if record {
+            self.record_search_macro(crate::macros::MacroEvent::ReplaceAllWithOptions, cx);
+        }
+    }
+
+    fn run_replace_all_matches(&mut self, cx: &mut Context<Self>) {
         if self.find_state.regex {
             self.start_regex_replacement(super::find_replacement::Mode::All, cx);
             return;
@@ -2165,6 +2203,7 @@ impl Workspace {
     }
 
     pub(crate) fn mark_copy(&mut self, _: &MarkCopy, _w: &mut Window, cx: &mut Context<Self>) {
+        self.cancel_bookmark_copy(cx);
         // Source-of-truth is the active buffer's `marks` layer — that's what
         // the editor paints. `mark_state.marks` is a cache that may go stale
         // after edits (the buffer's `shift_marks_for_edit` keeps Buffer.marks

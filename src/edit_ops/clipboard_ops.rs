@@ -23,6 +23,7 @@ impl Workspace {
         _window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        self.cancel_bookmark_copy(cx);
         let buffer = self.buffer();
         let payload = match buffer.file_path.as_ref() {
             Some(p) => p.display().to_string(),
@@ -38,6 +39,7 @@ impl Workspace {
         _window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        self.cancel_bookmark_copy(cx);
         let buffer = self.buffer();
         let payload = match buffer
             .file_path
@@ -57,6 +59,7 @@ impl Workspace {
         _window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        self.cancel_bookmark_copy(cx);
         let buffer = self.buffer();
         let payload = buffer
             .file_path

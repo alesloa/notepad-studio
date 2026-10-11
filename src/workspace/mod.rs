@@ -69,6 +69,7 @@ mod status;
 pub(crate) mod source_input;
 mod menu_state;
 mod tabs;
+pub(crate) mod trash;
 mod tab_actions;
 
 use gpui::{
@@ -114,6 +115,9 @@ pub(crate) struct Workspace {
     pub(crate) source_input_context: source_input::SourceInputContext,
     pub(crate) ime_composition: Option<ime::ImeComposition>,
     pub(crate) pending_prepared_edit: Option<prepared_edits::PendingPreparedEdit>,
+    pub(crate) pending_bookmark_copy: Option<crate::edit_ops::bookmark_clipboard::PendingBookmarkCopy>,
+    #[cfg(test)]
+    pub(crate) bookmark_copy_test_gate: Option<futures::channel::oneshot::Receiver<()>>,
     #[cfg(test)]
     pub(crate) prepared_test_gate: Option<futures::channel::oneshot::Receiver<()>>,
     #[cfg(test)]
@@ -287,6 +291,7 @@ pub(crate) struct Workspace {
     syntax_refresh: syntax_refresh::Runtime,
     proofreader: proofreading::Runtime,
     reload: reload::Runtime,
+    trash: trash::Runtime,
     /// Set once the last tab has closed and the window is torn down. The
     /// entity can outlive its window (Preferences and Text Tools hold it),
     /// so session saves from late timers and `on_release` become no-ops
@@ -724,6 +729,9 @@ impl Workspace {
             source_input_context: source_input::SourceInputContext::new(welcome_id),
             ime_composition: None,
             pending_prepared_edit: None,
+            pending_bookmark_copy: None,
+            #[cfg(test)]
+            bookmark_copy_test_gate: None,
             #[cfg(test)]
             prepared_test_gate: None,
             #[cfg(test)]
@@ -787,6 +795,7 @@ impl Workspace {
             syntax_refresh: syntax_refresh::Runtime::default(),
             proofreader: proofreading::Runtime::default(),
             reload: reload::Runtime::default(),
+            trash: trash::Runtime::default(),
             window_closed: false,
             session_window_id: Uuid::new_v4(),
             input_drag: None,

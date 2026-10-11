@@ -38,10 +38,12 @@ fn block_key(tab: &crate::tab::Tab) -> Option<BlockKey> {
 
 #[derive(Default)]
 pub(super) struct Runtime {
-    pending: Option<Uuid>,
+    pub(super) pending: Option<Uuid>,
     // UI identity stays out of the Send request used by the background worker.
     source: Option<(Uuid, super::source_input::SourceInputToken)>,
     task: Option<Task<()>>,
+    pub(super) macro_playback: Option<super::macros::search_macro::Playback>,
+    pub(super) macro_dont_move: Option<bool>,
     #[cfg(test)]
     pub(super) last_apply: Option<std::time::Duration>,
     #[cfg(test)]
@@ -129,6 +131,18 @@ struct ConfirmationTab {
 }
 
 impl Workspace {
+    #[cfg(test)]
+    pub(super) fn hold_macro_replacement_for_test(&mut self) {
+        self.regex_replacement.hold_worker = true;
+    }
+
+    #[cfg(test)]
+    pub(super) fn finish_held_macro_replacement_for_test(&mut self, window: &mut gpui::Window, cx: &mut Context<Self>) {
+        let Some((request, job)) = self.regex_replacement.held.take() else { return; };
+        let Some(id) = self.regex_replacement.macro_playback.as_ref().map(|p| p.id) else { return; };
+        self.finish_search_macro_replacement(id, request, prepare(job), window, cx);
+    }
+
     #[cfg(test)]
     pub(super) fn capture_replace_all_confirmation_for_test(
         &mut self, confirmation: Confirmation,
@@ -238,6 +252,11 @@ impl Workspace {
     }
 
     pub(crate) fn cancel_regex_replacement(&mut self) {
+        if self.regex_replacement.pending.is_some() {
+            if let Some(playback) = self.regex_replacement.macro_playback.take() {
+                self.set_status(playback.stopped("replacement cancelled"));
+            }
+        }
         self.regex_replacement.pending = None;
         self.regex_replacement.source = None;
         self.regex_replacement.task = None;
@@ -468,7 +487,7 @@ impl Workspace {
                 .current
                 .and_then(|i| self.find_state.matches.get(i).cloned()),
             previous_index: self.find_state.current,
-            dont_move: crate::settings::snapshot().replace_dont_move_to_next,
+            dont_move: self.replacement_dont_move_to_next(),
             dialog: self.dialog_tab,
             open: self.find_state.open,
             status: self.status_message.clone(),
@@ -490,9 +509,25 @@ impl Workspace {
             return;
         }
         let task = cx.background_spawn(async move { prepare(job) });
+        let playback = self.regex_replacement.macro_playback.as_ref().map(|p| (p.id, p.window));
         self.regex_replacement.task = Some(cx.spawn(async move |this, cx| {
             let result = task.await;
-            let _ = this.update(cx, |w, cx| w.finish_regex_replacement(request, result, cx));
+            if let Some((id, handle)) = playback {
+                let updated = handle.update(cx, |_, window, cx| {
+                    let _ = this.update(cx, |w, cx| {
+                        w.finish_search_macro_replacement(id, request, result, window, cx);
+                    });
+                });
+                if updated.is_err() {
+                    let _ = this.update(cx, |w, _| {
+                        if w.regex_replacement.macro_playback.as_ref().is_some_and(|p| p.id == id) {
+                            w.cancel_regex_replacement();
+                        }
+                    });
+                }
+            } else {
+                let _ = this.update(cx, |w, cx| w.finish_regex_replacement(request, result, cx));
+            }
         }));
     }
 
@@ -502,6 +537,28 @@ impl Workspace {
         self.find_state.error = Some(message);
         self.find_state.status = None;
         cx.notify();
+    }
+
+    fn finish_search_macro_replacement(
+        &mut self, id: Uuid, request: Request, result: Result<Vec<Plan>, String>,
+        window: &mut gpui::Window, cx: &mut Context<Self>,
+    ) {
+        if !self.regex_replacement.macro_playback.as_ref().is_some_and(|p| p.id == id) { return; }
+        let Some(mut playback) = self.regex_replacement.macro_playback.take() else { return; };
+        if !playback.valid(self, window) || !self.request_valid(&request) {
+            self.cancel_regex_replacement();
+            self.set_status(playback.stopped("the editor or search changed"));
+            cx.notify(); return;
+        }
+        if !self.finish_regex_replacement(request, result, cx) {
+            let reason = self.find_state.error.clone().or_else(|| self.status_message.clone())
+                .unwrap_or_else(|| "replacement rejected".into());
+            self.set_status(playback.stopped(&reason));
+            cx.notify(); return;
+        }
+        playback.completed = playback.completed.saturating_add(1);
+        self.merge_search_macro_undo(&playback);
+        self.continue_search_macro(playback, window, cx);
     }
 
     fn request_valid(&self, request: &Request) -> bool {
@@ -563,13 +620,13 @@ impl Workspace {
         request: Request,
         result: Result<Vec<Plan>, String>,
         cx: &mut Context<Self>,
-    ) {
+    ) -> bool {
         if !self.request_valid(&request) {
             if self.regex_replacement.pending == Some(request.id) {
                 self.cancel_regex_replacement();
                 cx.notify();
             }
-            return;
+            return false;
         }
         #[cfg(test)]
         let apply_started = std::time::Instant::now();
@@ -584,7 +641,7 @@ impl Workspace {
                 if let Some(status) = newer_status {
                     self.status_message = status;
                 }
-                return;
+                return false;
             }
         };
         if let Err(error) = self.validate_regex_apply_work(&plans) {
@@ -594,7 +651,7 @@ impl Workspace {
             if let Some(status) = newer_status {
                 self.status_message = status;
             }
-            return;
+            return false;
         }
         let original_active = self.active;
         let newer_status =
@@ -722,6 +779,7 @@ impl Workspace {
             self.regex_replacement.last_apply = Some(apply_started.elapsed());
         }
         cx.notify();
+        true
     }
 
     fn validate_regex_apply_work(&mut self, plans: &[Plan]) -> Result<(), String> {

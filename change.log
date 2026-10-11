@@ -603,6 +603,22 @@ v0.0.5 — current
          Save As dialogs. Cancelling one file continues with the others;
          clean files are untouched. Its confirmation counts all modified
          documents and offers Always Yes to disable future confirmations.
+    155. New Find Next/Previous and Replace/Replace All macro recordings
+         keep their search text, mode and options after save and reload.
+         Regex replay waits for background edits and Escape cancels it.
+         Older search events without parameters remain readable but cannot
+         replay; record them again. See docs/search-macros.md for limits.
+    156. Edit > Copy to Clipboard adds Copy All Filenames and Copy All
+         File Paths in the current window's tab order, including duplicate
+         names and untitled documents. Saved macros use the current tabs.
+    157. Search > Bookmark adds Copy Bookmarked Lines with original line
+         endings and no text, selection or Undo changes. Large manual
+         copies prepare in the background and Escape cancels. Small copies
+         support saved macro replay; see docs/bookmark-copy.md for limits.
+    158. Move to Trash / Recycle Bin asks for confirmation before deleting
+         the file or closing its tab. Changed documents and stale replies
+         cancel deletion. Recovery failures preserve the original document
+         and history; if the file was already moved, use Save As.
 
   v0.1.0 — syntax & language:
 

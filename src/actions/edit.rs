@@ -9,6 +9,8 @@ gpui::actions!(
         EditRedo,
         EditCut,
         EditCopy,
+        EditCopyAllFilenames,
+        EditCopyAllFilePaths,
         EditPaste,
         EditSelectAll,
         EditBackspace,

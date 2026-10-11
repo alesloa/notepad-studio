@@ -211,6 +211,9 @@ static CATALOG: &[ActionEntry] = &[
     row!(EditCopyDirPath, "Current Dir. Path to Clipboard", Some("IDM_EDIT_CURRENTDIRTOCLIP"), W, [], []),
     row!(EditCopyFilename, "Current Filename to Clipboard", Some("IDM_EDIT_FILENAMETOCLIP"), W, [], []),
     row!(EditCopyFullPath, "Current Full File path to Clipboard", Some("IDM_EDIT_FULLPATHTOCLIP"), W, [], []),
+    // Parameters.cpp:156-157 — no default shortcut on either command.
+    row!(EditCopyAllFilenames, "Copy All Filenames", Some("IDM_EDIT_COPY_ALL_NAMES"), W, [], []),
+    row!(EditCopyAllFilePaths, "Copy All File Paths", Some("IDM_EDIT_COPY_ALL_PATHS"), W, [], []),
     row!(EditEolMacintosh, "Macintosh (CR)", Some("IDM_FORMAT_TOMAC"), W, [], []),
     row!(EditEolToSpace, "EOL to Space", Some("IDM_EDIT_EOL2WS"), W, [], []),
     row!(EditEolUnix, "Unix (LF)", Some("IDM_FORMAT_TOUNIX"), W, [], []),
@@ -416,6 +419,7 @@ static CATALOG: &[ActionEntry] = &[
     row!(BookmarkNext,     "Next Bookmark",       Some("IDM_SEARCH_NEXT_BOOKMARK"),   W, ["f2"],       ["f2"]),
     row!(BookmarkPrev,     "Previous Bookmark",   Some("IDM_SEARCH_PREV_BOOKMARK"),   W, ["shift-f2"], ["shift-f2"]),
     row!(BookmarkClearAll, "Clear All Bookmarks", Some("IDM_SEARCH_CLEAR_BOOKMARKS"), W, [],           ["cmd-shift-f2"]),
+    row!(CopyBookmarkedLines, "Copy Bookmarked Lines", Some("IDM_SEARCH_COPYMARKEDLINES"), W, [], []),
 
     // --- Settings ---
     // Global (no Workspace context) so the chord works with no editor

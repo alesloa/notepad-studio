@@ -13,8 +13,9 @@ A lightweight, cross-platform text editor inspired by Notepad++, written in Rust
 > menu, column/multi-cursor edit, macro record / replay, plugin host, session
 > restore, and large-file streaming reads have all landed. Currently in flight:
 > Notepad++ behavior parity and correctness audit, including remaining
-> completion and IME edge cases, focus bugs, large-edit performance, search
-> macro replay, and menu gaps. Regex capture replacement has landed with
+> native completion and IME verification, focus bugs, large-edit performance,
+> legacy Save macro replay, and the gaps in the [menu inventory](docs/notepadpp-parity-inventory.md).
+> Regex capture replacement has landed with
 > bounded background planning; see its documented syntax and limits.
 > Manual large line indentation and its Undo/Redo also prepare in the
 > background, with Escape cancellation and one Undo per completed edit.
@@ -40,6 +41,12 @@ A lightweight, cross-platform text editor inspired by Notepad++, written in Rust
 > Save All now includes modified untitled documents with sequential Save As
 > dialogs and an Always Yes confirmation option. Save and close prompts reject
 > replies after the requesting tab is restored or its window accepts closure.
+> New [search macros](docs/search-macros.md) keep Find/Replace parameters and
+> wait for background regex edits. Copy All Filenames / File Paths uses the
+> current window's tab order; [Copy Bookmarked Lines](docs/bookmark-copy.md)
+> preserves line endings and prepares large manual copies in the background.
+> Move to Trash / Recycle Bin now confirms before deletion and rejects stale
+> replies; recovery errors keep the original document open for Save As.
 
 Optional [API completion definitions](docs/api-completion.md) supply language
 names for Function Completion and signatures for parameter hints, including
@@ -190,6 +197,7 @@ icons from new source art → [`docs/icons.md`](docs/icons.md).
       off-main search, scrollable results panel, click-to-jump into the file
 - [x] "Extended" search mode — `\n` `\r` `\t` `\0` `\b` `\\` `\xHH` `\dDDD` `\oOOO` escape interpretation in non-regex find/replace (Find / Replace / FIF / Mark)
 - [x] Mark / Bookmark — `F2` toggle, `Ctrl+F2` next, `Shift+F2` previous, `Cmd/Ctrl+Shift+F2` clear all; gutter glyph + buffer-local set
+- [x] [Copy Bookmarked Lines](docs/bookmark-copy.md) — physical lines in document order, unchanged edit state, cancellable large manual copies and small saved macro replay
 - [x] Replace All as a single undo step (edit-group primitive)
 - [x] [Regex capture replacement](docs/regex-replacement.md) — numbered/named captures, optional groups, zero-length matches, guarded background planning, and explicit unsupported-template errors
 - [x] Line endings toggle (CRLF / LF / CR) — click the EOL chip in the status bar to cycle
@@ -237,7 +245,7 @@ icons from new source art → [`docs/icons.md`](docs/icons.md).
 - [x] Comment toggle (syntax-aware) — per-language tokens for all 24 grammars (HTML/XML/Markdown wrap line ranges in `<!-- -->`; JSON no-op)
 
 ### Settings ✅
-- [x] Shortcut Mapper — `Settings ▸ Shortcut Mapper`; 252 actions including every fixed installed menu command, conflict detection, persisted to `<config>/Notepad Studio/shortcuts.toml`. Per-entry shortcuts for named Run commands, saved macros and plugin commands remain open.
+- [x] Shortcut Mapper — `Settings ▸ Shortcut Mapper`; every fixed installed menu command, conflict detection, persisted to `<config>/Notepad Studio/shortcuts.toml`. Per-entry shortcuts for named Run commands, saved macros and plugin commands remain open.
 
 ### Polish ✅
 - [x] Multi-click selection — double-click a word, triple-click a line, quad+-click select-all
@@ -248,6 +256,8 @@ icons from new source art → [`docs/icons.md`](docs/icons.md).
 - [x] Run dialog — `F5` or `Run ▸ Run...`; Browse, document/app variables, literal argument launching and recent commands in `run.toml`. Save named commands to the Run menu; select them in the dialog to edit, rename, copy or delete. Command and name fields have their own undo/redo. Named-command keyboard shortcuts remain open.
 - [x] Column-mode selection + multi-edit — alt-drag a rectangle, virtual columns extend past EOL, typing/Backspace/Delete/Cut/Copy/Paste all operate rectangularly in a single undo step, sentinel-tagged clipboard so Notepad Studio→Notepad Studio block paste lands as column paste; `Cmd/Ctrl+Alt+Shift+Arrow` extends the block by keyboard. Word-wrap + block paint together, and the Column Editor numeric-series dialog, deferred
 - [x] Macro record / replay — `Cmd/Ctrl+Shift+R` toggle recording, `Cmd/Ctrl+Shift+P` playback, `Cmd/Ctrl+Shift+M` opens an inline "Run N times" prompt; Save Currently Recorded prompts for a name, persists to `<config>/Notepad Studio/macros.toml`, and the saved entries appear under the `Macro` menu for one-click replay
+- [x] [Search macro parameters](docs/search-macros.md) — Find Next/Previous and Replace/Replace All keep query, mode and options across save/reload; regex replay waits for background edits
+- [x] Edit ▸ Copy to Clipboard ▸ Copy All Filenames / Copy All File Paths — current window's tab order, CRLF rows and saved macro replay against current tabs
 - [x] Plugin host — native cdylib plugins drop into `<config>/Notepad Studio/plugins/` and load at startup via `libloading`; the [`notepad-studio-plugin`](crates/notepad-studio-plugin) crate defines the C-ABI (`PluginInfo` / `HostApi`) and ships a safe `Plugin` trait + `declare_plugin!` macro for authors. The Plugins menu lists every loaded plugin with one submenu per plugin and one menu item per command. See the [Plugins](#plugins) section below
 - [x] Large-file streaming reads — files >10 MB stream in 1 MB chunks on the bg executor with status-bar progress + Cancel; >2 GB shows a confirm-open dialog; syntax highlighting skipped above 50 MB
 - [x] Session restore — open tabs, scroll positions, selections, and per-window placement persist across restarts; saved on autosave tick, on window close, and on app quit (`0cd4008` `8b6327b` `d8ba325`)

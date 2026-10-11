@@ -1642,6 +1642,8 @@ impl Workspace {
         // code.
         if crate::settings::snapshot().confirm_replace_all_in_all_docs {
             let Some(confirmation) = self.begin_replace_all_confirmation(cx) else { return };
+            #[cfg(test)]
+            let Some(confirmation) = self.capture_replace_all_confirmation_for_test(confirmation) else { return };
             let query = self.find_state.query.clone();
             let replacement_preview = self.find_state.replacement.clone();
             let doc_count = self.tabs.len();

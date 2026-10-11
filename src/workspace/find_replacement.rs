@@ -39,6 +39,8 @@ fn block_key(tab: &crate::tab::Tab) -> Option<BlockKey> {
 #[derive(Default)]
 pub(super) struct Runtime {
     pending: Option<Uuid>,
+    // UI identity stays out of the Send request used by the background worker.
+    source: Option<(Uuid, super::source_input::SourceInputToken)>,
     task: Option<Task<()>>,
     #[cfg(test)]
     pub(super) last_apply: Option<std::time::Duration>,
@@ -48,6 +50,10 @@ pub(super) struct Runtime {
     hold_worker: bool,
     #[cfg(test)]
     held: Option<(Request, Request)>,
+    #[cfg(test)]
+    hold_confirmation: bool,
+    #[cfg(test)]
+    held_confirmation: Option<Confirmation>,
 }
 
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -123,6 +129,18 @@ struct ConfirmationTab {
 }
 
 impl Workspace {
+    #[cfg(test)]
+    pub(super) fn capture_replace_all_confirmation_for_test(
+        &mut self, confirmation: Confirmation,
+    ) -> Option<Confirmation> {
+        if self.regex_replacement.hold_confirmation {
+            self.regex_replacement.held_confirmation = Some(confirmation);
+            None
+        } else {
+            Some(confirmation)
+        }
+    }
+
     pub(super) fn begin_replace_all_confirmation(
         &mut self,
         cx: &mut Context<Self>,
@@ -221,6 +239,7 @@ impl Workspace {
 
     pub(crate) fn cancel_regex_replacement(&mut self) {
         self.regex_replacement.pending = None;
+        self.regex_replacement.source = None;
         self.regex_replacement.task = None;
         if self.find_state.status.as_deref() == Some(PREPARING) {
             self.find_state.status = None;
@@ -230,6 +249,8 @@ impl Workspace {
     pub(super) fn start_regex_replacement(&mut self, mode: Mode, cx: &mut Context<Self>) {
         self.cancel_regex_replacement();
         if self.window_closed { return; }
+        // Edits can correct their final selection after their content flush.
+        self.sync_source_input_tab();
         self.close_function_hint(cx);
         let Some(active) = self.tabs.get(self.active) else {
             return;
@@ -424,6 +445,7 @@ impl Workspace {
         let Some(active) = self.tabs.get(self.active) else {
             return;
         };
+        let source = (active.view_mode == TabViewMode::Edit).then(|| self.source_input_token());
         let mut request = Request {
             id: Uuid::new_v4(),
             mode,
@@ -458,6 +480,7 @@ impl Workspace {
             self.regex_replacement.last_capture = Some(capture_started.elapsed());
         }
         self.regex_replacement.pending = Some(request.id);
+        self.regex_replacement.source = source.map(|token| (request.id, token));
         self.find_state.error = None;
         self.find_state.status = Some(PREPARING.into());
         cx.notify();
@@ -484,6 +507,9 @@ impl Workspace {
     fn request_valid(&self, request: &Request) -> bool {
         !self.window_closed
             && self.regex_replacement.pending == Some(request.id)
+            && self.regex_replacement.source.as_ref().is_none_or(|(id, token)| {
+                *id == request.id && *token == self.source_input_token()
+            })
             && self
                 .tabs
                 .get(self.active)
@@ -548,6 +574,7 @@ impl Workspace {
         #[cfg(test)]
         let apply_started = std::time::Instant::now();
         self.regex_replacement.pending = None;
+        self.regex_replacement.source = None;
         let plans = match result {
             Ok(plans) => plans,
             Err(error) => {
@@ -929,6 +956,10 @@ fn prepare(request: Request) -> Result<Vec<Plan>, String> {
     }
     Ok(plans)
 }
+
+#[cfg(test)]
+#[path = "find_replacement_source_tests.rs"]
+mod source_guard_tests;
 
 #[cfg(test)]
 mod tests {

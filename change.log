@@ -413,6 +413,9 @@ v0.0.5 — current
     102. Avoid copying the whole document when syntax highlighting is disabled
          by the configured large-file threshold or the hard size ceiling.
 
+    103. Retire delayed regex replacement results after caret movement, including
+         moving away and back; preserve fresh requests and no-op movement.
+
   v0.1.0 — syntax & language:
 
     1. Tree-sitter syntax highlighting for 25 modes: Rust, Python, C,

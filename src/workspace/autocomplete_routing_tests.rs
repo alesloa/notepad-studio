@@ -58,6 +58,98 @@ fn preferences() -> Settings {
 }
 
 #[test]
+fn completion_actual_pane_edges_and_zoom_keep_the_caret_line_clear() {
+    let names = "alpha albatross alpine";
+    let right = format!("{}al\n{names}", "word ".repeat(40));
+    let wrapped = format!("{}al\n{names}", "word ".repeat(200));
+    let bottom = format!("{names}{}al", "\n".repeat(80));
+    let mut placed = 0;
+    let mut dismissed = 0;
+    for rem in [8., 16., 32., 48.] {
+        for (width, height) in [(800., 480.), (600., 240.)] {
+            for (source, caret, wrap) in [
+                (format!("al\n{names}"), 2, false),
+                (right.clone(), right.find('\n').unwrap(), false),
+                (wrapped.clone(), wrapped.find('\n').unwrap(), true),
+                (bottom.clone(), bottom.len(), false),
+            ] {
+                let _settings = crate::settings::override_for_test(preferences());
+                let mut cx = TestAppContext::single();
+                let (workspace, visual) = fixture(&mut cx);
+                visual.simulate_resize(gpui::size(gpui::px(width), gpui::px(height)));
+                visual.update_window_entity(&workspace, |w, window, cx| {
+                    w.close_autocomplete(cx);
+                    w.window_closed = false;
+                    w.session_snapshot_sink = Some(std::sync::mpsc::channel().0);
+                    w.session_final_save_result = Some(true);
+                    w.active_tab_mut().buffer.rope = ropey::Rope::from_str(&source);
+                    w.active_tab_mut().selection.collapse_to(caret);
+                    w.word_wrap = wrap;
+                    w.zoom_level = rem / 16.;
+                    window.set_rem_size(gpui::px(rem));
+                    cx.notify();
+                });
+                visual.run_until_parked();
+                visual.update_window_entity(&workspace, |w, _, cx| w.ensure_cursor_visible(cx));
+                visual.run_until_parked();
+                if !wrap && source.starts_with("word ") {
+                    visual.update_window_entity(&workspace, |w, _, cx| {
+                        if let Some(caret_bounds) = w.autocomplete_caret_bounds() {
+                            w.set_scroll_left(w.scroll_left() + caret_bounds.left() - w.viewport.bounds.right() + gpui::px(8.), cx);
+                        }
+                    });
+                    visual.run_until_parked();
+                }
+                press(visual, &["EditAutocompleteWord"]);
+                let painted_menu = visual.debug_bounds("autocomplete-menu");
+                let placement = visual.update(|window, cx| {
+                    let w = workspace.read(cx);
+                    let placement = crate::ui::autocomplete_popup::occupied_bounds(w, window);
+                    if height == 480. {
+                        assert!(placement.is_some(), "roomy pane must retain completion: rem={rem} wrap={wrap}");
+                    }
+                    if let Some(menu) = placement {
+                        let caret_bounds = w.autocomplete_caret_bounds().expect("a placed list needs a painted caret");
+                        let pane = w.viewport.bounds.intersect(&gpui::Bounds::new(
+                            gpui::Point::default(), window.viewport_size()));
+                        assert!(!menu.intersects(&caret_bounds), "rem={rem} size={width}x{height} wrap={wrap}");
+                        assert!(menu.bottom() <= caret_bounds.top() || menu.top() >= caret_bounds.bottom());
+                        assert!(menu.left() >= pane.left() && menu.right() <= pane.right());
+                        assert!(menu.top() >= pane.top() && menu.bottom() <= pane.bottom());
+                        assert_eq!(painted_menu, Some(menu));
+                    } else {
+                        assert!(w.autocomplete.is_none(), "unplaceable menu must retire its input session");
+                    }
+                    assert_eq!(w.selection().head, caret);
+                    assert_eq!(w.buffer().rope.to_string(), source);
+                    placement
+                });
+                if placement.is_some() {
+                    placed += 1;
+                    press(visual, &["MoveDown", "EditPageDown", "EditPageUp"]);
+                    visual.update(|window, cx| {
+                        let w = workspace.read(cx);
+                        assert_eq!(w.selection().head, caret, "list navigation must keep the editor caret");
+                        assert_eq!(w.buffer().rope.to_string(), source);
+                        let menu = crate::ui::autocomplete_popup::occupied_bounds(w, window).expect("navigable list");
+                        assert!(!menu.intersects(&w.autocomplete_caret_bounds().unwrap()));
+                        assert!(w.tabs[w.active].undo_stack.is_empty());
+                    });
+                    visual.simulate_keystrokes("escape");
+                } else {
+                    dismissed += 1;
+                }
+                cx.quit();
+            }
+        }
+    }
+    assert!(placed > 0);
+    assert!(dismissed > 0, "a zoomed window with a zero-height editor must dismiss completion");
+    assert_eq!(placed + dismissed, 32);
+    println!("completion layout cases: {} placed, {} dismissed", placed, dismissed);
+}
+
+#[test]
 fn real_workspace_keys_navigate_accept_and_cancel_completion() {
     let _settings = crate::settings::override_for_test(preferences());
     for accept in ["enter", "tab"] {

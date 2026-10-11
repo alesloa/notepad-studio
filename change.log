@@ -118,6 +118,10 @@ v0.0.5 — current
        risking the original file. RTF raw edits, dirty/read-only flags and
        CSV grid view survive reopening.
 
+   34. Startup recovery keeps unsaved RTF source edits and safely separates
+       unmatched rich-document backups from their original files. Invalid
+       native documents report an error instead of reopening as plain text.
+
   v0.1.0 — syntax & language:
 
     1. Tree-sitter syntax highlighting for 24 languages: Rust, Python, C,

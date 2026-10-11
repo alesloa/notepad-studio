@@ -563,7 +563,7 @@ struct CleanFile {
 /// changed since, and a UTF-16 or Latin-1 file isn't valid UTF-8 at all.
 /// Folders and files past the open-size guard are refused, since restore
 /// runs before the window shows and can't ask.
-fn read_clean_file(path: &Path) -> Result<CleanFile, String> {
+fn check_restore_path(path: &Path) -> Result<(), String> {
     let shown = path.display();
     let meta = fs::metadata(path).map_err(|err| format!("couldn't reopen {shown}: {err}"))?;
     if meta.is_dir() {
@@ -574,6 +574,17 @@ fn read_clean_file(path: &Path) -> Result<CleanFile, String> {
             "{shown} is too large to reopen automatically; open it from File ▸ Open"
         ));
     }
+    Ok(())
+}
+
+fn read_rich_file(path: &Path) -> Result<crate::rich_doc::RichDocPayload, String> {
+    check_restore_path(path)?;
+    crate::rich_doc::open(path).map_err(|err| format!("couldn't reopen {}: {err}", path.display()))
+}
+
+fn read_clean_file(path: &Path) -> Result<CleanFile, String> {
+    check_restore_path(path)?;
+    let shown = path.display();
     let raw = fs::read(path).map_err(|err| format!("couldn't reopen {shown}: {err}"))?;
     let decoded = crate::text::encoding::decode_bytes(&raw);
     drop(raw);
@@ -587,52 +598,42 @@ fn read_clean_file(path: &Path) -> Result<CleanFile, String> {
 }
 
 fn restore_tab_in(entry: &SessionTab, bak_dir: &Path) -> RestoreOutcome {
-    // Rich-document tabs (DOCX / RTF / ODT / DOC) re-parse from disk on
-    // restore. The disk file is a binary container (zip for DOCX/ODT,
-    // bespoke encoding for RTF/DOC), so the plain-text restore paths
-    // below — decoding a clean tab's bytes as text, or the .bak which
-    // only holds the rope's extracted XML — can't reconstruct the
-    // rich_doc payload. Without that payload `Buffer::is_rich_doc()`
-    // returns false, the toolbar greys out the Doc View / Raw View
-    // toggles, and the tab opens stuck in source mode showing raw XML.
-    //
-    // The trade-off: any in-memory edits a user made since the last
-    // explicit Save get discarded. That's no worse than the prior
-    // restore behaviour (which dumped the same edits into a buffer
-    // with no rich-doc context, leaving them unrecoverable anyway),
-    // and it preserves the document's primary affordance — render.
-    let rich_doc_payload = entry
-        .path
-        .as_ref()
-        .filter(|p| crate::rich_doc::detect_format(p).is_some())
-        .and_then(|p| crate::rich_doc::open(p).ok());
+    let rich_path = entry.path.as_ref().filter(|p| crate::rich_doc::detect_format(p).is_some());
+    let mut rich_doc_payload = None;
+    let mut file_path = entry.path.clone();
+    let mut new_label = entry.new_label.clone().map(SharedString::from);
 
     // Line ending and encoding default to what the manifest recorded, which
     // is what a `.bak` (the rope as it was) is saved back with.
     let mut line_ending = entry.line_ending.into_line_ending();
     let mut encoding = entry.encoding.into_encoding();
     let mut lossy = false;
-    let (rope, dirty) = if let Some(p) = rich_doc_payload.as_ref() {
-        // Rope mirrors raw_view_text so the Raw View source pane stays
-        // in sync with the parsed AST. Clean (no .bak) — re-parsing
-        // from disk supersedes any prior dirty state.
-        let le = crate::text::line_ending::LineEnding::detect(&p.raw_view_text);
-        let normalized =
-            crate::text::line_ending::normalize_to_lf(p.raw_view_text.clone(), le);
-        (ropey::Rope::from_str(&normalized), false)
-    } else if entry.dirty {
-        match read_bak_in(bak_dir, entry.id) {
-            Some(s) => (ropey::Rope::from_str(&s), true),
-            None => {
-                let label = entry
-                    .path
-                    .as_ref()
-                    .map(|p| p.display().to_string())
-                    .or_else(|| entry.new_label.clone())
-                    .unwrap_or_else(|| "untitled".into());
-                return RestoreOutcome::Skipped(format!("missing autosave: {label}"));
+    let (rope, dirty) = if entry.dirty {
+        let Some(body) = read_bak_in(bak_dir, entry.id) else {
+            let label = entry.path.as_ref().map(|p| p.display().to_string())
+                .or_else(|| entry.new_label.clone()).unwrap_or_else(|| "untitled".into());
+            return RestoreOutcome::Skipped(format!("missing autosave: {label}"));
+        };
+        if let Some(path) = rich_path {
+            if let Some((payload, _)) = restore_rich_backup(path, &body, &bak_path_in(bak_dir, entry.id)) {
+                rich_doc_payload = Some(payload);
+            } else {
+                let name = path.file_name().map(|s| s.to_string_lossy()).unwrap_or_default();
+                new_label = Some(format!("Recovered {name}.txt").into());
+                file_path = None;
             }
         }
+        (ropey::Rope::from_str(&body), true)
+    } else if let Some(path) = rich_path {
+        let payload = match read_rich_file(path) {
+            Ok(payload) => payload,
+            Err(reason) => return RestoreOutcome::Skipped(reason),
+        };
+        let (le, normalized) = crate::text::line_ending::split_line_endings(payload.raw_view_text.clone());
+        line_ending = le;
+        encoding = Encoding::Utf8;
+        rich_doc_payload = Some(payload);
+        (ropey::Rope::from_str(&normalized), false)
     } else if let Some(path) = entry.path.as_ref() {
         match read_clean_file(path) {
             Ok(file) => {
@@ -659,7 +660,7 @@ fn restore_tab_in(entry: &SessionTab, bak_dir: &Path) -> RestoreOutcome {
 
     let mut buffer = Buffer {
         rope,
-        file_path: entry.path.clone(),
+        file_path,
         dirty,
         line_ending,
         encoding,
@@ -668,10 +669,11 @@ fn restore_tab_in(entry: &SessionTab, bak_dir: &Path) -> RestoreOutcome {
         language: entry.language,
         highlights: Vec::new(),
         loading: None,
-        new_label: entry.new_label.clone().map(SharedString::from),
+        new_label,
         // A lossy decode can't be saved back without rewriting the bad
         // bytes, so it opens read-only as File ▸ Open does.
-        read_only: entry.read_only || lossy,
+        read_only: entry.read_only || lossy
+            || rich_doc_payload.as_ref().is_some_and(|p| p.format == crate::rich_doc::DocFormat::Doc),
         tab_color: entry.tab_color,
         is_changelog: entry.is_changelog,
         rich_doc: rich_doc_payload,
@@ -746,12 +748,10 @@ pub(crate) fn restore_closed_tab(entry: &SessionClosedTab) -> Option<ClosedTab> 
 fn restore_rich_backup(path: &Path, body: &str, backup: &Path) -> Option<(crate::rich_doc::RichDocPayload, bool)> {
     use crate::rich_doc::{self, DocFormat};
     let format = rich_doc::detect_format(path)?;
-    if fs::metadata(path).is_ok_and(|meta| meta.len() < crate::io_stream::HUGE_FILE_WARNING_BYTES) {
-        if let Ok(payload) = rich_doc::open(path) {
-            let raw = crate::text::line_ending::split_line_endings(payload.raw_view_text.clone()).1;
-            if raw == body {
-                return Some((payload, false));
-            }
+    if let Ok(payload) = read_rich_file(path) {
+        let raw = crate::text::line_ending::split_line_endings(payload.raw_view_text.clone()).1;
+        if raw == body {
+            return Some((payload, false));
         }
     }
     // RTF source is itself a complete document, unlike extracted DOCX/ODT XML.
@@ -1195,6 +1195,50 @@ mod tests {
         entry.path = None;
         entry.dirty = Some(false);
         assert!(restore_closed_tab_in(&entry, dir.path()).expect("untitled").buffer.dirty);
+    }
+
+    #[test]
+    fn startup_restore_keeps_unsaved_rtf_source_instead_of_disk_text() {
+        let dir = TempDir::new("session-rich-raw");
+        let path = dir.join("source.rtf");
+        fs::write(&path, r"{\rtf1\ansi original}").expect("source");
+        let entry = entry(Uuid::new_v4(), Some(path.clone()), true);
+        let raw = r"{\rtf1\ansi unsaved source}";
+        fs::write(bak_path_in(dir.path(), entry.id), raw).expect("backup");
+        let tab = restored(&entry, dir.path());
+        assert_eq!(tab.buffer.rope.to_string(), raw);
+        assert!(tab.buffer.dirty);
+        assert!(tab.buffer.rich_doc.as_ref().expect("payload").block_text(0).contains("unsaved source"));
+        assert_eq!(fs::read_to_string(&path).expect("original"), r"{\rtf1\ansi original}");
+    }
+
+    #[test]
+    fn startup_restore_does_not_point_extracted_text_at_native_files() {
+        let dir = TempDir::new("session-rich-fallback");
+        for name in ["missing.docx", "corrupt.odt", "changed.docx"] {
+            let path = dir.join(name);
+            if name.starts_with("changed") { rich_fixture(&path); }
+            if name.starts_with("corrupt") { fs::write(&path, "invalid archive").expect("fixture"); }
+            let original = fs::read(&path).ok();
+            let entry = entry(Uuid::new_v4(), Some(path.clone()), true);
+            let raw = "<recovered>unsaved café</recovered>";
+            fs::write(bak_path_in(dir.path(), entry.id), raw).expect("backup");
+            let tab = restored(&entry, dir.path());
+            assert!(tab.buffer.file_path.is_none(), "{name}: unsafe save target");
+            assert!(tab.buffer.rich_doc.is_none() && tab.buffer.dirty);
+            assert_eq!(tab.buffer.rope.to_string(), raw);
+            assert_eq!(fs::read(&path).ok(), original);
+        }
+    }
+
+    #[test]
+    fn clean_invalid_rich_documents_report_a_restore_error() {
+        let dir = TempDir::new("session-rich-invalid");
+        for name in ["invalid.docx", "invalid.odt", "invalid.rtf", "invalid.doc"] {
+            let path = dir.join(name);
+            fs::write(&path, r"{\rtf1\fs2147483648 hostile}").expect("fixture");
+            assert!(matches!(restore_tab_in(&entry(Uuid::new_v4(), Some(path), false), dir.path()), RestoreOutcome::Skipped(_)), "{name}: must not decode a failed native document as plain text");
+        }
     }
 
     #[test]

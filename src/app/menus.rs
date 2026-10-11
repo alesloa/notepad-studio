@@ -8,6 +8,7 @@ mod edit;
 mod encoding;
 mod file;
 mod help;
+mod language;
 mod macros;
 mod plugins;
 mod search;
@@ -40,6 +41,7 @@ pub(crate) fn install_menus(cx: &mut App) {
         search::build(&state),
         view::build(&state),
         encoding::build(&state),
+        language::build(&state),
         settings::build(&state),
         macros::build(&state),
         plugins::build(&state),

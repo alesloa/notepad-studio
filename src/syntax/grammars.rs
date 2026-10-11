@@ -47,20 +47,28 @@ pub(super) fn build_config(lang: LanguageId) -> Option<HighlightConfiguration> {
             tree_sitter_javascript::INJECTIONS_QUERY,
             tree_sitter_javascript::LOCALS_QUERY,
         ),
-        LanguageId::TypeScript => HighlightConfiguration::new(
-            tree_sitter_typescript::LANGUAGE_TYPESCRIPT.into(),
-            "typescript",
-            tree_sitter_typescript::HIGHLIGHTS_QUERY,
-            "",
-            tree_sitter_typescript::LOCALS_QUERY,
-        ),
-        LanguageId::Tsx => HighlightConfiguration::new(
-            tree_sitter_typescript::LANGUAGE_TSX.into(),
-            "tsx",
-            tree_sitter_typescript::HIGHLIGHTS_QUERY,
-            "",
-            tree_sitter_typescript::LOCALS_QUERY,
-        ),
+        LanguageId::TypeScript => {
+            // The TypeScript query contains additions to JavaScript.
+            let query = format!("{}\n{}", tree_sitter_javascript::HIGHLIGHT_QUERY, tree_sitter_typescript::HIGHLIGHTS_QUERY);
+            HighlightConfiguration::new(
+                tree_sitter_typescript::LANGUAGE_TYPESCRIPT.into(),
+                "typescript",
+                &query,
+                "",
+                tree_sitter_typescript::LOCALS_QUERY,
+            )
+        }
+        LanguageId::Tsx => {
+            let query = format!("{}\n{}\n{}", tree_sitter_javascript::HIGHLIGHT_QUERY,
+                tree_sitter_typescript::HIGHLIGHTS_QUERY, tree_sitter_javascript::JSX_HIGHLIGHT_QUERY);
+            HighlightConfiguration::new(
+                tree_sitter_typescript::LANGUAGE_TSX.into(),
+                "tsx",
+                &query,
+                "",
+                tree_sitter_typescript::LOCALS_QUERY,
+            )
+        }
         LanguageId::Json => HighlightConfiguration::new(
             tree_sitter_json::LANGUAGE.into(),
             "json",
@@ -124,13 +132,17 @@ pub(super) fn build_config(lang: LanguageId) -> Option<HighlightConfiguration> {
             tree_sitter_php::INJECTIONS_QUERY,
             "",
         ),
-        LanguageId::Cpp => HighlightConfiguration::new(
-            tree_sitter_cpp::LANGUAGE.into(),
-            "cpp",
-            tree_sitter_cpp::HIGHLIGHT_QUERY,
-            "",
-            "",
-        ),
+        LanguageId::Cpp => {
+            // The C++ query contains additions to C.
+            let query = format!("{}\n{}", tree_sitter_c::HIGHLIGHT_QUERY, tree_sitter_cpp::HIGHLIGHT_QUERY);
+            HighlightConfiguration::new(
+                tree_sitter_cpp::LANGUAGE.into(),
+                "cpp",
+                &query,
+                "",
+                "",
+            )
+        }
         LanguageId::Lua => HighlightConfiguration::new(
             tree_sitter_lua::LANGUAGE.into(),
             "lua",
@@ -194,5 +206,54 @@ pub(super) fn build_config(lang: LanguageId) -> Option<HighlightConfiguration> {
             eprintln!("[syntax] failed to build {lang:?} highlight config: {err}");
             None
         }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::syntax::{highlight, HighlightKind};
+
+    fn has_token(language: LanguageId, source: &str, token: &str, kind: HighlightKind) -> bool {
+        highlight(language, source).iter().any(|span| {
+            span.kind == kind && source.get(span.range.clone()).is_some_and(|text| text.contains(token))
+        })
+    }
+
+    #[test]
+    fn cpp_inherited_tokens_keep_their_c_styles() {
+        let source = "// note\nint main() { return 42; }\nclass Derived {};";
+        assert!(has_token(LanguageId::Cpp, source, "note", HighlightKind::Comment));
+        assert!(has_token(LanguageId::Cpp, source, "42", HighlightKind::Number));
+        assert!(has_token(LanguageId::Cpp, source, "return", HighlightKind::Keyword));
+        assert!(has_token(LanguageId::Cpp, source, "class", HighlightKind::Keyword));
+    }
+
+    #[test]
+    fn typescript_inherited_tokens_keep_their_javascript_styles() {
+        let source = "// note\nconst answer = 42;\ninterface Derived {}";
+        for language in [LanguageId::TypeScript, LanguageId::Tsx] {
+            assert!(has_token(language, source, "note", HighlightKind::Comment), "{language:?}");
+            assert!(has_token(language, source, "42", HighlightKind::Number), "{language:?}");
+            assert!(has_token(language, source, "const", HighlightKind::Keyword), "{language:?}");
+            assert!(has_token(language, source, "interface", HighlightKind::Keyword), "{language:?}");
+        }
+    }
+
+    #[test]
+    fn markdown_headings_and_reference_links_use_the_theme() {
+        let source = "# Heading\n\n[label]: https://example.test \"title\"\n";
+        assert!(has_token(LanguageId::Markdown, source, "Heading", HighlightKind::Type));
+        assert!(has_token(LanguageId::Markdown, source, "label", HighlightKind::Property));
+        assert!(has_token(LanguageId::Markdown, source, "https://example.test", HighlightKind::String));
+        assert!(has_token(LanguageId::Markdown, source, "title", HighlightKind::String));
+    }
+
+    #[test]
+    fn tsx_inherited_tags_keep_their_jsx_styles() {
+        let source = "const view = <div title=\"hello\"/>;";
+        assert!(has_token(LanguageId::Tsx, source, "div", HighlightKind::Keyword));
+        assert!(has_token(LanguageId::Tsx, source, "title", HighlightKind::Attribute));
+        assert!(has_token(LanguageId::Tsx, source, "hello", HighlightKind::String));
     }
 }

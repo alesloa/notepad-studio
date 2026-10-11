@@ -272,6 +272,35 @@ static CATALOG: &[ActionEntry] = &[
     // Ctrl/Cmd+Shift+L is Delete Line (Notepad++ SCI_LINEDELETE).
     row!(ViewCsvToggleFilterRow, "CSV: Toggle Filter Row", EXTRA,                             W, [],                          []),
 
+    // --- Language ---
+    // Parameters.cpp winKeyDefs[] gives these menu commands no default chord.
+    row!(LanguageNormalText, "Language: None (Normal Text)", Some("IDM_LANG_TEXT"), W, [], []),
+    row!(LanguageC, "Language: C", Some("IDM_LANG_C"), W, [], []),
+    row!(LanguageCSharp, "Language: C#", Some("IDM_LANG_CS"), W, [], []),
+    row!(LanguageCpp, "Language: C++", Some("IDM_LANG_CPP"), W, [], []),
+    row!(LanguageCss, "Language: CSS", Some("IDM_LANG_CSS"), W, [], []),
+    row!(LanguageGo, "Language: Go", Some("IDM_LANG_GOLANG"), W, [], []),
+    row!(LanguageHtml, "Language: HTML", Some("IDM_LANG_HTML"), W, [], []),
+    row!(LanguageJava, "Language: Java", Some("IDM_LANG_JAVA"), W, [], []),
+    row!(LanguageJavaScript, "Language: JavaScript", Some("IDM_LANG_JS"), W, [], []),
+    row!(LanguageJson, "Language: JSON", Some("IDM_LANG_JSON"), W, [], []),
+    row!(LanguageLua, "Language: Lua", Some("IDM_LANG_LUA"), W, [], []),
+    row!(LanguageMarkdown, "Language: Markdown", EXTRA, W, [], []),
+    row!(LanguagePhp, "Language: PHP", Some("IDM_LANG_PHP"), W, [], []),
+    row!(LanguagePowerShell, "Language: PowerShell", Some("IDM_LANG_POWERSHELL"), W, [], []),
+    row!(LanguagePython, "Language: Python", Some("IDM_LANG_PYTHON"), W, [], []),
+    row!(LanguageRuby, "Language: Ruby", Some("IDM_LANG_RUBY"), W, [], []),
+    row!(LanguageRust, "Language: Rust", Some("IDM_LANG_RUST"), W, [], []),
+    row!(LanguageScss, "Language: SCSS", EXTRA, W, [], []),
+    row!(LanguageShell, "Language: Shell", Some("IDM_LANG_BASH"), W, [], []),
+    row!(LanguageSql, "Language: SQL", Some("IDM_LANG_SQL"), W, [], []),
+    row!(LanguageSwift, "Language: Swift", Some("IDM_LANG_SWIFT"), W, [], []),
+    row!(LanguageToml, "Language: TOML", Some("IDM_LANG_TOML"), W, [], []),
+    row!(LanguageTsx, "Language: TSX", EXTRA, W, [], []),
+    row!(LanguageTypeScript, "Language: TypeScript", Some("IDM_LANG_TYPESCRIPT"), W, [], []),
+    row!(LanguageXml, "Language: XML", Some("IDM_LANG_XML"), W, [], []),
+    row!(LanguageYaml, "Language: YAML", Some("IDM_LANG_YAML"), W, [], []),
+
     // --- Macros ---
     row!(MacroStartStopRecording, "Start/Stop Recording",          Some("IDC_EDIT_TOGGLEMACRORECORDING"),  W, ["ctrl-shift-r"], ["cmd-shift-r"]),
     row!(MacroPlayback,           "Playback",                      Some("IDM_MACRO_PLAYBACKRECORDEDMACRO"), W, ["ctrl-shift-p"], ["cmd-shift-p"]),

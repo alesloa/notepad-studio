@@ -205,11 +205,36 @@ pub(super) const NPP_DEFAULTS: &[(&str, &str, u32)] = &[
     ("SCI_CANCEL", "escape", 643),
 ];
 
-/// Commands Notepad++ lists in the Shortcut Mapper without a default chord.
+/// Notepad++ commands without a default chord.
 pub(super) const NPP_NO_DEFAULT: &[(&str, u32)] = &[
     ("IDM_SEARCH_CLEAR_BOOKMARKS", 305),
     ("IDM_SETTING_PREFERENCE", 473),
     ("IDM_LANGSTYLE_CONFIG_DLG", 474),
     ("IDM_MACRO_SAVECURRENTMACRO", 484),
     ("IDM_MACRO_RUNMULTIMACRODLG", 485),
+    // Language commands are absent from Parameters.cpp winKeyDefs[].
+    // These line references identify their labels in Notepad_plus.rc.
+    ("IDM_LANG_TEXT", 1000),
+    ("IDM_LANG_C", 1012),
+    ("IDM_LANG_CS", 1013),
+    ("IDM_LANG_CPP", 1014),
+    ("IDM_LANG_CSS", 1020),
+    ("IDM_LANG_GOLANG", 1032),
+    ("IDM_LANG_HTML", 1036),
+    ("IDM_LANG_JAVA", 1040),
+    ("IDM_LANG_JS", 1041),
+    ("IDM_LANG_JSON", 1042),
+    ("IDM_LANG_LUA", 1048),
+    ("IDM_LANG_PHP", 1061),
+    ("IDM_LANG_POWERSHELL", 1063),
+    ("IDM_LANG_PYTHON", 1066),
+    ("IDM_LANG_RUBY", 1072),
+    ("IDM_LANG_RUST", 1073),
+    ("IDM_LANG_BASH", 1075),
+    ("IDM_LANG_SQL", 1079),
+    ("IDM_LANG_SWIFT", 1081),
+    ("IDM_LANG_TOML", 1086),
+    ("IDM_LANG_TYPESCRIPT", 1088),
+    ("IDM_LANG_XML", 1093),
+    ("IDM_LANG_YAML", 1094),
 ];

@@ -197,7 +197,8 @@ icons from new source art → [`docs/icons.md`](docs/icons.md).
 - [x] Replace All as a single undo step (edit-group primitive)
 
 ### v0.1.0 — syntax & language ✅
-- [x] Tree-sitter syntax highlighting — Rust, Python, C, C#, JS/TS/TSX, JSON, Markdown, Bash/Sh/Zsh/Ksh, PowerShell, Go, Java, Swift, Ruby, PHP, C++, Lua, HTML, CSS, SCSS, YAML, TOML, XML, SQL (24 languages). Filename detection (Rakefile, Gemfile) and shebang fallback. Kotlin and Dockerfile not yet supported (grammar incompatibilities).
+- [x] Tree-sitter syntax highlighting — Rust, Python, C, C#, JS/TS/TSX, JSON, Markdown, Bash/Sh/Zsh/Ksh, PowerShell, Go, Java, Swift, Ruby, PHP, C++, Lua, HTML, CSS, SCSS, YAML, TOML, XML, SQL (25 modes). Filename detection (Rakefile, Gemfile) and shebang fallback. Kotlin and Dockerfile not yet supported (grammar incompatibilities).
+- [x] Language menu — select any of the 25 installed syntax modes or None (Normal Text), with per-tab checkmarks, session persistence and rebindable actions. Highlighting runs in the background.
 - [x] Bracket matching — depth-aware pair lookup, skips brackets inside strings/comments via tree-sitter span filter; falls back to dumb scan when no language
 - [x] Auto-indent — Enter inherits leading whitespace; extra indent after `{`, `[`, `(`
 - [x] Comment toggle (syntax-aware) — per-language tokens for all 24 grammars (HTML/XML/Markdown wrap line ranges in `<!-- -->`; JSON no-op)

@@ -132,9 +132,14 @@ v0.0.5 — current
        raw source in a separate unsaved tab. Recovered native documents
        keep their format in Save As. RTF Unicode text now reopens intact.
 
+   37. Language menu — choose any installed syntax mode or None (Normal
+       Text), with per-tab checkmarks and rebindable commands. Switching
+       modes highlights in the background and preserves file bytes. C++,
+       TypeScript/TSX and Markdown now apply their missing highlight rules.
+
   v0.1.0 — syntax & language:
 
-    1. Tree-sitter syntax highlighting for 24 languages: Rust, Python, C,
+    1. Tree-sitter syntax highlighting for 25 modes: Rust, Python, C,
        C#, JavaScript, TypeScript, TSX, JSON, Markdown, Bash/Sh/Zsh/Ksh,
        PowerShell, Go, Java, Swift, Ruby, PHP, C++, Lua, HTML, CSS, SCSS,
        YAML, TOML, XML, SQL. Filename detection and shebang fallback.

@@ -16,6 +16,7 @@ mod find_in_files;
 mod folder_panel;
 mod format;
 mod input_handler;
+mod language;
 mod macros;
 mod markdown_format;
 mod menu_bar;

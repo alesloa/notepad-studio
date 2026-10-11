@@ -334,6 +334,10 @@ pub(crate) const HIGHLIGHT_NAMES: &[&str] = &[
     "variable",
     "variable.builtin",
     "variable.parameter",
+    "text.title",
+    "text.literal",
+    "text.uri",
+    "text.reference",
 ];
 
 fn index_to_kind(idx: usize) -> Option<HighlightKind> {
@@ -350,9 +354,9 @@ fn index_to_kind(idx: usize) -> Option<HighlightKind> {
         | "label" => HighlightKind::Function,
         "keyword" | "tag" => HighlightKind::Keyword,
         "number" => HighlightKind::Number,
-        "property" => HighlightKind::Property,
-        "string" | "string.special" => HighlightKind::String,
-        "type" | "type.builtin" => HighlightKind::Type,
+        "property" | "text.reference" => HighlightKind::Property,
+        "string" | "string.special" | "text.literal" | "text.uri" => HighlightKind::String,
+        "type" | "type.builtin" | "text.title" => HighlightKind::Type,
         // operator / punctuation / variable.* fall through to default text color.
         _ => return None,
     })

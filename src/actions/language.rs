@@ -1,0 +1,33 @@
+// PowerEditor/src/Notepad_plus.rc:998-1094 — built-in Language menu commands.
+
+gpui::actions!(
+    notepad_studio,
+    [
+        LanguageNormalText,
+        LanguageC,
+        LanguageCSharp,
+        LanguageCpp,
+        LanguageCss,
+        LanguageGo,
+        LanguageHtml,
+        LanguageJava,
+        LanguageJavaScript,
+        LanguageJson,
+        LanguageLua,
+        LanguageMarkdown,
+        LanguagePhp,
+        LanguagePowerShell,
+        LanguagePython,
+        LanguageRuby,
+        LanguageRust,
+        LanguageScss,
+        LanguageShell,
+        LanguageSql,
+        LanguageSwift,
+        LanguageToml,
+        LanguageTsx,
+        LanguageTypeScript,
+        LanguageXml,
+        LanguageYaml,
+    ]
+);

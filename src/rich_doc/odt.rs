@@ -52,6 +52,7 @@ const MAX_SPACE_COUNT: usize = u16::MAX as usize;
 
 pub fn open(path: &Path) -> Result<RichDocPayload> {
     let original_bytes = std::fs::read(path)?;
+    container::check_archive(&original_bytes)?;
     let content_xml = container::read_zip_entry_text(path, "content.xml")?;
     let styles_xml = container::read_zip_entry_text(path, "styles.xml").unwrap_or_default();
     let ast = parse_with_path(&content_xml, &styles_xml, Some(path))?;
@@ -1719,6 +1720,19 @@ office:version=\"1.2\">\
 <office:styles></office:styles>\
 <office:automatic-styles></office:automatic-styles>\
 </office:document-styles>"
+    }
+
+    #[test]
+    fn content_nested_past_the_limit_is_an_error() {
+        let dir = crate::persist::TempDir::new("odt-depth-limit");
+        let path = dir.join("document.odt");
+        for (depth, should_open) in [(20, true), (super::super::MAX_NESTING_DEPTH, false)] {
+            let body = format!("<text:p>{}x{}</text:p>", "<text:span>".repeat(depth), "</text:span>".repeat(depth));
+            let content = minimal_content(&body, "");
+            let bytes = build_minimal_odt(&content, minimal_styles_xml());
+            std::fs::write(&path, bytes).expect("fixture");
+            assert_eq!(open(&path).is_ok(), should_open);
+        }
     }
 
     #[test]

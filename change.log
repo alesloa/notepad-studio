@@ -103,6 +103,9 @@ v0.0.5 — current
        or undo backups. Moving a tab keeps a single recovery entry.
    29. ODT files with invalid or oversized space counts return an error
        instead of crashing or allocating unlimited text.
+   30. DOCX parsing uses a bounded stack instead of depending on the caller's
+       stack size. DOCX and ODT archives with excessive XML nesting, corrupt
+       XML, oversized entries or false ZIP sizes are refused before parsing.
 
   v0.1.0 — syntax & language:
 

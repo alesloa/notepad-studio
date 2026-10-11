@@ -663,16 +663,29 @@ pub fn nearest_char_boundary_up(s: &str, byte: usize) -> usize {
     b
 }
 
+/// docx-rust's content-control readers overflow a 1 MiB stack on ordinary
+/// nesting. Reserve a fixed stack for input within MAX_NESTING_DEPTH.
+const PARSE_STACK_BYTES: usize = 32 * 1024 * 1024;
+
 /// Open a rich-doc file by path. Reads the file fresh; doesn't take pre-loaded bytes
 /// (each format owns its read strategy so DOCX zip handling and RTF text handling
-/// don't bleed into a shared loader).
+/// don't bleed into a shared loader). Parsing runs on a helper thread with a
+/// `PARSE_STACK_BYTES` stack; the call still blocks until it finishes.
 pub fn open(path: &Path) -> Result<RichDocPayload> {
-    match detect_format(path).ok_or(RichDocError::Unsupported)? {
-        DocFormat::Docx => docx::open(path),
-        DocFormat::Rtf => rtf::open(path),
-        DocFormat::Odt => odt::open(path),
-        DocFormat::Doc => doc::open(path),
-    }
+    let format = detect_format(path).ok_or(RichDocError::Unsupported)?;
+    let path = path.to_path_buf();
+    let worker = std::thread::Builder::new()
+        .name("rich-doc-open".into())
+        .stack_size(PARSE_STACK_BYTES)
+        .spawn(move || match format {
+            DocFormat::Docx => docx::open(&path),
+            DocFormat::Rtf => rtf::open(&path),
+            DocFormat::Odt => odt::open(&path),
+            DocFormat::Doc => doc::open(&path),
+        })?;
+    worker
+        .join()
+        .map_err(|_| RichDocError::Io(std::io::Error::other("rich-doc parser thread panicked")))?
 }
 
 /// Write a rich-doc payload back to disk in its native format.
@@ -718,6 +731,55 @@ mod tests {
         assert_eq!(std::fs::read(&path).expect("read"), original);
     }
     use std::path::PathBuf;
+
+    fn nested_sdt_document_xml(depth: usize) -> String {
+        let body = format!("{}<w:p><w:r><w:t>x</w:t></w:r></w:p>{}",
+            "<w:sdt><w:sdtContent>".repeat(depth), "</w:sdtContent></w:sdt>".repeat(depth));
+        format!(r#"<?xml version="1.0"?><w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body>{body}</w:body></w:document>"#)
+    }
+
+    #[test]
+    fn open_does_not_depend_on_the_callers_stack() {
+        let dir = crate::persist::TempDir::new("docx-caller-stack");
+        let path = dir.join("document.docx");
+        let bytes = doc::build_minimal_docx(&nested_sdt_document_xml(20)).expect("container");
+        std::fs::write(&path, bytes).expect("fixture");
+        let worker = std::thread::Builder::new().stack_size(1024 * 1024)
+            .spawn(move || open(&path).map(|payload| payload.format)).expect("spawn");
+        assert_eq!(worker.join().expect("join").expect("open"), DocFormat::Docx);
+    }
+
+    #[test]
+    #[ignore = "release timing on an archive above the streaming threshold"]
+    fn large_rich_document_open_timing() {
+        use std::io::Write;
+        let dir = crate::persist::TempDir::new("rich-open-timing");
+        let path = dir.join("document.docx");
+        let original = doc::build_minimal_docx(&nested_sdt_document_xml(0)).expect("container");
+        let mut archive = zip::ZipArchive::new(std::io::Cursor::new(original)).expect("archive");
+        let mut writer = zip::ZipWriter::new(std::fs::File::create(&path).expect("file"));
+        for i in 0..archive.len() {
+            writer.raw_copy_file(archive.by_index(i).expect("entry")).expect("copy");
+        }
+        writer.start_file("padding.bin", zip::write::SimpleFileOptions::default().compression_method(zip::CompressionMethod::Stored)).expect("entry");
+        writer.write_all(&vec![0; 11 * 1024 * 1024]).expect("padding");
+        writer.finish().expect("finish");
+        assert!(std::fs::metadata(&path).expect("metadata").len() > crate::io_stream::STREAM_THRESHOLD_BYTES);
+        let started = std::time::Instant::now();
+        for _ in 0..5 {
+            assert_eq!(open(&path).expect("open").format, DocFormat::Docx);
+        }
+        println!("five opens of 11 MiB DOCX: {:?}", started.elapsed());
+    }
+
+    #[test]
+    fn docx_nested_past_the_limit_is_an_error() {
+        let dir = crate::persist::TempDir::new("docx-depth-limit");
+        let path = dir.join("document.docx");
+        let bytes = doc::build_minimal_docx(&nested_sdt_document_xml(100_000)).expect("container");
+        std::fs::write(&path, bytes).expect("fixture");
+        assert!(matches!(open(&path), Err(RichDocError::Zip(_))));
+    }
 
     #[test]
     fn detects_docx_lowercase() {

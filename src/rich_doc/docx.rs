@@ -20,6 +20,7 @@ use std::sync::Arc;
 
 pub fn open(path: &Path) -> Result<RichDocPayload> {
     let original_bytes = std::fs::read(path)?;
+    container::check_archive(&original_bytes)?;
     let raw_view_text = container::read_zip_entry_text(path, "word/document.xml")?;
     let rels_xml =
         container::read_zip_entry_text(path, "word/_rels/document.xml.rels").unwrap_or_default();
@@ -27,7 +28,7 @@ pub fn open(path: &Path) -> Result<RichDocPayload> {
     let numbering_xml =
         container::read_zip_entry_text(path, "word/numbering.xml").unwrap_or_default();
     let num_map = parse_numbering_xml(&numbering_xml);
-    let ast = parse(path, &rels, &num_map)?;
+    let ast = parse(path, &original_bytes, &rels, &num_map)?;
     let headers = read_header_footer_blocks(path, "word/header", ".xml")?;
     let footers = read_header_footer_blocks(path, "word/footer", ".xml")?;
     Ok(RichDocPayload {
@@ -533,12 +534,16 @@ fn xml_escape_into(out: &mut String, s: &str) {
     }
 }
 
+/// `bytes` is the archive `container::check_archive` vetted; docx-rust reads
+/// it rather than re-opening `path`, so it parses exactly what was checked.
 fn parse(
     path: &Path,
+    bytes: &[u8],
     rels: &HashMap<String, String>,
     num_map: &HashMap<isize, bool>,
 ) -> Result<ast::Document> {
-    let file = DocxFile::from_file(path).map_err(|e| RichDocError::Docx(format!("{e:?}")))?;
+    let file = DocxFile::from_reader(std::io::Cursor::new(bytes))
+        .map_err(|e| RichDocError::Docx(format!("{e:?}")))?;
     let docx = file.parse().map_err(|e| RichDocError::Docx(format!("{e:?}")))?;
     let mut blocks = Vec::new();
     for elem in &docx.document.body.content {

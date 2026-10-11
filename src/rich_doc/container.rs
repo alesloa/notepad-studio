@@ -1,11 +1,126 @@
 //! Zip container helpers shared across formats. Phase 1: DOCX only.
 
-use super::{Result, RichDocError};
-use std::io::{Cursor, Read, Write};
+use super::{Result, RichDocError, MAX_NESTING_DEPTH};
+use std::io::{BufReader, Cursor, Read, Write};
 use std::path::Path;
 
+use quick_xml::events::Event;
 use zip::write::SimpleFileOptions;
 use zip::CompressionMethod;
+
+/// Most bytes a .docx / .odt may decompress to, per entry and summed over
+/// the archive. This is the editor's existing huge-file line
+/// (`io_stream::HUGE_FILE_WARNING_BYTES`), past which a plain-text open asks
+/// before reading; a rich-doc open has no prompt, so it refuses instead.
+const MAX_UNCOMPRESSED_BYTES: u64 = crate::io_stream::HUGE_FILE_WARNING_BYTES;
+
+/// Vet a .docx / .odt archive before any parser reads it:
+/// - the uncompressed sizes the entries declare must sum to no more than
+///   `MAX_UNCOMPRESSED_BYTES`;
+/// - no entry may inflate past the size it declares (zip 4 keeps inflating,
+///   so a small file can expand without limit);
+/// - every `.xml` and `.rels` part must nest no deeper than
+///   `MAX_NESTING_DEPTH`. docx-rust recurses per element level and the ODT
+///   Raw View pretty-printer emits indentation that grows with depth
+///   squared, so hostile nesting would overflow the stack or exhaust memory.
+///
+/// Corrupt entries and malformed XML return an error before parsing.
+pub(crate) fn check_archive(bytes: &[u8]) -> Result<()> {
+    let mut archive =
+        zip::ZipArchive::new(Cursor::new(bytes)).map_err(|e| RichDocError::Zip(e.to_string()))?;
+    let mut declared_total = 0u64;
+    for i in 0..archive.len() {
+        let entry = archive.by_index(i).map_err(|err| RichDocError::Zip(err.to_string()))?;
+        let name = entry.name().to_owned();
+        let declared = entry.size();
+        declared_total = declared_total
+            .checked_add(declared)
+            .filter(|total| *total <= MAX_UNCOMPRESSED_BYTES)
+            .ok_or_else(|| {
+                RichDocError::Zip(format!(
+                    "archive expands past the {MAX_UNCOMPRESSED_BYTES}-byte limit (at {name})"
+                ))
+            })?;
+        let mut counted = CountingReader {
+            inner: entry.take(declared.saturating_add(1)),
+            count: 0,
+        };
+        if name.ends_with(".xml") || name.ends_with(".rels") {
+            let mut buffered = BufReader::new(&mut counted);
+            check_xml(&mut buffered)?;
+            std::io::copy(&mut buffered, &mut std::io::sink())?;
+        } else {
+            std::io::copy(&mut counted, &mut std::io::sink())?;
+        }
+        if counted.count > declared {
+            return Err(inflates_past_declared(&name, declared));
+        }
+    }
+    Ok(())
+}
+
+/// `Read` adapter that tallies the bytes it hands out.
+struct CountingReader<R> {
+    inner: R,
+    count: u64,
+}
+
+impl<R: Read> Read for CountingReader<R> {
+    fn read(&mut self, buf: &mut [u8]) -> std::io::Result<usize> {
+        let n = self.inner.read(buf)?;
+        self.count = self.count.saturating_add(n as u64);
+        Ok(n)
+    }
+}
+
+fn inflates_past_declared(name: &str, declared: u64) -> RichDocError {
+    RichDocError::Zip(format!(
+        "entry {name} inflates past the {declared} bytes its header declares"
+    ))
+}
+
+/// Read a whole entry without trusting its header: refuse a declared size
+/// past `MAX_UNCOMPRESSED_BYTES`, and stop one byte past the declared size
+/// so an entry that inflates further is an error rather than unbounded.
+fn read_entry_capped<R: Read>(entry: &mut zip::read::ZipFile<'_, R>) -> Result<Vec<u8>> {
+    let name = entry.name().to_owned();
+    let declared = entry.size();
+    if declared > MAX_UNCOMPRESSED_BYTES {
+        return Err(RichDocError::Zip(format!(
+            "entry {name} declares {declared} bytes, past the {MAX_UNCOMPRESSED_BYTES}-byte limit"
+        )));
+    }
+    let mut buf = Vec::new();
+    entry.take(declared.saturating_add(1)).read_to_end(&mut buf)?;
+    if buf.len() as u64 > declared {
+        return Err(inflates_past_declared(&name, declared));
+    }
+    Ok(buf)
+}
+
+/// Bound XML nesting before recursive readers or pretty-printers use it.
+fn check_xml<R: std::io::BufRead>(xml: R) -> Result<()> {
+    let mut reader = quick_xml::Reader::from_reader(xml);
+    let mut buf = Vec::new();
+    let mut depth = 0usize;
+    loop {
+        match reader.read_event_into(&mut buf) {
+            Ok(Event::Start(_)) => {
+                depth = depth.saturating_add(1);
+                if depth > MAX_NESTING_DEPTH {
+                    return Err(RichDocError::Zip(format!("XML nests more than {MAX_NESTING_DEPTH} elements deep at byte {}", reader.buffer_position())));
+                }
+            }
+            Ok(Event::End(_)) => depth = depth.saturating_sub(1),
+            Ok(Event::Eof) => {
+                return if depth == 0 { Ok(()) } else { Err(RichDocError::Zip("unclosed XML elements".into())) };
+            }
+            Err(err) => return Err(RichDocError::Zip(format!("XML at byte {}: {err}", reader.buffer_position()))),
+            Ok(_) => {}
+        }
+        buf.clear();
+    }
+}
 
 /// Extract a single text entry from a zip. Used to pull `word/document.xml`
 /// out of a `.docx` for Raw View.
@@ -15,9 +130,12 @@ pub fn read_zip_entry_text(zip_path: &Path, entry_name: &str) -> Result<String> 
     let mut entry = archive
         .by_name(entry_name)
         .map_err(|e| RichDocError::Zip(format!("entry {entry_name}: {e}")))?;
-    let mut buf = String::new();
-    entry.read_to_string(&mut buf)?;
-    Ok(buf)
+    let bytes = read_entry_capped(&mut entry)?;
+    if entry_name.ends_with(".xml") || entry_name.ends_with(".rels") {
+        check_xml(Cursor::new(&bytes))?;
+    }
+    String::from_utf8(bytes)
+        .map_err(|e| RichDocError::Io(std::io::Error::new(std::io::ErrorKind::InvalidData, e)))
 }
 
 /// Extract a single binary entry from a zip. Used for image media parts that
@@ -28,9 +146,7 @@ pub fn read_zip_entry_bytes(zip_path: &Path, entry_name: &str) -> Result<Vec<u8>
     let mut entry = archive
         .by_name(entry_name)
         .map_err(|e| RichDocError::Zip(format!("entry {entry_name}: {e}")))?;
-    let mut buf = Vec::with_capacity(entry.size() as usize);
-    entry.read_to_end(&mut buf)?;
-    Ok(buf)
+    read_entry_capped(&mut entry)
 }
 
 /// List zip entry names matching a prefix + suffix filter. Used to discover
@@ -101,8 +217,7 @@ pub fn replace_zip_entries(
             writer
                 .start_file(&name, opts)
                 .map_err(|e| RichDocError::Zip(e.to_string()))?;
-            let mut buf = Vec::with_capacity(entry.size() as usize);
-            entry.read_to_end(&mut buf)?;
+            let buf = read_entry_capped(&mut entry)?;
             writer.write_all(&buf).map_err(RichDocError::Io)?;
         }
         for (idx, (name, bytes)) in replacements.iter().enumerate() {
@@ -174,6 +289,122 @@ mod tests {
             .read_to_string(&mut styles)
             .expect("read styles");
         assert!(styles.contains("<w:styles"));
+    }
+
+    /// Zip with the given (name, contents) entries, deflated.
+    fn zip_of(entries: &[(&str, &[u8])]) -> Vec<u8> {
+        let mut buf = Vec::new();
+        {
+            let mut w = zip::ZipWriter::new(Cursor::new(&mut buf));
+            let opts = SimpleFileOptions::default().compression_method(CompressionMethod::Deflated);
+            for (name, data) in entries {
+                w.start_file(*name, opts).unwrap();
+                w.write_all(data).unwrap();
+            }
+            w.finish().unwrap();
+        }
+        buf
+    }
+
+    /// Overwrite the uncompressed size an entry declares, in both its local
+    /// header and its central-directory record.
+    fn patch_declared_size(zip: &mut [u8], name: &str, size: u32) {
+        let mut patched = 0;
+        for at in 0..zip.len().saturating_sub(46) {
+            let sig = u32::from_le_bytes(zip[at..at + 4].try_into().unwrap());
+            let (size_at, name_len_at, name_at) = match sig {
+                0x0403_4b50 => (at + 22, at + 26, at + 30),
+                0x0201_4b50 => (at + 24, at + 28, at + 46),
+                _ => continue,
+            };
+            let len = u16::from_le_bytes([zip[name_len_at], zip[name_len_at + 1]]) as usize;
+            if zip.get(name_at..name_at + len) == Some(name.as_bytes()) {
+                zip[size_at..size_at + 4].copy_from_slice(&size.to_le_bytes());
+                patched += 1;
+            }
+        }
+        assert_eq!(patched, 2, "local header + central record for {name}");
+    }
+
+    fn temp_zip(file: &str, bytes: &[u8]) -> (crate::persist::TempDir, PathBuf) {
+        let dir = crate::persist::TempDir::new("rich-archive");
+        let p = dir.join(file);
+        std::fs::write(&p, bytes).expect("fixture");
+        (dir, p)
+    }
+
+    #[test]
+    fn entry_declared_past_the_cap_is_refused() {
+        let mut z = zip_of(&[("word/document.xml", b"<w:document/>")]);
+        patch_declared_size(&mut z, "word/document.xml", 0xFFFF_FFF0);
+        assert!(check_archive(&z).is_err());
+        let (_dir, p) = temp_zip("notepad-studio-zip-declared-huge.docx", &z);
+        assert!(read_zip_entry_text(&p, "word/document.xml").is_err());
+        assert!(read_zip_entry_bytes(&p, "word/document.xml").is_err());
+    }
+
+    #[test]
+    fn entries_declared_past_the_cap_together_are_refused() {
+        let gib = 1024 * 1024 * 1024;
+        let mut z = zip_of(&[("a.bin", b"a"), ("b.bin", b"b"), ("c.bin", b"c")]);
+        for name in ["a.bin", "b.bin", "c.bin"] {
+            patch_declared_size(&mut z, name, gib);
+        }
+        assert!(check_archive(&z).is_err());
+    }
+
+    #[test]
+    fn entry_inflating_past_its_declared_size_is_refused() {
+        // zip 4 keeps inflating past the declared size; a 1 MB entry that
+        // claims 10 bytes is a bomb in miniature.
+        let zeros = vec![0u8; 1024 * 1024];
+        let mut z = zip_of(&[("word/document.xml", &zeros), ("word/media/x.png", &zeros)]);
+        patch_declared_size(&mut z, "word/document.xml", 10);
+        assert!(check_archive(&z).is_err());
+        let (_dir, p) = temp_zip("notepad-studio-zip-lying-size.docx", &z);
+        assert!(read_zip_entry_text(&p, "word/document.xml").is_err());
+        let mut z = zip_of(&[("word/media/x.png", &zeros)]);
+        patch_declared_size(&mut z, "word/media/x.png", 10);
+        assert!(check_archive(&z).is_err());
+        let (_dir, p) = temp_zip("notepad-studio-zip-lying-size-media.docx", &z);
+        assert!(read_zip_entry_bytes(&p, "word/media/x.png").is_err());
+        assert!(replace_zip_entry(&z, "other.xml", b"<x/>").is_err());
+    }
+
+    #[test]
+    fn honest_archive_passes_the_check() {
+        let original = std::fs::read(fixture("hello.docx")).expect("read fixture");
+        check_archive(&original).expect("fixture is fine");
+    }
+
+    #[test]
+    fn xml_depth_is_bounded_and_text_does_not_count_as_elements() {
+        let limit = format!("{}x{}", "<x>".repeat(MAX_NESTING_DEPTH), "</x>".repeat(MAX_NESTING_DEPTH));
+        check_xml(Cursor::new(limit)).expect("limit");
+        let too_deep = format!("{}x{}", "<x>".repeat(MAX_NESTING_DEPTH + 1), "</x>".repeat(MAX_NESTING_DEPTH + 1));
+        assert!(check_xml(Cursor::new(too_deep)).is_err());
+        let text = format!("<x><![CDATA[{}]]>&lt;x&gt;</x>", "<x>".repeat(100_000));
+        check_xml(Cursor::new(text)).expect("text");
+    }
+
+    #[test]
+    fn optional_xml_parts_and_corrupt_entries_are_checked() {
+        let deep = format!("{}{}", "<x>".repeat(MAX_NESTING_DEPTH + 1), "</x>".repeat(MAX_NESTING_DEPTH + 1));
+        let archive = zip_of(&[("word/document.xml", b"<x/>"), ("word/_rels/document.xml.rels", deep.as_bytes())]);
+        assert!(check_archive(&archive).is_err());
+        for xml in ["<a></b>", "<a>"] {
+            let archive = zip_of(&[("word/document.xml", xml.as_bytes())]);
+            assert!(check_archive(&archive).is_err());
+        }
+    }
+
+    #[test]
+    fn entry_inflating_past_declared_size_is_rejected_by_reader() {
+        let zeros = vec![0; 1024 * 1024];
+        let mut archive = zip_of(&[("word/media/x.png", &zeros)]);
+        patch_declared_size(&mut archive, "word/media/x.png", 10);
+        let (_dir, path) = temp_zip("document.docx", &archive);
+        assert!(read_zip_entry_bytes(&path, "word/media/x.png").is_err());
     }
 
     #[test]

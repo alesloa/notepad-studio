@@ -394,7 +394,7 @@ fn split_paragraphs(text: &str) -> Vec<String> {
 /// - `word/_rels/document.xml.rels`
 /// - `word/document.xml` (caller supplies)
 /// - `word/styles.xml` (built-in Heading1..6 styles so headings render)
-fn build_minimal_docx(document_xml: &str) -> Result<Vec<u8>> {
+pub(super) fn build_minimal_docx(document_xml: &str) -> Result<Vec<u8>> {
     let mut buf = Vec::new();
     {
         let cursor = Cursor::new(&mut buf);

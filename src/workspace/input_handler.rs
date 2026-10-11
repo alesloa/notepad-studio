@@ -1212,6 +1212,7 @@ impl EntityInputHandler for Workspace {
                     let next_char = char_at_byte(&self.buffer().rope, cursor);
                     match compute_auto_pair_action(typed, sel.is_empty(), next_char, &snap) {
                         AutoPairAction::SkipOver => {
+                            self.close_autocomplete(cx);
                             let advance = typed.len_utf8();
                             let new_pos = cursor + advance;
                             self.active_tab_mut().selection.collapse_to(new_pos);
@@ -1341,6 +1342,7 @@ impl EntityInputHandler for Workspace {
                 // an empty selection — IME range-replace and selection-replace
                 // both turn this false so neither path ghost-opens the popup.
                 // Computed before `byte_range` moves `range_utf16`.
+                let had_autocomplete = self.autocomplete.is_some();
                 let plain_point_insert = range_utf16.is_none()
                     && self.selection().is_empty()
                     && !self.has_block_selection();
@@ -1361,20 +1363,12 @@ impl EntityInputHandler for Workspace {
                 if self.find_state.open && !self.find_state.query.is_empty() {
                     self.refresh_matches();
                 }
-                // NPP `Auto-Completion ▸ From N-th character`. Auto-open the
-                // popup when a single identifier char has just been typed at
-                // the caret and the prefix has reached the threshold length.
-                // Paste routes through `replace_byte_range` directly (see
-                // `paste` in `edits.rs`) so it never reaches this branch;
-                // multi-char IME commits return None from `single_char` and
-                // bypass too. Mode + threshold + popup-already-open gating
-                // lives in `maybe_auto_trigger_autocomplete`.
-                if plain_point_insert {
-                    if let Some(c) = single_char(new_text) {
-                        if super::autocomplete::is_word_char(c) {
-                            self.maybe_auto_trigger_autocomplete(cx);
-                        }
-                    }
+                // Committed input may contain several IME characters. An open
+                // list was refreshed by after_edit_flush; never rescan that edit.
+                if plain_point_insert && !had_autocomplete && !new_text.is_empty()
+                    && new_text.chars().all(super::autocomplete::is_word_char)
+                {
+                    self.maybe_auto_trigger_autocomplete(window, cx);
                 }
             }
         }
@@ -1388,8 +1382,11 @@ impl EntityInputHandler for Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        // No IME composition state yet; treat as a plain replace.
+        self.close_autocomplete(cx);
+        let previous = self.autocomplete_auto_trigger_suppressed;
+        self.autocomplete_auto_trigger_suppressed = true;
         self.replace_text_in_range(range_utf16, new_text, window, cx);
+        self.autocomplete_auto_trigger_suppressed = previous;
     }
 
     fn bounds_for_range(

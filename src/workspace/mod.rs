@@ -379,6 +379,8 @@ pub(crate) struct Workspace {
     /// on Esc, outside-click, accept, or any text-buffer mutation that
     /// invalidates the originating prefix.
     pub(crate) autocomplete: Option<autocomplete::AutocompleteState>,
+    pub(crate) autocomplete_blur_subscription: Option<gpui::Subscription>,
+    pub(crate) autocomplete_auto_trigger_suppressed: bool,
     /// Per-tab CSV preview model. Built lazily the first time a `.csv` /
     /// `.tsv` tab enters preview mode and re-parsed only when the
     /// buffer's edit generation has changed. See
@@ -712,6 +714,8 @@ impl Workspace {
             folder_inline_create: None,
             folder_inline_create_focus: None,
             autocomplete: None,
+            autocomplete_blur_subscription: None,
+            autocomplete_auto_trigger_suppressed: false,
             csv_models: std::collections::HashMap::new(),
             csv_grid_blur_subscriptions: std::collections::HashMap::new(),
             csv_context_menu: None,

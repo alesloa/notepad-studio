@@ -15,9 +15,6 @@ const ROW_HEIGHT_REM: f32 = 22. / 16.;
 
 pub(crate) fn autocomplete_popup(
     theme: &Theme,
-    _anchor: Point<Pixels>,
-    _candidates: &[String],
-    _selected: usize,
     workspace: Entity<Workspace>,
 ) -> impl IntoElement {
     deferred(CaretPopup {
@@ -86,29 +83,29 @@ impl Element for CaretPopup {
     ) -> Self::PrepaintState {
         let snapshot = {
             let w = self.workspace.read(cx);
-            if w.focus_handle.is_focused(window)
-                && w.input_focus(window) == crate::tab::InputFocus::Editor
-            {
+            if w.autocomplete_context_valid(window) {
                 w.autocomplete_caret_bounds()
-                    .zip(w.autocomplete.clone())
-                    .map(|(caret, state)| (caret, w.viewport.bounds, state))
+                    .zip(w.autocomplete.as_ref())
+                    .map(|(caret, state)| {
+                        (caret, w.viewport.bounds, state.candidates.clone(), state.selected)
+                    })
             } else {
                 None
             }
         };
-        let Some((caret, viewport, state)) = snapshot else {
+        let Some((caret, viewport, candidates, selected)) = snapshot else {
             self.workspace.update(cx, |w, cx| w.close_autocomplete(cx));
             return None;
         };
         let viewport = viewport.intersect(&Bounds::new(Point::default(), window.viewport_size()));
         let rem = f32::from(window.rem_size());
-        let width = candidate_width(&state.candidates, window);
-        let Some(placement) = popup_placement(caret, viewport, width, state.candidates.len(), rem)
+        let width = candidate_width(&candidates, window);
+        let Some(placement) = popup_placement(caret, viewport, width, candidates.len(), rem)
         else {
             self.workspace.update(cx, |w, cx| w.close_autocomplete(cx));
             return None;
         };
-        let (start, end) = visible_window(state.candidates.len(), state.selected, placement.rows);
+        let (start, end) = visible_window(candidates.len(), selected, placement.rows);
         let theme = self.theme;
         let dismiss = self.workspace.clone();
         let scroll = self.workspace.clone();
@@ -148,14 +145,13 @@ impl Element for CaretPopup {
                 });
                 cx.stop_propagation();
             });
-        for (idx, candidate) in state
-            .candidates
+        for (idx, candidate) in candidates
             .iter()
             .enumerate()
             .skip(start)
             .take(end.saturating_sub(start))
         {
-            let selected = idx == state.selected;
+            let selected = idx == selected;
             let workspace = self.workspace.clone();
             let pick = candidate.clone();
             let row = div()
@@ -426,6 +422,7 @@ mod tests {
             div()
                 .relative()
                 .size_full()
+                .track_focus(&self.workspace.read(cx).focus_handle)
                 .on_mouse_down(
                     MouseButton::Left,
                     cx.listener(|this, _, _, _| this.outside_clicks += 1),

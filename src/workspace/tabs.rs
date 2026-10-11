@@ -19,6 +19,7 @@ impl Workspace {
         if idx >= self.tabs.len() || idx == self.active {
             return;
         }
+        self.close_autocomplete(cx);
         self.active = idx;
         self.touch_mru();
         self.last_lines.clear();
@@ -35,6 +36,12 @@ impl Workspace {
     /// walks the MRU without scrambling its order; the next external action
     /// commits the chosen tab.
     pub(crate) fn touch_mru(&mut self) {
+        if self.autocomplete.as_ref().is_some_and(|state| {
+            !self.tabs.get(self.active).is_some_and(|tab| tab.session_id == state.tab_id)
+        }) {
+            self.autocomplete = None;
+            self.autocomplete_blur_subscription = None;
+        }
         let Some(active_id) = self.tabs.get(self.active).map(|t| t.session_id) else {
             self.tab_mru.clear();
             return;
@@ -51,6 +58,7 @@ impl Workspace {
         let mut tab = Tab::empty();
         tab.buffer.new_label = Some(label);
         self.tabs.push(tab);
+        self.close_autocomplete(cx);
         self.active = self.tabs.len() - 1;
         self.touch_mru();
         self.last_lines.clear();
@@ -137,6 +145,7 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        self.close_autocomplete(cx);
         if self.tabs.is_empty() {
             if crate::settings::snapshot().tab_exit_on_last_close {
                 self.close_window_after_last_tab(window);
@@ -182,6 +191,7 @@ impl Workspace {
     /// matches NPP's "Open in New Instance" behaviour.
     pub(crate) fn adopt_transferred_tab(&mut self, tab: Tab, cx: &mut Context<Self>) {
         self.tabs.push(tab);
+        self.close_autocomplete(cx);
         self.active = self.tabs.len() - 1;
         self.touch_mru();
         self.last_lines.clear();
@@ -511,6 +521,7 @@ impl Workspace {
         if idx >= self.tabs.len() {
             return;
         }
+        if on && idx == self.active { self.close_autocomplete(cx); }
         self.tabs[idx].buffer.read_only = on;
         self.save_session(cx);
         cx.notify();
@@ -792,6 +803,7 @@ impl Workspace {
         let recovered_raw = closed.buffer.rich_doc.is_none() && closed.buffer.new_label.as_ref()
             .is_some_and(|label| label.starts_with("Recovered raw source "));
         self.tabs.push(Tab::from_closed(closed));
+        self.close_autocomplete(cx);
         self.active = self.tabs.len() - 1;
         self.touch_mru();
         self.last_lines.clear();
@@ -862,6 +874,7 @@ impl Workspace {
         if target_idx == self.active {
             return;
         }
+        self.close_autocomplete(cx);
         self.active = target_idx;
         self.last_lines.clear();
         self.caret_visible = true;

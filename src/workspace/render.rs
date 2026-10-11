@@ -790,16 +790,10 @@ impl Render for Workspace {
                     ))
                 },
             )
-            .when_some(self.autocomplete.as_ref().cloned(), |this, state| {
+            .when(self.autocomplete.is_some(), |this| {
                 // The list resolves current caret geometry during deferred
                 // prepaint; outside clicks dismiss and reach their target.
-                this.child(autocomplete_popup(
-                    &theme,
-                    state.anchor,
-                    &state.candidates,
-                    state.selected,
-                    cx.entity().clone(),
-                ))
+                this.child(autocomplete_popup(&theme, cx.entity().clone()))
             })
     }
 }

@@ -108,14 +108,12 @@ impl Workspace {
     }
 
     pub(crate) fn move_up(&mut self, _: &MoveUp, window: &mut Window, cx: &mut Context<Self>) {
-        // Auto-Completion popup steals Up/Down for candidate selection.
-        // Checked before any focus / mode dispatch so the popup behaves the
-        // same whether it was triggered from the editor or another surface.
-        if self.autocomplete.is_some() {
+        let focus = self.input_focus(window);
+        if self.autocomplete_context_valid(window) {
             self.autocomplete_nav(-1, cx);
             return;
         }
-        let focus = self.input_focus(window);
+        self.close_autocomplete(cx);
         if focus == InputFocus::RichDocBody {
             self.rich_doc_move_vertical(-1, false, cx);
             return;
@@ -124,6 +122,7 @@ impl Workspace {
             crate::ui::csv_doc::actions::nudge_active_cell(self, -1, 0, false, cx);
             return;
         }
+        if focus != InputFocus::Editor { return; }
         crate::macros::record(crate::macros::MacroEvent::MoveUp);
         if self.is_in_markdown_preview()
             && self.preview_move_vertical(-1, false, window, cx)
@@ -134,11 +133,12 @@ impl Workspace {
     }
 
     pub(crate) fn move_down(&mut self, _: &MoveDown, window: &mut Window, cx: &mut Context<Self>) {
-        if self.autocomplete.is_some() {
+        let focus = self.input_focus(window);
+        if self.autocomplete_context_valid(window) {
             self.autocomplete_nav(1, cx);
             return;
         }
-        let focus = self.input_focus(window);
+        self.close_autocomplete(cx);
         if focus == InputFocus::RichDocBody {
             self.rich_doc_move_vertical(1, false, cx);
             return;
@@ -147,6 +147,7 @@ impl Workspace {
             crate::ui::csv_doc::actions::nudge_active_cell(self, 1, 0, false, cx);
             return;
         }
+        if focus != InputFocus::Editor { return; }
         crate::macros::record(crate::macros::MacroEvent::MoveDown);
         if self.is_in_markdown_preview()
             && self.preview_move_vertical(1, false, window, cx)
@@ -166,6 +167,10 @@ impl Workspace {
             crate::ui::csv_doc::actions::nudge_active_cell(self, -1, 0, true, cx);
             return;
         }
+        if focus != InputFocus::Editor {
+            self.close_autocomplete(cx);
+            return;
+        }
         crate::macros::record(crate::macros::MacroEvent::SelectUp);
         if self.is_in_markdown_preview()
             && self.preview_move_vertical(-1, true, window, cx)
@@ -183,6 +188,10 @@ impl Workspace {
         }
         if focus == InputFocus::CsvGrid {
             crate::ui::csv_doc::actions::nudge_active_cell(self, 1, 0, true, cx);
+            return;
+        }
+        if focus != InputFocus::Editor {
+            self.close_autocomplete(cx);
             return;
         }
         crate::macros::record(crate::macros::MacroEvent::SelectDown);
@@ -205,6 +214,7 @@ impl Workspace {
     }
 
     fn move_page(&mut self, dir: i32, extend: bool, cx: &mut Context<Self>) {
+        self.close_autocomplete(cx);
         self.clear_block_selection();
         let lines = self.page_size_lines();
         let head = self.selection().head;

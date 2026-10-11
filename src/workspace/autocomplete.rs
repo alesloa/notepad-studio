@@ -28,7 +28,7 @@
 
 use std::collections::BTreeSet;
 
-use gpui::{Context, Pixels, Point, Window, point};
+use gpui::{Context, Pixels, Window, point};
 
 use crate::actions::*;
 use crate::settings;
@@ -36,12 +36,14 @@ use crate::syntax::{LanguageId, keywords};
 use crate::tab::InputFocus;
 use crate::workspace::Workspace;
 
-/// Snapshot of the popup. Held on `Workspace` while the menu is on screen;
-/// `None` when no popup is up. `anchor` is window-space pixels of the popup's
-/// top-left corner (typically one line below the caret).
+/// Current completion session. Placement resolves fresh editor geometry at prepaint.
 #[derive(Clone)]
 pub(crate) struct AutocompleteState {
     pub(crate) candidates: Vec<String>,
+    /// Refilter this bounded pool after edits without scanning the rope again.
+    pub(crate) candidate_pool: Vec<String>,
+    pub(crate) caret: usize,
+    pub(crate) allow_empty_prefix: bool,
     pub(crate) selected: usize,
     /// Byte offset where the matched prefix starts in the active buffer's
     /// rope. Replacement on accept covers `[replace_start, caret)`.
@@ -49,8 +51,6 @@ pub(crate) struct AutocompleteState {
     /// Session id of the tab the popup was opened on; `replace_start` means
     /// nothing in any other buffer.
     pub(crate) tab_id: uuid::Uuid,
-    /// Top-left of the popup body in window-space pixels.
-    pub(crate) anchor: Point<Pixels>,
 }
 
 /// Maximum candidates surfaced. NPP caps the popup at this kind of size
@@ -71,13 +71,13 @@ pub(crate) fn is_word_char(c: char) -> bool {
     c.is_alphanumeric() || c == '_'
 }
 
-/// Walk backwards from `caret` through the rope and return the byte offset
-/// where the prefix starts. Empty prefix returns the caret, clamped to the
-/// rope and floored to a char start.
-pub(crate) fn find_prefix_start(rope: &ropey::Rope, caret: usize) -> usize {
+/// Find the identifier start with at most 256 bytes of reverse traversal.
+/// Oversized prefixes refuse completion rather than replacing a token suffix.
+/// Empty prefixes return the caret, clamped and floored to a char start.
+pub(crate) fn find_prefix_start(rope: &ropey::Rope, caret: usize) -> Option<usize> {
     let caret = super::edits::floor_rope_char_boundary(rope, caret);
     if caret == 0 {
-        return 0;
+        return Some(0);
     }
     let mut idx = caret;
     let char_caret = rope.byte_to_char(caret);
@@ -89,16 +89,23 @@ pub(crate) fn find_prefix_start(rope: &ropey::Rope, caret: usize) -> usize {
         }
         char_idx -= 1;
         idx = rope.char_to_byte(char_idx);
+        if caret.saturating_sub(idx) > candidates::MAX_CANDIDATE_BYTES {
+            return None;
+        }
     }
-    idx
+    Some(idx)
 }
 
 /// The identifier prefix ending at `caret`: its start byte, the caret byte
 /// the prefix ends at, and the prefix text.
-fn prefix_at(rope: &ropey::Rope, caret: usize) -> (usize, usize, String) {
+fn prefix_at(rope: &ropey::Rope, caret: usize) -> Option<(usize, usize, String)> {
     let caret = super::edits::floor_rope_char_boundary(rope, caret);
-    let start = find_prefix_start(rope, caret);
-    (start, caret, rope.byte_slice(start..caret).to_string())
+    let start = find_prefix_start(rope, caret)?;
+    Some((start, caret, rope.byte_slice(start..caret).to_string()))
+}
+
+fn prefix_reaches_threshold(prefix: &str, configured: u32) -> bool {
+    prefix.chars().count() >= configured.max(1) as usize
 }
 
 /// Byte range an accepted candidate replaces: the identifier prefix ending
@@ -111,67 +118,13 @@ fn accept_range(
     replace_start: usize,
     caret: usize,
 ) -> Option<std::ops::Range<usize>> {
-    let (start, caret, _) = prefix_at(rope, caret);
+    let (start, caret, _) = prefix_at(rope, caret)?;
     (start == replace_start).then_some(start..caret)
 }
 
-/// Collect every unique identifier in the buffer that starts with `prefix`,
-/// excluding the exact prefix itself (the user already typed it — offering
-/// it back would just dismiss the popup with no change). When
-/// `ignore_numbers` is true, candidates whose first char is a digit are
-/// skipped (NPP `Auto-Completion ▸ Insert Selection ▸ Ignore numbers`,
-/// default on).
-pub(crate) fn collect_word_candidates(
-    rope: &ropey::Rope,
-    prefix: &str,
-    ignore_numbers: bool,
-) -> Vec<String> {
-    let mut seen: BTreeSet<String> = BTreeSet::new();
-    let mut current = String::new();
-    let lower_prefix = prefix.to_ascii_lowercase();
-    let push = |word: &str, seen: &mut BTreeSet<String>| {
-        if word.len() < MIN_CANDIDATE_LEN {
-            return;
-        }
-        if word.eq_ignore_ascii_case(prefix) {
-            return;
-        }
-        if !prefix.is_empty()
-            && !word.to_ascii_lowercase().starts_with(&lower_prefix)
-        {
-            return;
-        }
-        if ignore_numbers && word.chars().next().is_some_and(|c| c.is_ascii_digit()) {
-            return;
-        }
-        seen.insert(word.to_string());
-    };
-
-    for ch in rope.chars() {
-        if is_word_char(ch) {
-            current.push(ch);
-        } else {
-            if !current.is_empty() {
-                push(&current, &mut seen);
-                current.clear();
-            }
-        }
-        if seen.len() >= MAX_CANDIDATES * 4 {
-            // Safety cap on extremely large buffers — once we have a healthy
-            // pool we stop scanning. Sort + truncate below trims to MAX.
-            break;
-        }
-    }
-    if !current.is_empty() {
-        push(&current, &mut seen);
-    }
-
-    let mut out: Vec<String> = seen.into_iter().collect();
-    if out.len() > MAX_CANDIDATES {
-        out.truncate(MAX_CANDIDATES);
-    }
-    out
-}
+#[path = "autocomplete_candidates.rs"]
+mod candidates;
+pub(crate) use candidates::collect_word_candidates;
 
 /// Filter the language's static keyword list by `prefix`. Case-insensitive
 /// prefix match mirrors `collect_word_candidates`. Returns at most
@@ -269,31 +222,12 @@ impl Workspace {
         Some(gpui::Bounds::new(point(x, line.bounds.top()), gpui::size(gpui::px(1.), line.bounds.size.height)))
     }
 
-    /// Compute the popup's window-space anchor by reading `last_lines` (the
-    /// per-paint cache of visible-line geometry). Falls back to the editor
-    /// pane's top-left when the caret's line isn't visible — drop-rare but
-    /// possible right after a programmatic caret move before the next paint
-    /// updates the cache.
-    fn autocomplete_anchor(&self, caret: usize) -> Point<Pixels> {
-        for line in &self.last_lines {
-            let line_end = line.line_byte_start + line.line_byte_len;
-            if caret >= line.line_byte_start && caret <= line_end {
-                let local = caret - line.line_byte_start;
-                let x = line.bounds.left() + line.shaped.x_for_index(local);
-                let y = line.bounds.bottom();
-                return point(x, y);
-            }
-        }
-        // Fallback: position over the editor pane's origin so the popup is
-        // at least visible. Better than rendering off-screen.
-        let b = self.viewport.bounds;
-        point(b.left(), b.top())
-    }
-
     /// Compute prefix + open a popup for it. Empty candidate list = no
     /// popup, ephemeral status message instead (NPP also no-ops when the
     /// scan finds nothing). Returns true when a popup was opened.
     fn try_open_word_popup(&mut self, cx: &mut Context<Self>) -> bool {
+        self.close_autocomplete(cx);
+        if !self.autocomplete_editable() { return false; }
         let caret = self.selection().head;
         let prefix_start;
         let prefix;
@@ -301,11 +235,13 @@ impl Workspace {
         let candidates;
         {
             let rope = &self.buffer().rope;
-            (prefix_start, _, prefix) = prefix_at(rope, caret);
+            let Some(found) = prefix_at(rope, caret) else { return false; };
+            (prefix_start, _, prefix) = found;
             candidates = collect_word_candidates(
                 rope,
                 &prefix,
                 snap.autocompletion_ignore_numbers,
+                caret,
             );
         }
         if candidates.is_empty() {
@@ -317,13 +253,14 @@ impl Workspace {
             cx.notify();
             return false;
         }
-        let anchor = self.autocomplete_anchor(prefix_start);
         self.autocomplete = Some(AutocompleteState {
+            candidate_pool: candidates.clone(),
             candidates,
+            caret,
+            allow_empty_prefix: prefix.is_empty(),
             selected: 0,
             replace_start: prefix_start,
             tab_id: self.tabs[self.active].session_id,
-            anchor,
         });
         self.status_message = None;
         cx.notify();
@@ -337,9 +274,11 @@ impl Workspace {
         lang: LanguageId,
         cx: &mut Context<Self>,
     ) -> bool {
+        self.close_autocomplete(cx);
+        if !self.autocomplete_editable() { return false; }
         let caret = self.selection().head;
         let snap = settings::snapshot();
-        let (prefix_start, _, prefix) = prefix_at(&self.buffer().rope, caret);
+        let Some((prefix_start, _, prefix)) = prefix_at(&self.buffer().rope, caret) else { return false; };
         let candidates = collect_keyword_candidates(
             &prefix,
             lang,
@@ -360,13 +299,14 @@ impl Workspace {
             cx.notify();
             return false;
         }
-        let anchor = self.autocomplete_anchor(prefix_start);
         self.autocomplete = Some(AutocompleteState {
+            candidate_pool: candidates.clone(),
             candidates,
+            caret,
+            allow_empty_prefix: prefix.is_empty(),
             selected: 0,
             replace_start: prefix_start,
             tab_id: self.tabs[self.active].session_id,
-            anchor,
         });
         self.status_message = None;
         cx.notify();
@@ -381,6 +321,8 @@ impl Workspace {
         lang: LanguageId,
         cx: &mut Context<Self>,
     ) -> bool {
+        self.close_autocomplete(cx);
+        if !self.autocomplete_editable() { return false; }
         let caret = self.selection().head;
         let snap = settings::snapshot();
         let prefix_start;
@@ -388,11 +330,13 @@ impl Workspace {
         let words;
         {
             let rope = &self.buffer().rope;
-            (prefix_start, _, prefix) = prefix_at(rope, caret);
+            let Some(found) = prefix_at(rope, caret) else { return false; };
+            (prefix_start, _, prefix) = found;
             words = collect_word_candidates(
                 rope,
                 &prefix,
                 snap.autocompletion_ignore_numbers,
+                caret,
             );
         }
         let kws = collect_keyword_candidates(
@@ -414,13 +358,14 @@ impl Workspace {
             cx.notify();
             return false;
         }
-        let anchor = self.autocomplete_anchor(prefix_start);
         self.autocomplete = Some(AutocompleteState {
+            candidate_pool: candidates.clone(),
             candidates,
+            caret,
+            allow_empty_prefix: prefix.is_empty(),
             selected: 0,
             replace_start: prefix_start,
             tab_id: self.tabs[self.active].session_id,
-            anchor,
         });
         self.status_message = None;
         cx.notify();
@@ -436,10 +381,12 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if self.input_focus(window) != InputFocus::Editor {
+        if !self.focus_handle.is_focused(window) || self.input_focus(window) != InputFocus::Editor {
+            self.close_autocomplete(cx);
             return;
         }
         self.try_open_word_popup(cx);
+        self.watch_autocomplete_focus(window, cx);
     }
 
     /// Edit ▸ Auto-Completion ▸ Function Completion (NPP
@@ -453,9 +400,11 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if self.input_focus(window) != InputFocus::Editor {
+        if !self.focus_handle.is_focused(window) || self.input_focus(window) != InputFocus::Editor {
+            self.close_autocomplete(cx);
             return;
         }
+        self.close_autocomplete(cx);
         let Some(lang) = self.buffer().language else {
             self.status_message = Some(
                 "Function completion: no language detected for this buffer".to_string(),
@@ -464,6 +413,7 @@ impl Workspace {
             return;
         };
         self.try_open_function_popup(lang, cx);
+        self.watch_autocomplete_focus(window, cx);
     }
 
     /// Edit ▸ Auto-Completion ▸ Function and Word Completion (NPP
@@ -476,7 +426,8 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if self.input_focus(window) != InputFocus::Editor {
+        if !self.focus_handle.is_focused(window) || self.input_focus(window) != InputFocus::Editor {
+            self.close_autocomplete(cx);
             return;
         }
         if let Some(lang) = self.buffer().language {
@@ -484,6 +435,7 @@ impl Workspace {
         } else {
             self.try_open_word_popup(cx);
         }
+        self.watch_autocomplete_focus(window, cx);
     }
 
     /// Edit ▸ Auto-Completion ▸ Function Parameters Hint (NPP
@@ -496,7 +448,8 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if self.input_focus(window) != InputFocus::Editor {
+        if !self.focus_handle.is_focused(window) || self.input_focus(window) != InputFocus::Editor {
+            self.close_autocomplete(cx);
             return;
         }
         self.status_message =
@@ -506,8 +459,68 @@ impl Workspace {
 
     /// Close the popup. Idempotent — safe to call when no popup is up.
     pub(crate) fn close_autocomplete(&mut self, cx: &mut Context<Self>) {
+        self.autocomplete_blur_subscription = None;
         if self.autocomplete.take().is_some() {
             cx.notify();
+        }
+    }
+
+    fn watch_autocomplete_focus(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self.autocomplete.is_some() && self.autocomplete_blur_subscription.is_none() {
+            let focus = self.focus_handle.clone();
+            self.autocomplete_blur_subscription = Some(cx.on_blur(&focus, window, |w, _, cx| {
+                w.close_autocomplete(cx);
+            }));
+        }
+    }
+
+    fn autocomplete_editable(&self) -> bool {
+        self.tabs.get(self.active).is_some_and(|tab| {
+            !tab.buffer.read_only && tab.selection.is_empty() && tab.block_selection.is_none()
+        })
+    }
+
+    pub(crate) fn autocomplete_context_valid(&self, window: &Window) -> bool {
+        let Some(state) = self.autocomplete.as_ref() else { return false; };
+        self.focus_handle.is_focused(window)
+            && self.input_focus(window) == InputFocus::Editor
+            && self.autocomplete_editable()
+            && self.tabs.get(self.active).is_some_and(|tab| tab.session_id == state.tab_id)
+            && self.selection().head == state.caret
+    }
+
+    // NppNotification.cpp:200-217 and ScintillaBase.cxx:415-434 — keep an
+    // active list aligned with inserted/deleted characters, cancel on stop chars.
+    pub(crate) fn refresh_autocomplete_after_edit(&mut self, cx: &mut Context<Self>) {
+        let Some(state) = self.autocomplete.as_ref() else { return; };
+        if !self.autocomplete_editable()
+            || !self.tabs.get(self.active).is_some_and(|tab| tab.session_id == state.tab_id)
+        {
+            self.close_autocomplete(cx);
+            return;
+        }
+        let Some((start, caret, prefix)) = prefix_at(&self.buffer().rope, self.selection().head) else {
+            self.close_autocomplete(cx);
+            return;
+        };
+        if start != state.replace_start || (prefix.is_empty() && !state.allow_empty_prefix) {
+            self.close_autocomplete(cx);
+            return;
+        }
+        let previous = state.candidates.get(state.selected).cloned();
+        let lower = prefix.to_ascii_lowercase();
+        let filtered: Vec<String> = state.candidate_pool.iter().filter(|word| {
+            !word.eq_ignore_ascii_case(&prefix) && word.to_ascii_lowercase().starts_with(&lower)
+        }).cloned().collect();
+        if filtered.is_empty() {
+            self.close_autocomplete(cx);
+            return;
+        }
+        if let Some(state) = self.autocomplete.as_mut() {
+            state.selected = previous.and_then(|pick| filtered.iter().position(|word| *word == pick)).unwrap_or(0);
+            state.candidates = filtered;
+            state.caret = caret;
+            state.allow_empty_prefix &= prefix.is_empty();
         }
     }
 
@@ -547,48 +560,44 @@ impl Workspace {
     /// picked candidate string instead of the keyboard-selected row so a
     /// click on an unselected row still inserts the right word.
     ///
-    /// The popup stays on screen while the caret moves (arrows, Ctrl+End,
-    /// Backspace past the prefix, tab switch). Scintilla cancels the list
-    /// in those cases, so a stale popup is closed without editing rather
-    /// than replacing whatever lies between the old prefix and the caret.
+    /// Revalidate even after dismissal hooks: a queued row click must not
+    /// replace changed text, another tab, a selection, or a read-only buffer.
     pub(crate) fn accept_autocomplete_with(
         &mut self,
         pick: &str,
-        _window: &mut Window,
+        window: &mut Window,
         cx: &mut Context<Self>,
     ) -> bool {
+        if !self.autocomplete_context_valid(window) {
+            self.close_autocomplete(cx);
+            return false;
+        }
         let Some(state) = self.autocomplete.take() else {
             return false;
         };
+        self.autocomplete_blur_subscription = None;
         cx.notify();
-        if self.tabs[self.active].session_id != state.tab_id {
-            return false;
-        }
+        if !state.candidates.iter().any(|candidate| candidate == pick) { return false; }
         let caret = self.selection().head;
         let Some(range) = accept_range(&self.buffer().rope, state.replace_start, caret) else {
             return false;
         };
+        let Some((_, _, prefix)) = prefix_at(&self.buffer().rope, caret) else { return false; };
+        if (prefix.is_empty() && !state.allow_empty_prefix)
+            || !pick.to_ascii_lowercase().starts_with(&prefix.to_ascii_lowercase())
+        { return false; }
         crate::macros::record(crate::macros::MacroEvent::InsertText(pick.to_string()));
         self.replace_byte_range(range, pick, cx);
         true
     }
 
-    /// NPP `Auto-Completion ▸ From N-th character` runtime hook. Called from
-    /// the keystroke insertion path after a single identifier char has
-    /// landed in the buffer. Opens the popup matching the active
-    /// `autocompletion_mode` once the prefix at the caret reaches the
-    /// configured threshold. No-op when:
-    ///   * a popup is already up (let the existing lifecycle run; typing
-    ///     more chars doesn't re-trigger),
-    ///   * mode is `None` (Disabled),
-    ///   * the prefix at the caret is shorter than `autocompletion_from_chars`
-    ///     (clamped to a minimum of 1 — the preferences UI exposes 1-9).
-    /// Auto-trigger fires per keystroke, so a status toast on every miss
-    /// would be obnoxious. Stash + restore `status_message` so the manual
-    /// path's "no candidates" / "no match" notices stay silent when the
-    /// trigger comes from typing instead of an explicit Ctrl+Enter /
-    /// Ctrl+Space.
-    pub(crate) fn maybe_auto_trigger_autocomplete(&mut self, cx: &mut Context<Self>) {
+    /// Auto-open after committed identifier input reaches the configured
+    /// character threshold. Existing lists filter through after_edit_flush;
+    /// composition updates suppress opening and automatic misses stay silent.
+    pub(crate) fn maybe_auto_trigger_autocomplete(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if self.autocomplete_auto_trigger_suppressed || !self.focus_handle.is_focused(window)
+            || self.input_focus(window) != InputFocus::Editor || !self.autocomplete_editable()
+        { return; }
         if self.autocomplete.is_some() {
             return;
         }
@@ -597,10 +606,8 @@ impl Workspace {
             return;
         }
         let caret = self.selection().head;
-        let prefix_start = find_prefix_start(&self.buffer().rope, caret);
-        let prefix_len = caret.saturating_sub(prefix_start);
-        let needed = snap.autocompletion_from_chars.max(1) as usize;
-        if prefix_len < needed {
+        let Some((_, _, prefix)) = prefix_at(&self.buffer().rope, caret) else { return; };
+        if !prefix_reaches_threshold(&prefix, snap.autocompletion_from_chars) {
             return;
         }
         let prev_status = self.status_message.clone();
@@ -625,6 +632,7 @@ impl Workspace {
         if self.autocomplete.is_none() {
             self.status_message = prev_status;
         }
+        self.watch_autocomplete_focus(window, cx);
     }
 }
 
@@ -636,13 +644,13 @@ mod tests {
     #[test]
     fn prefix_start_walks_back_over_word_chars() {
         let rope = Rope::from_str("let foo_bar = fo");
-        assert_eq!(find_prefix_start(&rope, rope.len_bytes()), 14);
-        assert_eq!(find_prefix_start(&rope, 11), 4);
-        assert_eq!(find_prefix_start(&rope, 0), 0);
+        assert_eq!(find_prefix_start(&rope, rope.len_bytes()), Some(14));
+        assert_eq!(find_prefix_start(&rope, 11), Some(4));
+        assert_eq!(find_prefix_start(&rope, 0), Some(0));
         let rope = Rope::from_str("x = café");
-        assert_eq!(prefix_at(&rope, rope.len_bytes()), (4, 9, "café".to_string()));
+        assert_eq!(prefix_at(&rope, rope.len_bytes()), Some((4, 9, "café".to_string())));
         let rope = Rope::from_str("a\r\n中文");
-        assert_eq!(prefix_at(&rope, rope.len_bytes()), (3, 9, "中文".to_string()));
+        assert_eq!(prefix_at(&rope, rope.len_bytes()), Some((3, 9, "中文".to_string())));
     }
 
     #[test]
@@ -651,12 +659,12 @@ mod tests {
         // multi-byte char with no word char before it came back unchanged
         // and `byte_slice` panicked on it.
         let rope = Rope::from_str("ab 👍");
-        assert_eq!(prefix_at(&rope, 99), (7, 7, String::new()));
-        assert_eq!(prefix_at(&rope, 5), (3, 3, String::new()));
+        assert_eq!(prefix_at(&rope, 99), Some((7, 7, String::new())));
+        assert_eq!(prefix_at(&rope, 5), Some((3, 3, String::new())));
         for text in ["", "é", "中文 x", "👨‍👩‍👧ab", "🇫🇷\r\nzz", "a\rb"] {
             let rope = Rope::from_str(text);
             for caret in 0..=text.len() + 2 {
-                let (start, end, prefix) = prefix_at(&rope, caret);
+                let (start, end, prefix) = prefix_at(&rope, caret).expect("small prefix");
                 assert!(start <= end && end <= text.len(), "{text:?} @ {caret}");
                 assert_eq!(&text[start..end], prefix);
             }
@@ -690,11 +698,14 @@ mod tests {
 
     #[test]
     fn word_candidates_on_edge_buffers() {
-        assert!(collect_word_candidates(&Rope::new(), "", true).is_empty());
+        assert!(collect_word_candidates(&Rope::new(), "", true, 0).is_empty());
         let rope = Rope::from_str("foo\r\nfood\rfool 12ab café_x 👍fob");
-        assert_eq!(collect_word_candidates(&rope, "fo", true), ["fob", "foo", "food", "fool"]);
-        assert_eq!(collect_word_candidates(&rope, "caf", true), vec!["café_x".to_string()]);
-        assert!(collect_word_candidates(&rope, "1", true).is_empty());
-        assert_eq!(collect_word_candidates(&rope, "1", false), vec!["12ab".to_string()]);
+        assert_eq!(collect_word_candidates(&rope, "fo", true, rope.len_bytes()), ["fob", "foo", "food", "fool"]);
+        assert_eq!(collect_word_candidates(&rope, "caf", true, rope.len_bytes()), vec!["café_x".to_string()]);
+        assert!(collect_word_candidates(&rope, "1", true, rope.len_bytes()).is_empty());
+        assert_eq!(collect_word_candidates(&rope, "1", false, rope.len_bytes()), vec!["12ab".to_string()]);
     }
 }
+#[cfg(test)]
+#[path = "autocomplete_state_tests.rs"]
+mod completion_state_tests;

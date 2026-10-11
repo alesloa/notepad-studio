@@ -172,6 +172,11 @@ v0.0.5 — current
        keeping script/style bodies hidden, even with malformed end tags.
        Oversized or excessively nested HTML falls back to plain-text paste.
 
+   47. Auto-completion refilters while typing or deleting, dismisses on
+       caret, selection, tab and focus changes, and ignores marked IME text.
+       Stale clicks cannot replace another prefix or a read-only document.
+       Word scans stay bounded near the caret, including huge identifiers.
+
   v0.1.0 — syntax & language:
 
     1. Tree-sitter syntax highlighting for 25 modes: Rust, Python, C,

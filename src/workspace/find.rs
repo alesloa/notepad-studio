@@ -745,6 +745,7 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        if target != InputFocus::Editor { self.close_autocomplete(cx); }
         self.ensure_dialog_focus_handles(cx);
         match target {
             InputFocus::FindQuery => window.focus(&self.find_focus, cx),
@@ -906,6 +907,7 @@ impl Workspace {
         let Some(range) = self.find_state.matches.get(idx).cloned() else {
             return;
         };
+        self.close_autocomplete(cx);
         if let Some(offsets) = self.find_state.rich_doc_block_offsets.clone() {
             let payload_opt = self.tabs[self.active].buffer.rich_doc.as_ref();
             let (Some(anchor_pos), Some(cursor_pos)) = (

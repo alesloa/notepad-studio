@@ -66,7 +66,12 @@ The X11 input-method client is patched locally under `vendor/xim/`.
     acknowledge successful synchronous commits after callback processing.
     Reject unsupported X transport versions before connecting, validate
     handshake format, and bound single-ClientMessage payloads. Unsupported
-    multi-ClientMessage sends return a typed error instead of panicking.
+    transport sends return a typed error instead of panicking.
+    X11 client transport 0.1 now sends ordered multi-ClientMessage packets
+    and reassembles declared packets within a 262,144-byte bound, with
+    fallible allocation and final-padding validation. Transport 0.2 and
+    PropertyNotify modes remain unsupported. No native composition routing
+    or generic server transport contract changed.
     Added actual X11 property-transport/parser tests with an in-memory
     connection, and compound-text decoding regressions. The optional
     parser generator is retained to preserve the original manifests.

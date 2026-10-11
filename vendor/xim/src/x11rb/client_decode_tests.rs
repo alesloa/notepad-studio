@@ -18,6 +18,9 @@ struct WireConnection {
     sent: RefCell<Vec<Vec<u8>>>,
     send_attempts: RefCell<usize>,
     reject_send: bool,
+    reject_send_at: Option<usize>,
+    reject_flush: bool,
+    flush_calls: RefCell<usize>,
     reply_opcode: RefCell<u8>,
     with_reply: RefCell<Vec<Vec<u8>>>,
 }
@@ -45,7 +48,7 @@ impl RequestConnection for WireConnection {
         -> Result<VoidCookie<'_, Self>, ConnectionError>
     {
         *self.send_attempts.borrow_mut() += 1;
-        if self.reject_send { return Err(ConnectionError::UnsupportedExtension); }
+        if self.reject_send || self.reject_send_at == Some(*self.send_attempts.borrow()) { return Err(ConnectionError::UnsupportedExtension); }
         self.sent.borrow_mut().push(bufs.iter().flat_map(|buf| buf.iter().copied()).collect());
         Ok(VoidCookie::new(self, 2))
     }
@@ -89,7 +92,10 @@ impl Connection for WireConnection {
         Err(ConnectionError::UnsupportedExtension)
     }
     fn poll_for_raw_event_with_sequence(&self) -> Result<Option<RawEventAndSeqNumber<Vec<u8>>>, ConnectionError> { Ok(None) }
-    fn flush(&self) -> Result<(), ConnectionError> { Ok(()) }
+    fn flush(&self) -> Result<(), ConnectionError> {
+        *self.flush_calls.borrow_mut() += 1;
+        if self.reject_flush { Err(ConnectionError::UnsupportedExtension) } else { Ok(()) }
+    }
     fn setup(&self) -> &Setup { &self.setup }
     fn generate_id(&self) -> Result<u32, ReplyOrIdError> { Ok(99) }
 }
@@ -154,7 +160,7 @@ fn client(property: Vec<u8>) -> X11rbClient<WireConnection> {
         server_owner_window: 2, im_window: 3, server_atom: 4,
         atoms: Atoms { XIM_SERVERS: 5, LOCALES: 6, TRANSPORT: 7,
             XIM_XCONNECT: 8, XIM_PROTOCOL: 9 },
-        transport_max: 20, client_window: 10, im_attributes: Default::default(),
+        transport_max: 20, transport: ClientTransport::default(), client_window: 10, im_attributes: Default::default(),
         ic_attributes: Default::default(), sequence: 0, buf: Vec::new() }
 }
 
@@ -288,3 +294,5 @@ fn truncated_wire_returns_protocol_error() {
 
 mod commit_tests;
 mod transport_tests;
+
+mod multicm_tests;

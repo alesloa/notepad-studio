@@ -419,6 +419,9 @@ v0.0.5 — current
     104. Refuse saved macros containing unsupported search, replace or save
          events before editing, instead of silently skipping those operations.
 
+    105. Support negotiated Linux XIM multi-message client transport 0.1 with
+         bounded reassembly and error handling; mixed transport 0.2 remains open.
+
   v0.1.0 — syntax & language:
 
     1. Tree-sitter syntax highlighting for 25 modes: Rust, Python, C,

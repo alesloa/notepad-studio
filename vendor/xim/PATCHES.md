@@ -55,10 +55,12 @@ request after these errors remains open: a caller that only logs the error
   can leave the server waiting. This patch establishes valid-path behavior.
 
 X transport version handling follows Table D.3 and its dividing-size rule in
-the same specification. Full multi-ClientMessage and PropertyNotify support
-remain open. Version 0.2 below its dividing size is not silently rerouted to
+the same specification. The client implements multi-ClientMessage transport
+0.1; mixed transport 0.2 and PropertyNotify support remain open. Version 0.2
+below its dividing size is not silently rerouted to
 properties; it is refused before use. GPUI currently tears down XIM on an
-error and falls back to ordinary keys, so these modes remain unavailable.
+error and falls back to ordinary keys, so transport 0.2 and PropertyNotify
+modes remain unavailable.
 
 ASCII designation behavior follows the X Consortium Compound Text 1.1
 [standard](https://xorg.freedesktop.org/archive/current/doc/xorg-docs/ctext/ctext.html),
@@ -67,3 +69,23 @@ Errors. GL and GR are independent; full independent-set decoding remains open.
 For example, `ESC - B a1 ESC ( B a1` would need to preserve ISO-8859-2 GR
 and decode to `ĄĄ`. This subset returns `UnsupportedEncoding` instead of
 silently interpreting the second high byte as Latin1.
+
+Client transport 0.1 follows Appendix D, Tables D.4/D.5. The client lazily
+interns `_XIM_MOREDATA` after validating XCONNECT, sends ordered 20-byte
+chunks with one `_XIM_PROTOCOL` final, and pads its unused tail with zero.
+Exact multiples do not produce an extra empty message. The private
+`src/x11rb/client_transport.rs` reassembles only negotiated multi-CM input,
+reserves its CARD16-declared frame fallibly (at most 262,144 bytes), rejects
+early/extra finals and nonzero final padding, and dispatches once after
+completion. Related framing/decoder/handler errors, successful reconnect,
+and disconnect retire pending bytes; unrelated events and successful
+independent outbound activity preserve them. Existing 0.0 property behavior
+and the generic server sender/error bounds remain unchanged. Native editor
+composition origin and bounded/coalesced property input remain separate work.
+
+Actual negotiated wire regressions cover Unicode fragments, callback-before-
+synchronous-ACK ordering, exact 20/40-byte boundaries, middle/final/flush
+errors, maximum frames, refusal without publication, reconnect and clean
+continuation after failure. The ignored release benchmark times a maximum
+valid transport frame with an intentionally unknown protocol opcode; it
+measures reassembly and parser refusal, not native desktop input latency.

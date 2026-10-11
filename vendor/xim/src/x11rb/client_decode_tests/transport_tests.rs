@@ -69,7 +69,7 @@ fn assert_rejected_without_mutation(mut event: Event, invalid_format: Option<u8>
 
 #[test]
 fn unsupported_transport_versions_preserve_prior_state() {
-    for (major, minor) in [(0, 1), (0, 2), (1, 0), (2, 0), (2, 1), (9, 9)] {
+    for (major, minor) in [(0, 2), (1, 0), (2, 0), (2, 1), (9, 9)] {
         let mut event = xconnect(major, minor, 64);
         if let Event::ClientMessage(message) = &mut event {
             message.data = [30, major, minor, 64, 0].into();

@@ -45,6 +45,19 @@ Modifications made to the vendored sources (per Apache-2.0 section 4(b)):
 No other source modifications were made; the vendored crate sources are
 otherwise unchanged from upstream.
 
+The X11 input-method client is patched locally under `vendor/xim/`.
+    zed-xim 0.4.0-zed, xim-parser 0.2.1, xim-ctext 0.3.0, xim-gen 0.1.0
+    Copyright (c) 2020 Riey; Zed contributors
+    Source: https://github.com/zed-industries/xim-rs
+    Revision: 16f35a2c881b815a2b6cdfd6687988e84f8447d8
+    License: MIT; original LICENSE files retained beside each crate.
+    Modifications: return the existing InvalidReply error for malformed
+    Reset/Commit/Preedit compound text; propagate reset-handler errors;
+    reject Chinese/Korean compound-text bytes that would overflow or wrap.
+    Added actual X11 property-transport/parser tests with an in-memory
+    connection, and compound-text decoding regressions. The optional
+    parser generator is retained to preserve the original manifests.
+
 Session recovery also uses serde_json (already included through GPUI).
     Authors: Erick Tryzelaar and David Tolnay
     Source: https://github.com/serde-rs/json

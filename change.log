@@ -366,6 +366,10 @@ v0.0.5 — current
         before the next frame. Old painted rows cannot edit text or dismiss a
         fresh list; normal focus, repainting and current clicks still work.
 
+    91. Linux X11 input no longer crashes on malformed input-method text.
+        Invalid Reset, Commit and Preedit replies now return protocol errors,
+        including Chinese/Korean bytes that previously overflowed or wrapped.
+
   v0.1.0 — syntax & language:
 
     1. Tree-sitter syntax highlighting for 25 modes: Rust, Python, C,

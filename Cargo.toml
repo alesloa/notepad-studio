@@ -1,5 +1,6 @@
 [workspace]
 resolver = "2"
+exclude = ["vendor/xim"]
 members = [
     ".",
     "crates/notepad-studio-plugin",
@@ -302,3 +303,6 @@ features = [
 [patch.crates-io]
 # calloop: zed fork (pulled in by the wayland feature; linux-only at build time).
 calloop = { git = "https://github.com/zed-industries/calloop", rev = "eb6b4fd17b9af5ecc226546bdd04185391b3e265" }
+
+[patch."https://github.com/zed-industries/xim-rs.git"]
+zed-xim = { path = "vendor/xim" }

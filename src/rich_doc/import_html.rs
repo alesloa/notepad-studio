@@ -765,6 +765,9 @@ fn apply_inline_style_attr(style: &mut InlineStyle, attrs: &[(String, String)]) 
 fn parse_css_color(input: &str) -> Option<u32> {
     let s = input.trim();
     if let Some(hex) = s.strip_prefix('#') {
+        if !hex.bytes().all(|b| b.is_ascii_hexdigit()) {
+            return None;
+        }
         return match hex.len() {
             3 => {
                 let r = u8::from_str_radix(&hex[0..1].repeat(2), 16).ok()?;
@@ -779,10 +782,10 @@ fn parse_css_color(input: &str) -> Option<u32> {
     if let Some(rest) = s.strip_prefix("rgb(").or_else(|| s.strip_prefix("rgba(")) {
         let rest = rest.trim_end_matches(')');
         let parts: Vec<&str> = rest.split(',').map(|p| p.trim()).collect();
-        if parts.len() >= 3 {
-            let r: u32 = parts[0].parse().ok()?;
-            let g: u32 = parts[1].parse().ok()?;
-            let b: u32 = parts[2].parse().ok()?;
+        if let [r, g, b, ..] = parts.as_slice() {
+            let r = r.parse::<u32>().ok()?.min(255);
+            let g = g.parse::<u32>().ok()?.min(255);
+            let b = b.parse::<u32>().ok()?.min(255);
             return Some((r << 16) | (g << 8) | b);
         }
     }
@@ -950,6 +953,22 @@ mod tests {
         assert_eq!(out.len(), 2);
         assert_eq!(paragraph_text(&out[0]), "before");
         assert_eq!(paragraph_text(&out[1]), "after");
+    }
+
+    #[test]
+    fn css_color_hex_with_multibyte_chars_is_rejected() {
+        assert_eq!(parse_css_color("#é1"), None);
+        assert_eq!(parse_css_color("#1é"), None);
+        assert_eq!(parse_css_color("#中"), None);
+        assert_eq!(parse_css_color("#éé12"), None);
+        let out = html_to_blocks("<p><span style=\"color:#é1\">x</span></p>");
+        assert_eq!(paragraph_text(&out[0]), "x");
+    }
+
+    #[test]
+    fn css_rgb_components_clamp_to_255() {
+        assert_eq!(parse_css_color("rgb(300, 0, 4294967295)"), Some(0xFF00FF));
+        assert_eq!(parse_css_color("rgb(255, 256, 0)"), Some(0xFFFF00));
     }
 
     #[test]

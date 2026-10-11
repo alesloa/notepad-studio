@@ -430,14 +430,10 @@ fn split_block(doc: &mut Document, block: usize, run: usize, byte: usize) {
         }
     }
     // Write left back into the original block (preserving its kind).
+    if let Some(Block::Paragraph { runs, .. } | Block::Heading { runs, .. }) =
+        doc.blocks.get_mut(block)
     {
-        let target = doc.blocks.get_mut(block).unwrap();
-        match target {
-            Block::Paragraph { runs, .. } | Block::Heading { runs, .. } => {
-                *runs = left;
-            }
-            _ => {}
-        }
+        *runs = left;
     }
     // Insert the right half as a Paragraph after the original — pressing Enter
     // inside a heading shouldn't continue heading style, and Word/Pages behave
@@ -448,22 +444,24 @@ fn split_block(doc: &mut Document, block: usize, run: usize, byte: usize) {
 }
 
 fn merge_with_next(doc: &mut Document, block: usize) {
-    if block + 1 >= doc.blocks.len() {
+    let Some(next) = block.checked_add(1) else {
         return;
-    }
-    // Pull runs from block+1; only proceed when both sides are paragraph/heading.
-    let next_runs: Vec<super::ast::InlineRun> = match &doc.blocks[block + 1] {
-        Block::Paragraph { runs, .. } | Block::Heading { runs, .. } => runs.clone(),
-        Block::Table { .. } | Block::Image { .. } => return,
     };
-    let into = doc.blocks.get_mut(block).unwrap();
+    // Pull runs from block+1; only proceed when both sides are paragraph/heading.
+    let next_runs: Vec<super::ast::InlineRun> = match doc.blocks.get(next) {
+        Some(Block::Paragraph { runs, .. } | Block::Heading { runs, .. }) => runs.clone(),
+        Some(Block::Table { .. } | Block::Image { .. }) | None => return,
+    };
+    let Some(into) = doc.blocks.get_mut(block) else {
+        return;
+    };
     match into {
         Block::Paragraph { runs, .. } | Block::Heading { runs, .. } => {
             runs.extend(next_runs);
         }
         Block::Table { .. } | Block::Image { .. } => return,
     }
-    doc.blocks.remove(block + 1);
+    doc.blocks.remove(next);
 }
 
 fn delete_across_blocks(
@@ -489,9 +487,8 @@ fn delete_across_blocks(
     }
     // 1) Trim runs in from_block after (from_run, from_byte).
     {
-        let into = doc.blocks.get_mut(from_block).unwrap();
-        let runs = match into {
-            Block::Paragraph { runs, .. } | Block::Heading { runs, .. } => runs,
+        let runs = match doc.blocks.get_mut(from_block) {
+            Some(Block::Paragraph { runs, .. } | Block::Heading { runs, .. }) => runs,
             _ => return,
         };
         if !runs.is_empty() {
@@ -530,9 +527,8 @@ fn delete_across_blocks(
     }
     // 3) Append the tail to from_block.
     {
-        let into = doc.blocks.get_mut(from_block).unwrap();
-        let runs = match into {
-            Block::Paragraph { runs, .. } | Block::Heading { runs, .. } => runs,
+        let runs = match doc.blocks.get_mut(from_block) {
+            Some(Block::Paragraph { runs, .. } | Block::Heading { runs, .. }) => runs,
             _ => return,
         };
         runs.extend(tail_runs);
@@ -757,7 +753,8 @@ fn apply_range_style(
         );
     }
     // 2) Middle blocks: full coverage. Splits aren't needed — every run is in range.
-    for mid_block in (from_block + 1)..to_block {
+    // Bounded by the block count so a stale or huge `to_block` can't spin.
+    for mid_block in (from_block + 1)..to_block.min(doc.blocks.len()) {
         let Some(b) = doc.blocks.get_mut(mid_block) else {
             continue;
         };
@@ -818,6 +815,114 @@ mod tests {
     fn para(text: &str) -> Block {
         Block::Paragraph {
             runs: vec![InlineRun::plain(text)],
+            props: super::super::ast::BlockProps::default(),
+        }
+    }
+
+    /// Documents the hostile-edit sweep runs against: empty, multi-byte text
+    /// (é 2 bytes, 中 3, 😀 4, ZWJ sequence), several runs including an empty
+    /// one, a heading, a paragraph with no runs, and non-text blocks.
+    fn hostile_docs() -> Vec<Document> {
+        let image = Block::Image {
+            source: super::super::ast::ImageSource::Inline {
+                bytes: std::sync::Arc::new(Vec::new()),
+                mime: "image/png".into(),
+            },
+            width_px: None,
+            height_px: None,
+            alt: None,
+        };
+        let table = Block::Table {
+            rows: vec![super::super::ast::TableRow {
+                cells: vec![super::super::ast::TableCell { blocks: vec![para("cell")] }],
+            }],
+        };
+        let multi_run = Block::Paragraph {
+            runs: vec![InlineRun::plain("\u{e9}"), InlineRun::plain("\u{4e2d}x"), InlineRun::plain("")],
+            props: super::super::ast::BlockProps::default(),
+        };
+        let heading = Block::Heading {
+            level: 1,
+            runs: vec![InlineRun::plain("\u{1f468}\u{200d}\u{1f469}")],
+            props: super::super::ast::BlockProps::default(),
+        };
+        let no_runs = Block::Paragraph {
+            runs: Vec::new(),
+            props: super::super::ast::BlockProps::default(),
+        };
+        vec![
+            doc_with(vec![]),
+            doc_with(vec![para("a\u{e9}\u{4e2d}\u{1f600}b")]),
+            doc_with(vec![multi_run.clone(), heading.clone(), no_runs.clone()]),
+            doc_with(vec![table.clone(), para("\u{e9}"), image.clone()]),
+            doc_with(vec![image, multi_run, table, heading, no_runs]),
+        ]
+    }
+
+    #[test]
+    fn edits_at_hostile_positions_do_not_panic() {
+        const BLOCKS: [usize; 5] = [0, 1, 2, 4, usize::MAX];
+        const RUNS: [usize; 3] = [0, 1, usize::MAX];
+        const BYTES: [usize; 5] = [0, 1, 2, 3, usize::MAX];
+        let pasted = vec![para("p\u{e9}"), para(""), para("q")];
+        for doc in hostile_docs() {
+            for &block in &BLOCKS {
+                let mut edits = vec![
+                    Edit::SetBlockBold { block, on: true },
+                    Edit::SetBlockIndent { block, delta: i8::MIN },
+                    Edit::SetBlockIndent { block, delta: i8::MAX },
+                    Edit::ToggleBlockList { block, ordered: true },
+                    Edit::SetHeadingLevel { block, level: Some(u8::MAX) },
+                    Edit::SetHeadingLevel { block, level: Some(0) },
+                    Edit::SetHeadingLevel { block, level: None },
+                    Edit::MergeWithNext { block },
+                ];
+                for &run in &RUNS {
+                    for &byte in &BYTES {
+                        edits.push(Edit::InsertText { block, run, byte, text: "\u{4e2d}".into() });
+                        edits.push(Edit::SplitBlock { block, run, byte });
+                        for blocks in [Vec::new(), vec![para("x")], vec![table_free_heading()], pasted.clone()] {
+                            edits.push(Edit::InsertBlocks { at_block: block, at_run: run, at_byte: byte, blocks });
+                        }
+                        for &run_hi in &RUNS {
+                            for &byte_hi in &BYTES {
+                                edits.push(Edit::DeleteRange { block, run_lo: run, byte_lo: byte, run_hi, byte_hi });
+                            }
+                        }
+                    }
+                }
+                for edit in &edits {
+                    let mut d = doc.clone();
+                    apply(edit, &mut d);
+                }
+            }
+            for &from_block in &BLOCKS {
+                for &from_run in &RUNS {
+                    for &from_byte in &BYTES {
+                        for &to_block in &BLOCKS {
+                            for &to_run in &RUNS {
+                                for &to_byte in &BYTES {
+                                    let edits = [
+                                        Edit::SetRangeBold { from_block, from_run, from_byte, to_block, to_run, to_byte, on: true },
+                                        Edit::DeleteAcrossBlocks { from_block, from_run, from_byte, to_block, to_run, to_byte },
+                                    ];
+                                    for edit in &edits {
+                                        let mut d = doc.clone();
+                                        apply(edit, &mut d);
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+
+    fn table_free_heading() -> Block {
+        Block::Heading {
+            level: 2,
+            runs: vec![InlineRun::plain("h")],
             props: super::super::ast::BlockProps::default(),
         }
     }

@@ -92,6 +92,9 @@ v0.0.5 — current
        cannot make it reload a different file.
    25. Malformed RTF control parameters and excessive group nesting are
        reported as errors instead of crashing the editor.
+   26. Doc View handles stale edit positions without overflowing or walking
+       past the document. Malformed HTML color values pasted into Doc View
+       no longer crash it, and oversized RGB components stay within range.
 
   v0.1.0 — syntax & language:
 

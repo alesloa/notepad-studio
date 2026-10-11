@@ -554,6 +554,10 @@ v0.0.5 — current
          before changing the document. Valid open siblings still replace;
          status reports skipped documents and actual replacement counts.
 
+    141. Completion lists dismiss when a narrow pane cannot fit readable
+         labels. Padding, borders and the current font all count toward
+         the required width, including at different zoom levels.
+
   v0.1.0 — syntax & language:
 
     1. Tree-sitter syntax highlighting for 25 modes: Rust, Python, C,

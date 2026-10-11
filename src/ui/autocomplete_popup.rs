@@ -10,8 +10,13 @@ use gpui::{
 use crate::theme::Theme;
 use crate::workspace::Workspace;
 
+#[cfg(test)]
+#[path = "autocomplete_popup_narrow_tests.rs"]
+mod narrow_tests;
+
 const MAX_VISIBLE_ROWS: usize = 8;
 const ROW_HEIGHT_REM: f32 = 22. / 16.;
+const ROW_PADDING_REM: f32 = 8. / 16.;
 
 pub(crate) fn autocomplete_popup(
     theme: &Theme,
@@ -100,7 +105,8 @@ impl Element for CaretPopup {
         let viewport = viewport.intersect(&Bounds::new(Point::default(), window.viewport_size()));
         let rem = f32::from(window.rem_size());
         let width = candidate_width(&candidates, window);
-        let Some(placement) = popup_placement(caret, viewport, width, candidates.len(), rem)
+        let label_width = readable_label_width(window);
+        let Some(placement) = popup_placement(caret, viewport, width, candidates.len(), rem, label_width)
         else {
             self.workspace.update(cx, |w, cx| w.close_autocomplete(cx));
             return None;
@@ -148,7 +154,7 @@ impl Element for CaretPopup {
                 .items_center()
                 .flex_shrink_0()
                 .h(rems(ROW_HEIGHT_REM))
-                .px(rems(8. / 16.))
+                .px(rems(ROW_PADDING_REM))
                 .border_l_2()
                 .border_color(rgb(if selected {
                     theme.toggle_active
@@ -158,7 +164,9 @@ impl Element for CaretPopup {
                 .when(selected, |row| row.bg(rgb(theme.button_hover_bg)))
                 .hover(|s| s.bg(rgb(theme.button_hover_bg)))
                 .cursor(CursorStyle::PointingHand)
-                .child(div().min_w_0().truncate().child(candidate_label(candidate)))
+                .child(div().min_w_0().truncate()
+                    .when(cfg!(test), |label| label.debug_selector(|| "autocomplete-row-label".into()))
+                    .child(candidate_label(candidate)))
                 .on_mouse_down(MouseButton::Left, move |_, window, cx| {
                     cx.stop_propagation();
                     workspace.update(cx, |w, cx| w.accept_autocomplete_session(session_id, &pick, window, cx));
@@ -204,7 +212,8 @@ fn current_placement(workspace: &Workspace, window: &mut Window) -> Option<Popup
     let caret = workspace.autocomplete_caret_bounds()?;
     let viewport = workspace.viewport.bounds.intersect(&Bounds::new(Point::default(), window.viewport_size()));
     let width = candidate_width(&state.candidates, window);
-    popup_placement(caret, viewport, width, state.candidates.len(), f32::from(window.rem_size()))
+    let label_width = readable_label_width(window);
+    popup_placement(caret, viewport, width, state.candidates.len(), f32::from(window.rem_size()), label_width)
 }
 
 pub(crate) fn occupied_bounds(workspace: &Workspace, window: &mut Window) -> Option<Bounds<Pixels>> {
@@ -248,6 +257,16 @@ fn candidate_label(candidate: &str) -> String {
     label
 }
 
+fn readable_label_width(window: &mut Window) -> Pixels {
+    let style = window.text_style();
+    let font_size = window.rem_size() * (12. / 16.);
+    let runs = [TextRun {
+        len: "…".len(), font: style.font(), color: style.color,
+        background_color: None, underline: None, strikethrough: None,
+    }];
+    window.text_system().shape_line("…".into(), font_size, &runs, None).width
+}
+
 #[derive(Debug)]
 struct PopupPlacement {
     bounds: Bounds<Pixels>,
@@ -262,8 +281,10 @@ fn popup_placement(
     width: Pixels,
     len: usize,
     rem: f32,
+    label_width: Pixels,
 ) -> Option<PopupPlacement> {
-    if len == 0 || !rem.is_finite() || rem <= 0. || !f32::from(width).is_finite() {
+    if len == 0 || !rem.is_finite() || rem <= 0. || !f32::from(width).is_finite()
+        || !f32::from(label_width).is_finite() || label_width <= px(0.) {
         return None;
     }
     let margin = px(rem * 4. / 16.);
@@ -297,7 +318,10 @@ fn popup_placement(
         return None;
     }
     let width = width.max(px(0.)).min(right - left);
-    if width <= px(rem) {
+    // Two row paddings, the 2px selected-row lane and two 1px menu borders.
+    // A retained truncated label must have room for its complete ellipsis.
+    let minimum_width = px(rem * ROW_PADDING_REM * 2. + 4.) + label_width;
+    if width < minimum_width {
         return None;
     }
     let height = row_height * rows as f32 + chrome;
@@ -342,6 +366,23 @@ mod tests {
     }
 
     #[test]
+    fn width_admission_includes_row_chrome_and_the_measured_label_at_each_zoom() {
+        for rem in [8., 16., 32., 48.] {
+            let label_width = px(rem * 0.45);
+            let minimum = px(rem + 4.) + label_width;
+            let caret = bounds(0., 0., 1., rem);
+            let viewport = bounds(0., 0., rem * 30., rem * 20.);
+            assert!(popup_placement(caret, viewport, minimum - px(0.25), 1, rem, label_width).is_none());
+            let exact = popup_placement(caret, viewport, minimum, 1, rem, label_width).unwrap();
+            assert_eq!(exact.bounds.size.width, minimum);
+            assert!(popup_placement(caret, viewport, minimum + px(1.), 1, rem, label_width).is_some());
+            for invalid in [px(0.), px(-1.), px(f32::NAN), px(f32::INFINITY)] {
+                assert!(popup_placement(caret, viewport, minimum, 1, rem, invalid).is_none());
+            }
+        }
+    }
+
+    #[test]
     fn selection_past_the_list_stays_in_range() {
         for capacity in [0, 1, 2, 8] {
             for (len, selected) in [(50, 60), (9, 100), (9, usize::MAX), (0, usize::MAX)] {
@@ -359,7 +400,7 @@ mod tests {
     fn screenshot_sized_pane_keeps_the_first_line_clear() {
         let caret = bounds(440., 117., 1., 22.);
         let viewport = bounds(63., 114., 467., 119.);
-        let popup = popup_placement(caret, viewport, px(160.), 50, 16.).expect("room below");
+        let popup = popup_placement(caret, viewport, px(160.), 50, 16., px(12.)).expect("room below");
         assert!(popup.bounds.top() > caret.bottom());
         assert!(popup.bounds.right() <= viewport.right());
         assert!(popup.bounds.bottom() <= viewport.bottom());
@@ -369,7 +410,7 @@ mod tests {
     #[test]
     fn bottom_line_flips_above_instead_of_covering_the_caret() {
         let caret = bounds(400., 280., 1., 20.);
-        let popup = popup_placement(caret, bounds(80., 100., 450., 210.), px(180.), 50, 16.)
+        let popup = popup_placement(caret, bounds(80., 100., 450., 210.), px(180.), 50, 16., px(12.))
             .expect("room above");
         assert_eq!(popup.rows, 7);
         assert!(popup.bounds.bottom() < caret.top());
@@ -378,13 +419,13 @@ mod tests {
     #[test]
     fn no_geometry_or_no_room_means_no_popup() {
         let viewport = bounds(80., 100., 450., 26.);
-        assert!(popup_placement(bounds(100., 102., 1., 22.), viewport, px(180.), 1, 16.).is_none());
+        assert!(popup_placement(bounds(100., 102., 1., 22.), viewport, px(180.), 1, 16., px(12.)).is_none());
         for caret in [
             bounds(100., 90., 1., 22.),
             bounds(100., 120., 1., 22.),
             bounds(60., 102., 1., 22.),
         ] {
-            assert!(popup_placement(caret, viewport, px(180.), 1, 16.).is_none());
+            assert!(popup_placement(caret, viewport, px(180.), 1, 16., px(12.)).is_none());
         }
     }
 
@@ -404,7 +445,7 @@ mod tests {
             for y in (100..329).step_by(3) {
                 for x in [80., 120., 400., 529.] {
                     let caret = bounds(x, y as f32, 1., 22.);
-                    if let Some(popup) = popup_placement(caret, viewport, px(1000.), 50, rem) {
+                    if let Some(popup) = popup_placement(caret, viewport, px(1000.), 50, rem, px(rem * 12. / 16.)) {
                         assert!(popup.bounds.left() >= viewport.left());
                         assert!(popup.bounds.right() <= viewport.right());
                         assert!(popup.bounds.top() >= viewport.top());

@@ -152,6 +152,7 @@ pub(crate) fn csv_preview_pane(
     workspace: Entity<Workspace>,
 ) -> AnyElement {
     let grid_focus = snapshot.grid_focus.clone();
+    let input_bridge = grid_focus.as_ref().map(|focus| super::grid_input::grid_input_bridge(workspace.clone(), focus.clone()));
     let draft_strip = recovered_draft_strip(theme, snapshot, workspace.clone());
     if snapshot.col_count == 0 {
         // Empty-schema placeholder. Still tracks the grid focus so
@@ -161,6 +162,7 @@ pub(crate) fn csv_preview_pane(
         // visible even on an empty file.
         let mut wrapper = div()
             .id("csv-preview-pane-empty")
+            .relative()
             .flex()
             .flex_col()
             .size_full()
@@ -170,6 +172,7 @@ pub(crate) fn csv_preview_pane(
             wrapper = wrapper.track_focus(handle);
         }
         return wrapper
+            .when_some(input_bridge, |pane, bridge| pane.child(bridge))
             .when_some(draft_strip, |pane, strip| pane.child(strip))
             .child(
                 div()
@@ -202,6 +205,7 @@ pub(crate) fn csv_preview_pane(
 
     let mut pane = div()
         .id("csv-preview-pane")
+        .relative()
         .flex()
         .flex_col()
         .size_full()
@@ -234,7 +238,7 @@ pub(crate) fn csv_preview_pane(
                 .child(header),
         );
 
-    pane.when_some(draft_strip, |pane, strip| pane.child(strip)).child(header_strip)
+    pane.when_some(input_bridge, |pane, bridge| pane.child(bridge)).when_some(draft_strip, |pane, strip| pane.child(strip)).child(header_strip)
         .child(
             div()
                 .id("csv-grid-body")

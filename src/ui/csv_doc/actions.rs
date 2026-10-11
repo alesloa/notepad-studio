@@ -1136,6 +1136,7 @@ pub(crate) fn begin_cell_edit_with_seed(
             });
         }
         window.focus(&focus_handle, cx);
+        w.schedule_autosave(cx);
         cx.notify();
         return;
     }
@@ -1173,6 +1174,7 @@ pub(crate) fn begin_cell_edit_with_seed(
         });
     }
     window.focus(&focus_handle, cx);
+    w.schedule_autosave(cx);
     cx.notify();
 }
 

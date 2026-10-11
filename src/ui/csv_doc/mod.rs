@@ -26,6 +26,7 @@ pub(crate) mod filter_dropdown;
 pub(crate) mod find_bar;
 pub(crate) mod format_bar;
 pub(crate) mod grid;
+mod grid_input;
 pub(crate) mod model;
 pub(crate) mod status_bar;
 pub(crate) mod undo;
@@ -61,3 +62,6 @@ pub(crate) fn default_delimiter_for_path(path: Option<&std::path::Path>) -> u8 {
         .map(|e| e.to_ascii_lowercase());
     if ext.as_deref() == Some("tsv") { b'\t' } else { b',' }
 }
+
+#[cfg(test)]
+mod grid_input_tests;

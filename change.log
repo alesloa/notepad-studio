@@ -279,6 +279,10 @@ v0.0.5 — current
       created while the prompt was open. Save refuses unopened recovery drafts
       without losing them; opening the CSV grid still exposes their text.
 
+  71. Typing into a focused CSV grid opens the cell editor correctly. The
+      first body or header character reaches recovery autosave; later Unicode
+      and IME input stays in the cell without editing hidden source text.
+
   v0.1.0 — syntax & language:
 
     1. Tree-sitter syntax highlighting for 25 modes: Rust, Python, C,

@@ -9,7 +9,7 @@ Scope: Continue the requested cross-platform Notepad++ parity audit and fix the 
   EVIDENCE: reviewed 181087cf source integration; 10 new real-Workspace dispatch/session/focus regressions plus existing bounds/lifecycle tests pass in the 1312-unit main gate. Native validation remains G8.
 
 - [x] G3: Pending CSV cell text survives successful Save/close/tab switch and recovery; refused commits preserve editable text and the source.
-  EVIDENCE: reviewed fec4d0c/e257957 Save/close/navigation plus bab3c30 recovery;1422-unit main gate includes25 new recovery/bounded-input/publication regressions. Exact immutable source basis is verified before apply; interrupted writes keep preceding basis/manifest, invalid/stale/read-only/native-target drafts retain full editable text, UTF8 caret/focus/debounce and older sessions covered. Native visual evidence remainsG8; revieweded51dbb adds22 rendered clean-grid/tab/SaveAs/refusal/newer-field focus cases in1448-unit gate. reviewedc615c929 closes legacy-context Reload guards and preserves late/live/lazy/detached drafts. Ten rendered/deferred Close regressions also cover intervening source/rich/CSV/metadata/loading changes, post-save edits and lazy Save/Close refusal with recovery-grid access. First-character grid input remains a separateG7leaf.
+  EVIDENCE: reviewed fec4d0c/e257957 Save/close/navigation plus bab3c30 recovery;1422-unit main gate includes25 new recovery/bounded-input/publication regressions. Exact immutable source basis is verified before apply; interrupted writes keep preceding basis/manifest, invalid/stale/read-only/native-target drafts retain full editable text, UTF8 caret/focus/debounce and older sessions covered. Native visual evidence remainsG8; revieweded51dbb adds22 rendered clean-grid/tab/SaveAs/refusal/newer-field focus cases in1448-unit gate. reviewedc615c929 closes legacy-context Reload guards and preserves late/live/lazy/detached drafts. Ten rendered/deferred Close regressions also cover intervening source/rich/CSV/metadata/loading changes, post-save edits and lazy Save/Close refusal with recovery-grid access. Reviewed1b6005baa adds9 real-frame/native-input protocol regressions for first body/header characters, UTF16 replacement/encoding/history, hidden/inactive/empty/refused grids and actual debounced recovery. Composition without explicit replacement ranges remains a separateG7leaf.
 
 - [x] G4: Rich typing, Enter and Tab preserve Unicode and undo selected replacements in one action, with no-op/read-only Redo preserved.
   EVIDENCE: 78af329 plus reviewed 003146fc source integration; selected-Tab actual handler, nested/no-op/read-only tests pass in the 1302-unit main gate.
@@ -27,14 +27,14 @@ Scope: Continue the requested cross-platform Notepad++ parity audit and fix the 
   EVIDENCE: partial; immutable8a1a353 built on Ubuntu24.04/WSL with Rust1.99.0;1425 units+1 integration passed,8ignored (Windows-only test omitted), logs log/linux-8a1a353-{build,tests}.txt. Current native computer-use transport is unavailable and CUA native surfaces are disabled. macOS/current later batches/native exercised UI remain open; headless GPUI tests are not native screenshots.
 
 - [x] G9: The integrated main tree builds and passes its required unit/integration/clippy checks with no new warnings on touched code.
-  CHECK: powershell -NoProfile -Command "Get-Content log/close-async-integration-tests.txt -Tail 16"
-  EXPECT: 1476 passed; 0 failed
-  EVIDENCE: async Close batch; cargo build and clippy all-targets passed;1476 units + 1 integration passed,8 ignored, no new touched-code warnings. Refresh for each source batch.
+  CHECK: powershell -NoProfile -Command "Get-Content log/csv-grid-input-integration-tests.txt -Tail 16"
+  EXPECT: 1485 passed; 0 failed
+  EVIDENCE: reviewed1b6005baa CSV grid input batch; cargo build and clippy all-targets passed;1485 units + 1 integration passed,8 ignored, no new touched-code warnings. Refresh for each source batch.
 
 - [x] G10: Completed source batches have separate conventional commits and current change.log/devlog entries; the main working tree is clean before beginning a new batch.
   CHECK: git status --porcelain
   EXPECT: /^$/
-  EVIDENCE: mainea0ce02 was clean before this async Close batch;70 current-version release notes and a devlog entry accompany it. Refresh after each source batch.
+  EVIDENCE: main5da440c was clean before this CSV grid input batch;71 current-version release notes and a devlog entry accompany it. Refresh after each source batch.
 
 - [x] G11: View > Tab exposes every oracle Tab command in order with rebindable shortcuts; selection/reordering/color commands preserve document UUID, text, encoding/EOL, saved state and history, with edge and pending-cell refusal coverage.
   EVIDENCE: oracle RC789-817 / Commands1304-1412,3532-3537; red missing-menu contract then 7 new menu/actual-dispatch/refusal/edge tests pass. 1332-unit main gate; existing shortcut parity/collision tests cover added rows. Native appearance remains G8.

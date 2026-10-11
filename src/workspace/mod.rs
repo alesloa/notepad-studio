@@ -225,6 +225,8 @@ pub(crate) struct Workspace {
     pub(crate) autosave_generation: u64,
     #[cfg(test)]
     pub(crate) session_snapshot_sink: Option<std::sync::mpsc::Sender<SessionManifest>>,
+    #[cfg(test)]
+    pub(crate) session_final_save_result: Option<bool>,
     /// Generation guard for the debounced post-edit reparse + eager-persist
     /// task (`schedule_reparse`). Mirrors `autosave_generation`: each edit
     /// bumps it, and only the latest scheduled task does the heavyweight
@@ -690,6 +692,8 @@ impl Workspace {
             autosave_generation: 0,
             #[cfg(test)]
             session_snapshot_sink: None,
+            #[cfg(test)]
+            session_final_save_result: None,
             post_edit_generation: 0,
             window_closed: false,
             session_window_id: Uuid::new_v4(),
@@ -1110,20 +1114,18 @@ impl Workspace {
 
     /// Close/reopen must see the final snapshot immediately. gpui allows only
     /// 100 ms for quit futures, so shutdown cannot rely on a detached write.
-    pub(crate) fn save_session_now(&self) -> bool {
-        if self.window_closed { return true; }
-        let policy = session::BakPolicy::Full;
-        let result = session::prepare_save(self.session_window_id, self.session_snapshot(policy), policy)
-            .and_then(session::write_prepared);
-        if let Err(err) = result {
-            eprintln!("[session] final recovery write failed: {err}");
-            rfd::MessageDialog::new().set_level(rfd::MessageLevel::Error)
-                .set_title(crate::consts::APP_NAME)
-                .set_description(format!("Session recovery could not be saved: {err}"))
-                .show();
-            return false;
+    pub(crate) fn save_session_now(&self) -> std::io::Result<()> {
+        #[cfg(test)]
+        if let Some(saved) = self.session_final_save_result {
+            if let Some(sink) = &self.session_snapshot_sink {
+                let _ = sink.send(self.session_snapshot(session::BakPolicy::Full));
+            }
+            return if saved { Ok(()) } else { Err(std::io::Error::other("injected final recovery failure")) };
         }
-        true
+        if self.window_closed { return Ok(()); }
+        let policy = session::BakPolicy::Full;
+        session::prepare_save(self.session_window_id, self.session_snapshot(policy), policy)
+            .and_then(session::write_prepared)
     }
 
     pub(crate) fn session_snapshot(&self, policy: session::BakPolicy) -> SessionManifest {

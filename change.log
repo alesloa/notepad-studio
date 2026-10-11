@@ -288,6 +288,10 @@ v0.0.5 — current
       keep the last valid definitions. Manual Function lists select the typed
       prefix and allow choosing another visible member before editing.
 
+  73. Exit checks session recovery before quitting every editor window. A
+      failed write keeps documents and CSV drafts open and shows the error
+      in the status bar; retrying Exit or window close remains available.
+
   v0.1.0 — syntax & language:
 
     1. Tree-sitter syntax highlighting for 25 modes: Rust, Python, C,

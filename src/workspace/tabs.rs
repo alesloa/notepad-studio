@@ -214,7 +214,7 @@ impl Workspace {
         self.close_autocomplete(cx);
         if self.tabs.is_empty() {
             if crate::settings::snapshot().tab_exit_on_last_close {
-                self.close_window_after_last_tab(window);
+                self.close_window_after_last_tab(window, cx);
                 return;
             } else {
                 // NPP "Exit on close the last tab" unchecked — keep the window
@@ -241,9 +241,11 @@ impl Workspace {
     /// outlive the window. A blank tab is parked in the strip so late timers
     /// (the debounced reparse) and async closures still find an active tab,
     /// and `window_closed` stops them persisting it.
-    fn close_window_after_last_tab(&mut self, window: &mut Window) {
-        if !self.save_session_now() {
+    fn close_window_after_last_tab(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        if let Err(err) = self.save_session_now() {
             park_closed_strip(&mut self.tabs, &mut self.active);
+            self.set_status(format!("Window close cancelled: session recovery could not be saved: {err}; save your documents or retry closing"));
+            cx.notify();
             return;
         }
         self.release_session_window();
@@ -371,7 +373,7 @@ impl Workspace {
                         // No render or observer may see an empty strip between
                         // this removal and the batch's final update.
                         if leave_blank_if_empty { w.append_blank_tab(cx); }
-                        else { w.close_window_after_last_tab(window); }
+                        else { w.close_window_after_last_tab(window, cx); }
                     } else {
                         w.touch_mru();
                         w.last_lines.clear();
@@ -388,7 +390,7 @@ impl Workspace {
                     if leave_blank_if_empty {
                         w.append_blank_tab(cx);
                     } else {
-                        w.close_window_after_last_tab(window);
+                        w.close_window_after_last_tab(window, cx);
                         return;
                     }
                 }
@@ -764,7 +766,7 @@ impl Workspace {
                 let removed = self.tabs.remove(idx);
                 drop(removed);
                 if self.tabs.is_empty() {
-                    self.close_window_after_last_tab(window);
+                    self.close_window_after_last_tab(window, cx);
                     return;
                 }
                 self.active = active_after_removal(self.active, idx, self.tabs.len());

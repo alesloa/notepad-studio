@@ -95,7 +95,7 @@ pub(crate) fn install_global_actions(cx: &mut App) {
     // (`WindowHandle::update` errors): About opened a spare window and
     // dialogs lost their centre-on-workspace bounds. Handlers that touch a
     // window run deferred, after dispatch hands the window back.
-    cx.on_action(|_: &Quit, cx: &mut App| cx.quit());
+    cx.on_action(|_: &Quit, cx: &mut App| cx.defer(super::quit::quit_with_recovery));
     cx.on_action(|_: &FileNewWindow, cx: &mut App| cx.defer(open_editor_window));
     // Help ▸ About — route into the focused (or any open) workspace so the
     // modal mounts on a real window. If no workspace exists (rare: macOS

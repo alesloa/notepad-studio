@@ -127,7 +127,11 @@ fn main() {
             // close before the timer fires and lose the new tab.
             for handle in cx.windows() {
                 if let Some(ws) = handle.downcast::<workspace::Workspace>() {
-                    ws.update(cx, |w, _window, _cx| w.save_session_now()).ok();
+                    let _ = ws.update(cx, |w, _window, _cx| {
+                        if let Err(err) = w.save_session_now() {
+                            eprintln!("[session] final recovery write failed: {err}");
+                        }
+                    });
                 }
             }
         })

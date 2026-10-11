@@ -1,5 +1,9 @@
 // EntityInputHandler — IME / OS keyboard text routes through here.
 
+#[cfg(test)]
+#[path = "rich_input_history_tests.rs"]
+mod rich_input_history_tests;
+
 // --- helpers for the find/replace/goto String inputs --------------------------------
 
 use std::ops::Range;
@@ -967,10 +971,7 @@ impl EntityInputHandler for Workspace {
                 // Strip C0 controls. Newlines (\n / \r) are kept and become
                 // paragraph splits via the segmented insert below — Phase 2g.B
                 // supports multi-line paste / Enter as block boundaries.
-                let cleaned: String = new_text
-                    .chars()
-                    .filter(|c| !is_c0_control(*c as u8))
-                    .collect();
+                let cleaned = strip_c0_controls(new_text);
                 if cleaned.is_empty() {
                     return;
                 }
@@ -978,16 +979,19 @@ impl EntityInputHandler for Workspace {
                 // is inserted in order; between segments we issue a paragraph
                 // break so a pasted "a\nb\nc" turns into three paragraphs.
                 let normalized = cleaned.replace("\r\n", "\n").replace('\r', "\n");
-                let mut first = true;
-                for segment in normalized.split('\n') {
-                    if !first {
-                        self.rich_doc_insert_paragraph_break(cx);
+                // scintilla/src/Editor.cxx:2094 — replacing a selection is one Undo.
+                self.with_rich_doc_edit_group(cx, |w, cx| {
+                    let mut first = true;
+                    for segment in normalized.split('\n') {
+                        if !first {
+                            w.rich_doc_insert_paragraph_break(cx);
+                        }
+                        if !segment.is_empty() {
+                            w.rich_doc_insert_text(segment, cx);
+                        }
+                        first = false;
                     }
-                    if !segment.is_empty() {
-                        self.rich_doc_insert_text(segment, cx);
-                    }
-                    first = false;
-                }
+                });
             }
             InputFocus::CsvCell => {
                 // Cell editor is a single-line free-text field. Strip

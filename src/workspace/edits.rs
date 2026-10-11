@@ -714,7 +714,8 @@ impl Workspace {
                 // through the action handler instead of the on_key_down
                 // listener ensures Enter works regardless of which div in
                 // the rich-doc pane the keystroke originated from.
-                self.rich_doc_insert_paragraph_break(cx);
+                // scintilla/src/Editor.cxx:3347 — delete + newline is one Undo.
+                self.with_rich_doc_edit_group(cx, |w, cx| w.rich_doc_insert_paragraph_break(cx));
             }
             InputFocus::CsvCell => {
                 // Excel Enter — commit any in-progress edit and step the

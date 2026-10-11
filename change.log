@@ -203,6 +203,10 @@ v0.0.5 — current
     53. Recorded completion cannot change hidden preview source or an
         inactive window. It requires an active Source/Raw editor context.
 
+    54. Doc View typing preserves emoji and all Unicode characters while
+        removing real control codes. Replacing selected text and pressing Enter
+        each undo in one step, restoring text, formatting and the selection.
+
   v0.1.0 — syntax & language:
 
     1. Tree-sitter syntax highlighting for 25 modes: Rust, Python, C,

@@ -19,6 +19,9 @@ use serde::{Deserialize, Serialize};
 
 use crate::consts::APP_NAME;
 
+#[path = "recent_writer.rs"]
+mod writer;
+
 /// Effective MRU cap. Reads `Settings.recent_files_max` (NPP `Recent Files
 /// History ▸ Max. number of entries:`) and clamps to `[0, 30]` to match
 /// NPP's spinner range — zero disables the list, anything beyond 30 is
@@ -116,19 +119,9 @@ pub(crate) fn filter_existing(list: &[PathBuf]) -> Vec<PathBuf> {
     list.iter().filter(|p| p.exists()).cloned().collect()
 }
 
-/// Persist `recent` to `recent.toml`. Best-effort: any I/O error is dropped
-/// silently so a non-writable config dir can't surface as a broken-looking
-/// File menu interaction.
-pub(crate) fn save(recent: &RecentFiles) {
-    let Some(path) = config_path() else {
-        return;
-    };
-    if let Err(err) = save_at(&path, recent) {
-        eprintln!("[recent] couldn't save {}: {err}", path.display());
-    }
-}
-
 fn save_at(path: &Path, recent: &RecentFiles) -> std::io::Result<()> {
+    #[cfg(test)]
+    test_snapshot::observe_save(path);
     if let Some(parent) = path.parent() {
         std::fs::create_dir_all(parent)?;
     }
@@ -175,38 +168,63 @@ pub(crate) fn snapshot() -> Vec<PathBuf> {
         .unwrap_or_default()
 }
 
-/// Push `path` to the front of the global MRU list and persist to disk.
+/// Mutate memory and enqueue persistence in the same ordering critical section.
+/// Spawning and disk writes occur after GLOBAL is released.
+fn mutate_global(update: impl FnOnce(&mut RecentFiles) -> bool) {
+    let start = {
+        let Ok(mut recent) = global().lock() else {
+            eprintln!("[recent] recent-file state lock was poisoned");
+            return;
+        };
+        if !update(&mut recent) { return; }
+        WRITER.get().and_then(|writer| writer::queue(writer, &recent))
+    };
+    if let Some(writer) = start { writer.start(); }
+}
+
+/// Push a path immediately; persist the bounded snapshot in the background.
 pub(crate) fn record_opened(path: PathBuf) {
     #[cfg(test)]
-    if test_snapshot::mutate(|recent| recent.push(path.clone())) { return; }
-    if let Ok(mut g) = global().lock() {
-        g.push(path);
-        save(&g);
-    }
+    if test_snapshot::mutate(|recent| { recent.push(path.clone()); true }) { return; }
+    mutate_global(|recent| { recent.push(path); true });
 }
 
-/// Empty the global MRU list and persist the cleared state.
 pub(crate) fn clear_global() {
     #[cfg(test)]
-    if test_snapshot::mutate(RecentFiles::clear) { return; }
-    if let Ok(mut g) = global().lock() {
-        g.clear();
-        save(&g);
-    }
+    if test_snapshot::mutate(|recent| { recent.clear(); true }) { return; }
+    mutate_global(|recent| { recent.clear(); true });
 }
 
-/// Drop a single entry from the MRU list. Used when the user confirms
-/// removal of a stale recent (file no longer exists on disk).
 pub(crate) fn remove_path(path: &Path) {
+    let remove = |recent: &mut RecentFiles| {
+        let before = recent.paths.len();
+        recent.paths.retain(|entry| entry != path);
+        recent.paths.len() != before
+    };
     #[cfg(test)]
-    if test_snapshot::mutate(|recent| recent.paths.retain(|entry| entry != path)) { return; }
-    if let Ok(mut g) = global().lock() {
-        let before = g.paths.len();
-        g.paths.retain(|p| p != path);
-        if g.paths.len() != before {
-            save(&g);
-        }
+    if test_snapshot::mutate(remove) { return; }
+    mutate_global(remove);
+}
+
+static WRITER: OnceLock<std::sync::Arc<writer::Writer>> = OnceLock::new();
+
+/// Installed before the first menu/restore can mutate the process-wide MRU.
+pub(crate) fn init(executor: gpui::BackgroundExecutor) {
+    let Some(path) = config_path() else { return; };
+    if path.as_os_str().len() > 1024 * 1024 {
+        eprintln!("[recent] configuration path exceeds the persistence limit");
+        return;
     }
+    let _ = WRITER.set(writer::Writer::new(executor, path));
+}
+
+/// Shutdown-only synchronous barrier; gpui quit futures have a 100 ms timeout.
+pub(crate) fn finish_shutdown() {
+    let Some(writer) = WRITER.get() else { return; };
+    writer.finish(|| {
+        let recent = global().lock().map_err(|_| "recent-file state lock was poisoned".to_owned())?;
+        writer::bounded_snapshot(&recent)
+    });
 }
 
 /// Pretty-print a path for the File ▸ Open Recent menu. When `full_path` is
@@ -267,3 +285,6 @@ mod tests {
         assert_eq!(load_paths_at(&p), vec![PathBuf::from("/ok.txt")]);
     }
 }
+#[cfg(test)]
+#[path = "recent_writer_tests.rs"]
+mod writer_tests;

@@ -148,10 +148,8 @@ impl Workspace {
         self.last_lines.clear();
         self.caret_visible = true;
         self.save_session(cx);
-        // Push to MRU and rebuild the File ▸ Open Recent submenu. Order
-        // matters: `record_opened` writes the new TOML before the menu
-        // rebuild reads the global snapshot, so the new entry is the first
-        // item in the submenu by the time the OS picks up the new menu tree.
+        // Update MRU memory before rebuilding the menu. Disk persistence is
+        // coalesced on the background executor and does not delay this open.
         recent::record_opened(path);
         rebuild_menus(&mut *cx);
         cx.notify();

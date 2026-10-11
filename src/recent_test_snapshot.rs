@@ -1,8 +1,11 @@
-// Thread-local recent files for tests; production MRU persistence is unchanged.
+// Thread-local recent files and optional neutral persistence backends for tests.
 use std::{cell::RefCell, marker::PhantomData, path::PathBuf, rc::Rc};
 use super::RecentFiles;
+use std::sync::Arc;
+use super::writer::Writer;
 
 thread_local! {
+    static WRITER: RefCell<Option<Arc<Writer>>> = const { RefCell::new(None) };
     static SNAPSHOT: RefCell<Option<RecentFiles>> = const { RefCell::new(None) };
 }
 
@@ -28,13 +31,26 @@ pub(super) fn snapshot() -> Option<Vec<PathBuf>> {
     SNAPSHOT.with(|slot| slot.borrow().as_ref().map(|recent| recent.paths.clone()))
 }
 
-pub(super) fn mutate(update: impl FnOnce(&mut RecentFiles)) -> bool {
-    SNAPSHOT.with(|slot| {
+pub(super) fn mutate(update: impl FnOnce(&mut RecentFiles) -> bool) -> bool {
+    let start = SNAPSHOT.with(|slot| {
         let mut slot = slot.borrow_mut();
-        let Some(recent) = slot.as_mut() else { return false; };
-        update(recent);
-        true
-    })
+        let recent = slot.as_mut()?;
+        let changed = update(recent);
+        let writer = WRITER.with(|writer| writer.borrow().clone());
+        Some(if changed { writer.and_then(|writer| super::writer::queue(&writer, recent)) } else { None })
+    });
+    let Some(start) = start else { return false; };
+    if let Some(writer) = start { writer.start(); }
+    true
+}
+
+pub(super) fn observe_save(path: &std::path::Path) {
+    if super::writer::controlled_write() { return; }
+    WRITER.with(|slot| {
+        if let Some(writer) = slot.borrow().as_ref().filter(|writer| writer.destination() == path) {
+            writer.probe.inline.fetch_add(1, std::sync::atomic::Ordering::AcqRel);
+        }
+    });
 }
 
 #[test]
@@ -95,4 +111,12 @@ fn fixture_mutations_restore_nested_state_and_stay_on_their_thread() {
         assert!(super::snapshot().is_empty());
     }).join().unwrap();
     assert_eq!(super::snapshot(), vec![outer]);
+}
+
+pub(super) struct WriterGuard(Option<Arc<Writer>>, PhantomData<Rc<()>>);
+impl Drop for WriterGuard {
+    fn drop(&mut self) { WRITER.with(|slot| *slot.borrow_mut() = self.0.take()); }
+}
+pub(super) fn override_writer(writer: Arc<Writer>) -> WriterGuard {
+    WriterGuard(WRITER.with(|slot| slot.replace(Some(writer))), PhantomData)
 }

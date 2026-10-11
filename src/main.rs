@@ -111,6 +111,7 @@ fn main() {
 
     app.run(|cx: &mut App| {
         cx.activate(true);
+        recent::init(cx.background_executor().clone());
         // Resolve the platform monospace face before any window renders.
         fonts::init(cx);
         // QuitMode::Default keeps macOS apps alive after the last window closes
@@ -150,6 +151,7 @@ fn main() {
             // so the next instance cannot race the final writes.
             // A crash leaves the lock behind; the next launch's stale-PID
             // branch will clear it.
+            recent::finish_shutdown();
             async { single_instance::release(); }
         })
         .detach();

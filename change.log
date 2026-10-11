@@ -441,6 +441,9 @@ v0.0.5 — current
     111. In-selection Count and Find Next preserve document regex context,
          avoiding false line-start and word-boundary matches.
 
+    112. Recent-file updates persist in background so opening and saving
+         do not wait for recent-list writes. Quitting preserves the latest list.
+
   v0.1.0 — syntax & language:
 
     1. Tree-sitter syntax highlighting for 25 modes: Rust, Python, C,

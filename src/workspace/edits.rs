@@ -2551,7 +2551,8 @@ impl Workspace {
     /// Insert a tab character at the cursor. Phase 2g.B does not implement
     /// indent-by-selection; this just types `\t` into the active run.
     pub(crate) fn rich_doc_insert_tab(&mut self, cx: &mut Context<Self>) {
-        self.rich_doc_insert_text("\t", cx);
+        // scintilla/src/Editor.cxx:2094 — selected text replacement is one Undo.
+        self.with_rich_doc_edit_group(cx, |w, cx| w.rich_doc_insert_text("\t", cx));
     }
 
     /// Option+Arrow word jump inside the rich-doc body. `dir < 0` walks left,

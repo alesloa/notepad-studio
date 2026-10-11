@@ -212,6 +212,9 @@ v0.0.5 — current
         history; stale grid edits cannot overwrite newer source text. Unchanged
         preview frames avoid copying the entire source file.
 
+    56. Typing Tab over a Doc View selection replaces it in one Undo step,
+        restoring text, formatting and the selection when undone.
+
   v0.1.0 — syntax & language:
 
     1. Tree-sitter syntax highlighting for 25 modes: Rust, Python, C,

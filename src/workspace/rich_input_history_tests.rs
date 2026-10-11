@@ -5,7 +5,7 @@ use gpui::{
 };
 
 use crate::{
-    actions::edit::{EditInsertNewline, EditRedo, EditUndo},
+    actions::edit::{EditInsertNewline, EditInsertTab, EditRedo, EditUndo},
     rich_doc::{
         RichDocPayload, TextPos, TextSelection,
         ast::{Alignment, Block, BlockProps, InlineRun, InlineStyle},
@@ -254,6 +254,34 @@ fn rich_os_input_preserves_unicode_and_strips_real_c0_controls() {
 }
 
 #[test]
+fn tab_replaces_selection_and_restores_it_with_one_undo() {
+    for across in [false, true] {
+        for reversed in [false, true] {
+            with_workspace(|w, window, cx| {
+                select(w, across, reversed);
+                assert_one_action(w, window, cx, |w, window, cx| {
+                    w.insert_tab(&EditInsertTab, window, cx);
+                    let expected = if across {
+                        "\u{feff}café b\til 末尾"
+                    } else {
+                        "\u{feff}café b\td\nmiddle\ntail 末尾"
+                    };
+                    assert_eq!(
+                        w.buffer()
+                            .rich_doc
+                            .as_ref()
+                            .expect("rich fixture")
+                            .flat_search_text()
+                            .0,
+                        expected
+                    );
+                });
+            });
+        }
+    }
+}
+
+#[test]
 fn no_op_and_read_only_input_preserve_redo() {
     for missing_caret in [false, true] {
         with_workspace(|w, window, cx| {
@@ -280,10 +308,12 @@ fn no_op_and_read_only_input_preserve_redo() {
             if missing_caret {
                 w.replace_text_in_range(None, "ignored\ntext", window, cx);
                 w.insert_newline(&EditInsertNewline, window, cx);
+                w.insert_tab(&EditInsertTab, window, cx);
             }
             w.active_tab_mut().buffer.read_only = true;
             w.replace_text_in_range(None, "blocked\r\ntext", window, cx);
             w.insert_newline(&EditInsertNewline, window, cx);
+            w.insert_tab(&EditInsertTab, window, cx);
             let payload = w.buffer().rich_doc.as_ref().expect("rich fixture");
             assert_state(payload, &before);
             assert_eq!(payload.undo_stack.len(), before.undo_stack.len());
@@ -310,7 +340,7 @@ fn no_op_and_read_only_input_preserve_redo() {
 }
 
 #[test]
-fn typing_and_enter_keep_an_outer_edit_group_open() {
+fn typing_enter_and_tab_keep_an_outer_edit_group_open() {
     with_workspace(|w, window, cx| {
         select(w, true, false);
         assert_one_action(w, window, cx, |w, window, cx| {
@@ -325,6 +355,15 @@ fn typing_and_enter_keep_an_outer_edit_group_open() {
                         .is_some()
                 );
                 w.insert_newline(&EditInsertNewline, window, cx);
+                assert!(
+                    w.buffer()
+                        .rich_doc
+                        .as_ref()
+                        .expect("rich fixture")
+                        .edit_group_start
+                        .is_some()
+                );
+                w.insert_tab(&EditInsertTab, window, cx);
                 assert!(
                     w.buffer()
                         .rich_doc

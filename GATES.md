@@ -11,8 +11,8 @@ Scope: Continue the requested cross-platform Notepad++ parity audit and fix the 
 - [ ] G3: Pending CSV cell text survives successful Save/close/tab switch and recovery; refused commits preserve editable text and the source.
   EVIDENCE: pending
 
-- [ ] G4: Rich typing, Enter and Tab preserve Unicode and undo selected replacements in one action, with no-op/read-only Redo preserved.
-  EVIDENCE: 78af329 covers typing/Enter; selected Tab 003146fc awaits main integration.
+- [x] G4: Rich typing, Enter and Tab preserve Unicode and undo selected replacements in one action, with no-op/read-only Redo preserved.
+  EVIDENCE: 78af329 plus reviewed 003146fc source integration; selected-Tab actual handler, nested/no-op/read-only tests pass in the 1302-unit main gate.
 
 - [ ] G5: Macro playback uses the visible editable source context and preserves input fields, preview source, inactive windows and read-only documents.
   EVIDENCE: ec0c73d covers CompleteWord only; general InsertText/entry routing remains under audit.
@@ -27,9 +27,9 @@ Scope: Continue the requested cross-platform Notepad++ parity audit and fix the 
   EVIDENCE: pending; current native computer-use transport is unavailable and CUA native surfaces are disabled. Headless GPUI tests are not native screenshots.
 
 - [x] G9: The integrated main tree builds and passes its required unit/integration/clippy checks with no new warnings on touched code.
-  CHECK: powershell -NoProfile -Command "Get-Content log/csv-savepoint-integration-tests.txt -Tail 16"
-  EXPECT: 1301 passed; 0 failed
-  EVIDENCE: main 71d33f5; cargo build and clippy all-targets passed; 1301 units + 1 integration passed, 8 ignored. Refresh for each source batch.
+  CHECK: powershell -NoProfile -Command "Get-Content log/rich-tab-integration-tests.txt -Tail 16"
+  EXPECT: 1302 passed; 0 failed
+  EVIDENCE: rich Tab integration; cargo build and clippy all-targets passed; 1302 units + 1 integration passed, 8 ignored. Refresh for each source batch.
 
 - [x] G10: Completed source batches have separate conventional commits and current change.log/devlog entries; the main working tree is clean before beginning a new batch.
   CHECK: git status --porcelain

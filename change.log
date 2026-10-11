@@ -267,6 +267,10 @@ v0.0.5 — current
        before the next frame. Close All keeps documents opened after its
        original batch started.
 
+  68. CSV grid focus follows the visible document when switching, closing or
+      restoring tabs, including Save As to a text file. Newer dialog fields
+      keep their focus, and read-only drafts still block unsafe navigation.
+
   v0.1.0 — syntax & language:
 
     1. Tree-sitter syntax highlighting for 25 modes: Rust, Python, C,

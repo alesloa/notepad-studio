@@ -219,6 +219,7 @@ pub(crate) fn tab_strip(
         // frames. SharedString id is unique per tab index within the strip.
         let mut tab_div = div()
             .id(SharedString::from(format!("tab-{idx}")))
+            .debug_selector(move || format!("tab-{idx}"))
             .flex()
             .flex_col()
             .items_stretch()
@@ -411,6 +412,7 @@ pub(crate) fn tab_strip_vertical(
 
         let mut cell = div()
             .id(SharedString::from(format!("vtab-{idx}")))
+            .debug_selector(move || format!("vtab-{idx}"))
             .flex()
             .flex_row()
             .items_stretch()

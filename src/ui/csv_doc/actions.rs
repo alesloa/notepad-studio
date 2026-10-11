@@ -373,20 +373,26 @@ pub(crate) fn emit_to_source(
     cx.notify();
 }
 
-/// Reclaim only focus left on a committed CSV input. A dialog or another
-/// editor focused since the commit keeps its focus.
+/// Reclaim focus on a CSV input or grid hidden by a commit or tab/view
+/// change. A dialog or another editor focused since then keeps its focus.
 pub(crate) fn restore_committed_cell_focus(w: &mut Workspace, window: &mut Window, cx: &mut Context<Workspace>) {
     if !window.is_window_active() { return; }
+    let visible_grid = w.tabs.get(w.active).filter(|tab| {
+        tab.view_mode == crate::tab::TabViewMode::CsvPreview
+            && (super::is_csv_path(tab.buffer.file_path.as_deref()) || tab.csv_draft.is_some()
+                || w.csv_models.get(&tab.session_id).is_some_and(|model| model.cell_input.is_some()))
+    }).map(|tab| tab.session_id);
     let mut reclaim = false;
-    for model in w.csv_models.values_mut() {
+    for (id, model) in &mut w.csv_models {
         if let Some(handle) = model.retired_cell_focus.take() { reclaim |= handle.is_focused(window); }
+        reclaim |= visible_grid != Some(*id) && model.grid_focus.as_ref().is_some_and(|handle| handle.is_focused(window));
     }
     if !reclaim { return; }
     let Some(tab) = w.tabs.get(w.active) else { return; };
     let mode = tab.view_mode;
     let rich = tab.buffer.is_rich_doc();
     let id = tab.session_id;
-    let focus = if mode == crate::tab::TabViewMode::CsvPreview {
+    let focus = if visible_grid == Some(id) {
         ensure_model(w, window, cx);
         w.csv_models.get(&id).and_then(|model| model.cell_input.as_ref().map(|input| input.focus_handle.clone())
             .or_else(|| model.grid_focus.clone())).unwrap_or_else(|| w.focus_handle.clone())
@@ -2180,3 +2186,7 @@ mod tests {
 #[cfg(test)]
 #[path = "savepoint_tests.rs"]
 pub(crate) mod savepoint_tests;
+
+#[cfg(test)]
+#[path = "grid_focus_tests.rs"]
+pub(crate) mod grid_focus_tests;

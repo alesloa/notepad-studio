@@ -113,6 +113,11 @@ v0.0.5 — current
    32. Opening a new blank window after the last window closes keeps the
        closed windows' unsaved drafts available for session recovery.
 
+   33. Reopening a closed rich document keeps its native format and Doc View.
+       Unrecoverable container backups reopen as unsaved text instead of
+       risking the original file. RTF raw edits, dirty/read-only flags and
+       CSV grid view survive reopening.
+
   v0.1.0 — syntax & language:
 
     1. Tree-sitter syntax highlighting for 24 languages: Rust, Python, C,

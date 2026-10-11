@@ -78,6 +78,21 @@ impl Tab {
         }
     }
 
+    pub(crate) fn from_closed(closed: ClosedTab) -> Self {
+        let mut tab = Self::empty();
+        tab.buffer = closed.buffer;
+        tab.session_id = closed.session_id;
+        tab.view_mode = if tab.buffer.rich_doc.is_some() {
+            TabViewMode::RichDocView
+        } else if crate::ui::csv_doc::is_csv_path(tab.buffer.file_path.as_deref()) {
+            TabViewMode::CsvPreview
+        } else {
+            TabViewMode::Edit
+        };
+        tab.buffer.reparse_highlights();
+        tab
+    }
+
     pub(crate) fn empty() -> Self {
         Self {
             buffer: Buffer::empty(),

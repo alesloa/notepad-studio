@@ -786,10 +786,7 @@ impl Workspace {
         let Some(closed) = self.closed_tabs.pop() else {
             return;
         };
-        let mut tab = Tab::empty();
-        tab.buffer = closed.buffer;
-        tab.session_id = closed.session_id;
-        self.tabs.push(tab);
+        self.tabs.push(Tab::from_closed(closed));
         self.active = self.tabs.len() - 1;
         self.touch_mru();
         self.last_lines.clear();

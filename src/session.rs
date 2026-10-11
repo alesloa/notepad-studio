@@ -136,6 +136,11 @@ pub(crate) struct SessionClosedTab {
     #[serde(default)]
     pub(crate) path: Option<PathBuf>,
     #[serde(default)]
+    // Older manifests omitted this flag; only those need a disk comparison.
+    pub(crate) dirty: Option<bool>,
+    #[serde(default)]
+    pub(crate) read_only: bool,
+    #[serde(default)]
     pub(crate) line_ending: LineEndingTag,
     #[serde(default)]
     pub(crate) encoding: EncodingTag,
@@ -383,10 +388,6 @@ pub(crate) fn write_bak(id: Uuid, contents: &str) -> io::Result<()> {
     persist::atomic_write(&path, contents.as_bytes())
 }
 
-pub(crate) fn read_bak(id: Uuid) -> Option<String> {
-    read_bak_in(&bak_dir()?, id)
-}
-
 /// The `.bak` is written from the rope, so it is UTF-8. If it was damaged
 /// on disk, keep what's readable rather than calling the autosave missing,
 /// which would let the next save reap it.
@@ -518,6 +519,8 @@ pub(crate) fn snapshot_closed_tab(closed: &ClosedTab) -> SessionClosedTab {
     SessionClosedTab {
         id,
         path: closed.buffer.file_path.clone(),
+        dirty: Some(closed.buffer.dirty),
+        read_only: closed.buffer.read_only,
         line_ending: LineEndingTag::from_line_ending(closed.buffer.line_ending),
         encoding: EncodingTag::from_encoding(closed.buffer.encoding),
         language: closed.buffer.language,
@@ -735,11 +738,59 @@ fn restored_scroll(v: f32) -> f32 {
 /// always in a `.bak` — the closed-tab restore stack carries unsaved drafts
 /// across launches the same way the open-tab list does.
 pub(crate) fn restore_closed_tab(entry: &SessionClosedTab) -> Option<ClosedTab> {
-    let body = read_bak(entry.id)?;
+    restore_closed_tab_in(entry, &bak_dir()?)
+}
+
+/// Rebuild a native payload only when it represents the backed-up text.
+/// A container's extracted XML alone cannot reconstruct its other parts.
+fn restore_rich_backup(path: &Path, body: &str, backup: &Path) -> Option<(crate::rich_doc::RichDocPayload, bool)> {
+    use crate::rich_doc::{self, DocFormat};
+    let format = rich_doc::detect_format(path)?;
+    if fs::metadata(path).is_ok_and(|meta| meta.len() < crate::io_stream::HUGE_FILE_WARNING_BYTES) {
+        if let Ok(payload) = rich_doc::open(path) {
+            let raw = crate::text::line_ending::split_line_endings(payload.raw_view_text.clone()).1;
+            if raw == body {
+                return Some((payload, false));
+            }
+        }
+    }
+    // RTF source is itself a complete document, unlike extracted DOCX/ODT XML.
+    if format == DocFormat::Rtf && body.trim_start().starts_with(r"{\rtf") {
+        if let Ok(payload) = rich_doc::open_as(backup, format) {
+            return Some((payload, true));
+        }
+    }
+    None
+}
+
+fn restore_closed_tab_in(entry: &SessionClosedTab, dir: &Path) -> Option<ClosedTab> {
+    let body = read_bak_in(dir, entry.id)?;
+    let mut file_path = entry.path.clone();
+    let mut new_label = entry.new_label.clone().map(SharedString::from);
+    let mut dirty = entry.dirty.unwrap_or(false) || file_path.is_none();
+    let mut rich_doc = None;
+    if let Some(path) = entry.path.as_ref().filter(|p| crate::rich_doc::detect_format(p).is_some()) {
+        if let Some((payload, recovered_edits)) = restore_rich_backup(path, &body, &bak_path_in(dir, entry.id)) {
+            dirty |= recovered_edits;
+            rich_doc = Some(payload);
+        } else {
+            // Keep the backup reachable without pointing plain text at a
+            // native document. Save now asks for a new destination.
+            let name = path.file_name().map(|s| s.to_string_lossy()).unwrap_or_default();
+            new_label = Some(format!("Recovered {name}.txt").into());
+            file_path = None;
+            dirty = true;
+        }
+    } else if let Some(path) = file_path.as_ref().filter(|_| entry.dirty.is_none()) {
+        // Older manifests omitted dirty. Compare their saved text with disk
+        // so reopening a recovered draft cannot delete its only backup.
+        dirty |= read_clean_file(path).map_or(true, |file| file.rope != body.as_str());
+    }
+    let read_only = entry.read_only || rich_doc.as_ref().is_some_and(|p| p.format == crate::rich_doc::DocFormat::Doc);
     let buffer = Buffer {
         rope: ropey::Rope::from_str(&body),
-        file_path: entry.path.clone(),
-        dirty: false,
+        file_path,
+        dirty,
         line_ending: entry.line_ending.into_line_ending(),
         encoding: entry.encoding.into_encoding(),
         bookmarks: BTreeSet::new(),
@@ -747,11 +798,11 @@ pub(crate) fn restore_closed_tab(entry: &SessionClosedTab) -> Option<ClosedTab> 
         language: entry.language,
         highlights: Vec::new(),
         loading: None,
-        new_label: entry.new_label.clone().map(SharedString::from),
-        read_only: false,
+        new_label,
+        read_only,
         tab_color: entry.tab_color,
         is_changelog: false,
-        rich_doc: None,
+        rich_doc,
         flat_text_cache: None,
     };
     Some(ClosedTab {
@@ -1028,6 +1079,132 @@ mod tests {
         let utf8 = rope_to_bytes(&tab.buffer.rope, tab.buffer.line_ending);
         let text = String::from_utf8(utf8).unwrap_or_default();
         encoding::encode_checked(&text, tab.buffer.encoding).unwrap_or_default()
+    }
+
+    fn closed_entry(id: Uuid, path: PathBuf) -> SessionClosedTab {
+        toml::from_str(&format!("id = \"{id}\"\npath = {}\n", toml::Value::String(path.to_string_lossy().into_owned())))
+            .expect("closed entry")
+    }
+
+    fn rich_fixture(path: &Path) {
+        use std::io::Write;
+        let entries = if path.extension().and_then(|e| e.to_str()) == Some("docx") {
+            vec![
+                ("[Content_Types].xml", r#"<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>"#),
+                ("_rels/.rels", r#"<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>"#),
+                ("word/document.xml", r#"<w:document xmlns:w="http://schemas.openxmlformats.org/wordprocessingml/2006/main"><w:body><w:p><w:r><w:t>café</w:t></w:r></w:p></w:body></w:document>"#),
+            ]
+        } else {
+            vec![("content.xml", r#"<office:document-content xmlns:office="urn:oasis:names:tc:opendocument:xmlns:office:1.0" xmlns:text="urn:oasis:names:tc:opendocument:xmlns:text:1.0"><office:body><office:text><text:p>café</text:p></office:text></office:body></office:document-content>"#)]
+        };
+        let mut zip = zip::ZipWriter::new(fs::File::create(path).expect("fixture"));
+        for (name, xml) in entries {
+            zip.start_file(name, zip::write::SimpleFileOptions::default()).expect("entry");
+            zip.write_all(xml.as_bytes()).expect("xml");
+        }
+        zip.finish().expect("zip");
+    }
+
+    #[test]
+    fn closed_rich_documents_restore_native_payload_and_save_intact() {
+        let dir = TempDir::new("closed-rich-container");
+        for name in ["document.docx", "document.odt", "document.rtf"] {
+            let path = dir.join(name);
+            if name.ends_with("rtf") {
+                fs::write(&path, b"{\\rtf1\\ansi source}\r\n").expect("rtf");
+            } else {
+                rich_fixture(&path);
+            }
+            let original = fs::read(&path).expect("original");
+            let payload = crate::rich_doc::open(&path).expect("parse fixture");
+            let raw = crate::text::line_ending::split_line_endings(payload.raw_view_text).1;
+            let entry = closed_entry(Uuid::new_v4(), path.clone());
+            fs::write(bak_path_in(dir.path(), entry.id), &raw).expect("backup");
+            let tab = Tab::from_closed(restore_closed_tab_in(&entry, dir.path()).expect("restore"));
+            assert_eq!(tab.buffer.rope.to_string(), raw);
+            let payload = tab.buffer.rich_doc.as_ref().expect("native payload missing; Save would overwrite the container with XML");
+            assert_eq!(tab.view_mode, crate::tab::TabViewMode::RichDocView);
+            crate::rich_doc::save(payload, &path, None).expect("save");
+            assert_eq!(fs::read(&path).expect("saved"), original);
+            assert!(!tab.buffer.dirty);
+        }
+    }
+
+    #[test]
+    fn closed_rich_backup_that_cannot_be_rebuilt_becomes_a_scratch_document() {
+        let dir = TempDir::new("closed-rich-scratch");
+        for name in ["missing.docx", "damaged.odt", "changed.docx", "legacy.doc"] {
+            let path = dir.join(name);
+            if name.starts_with("changed") {
+                rich_fixture(&path);
+            } else if name.starts_with("damaged") {
+                fs::write(&path, "corrupt archive").expect("fixture");
+            }
+            let original = fs::read(&path).ok();
+            let entry = closed_entry(Uuid::new_v4(), path.clone());
+            let raw = "<recovered>keep café\nexactly</recovered>";
+            fs::write(bak_path_in(dir.path(), entry.id), raw).expect("backup");
+            let closed = restore_closed_tab_in(&entry, dir.path()).expect("restore");
+            assert!(closed.buffer.file_path.is_none(), "{name}: must not save extracted text over a native document");
+            assert_eq!(closed.buffer.rope.to_string(), raw);
+            assert!(closed.buffer.dirty);
+            assert!(closed.buffer.rich_doc.is_none());
+            assert_eq!(closed.buffer.new_label.as_ref().map(|s| s.as_ref()), Some(format!("Recovered {name}.txt").as_str()));
+            assert_eq!(fs::read(&path).ok(), original);
+        }
+    }
+
+    #[test]
+    fn closed_rtf_raw_edits_recover_even_without_the_original() {
+        let dir = TempDir::new("closed-rtf-edits");
+        let raw = r"{\rtf1\ansi unsaved source}";
+        for name in ["changed.rtf", "missing.rtf"] {
+            let path = dir.join(name);
+            if name.starts_with("changed") {
+                fs::write(&path, r"{\rtf1\ansi original}").expect("fixture");
+            }
+            let entry = closed_entry(Uuid::new_v4(), path.clone());
+            fs::write(bak_path_in(dir.path(), entry.id), raw).expect("backup");
+            let tab = Tab::from_closed(restore_closed_tab_in(&entry, dir.path()).expect("restore"));
+            assert_eq!(tab.buffer.file_path.as_deref(), Some(path.as_path()));
+            assert!(tab.buffer.dirty);
+            assert_eq!(tab.view_mode, crate::tab::TabViewMode::RichDocView);
+            let payload = tab.buffer.rich_doc.as_ref().expect("RTF payload");
+            assert!(payload.block_text(0).contains("unsaved source"));
+            crate::rich_doc::save(payload, &path, Some(raw)).expect("save");
+            assert_eq!(fs::read_to_string(&path).expect("saved"), raw);
+        }
+    }
+
+    #[test]
+    fn closed_tab_flags_and_legacy_drafts_remain_recoverable() {
+        let dir = TempDir::new("closed-tab-flags");
+        let path = dir.join("draft.txt");
+        fs::write(&path, "original").expect("source");
+        let mut entry = closed_entry(Uuid::new_v4(), path);
+        assert!(entry.dirty.is_none() && !entry.read_only, "legacy defaults");
+        fs::write(bak_path_in(dir.path(), entry.id), "unsaved café").expect("backup");
+        let closed = restore_closed_tab_in(&entry, dir.path()).expect("restore");
+        assert!(closed.buffer.dirty, "legacy backup differing from disk");
+        assert_eq!(closed.buffer.rope.to_string(), "unsaved café");
+        entry.dirty = Some(true);
+        entry.read_only = true;
+        let mut entry: SessionClosedTab = toml::from_str(&toml::to_string(&entry).expect("encode")).expect("decode");
+        let closed = restore_closed_tab_in(&entry, dir.path()).expect("restore");
+        assert!(closed.buffer.read_only && closed.buffer.dirty);
+        entry.path = None;
+        entry.dirty = Some(false);
+        assert!(restore_closed_tab_in(&entry, dir.path()).expect("untitled").buffer.dirty);
+    }
+
+    #[test]
+    fn closed_csv_reopens_in_the_grid_view() {
+        let mut buffer = Buffer::empty();
+        buffer.file_path = Some(PathBuf::from("sample.csv"));
+        let id = Uuid::new_v4();
+        let tab = Tab::from_closed(ClosedTab { buffer, session_id: id });
+        assert_eq!(tab.view_mode, crate::tab::TabViewMode::CsvPreview);
+        assert_eq!(tab.session_id, id);
     }
 
     #[test]

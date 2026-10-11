@@ -682,7 +682,11 @@ const PARSE_STACK_BYTES: usize = 32 * 1024 * 1024;
 /// don't bleed into a shared loader). Parsing runs on a helper thread with a
 /// `PARSE_STACK_BYTES` stack; the call still blocks until it finishes.
 pub fn open(path: &Path) -> Result<RichDocPayload> {
-    let format = detect_format(path).ok_or(RichDocError::Unsupported)?;
+    open_as(path, detect_format(path).ok_or(RichDocError::Unsupported)?)
+}
+
+/// Parse a session backup whose extension does not identify its native format.
+pub(crate) fn open_as(path: &Path, format: DocFormat) -> Result<RichDocPayload> {
     let path = path.to_path_buf();
     let worker = std::thread::Builder::new()
         .name("rich-doc-open".into())

@@ -447,6 +447,9 @@ v0.0.5 — current
     113. Linux input callbacks keep their order and accepted text is delivered
          before a later protocol error, within bounded memory limits.
 
+    114. Replace in Files refuses oversized literal expansions before writing,
+         preserves the original file and reports its path.
+
   v0.1.0 — syntax & language:
 
     1. Tree-sitter syntax highlighting for 25 modes: Rust, Python, C,

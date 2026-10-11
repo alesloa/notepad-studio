@@ -1116,6 +1116,9 @@ fn run_replace_in_files_with_reader(
     // Only Regular expression mode expands `$1` / `${name}` / `$$`. Normal
     // and Extended insert the text as typed (Extended after decoding its
     // escapes, as the Find tab does); expanding there turned `$5` into "".
+    if replacement.len() > crate::text::regex_replacement::MAX_TEMPLATE_BYTES {
+        return Err("Replacement template exceeds the size limit".into());
+    }
     let replacement = if query.extended && !query.regex {
         crate::text::extended_escape::interpret_extended(replacement)
     } else {
@@ -1222,7 +1225,14 @@ fn run_replace_in_files_with_reader(
                 }
             }
         } else {
-            (re.replace_all(content, regex::NoExpand(&replacement)), re.find_iter(content).count())
+            match crate::text::literal_replacement::replace(&re, content, &replacement) {
+                Ok(result) => result,
+                Err(error) => {
+                    failures += 1;
+                    if first_failure.is_none() { first_failure = Some(format!("{}: {error}", path.display())); }
+                    continue;
+                }
+            }
         };
         if count_in_file == 0 { continue; }
         let new_content = format!("{bom}{replaced}");
@@ -1248,6 +1258,29 @@ fn run_replace_in_files_with_reader(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn literal_file_expansion_refuses_whole_file_before_write() {
+        let dir = temp_dir();
+        let path = dir.join("neutral.txt");
+        let original = "a".repeat(4096);
+        std::fs::write(&path, &original).expect("fixture");
+        let report = run_replace_in_files(&query(&dir, "a", false, false), &"b".repeat(4097)).expect("report");
+        assert_eq!(report.files_changed, 0);
+        assert_eq!(report.failures, 1);
+        assert!(report.first_failure.as_deref().is_some_and(|error| error.contains("neutral.txt")));
+        assert_eq!(std::fs::read(&path).expect("read"), original.as_bytes());
+        let sibling = dir.join("sibling.txt");
+        std::fs::write(&sibling, "a").expect("sibling fixture");
+        let report = run_replace_in_files(&query(&dir, "a", false, false), &"b".repeat(4097)).expect("report");
+        assert_eq!((report.files_changed, report.replacements, report.failures), (1, 1, 1));
+        assert_eq!(std::fs::read_to_string(&sibling).expect("sibling"), "b".repeat(4097));
+        assert_eq!(std::fs::read(&path).expect("read"), original.as_bytes());
+        let report = run_replace_in_files(&query(&dir, "a", false, true), &"b".repeat(4097)).expect("extended report");
+        assert_eq!((report.files_changed, report.failures), (0, 1));
+        assert_eq!(std::fs::read(&path).expect("read"), original.as_bytes());
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
     use super::*;
     use std::path::Path;
 

@@ -37,6 +37,10 @@ use crate::theme::ThemeMode;
 mod windows;
 mod persistence;
 mod rich_backup;
+// Foundation only; startup preparation will call this in a subsequent batch.
+#[allow(dead_code)]
+pub(crate) mod recovery_identity;
+use recovery_identity::RecoveryIdentity;
 use persistence::Backup;
 pub(crate) use persistence::{prepare_save, retire_prepared_writes, write_prepared};
 #[cfg(test)]
@@ -148,6 +152,8 @@ pub(crate) fn csv_source_digest(source: &str) -> String {
 pub(crate) struct SessionTab {
     /// UUID — names the `.bak` file for dirty / untitled buffers.
     pub(crate) id: Uuid,
+    #[serde(skip)]
+    pub(crate) recovery_identity: RecoveryIdentity,
     /// Original disk path (None for untitled buffers).
     #[serde(default)]
     pub(crate) path: Option<PathBuf>,
@@ -215,6 +221,8 @@ pub(crate) struct SessionTab {
 #[derive(Serialize, Deserialize, Debug, Clone)]
 pub(crate) struct SessionClosedTab {
     pub(crate) id: Uuid,
+    #[serde(skip)]
+    pub(crate) recovery_identity: RecoveryIdentity,
     #[serde(default)]
     pub(crate) path: Option<PathBuf>,
     #[serde(default)]
@@ -412,6 +420,7 @@ fn recover_unreferenced_baks(mut manifest: SessionManifest, bak_dir: &Path) -> S
         eprintln!("[session] recovered autosave {id} as {label}");
         manifest.tabs.push(SessionTab {
             id,
+            recovery_identity: RecoveryIdentity::default(),
             path: None,
             dirty: true,
             rich_backup: rich_backup::path_in(bak_dir, id).is_file(),
@@ -502,6 +511,7 @@ pub(crate) fn snapshot_tab_with_policy(tab: &Tab, bak_policy: BakPolicy) -> Sess
     };
     SessionTab {
         id,
+        recovery_identity: RecoveryIdentity::default(),
         path: buffer.file_path.clone(),
         dirty: manifest_dirty,
         rich_backup: needs_backup && buffer.rich_doc.is_some(),
@@ -532,6 +542,7 @@ pub(crate) fn snapshot_closed_tab(closed: &ClosedTab) -> SessionClosedTab {
     let id = closed.session_id;
     SessionClosedTab {
         id,
+        recovery_identity: RecoveryIdentity::default(),
         path: closed.buffer.file_path.clone(),
         dirty: Some(closed.buffer.dirty),
         rich_backup: closed.buffer.rich_doc.is_some(),
@@ -637,6 +648,7 @@ fn read_clean_file(path: &Path) -> Result<CleanFile, String> {
 }
 
 fn restore_tab_in(entry: &SessionTab, bak_dir: &Path) -> RestoreOutcome {
+    let source_id = entry.recovery_identity.source_id(entry.id);
     let rich_path = entry.path.as_ref().filter(|p| crate::rich_doc::detect_format(p).is_some());
     let mut rich_doc_payload = None;
     let mut file_path = entry.path.clone();
@@ -663,7 +675,7 @@ fn restore_tab_in(entry: &SessionTab, bak_dir: &Path) -> RestoreOutcome {
         draft.source_matches = false;
         let reason = "CSV draft source backup is missing or damaged; copy the draft or cancel it before editing the source";
         draft.refusal = Some(draft.refusal.take().map_or_else(|| reason.into(), |previous| format!("{previous}; {reason}")));
-        if let Some(source) = read_bak_in(bak_dir, entry.id) { return source; }
+        if let Some(source) = read_bak_in(bak_dir, source_id) { return source; }
         if let Some(file) = entry.path.as_deref().filter(|path| crate::ui::csv_doc::is_csv_path(Some(path)))
             .and_then(|path| read_clean_file(path).ok()) {
             line_ending = file.line_ending;
@@ -676,7 +688,7 @@ fn restore_tab_in(entry: &SessionTab, bak_dir: &Path) -> RestoreOutcome {
     let (rope, dirty) = if let Some(source) = csv_source {
         (ropey::Rope::from_str(&source), true)
     } else if entry.rich_backup {
-        match rich_backup::read(&rich_backup::path_in(bak_dir, entry.id)) {
+        match rich_backup::read(&rich_backup::path_in(bak_dir, source_id)) {
             Ok((mut payload, mut source)) => {
                 // A damaged manifest must not attach one native format to
                 // another format's destination path.
@@ -688,8 +700,8 @@ fn restore_tab_in(entry: &SessionTab, bak_dir: &Path) -> RestoreOutcome {
                 (ropey::Rope::from_str(&source), dirty)
             }
             Err(err) => {
-                eprintln!("[session] rich recovery {}: {err}", entry.id);
-                let Some(source) = read_bak_in(bak_dir, entry.id) else {
+                eprintln!("[session] rich recovery {}: {err}", source_id);
+                let Some(source) = read_bak_in(bak_dir, source_id) else {
                     return RestoreOutcome::Skipped(format!("rich recovery is damaged and raw source is missing: {err}"));
                 };
                 new_label = Some(raw_recovery_label(file_path.as_deref()));
@@ -698,13 +710,13 @@ fn restore_tab_in(entry: &SessionTab, bak_dir: &Path) -> RestoreOutcome {
             }
         }
     } else if entry.dirty {
-        let Some(body) = read_bak_in(bak_dir, entry.id) else {
+        let Some(body) = read_bak_in(bak_dir, source_id) else {
             let label = entry.path.as_ref().map(|p| p.display().to_string())
                 .or_else(|| entry.new_label.clone()).unwrap_or_else(|| "untitled".into());
             return RestoreOutcome::Skipped(format!("missing autosave: {label}"));
         };
         if let Some(path) = rich_path {
-            if let Some((payload, _)) = restore_rich_backup(path, &body, &bak_path_in(bak_dir, entry.id)) {
+            if let Some((payload, _)) = restore_rich_backup(path, &body, &bak_path_in(bak_dir, source_id)) {
                 rich_doc_payload = Some(payload);
             } else {
                 let name = path.file_name().map(|s| s.to_string_lossy()).unwrap_or_default();
@@ -816,7 +828,7 @@ fn restore_tab_in(entry: &SessionTab, bak_dir: &Path) -> RestoreOutcome {
     // undo against the text actually restored. Malformed payloads yield an
     // empty stack rather than failing the restore.
     if !is_rich_doc_restore {
-        if let Some(bytes) = read_undo_in(bak_dir, entry.id) {
+        if let Some(bytes) = read_undo_in(bak_dir, source_id) {
             tab.undo_stack =
                 retain_replayable_undo(deserialize_undo_stack(&bytes), &tab.buffer.rope);
             crate::buffer::rebind_undo_revisions(&mut tab.undo_stack, &tab.buffer.raw_revision);
@@ -884,12 +896,13 @@ fn restore_rich_backup(path: &Path, body: &str, backup: &Path) -> Option<(crate:
 }
 
 fn restore_closed_tab_in(entry: &SessionClosedTab, dir: &Path) -> Option<ClosedTab> {
+    let source_id = entry.recovery_identity.source_id(entry.id);
     let mut file_path = entry.path.clone();
     let mut new_label = entry.new_label.clone().map(SharedString::from);
     let mut dirty = entry.dirty.unwrap_or(false) || file_path.is_none();
     let mut rich_doc = None;
     let body = if entry.rich_backup {
-        match rich_backup::read(&rich_backup::path_in(dir, entry.id)) {
+        match rich_backup::read(&rich_backup::path_in(dir, source_id)) {
             Ok((mut payload, mut source)) => {
                 if file_path.as_ref().is_some_and(|path| crate::rich_doc::detect_format(path) != Some(payload.format)) {
                     file_path = None;
@@ -900,17 +913,17 @@ fn restore_closed_tab_in(entry: &SessionClosedTab, dir: &Path) -> Option<ClosedT
                 source
             }
             Err(err) => {
-                eprintln!("[session] closed rich recovery {}: {err}", entry.id);
+                eprintln!("[session] closed rich recovery {}: {err}", source_id);
                 new_label = Some(raw_recovery_label(file_path.as_deref()));
                 file_path = None;
                 dirty = true;
-                read_bak_in(dir, entry.id)?
+                read_bak_in(dir, source_id)?
             }
         }
-    } else { read_bak_in(dir, entry.id)? };
+    } else { read_bak_in(dir, source_id)? };
     if !entry.rich_backup {
         if let Some(path) = entry.path.as_ref().filter(|p| crate::rich_doc::detect_format(p).is_some()) {
-            if let Some((payload, recovered_edits)) = restore_rich_backup(path, &body, &bak_path_in(dir, entry.id)) {
+            if let Some((payload, recovered_edits)) = restore_rich_backup(path, &body, &bak_path_in(dir, source_id)) {
                 dirty |= recovered_edits;
                 rich_doc = Some(payload);
             } else {
@@ -1216,6 +1229,7 @@ mod tests {
     fn entry(id: Uuid, path: Option<PathBuf>, dirty: bool) -> SessionTab {
         SessionTab {
             id,
+            recovery_identity: RecoveryIdentity::default(),
             path,
             dirty,
             rich_backup: false,

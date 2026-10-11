@@ -539,6 +539,9 @@ v0.0.5 — current
          and resolve positions in bounded chunks. Match order, colors,
          paragraph prefixes and clipping stay consistent.
 
+    137. Preferences ignores nonfinite saved sidebar widths and uses
+         the default width so invalid values cannot reach the layout.
+
   v0.1.0 — syntax & language:
 
     1. Tree-sitter syntax highlighting for 25 modes: Rust, Python, C,

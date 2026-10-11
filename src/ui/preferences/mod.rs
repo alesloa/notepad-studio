@@ -657,9 +657,12 @@ impl PreferencesDialog {
     ) -> Self {
         let snapshot = settings::snapshot();
         let fields = PreferencesFields::from_settings(&snapshot);
-        let sidebar_width = px(snapshot
-            .preferences_sidebar_width
-            .max(SIDEBAR_MIN_WIDTH_PX));
+        let saved_sidebar_width = snapshot.preferences_sidebar_width;
+        let sidebar_width = px(if saved_sidebar_width.is_finite() {
+            saved_sidebar_width.max(SIDEBAR_MIN_WIDTH_PX)
+        } else {
+            settings::DEFAULT_PREFERENCES_SIDEBAR_WIDTH
+        });
         let active_category = Category::from_id(&snapshot.preferences_active_panel);
         let initial_zoom = workspace
             .as_ref()
@@ -2487,3 +2490,7 @@ mod tests {
         assert_eq!(stepped_value("abc", -1, bounds), 1);
     }
 }
+
+#[cfg(test)]
+#[path = "layout_tests.rs"]
+mod layout_tests;

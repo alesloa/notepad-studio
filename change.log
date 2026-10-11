@@ -353,6 +353,10 @@ v0.0.5 — current
         group. Bounded Source/Doc View limits and unsupported-template errors
         preserve text and history. Replace in Files shares the template parser.
 
+    88. Replace in Files now reports the first unreadable file and the actual
+        read error, including files removed or locked after discovery. Failed
+        reads leave file contents unchanged.
+
   v0.1.0 — syntax & language:
 
     1. Tree-sitter syntax highlighting for 25 modes: Rust, Python, C,

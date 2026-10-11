@@ -1098,6 +1098,14 @@ fn run_replace_in_files(
     query: &FindInFilesQuery,
     replacement: &str,
 ) -> Result<ReplaceInFilesReport, String> {
+    run_replace_in_files_with_reader(query, replacement, crate::find_in_files::read_capped)
+}
+
+fn run_replace_in_files_with_reader(
+    query: &FindInFilesQuery,
+    replacement: &str,
+    mut read: impl FnMut(&std::path::Path, u64) -> std::io::Result<Option<Vec<u8>>>,
+) -> Result<ReplaceInFilesReport, String> {
     use walkdir::WalkDir;
     if !query.directory.is_dir() {
         return Err("Directory not found".to_string());
@@ -1181,11 +1189,12 @@ fn run_replace_in_files(
         }
         // Bounded read: a file that grew past the limit since the stat is
         // skipped whole, never rewritten from a truncated copy.
-        let bytes = match crate::find_in_files::read_capped(path, limit) {
+        let bytes = match read(path, limit) {
             Ok(Some(b)) => b,
             Ok(None) => continue,
-            Err(_) => {
+            Err(error) => {
                 failures += 1;
+                if first_failure.is_none() { first_failure = Some(format!("{}: {error}", path.display())); }
                 continue;
             }
         };
@@ -1336,6 +1345,75 @@ mod tests {
             assert_eq!(std::fs::read(&path).unwrap(), b"a a");
         }
         std::fs::remove_dir_all(dir).unwrap();
+    }
+
+    #[test]
+    fn discovered_file_read_failure_reports_missing_path_without_writing() {
+        let dir = temp_dir();
+        let missing = dir.join("removed-after-discovery.txt");
+        let control = dir.join("unchanged.txt");
+        let original = "\u{FEFF}中 café\r\n".as_bytes();
+        std::fs::write(&missing, b"replace-me\r\n").unwrap();
+        std::fs::write(&control, original).unwrap();
+        let mut read_error = None;
+        let mut reads = 0;
+        let report = run_replace_in_files_with_reader(
+            &query(&dir, "replace-me", false, false), "changed",
+            |path, limit| {
+                reads += 1;
+                if path == missing {
+                    // Simulate a file disappearing between discovery/stat and open.
+                    std::fs::remove_file(path).unwrap();
+                }
+                let result = crate::find_in_files::read_capped(path, limit);
+                if let Err(error) = &result {
+                    assert_eq!(error.kind(), std::io::ErrorKind::NotFound);
+                    read_error = Some(error.to_string());
+                }
+                result
+            },
+        ).unwrap();
+        let control_after = std::fs::read(&control).unwrap();
+        let missing_recreated = missing.exists();
+        std::fs::remove_dir_all(&dir).unwrap();
+
+        assert_eq!(reads, 2);
+        assert_eq!(report.files_changed, 0);
+        assert_eq!(report.replacements, 0);
+        assert_eq!(report.failures, 1);
+        let reason = format!("{}: {}", missing.display(), read_error.unwrap());
+        assert_eq!(report.first_failure.as_deref(), Some(reason.as_str()));
+        assert_eq!(report.failure_status(), format!(" · 1 failed: {reason}"));
+        assert!(!missing_recreated);
+        assert_eq!(control_after, original);
+    }
+
+    #[cfg(target_os = "windows")]
+    #[test]
+    fn discovered_file_read_failure_reports_locked_path_without_source_loss() {
+        use std::os::windows::fs::OpenOptionsExt;
+
+        let dir = temp_dir();
+        let path = dir.join("locked.txt");
+        let original = "\u{FEFF}replace-me 中 café\r\n".as_bytes();
+        std::fs::write(&path, original).unwrap();
+        // Deny sharing only for this synthetic file; metadata still discovers it.
+        let lock = std::fs::OpenOptions::new().read(true).share_mode(0).open(&path).unwrap();
+        let error = crate::find_in_files::read_capped(
+            &path, crate::find_in_files::FIND_IN_FILES_FILE_SIZE_LIMIT,
+        ).unwrap_err();
+        let report = run_replace_in_files(&query(&dir, "replace-me", false, false), "changed").unwrap();
+        drop(lock);
+        let after = std::fs::read(&path).unwrap();
+        std::fs::remove_dir_all(&dir).unwrap();
+
+        assert_eq!(report.files_changed, 0);
+        assert_eq!(report.replacements, 0);
+        assert_eq!(report.failures, 1);
+        let reason = format!("{}: {error}", path.display());
+        assert_eq!(report.first_failure.as_deref(), Some(reason.as_str()));
+        assert_eq!(report.failure_status(), format!(" · 1 failed: {reason}"));
+        assert_eq!(after, original);
     }
 
     #[test]

@@ -583,19 +583,16 @@ pub(crate) fn override_restore_backup_root(dir: PathBuf) -> RestoreBackupRoot {
     RestoreBackupRoot(RESTORE_BACKUP_ROOT.with(|root| root.replace(Some(dir))))
 }
 
-/// Reconstruct a `Tab` from a manifest entry. For dirty / untitled entries
-/// the content lives in the `.bak`; for clean disk-backed entries it loads
-/// from the file path. Restore best-effort — corrupt or missing sources
-/// produce `Skipped(reason)` instead of failing the whole session.
-pub(crate) fn restore_tab(entry: &SessionTab) -> RestoreOutcome {
+// Capture the effective source once before a startup worker leaves the UI.
+pub(crate) fn capture_restore_backup_root() -> Option<PathBuf> {
     #[cfg(test)]
-    if let Some(dir) = RESTORE_BACKUP_ROOT.with(|root| root.borrow().clone()) {
-        return restore_tab_in(entry, &dir);
-    }
-    let Some(dir) = bak_dir() else {
-        return RestoreOutcome::Skipped("no config directory".to_string());
-    };
-    restore_tab_in(entry, &dir)
+    if let Some(dir) = RESTORE_BACKUP_ROOT.with(|root| root.borrow().clone()) { return Some(dir); }
+    bak_dir()
+}
+
+#[cfg(test)]
+pub(crate) fn write_startup_rich_fixture(root: &Path, id: Uuid, payload: &crate::rich_doc::RichDocPayload, source: &str) -> std::io::Result<()> {
+    rich_backup::Capture::new(payload).write(&rich_backup::path_in(root, id), source)
 }
 
 /// Contents of a clean disk-backed tab, read the way File ▸ Open reads it.
@@ -784,8 +781,7 @@ fn restore_tab_in(entry: &SessionTab, bak_dir: &Path) -> RestoreOutcome {
     if dirty { buffer.forget_savepoint(); } else { buffer.mark_saved(); }
     buffer.normalize_bookmarks();
 
-    let mut tab = Tab::empty();
-    tab.buffer = buffer;
+    let mut tab = Tab::with_buffer(buffer);
     if is_rich_doc_restore {
         // Default rich-doc tabs back into the rendered view — matches
         // `Workspace::open_path`'s post-open behaviour for fresh opens.
@@ -867,17 +863,6 @@ fn refresh_clean_rich_recovery(path: Option<&Path>, dirty: bool, payload: &mut c
     false
 }
 
-/// Reconstruct a `ClosedTab` from a manifest entry. Closed-tab content is
-/// always in a `.bak` — the closed-tab restore stack carries unsaved drafts
-/// across launches the same way the open-tab list does.
-pub(crate) fn restore_closed_tab(entry: &SessionClosedTab) -> Option<ClosedTab> {
-    #[cfg(test)]
-    if let Some(dir) = RESTORE_BACKUP_ROOT.with(|root| root.borrow().clone()) {
-        return restore_closed_tab_in(entry, &dir);
-    }
-    restore_closed_tab_in(entry, &bak_dir()?)
-}
-
 /// Rebuild a native payload only when it represents the backed-up text.
 /// A container's extracted XML alone cannot reconstruct its other parts.
 fn restore_rich_backup(path: &Path, body: &str, backup: &Path) -> Option<(crate::rich_doc::RichDocPayload, bool)> {
@@ -898,6 +883,7 @@ fn restore_rich_backup(path: &Path, body: &str, backup: &Path) -> Option<(crate:
     None
 }
 
+// Read the closed draft through its original recovery identity.
 fn restore_closed_tab_in(entry: &SessionClosedTab, dir: &Path) -> Option<ClosedTab> {
     let source_id = entry.recovery_identity.source_id(entry.id);
     let mut file_path = entry.path.clone();

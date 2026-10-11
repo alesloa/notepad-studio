@@ -4,7 +4,10 @@ use std::sync::Arc;
 use gpui::{App, Global, BackgroundExecutor};
 use uuid::Uuid;
 use crate::config::WindowEntry;
-use crate::session::{SessionManifest, recovery_identity::{self, PreparedRecoveryIds}, startup_restore::RestoredSession};
+use crate::session::{recovery_identity::{self, IdentityError}, startup_restore::RestoredSession};
+
+#[cfg(test)]
+use crate::session::SessionManifest;
 
 #[derive(Default)]
 struct Startup {
@@ -61,9 +64,17 @@ pub(crate) fn defer_new_window(cx: &mut App) -> bool {
 }
 
 struct Prepared {
-    manifest: Option<(SessionManifest, PreparedRecoveryIds)>,
+    restored: Option<RestoredSession>,
     welcome: Uuid,
     entries: Vec<WindowEntry>,
+}
+
+// Reader refusal retains buffers inline; boxing would add an infallible
+// allocation on the failure path before they can be safely retired.
+#[allow(clippy::large_enum_variant)]
+enum PreparationFailure {
+    Identity(IdentityError),
+    Reader { failure: crate::session::startup_restore::ReadFailure, entries: Vec<WindowEntry> },
 }
 
 pub(crate) fn begin(cx: &mut App, cold: bool) {
@@ -79,7 +90,7 @@ pub(crate) fn begin(cx: &mut App, cold: bool) {
     state.blocked = true;
     state.published = false;
     // These existing loaders can salvage/quarantine corrupt files. Their IO
-    // remains foreground; only the owned in-place identity pass moves here.
+    // remains foreground; identity preparation and body readers share one worker.
     #[cfg(test)]
     let (entries, manifest, welcome) = tests::take_inputs(cx).unwrap_or_else(|| (
         crate::config::load_windows(), crate::session::load_manifest(), Uuid::new_v4()));
@@ -90,6 +101,13 @@ pub(crate) fn begin(cx: &mut App, cold: bool) {
     let gate = tests::take_gate(cx);
     #[cfg(test)]
     let phases = tests::phase_sink(cx);
+    let root = crate::session::capture_restore_backup_root();
+    #[cfg(test)]
+    let reader_probe = tests::reader_probe(cx);
+    #[cfg(test)]
+    let reader_gate = tests::take_reader_gate(cx);
+    #[cfg(test)]
+    let read_done_gate = tests::take_read_done_gate(cx);
     let executor = cx.background_executor().clone();
     let worker_executor = executor.clone();
     let task = executor.spawn(async move {
@@ -97,13 +115,30 @@ pub(crate) fn begin(cx: &mut App, cold: bool) {
         if let Some(gate) = gate { let _ = gate.await; }
         #[cfg(test)]
         let started = std::time::Instant::now();
-        let result = match manifest {
-            Some(mut manifest) => recovery_identity::prepare(&mut manifest, welcome)
-                .map(|ids| Prepared { manifest: Some((manifest, ids)), welcome, entries }),
-            None => Ok(Prepared { manifest: None, welcome, entries }),
+        let manifest = match manifest {
+            Some(mut manifest) => match recovery_identity::prepare(&mut manifest, welcome) {
+                Ok(ids) => Some((manifest, ids)),
+                Err(err) => return Delivery::new(Err(PreparationFailure::Identity(err)), worker_executor),
+            },
+            None => None,
         };
         #[cfg(test)]
-        if let Some(phases) = phases { let _ = phases.send(("metadata", started.elapsed())); }
+        if let Some(phases) = phases.as_ref() { let _ = phases.send(("metadata", started.elapsed())); }
+        #[cfg(test)]
+        if let Some(gate) = reader_gate { let _ = gate.await; }
+        #[cfg(test)]
+        let started = std::time::Instant::now();
+        let result = match manifest {
+            Some((manifest, ids)) => match RestoredSession::read_in(manifest, ids, welcome, root.as_deref(), #[cfg(test)] reader_probe) {
+                Ok(restored) => Ok(Prepared { restored: Some(restored), welcome, entries }),
+                Err(failure) => Err(PreparationFailure::Reader { failure, entries }),
+            },
+            None => Ok(Prepared { restored: None, welcome, entries }),
+        };
+        #[cfg(test)]
+        if let Some(phases) = phases { let _ = phases.send(("readers", started.elapsed())); }
+        #[cfg(test)]
+        if let Some(gate) = read_done_gate { let _ = gate.await; }
         Delivery::new(result, worker_executor)
     });
     cx.spawn(async move |cx| {
@@ -121,7 +156,13 @@ pub(crate) fn begin(cx: &mut App, cold: bool) {
             let Some(result) = delivery.take() else { return; };
             match result {
                 Ok(prepared) => publish(prepared, cx),
-                Err(err) => failed(err.to_string(), cx),
+                Err(PreparationFailure::Identity(err)) => failed(err.to_string(), cx),
+                Err(PreparationFailure::Reader { failure, entries }) => {
+                    let message = failure.error.to_string();
+                    #[cfg(test)]
+                    tests::capture_retained(Some(&failure.retained), cx);
+                    retire_before_retry((failure.retained, entries), Some(message), cx);
+                }
             }
         });
     }).detach();
@@ -177,22 +218,7 @@ fn answer_failure(failure: &Arc<()>, retry: bool, cx: &mut App) {
 }
 
 fn publish(prepared: Prepared, cx: &mut App) {
-    let Prepared { manifest, welcome, entries } = prepared;
-    #[cfg(test)]
-    let started = std::time::Instant::now();
-    let restored = match manifest {
-        Some((manifest, ids)) => match RestoredSession::read(manifest, ids, welcome) {
-            Ok(restored) => Some(restored),
-            Err(failure) => {
-                let message = failure.error.to_string();
-                retire_before_retry((failure.retained, entries), Some(message), cx);
-                return;
-            }
-        },
-        None => None,
-    };
-    #[cfg(test)]
-    tests::record_phase(cx, "readers", started.elapsed());
+    let Prepared { restored, welcome, entries } = prepared;
     let welcome = restored.as_ref().map(|session| session.welcome).unwrap_or(welcome);
     let executor = cx.background_executor().clone();
     let mut restored = Delivery::new(restored, executor);

@@ -529,6 +529,10 @@ v0.0.5 — current
          without scanning every paragraph for each match. Cross-paragraph
          matches and the current-match order stay unchanged.
 
+    135. Session recovery reads and decodes documents, imports rich files
+         and restores history in background before opening the editor.
+         Cancellation and failed recovery retain the original backups.
+
 
   v0.1.0 — syntax & language:
 

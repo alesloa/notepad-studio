@@ -14,9 +14,25 @@ struct Fixture {
     retirement_gate: Option<oneshot::Receiver<()>>,
     retained_bytes: Option<usize>,
     close_destination: bool,
+    reader_affinity: Option<Sender<bool>>,
+    fail_reader: bool,
+    reader_gate: Option<oneshot::Receiver<()>>,
+    read_done_gate: Option<oneshot::Receiver<()>>,
     phases: Option<Sender<(&'static str, std::time::Duration)>>,
 }
 impl Global for Fixture {}
+
+pub(super) fn reader_probe(cx: &App) -> Option<crate::session::startup_restore::ReadProbe> {
+    let fixture = cx.try_global::<Fixture>()?;
+    Some(crate::session::startup_restore::ReadProbe { executor: cx.background_executor().clone(),
+        affinity: fixture.reader_affinity.clone()?, fail_after_first: fixture.fail_reader })
+}
+pub(super) fn take_reader_gate(cx: &mut App) -> Option<oneshot::Receiver<()>> {
+    cx.try_global::<Fixture>()?; cx.global_mut::<Fixture>().reader_gate.take()
+}
+pub(super) fn take_read_done_gate(cx: &mut App) -> Option<oneshot::Receiver<()>> {
+    cx.try_global::<Fixture>()?; cx.global_mut::<Fixture>().read_done_gate.take()
+}
 
 pub(super) fn phase_sink(cx: &App) -> Option<Sender<(&'static str, std::time::Duration)>> {
     cx.try_global::<Fixture>()?.phases.clone()
@@ -71,7 +87,7 @@ fn install(cx: &mut TestAppContext, manifest: SessionManifest, welcome: Uuid) ->
     cx.update(|cx| {
         crate::shortcuts::register_catalog(cx, &Default::default());
         cx.set_global(Fixture { inputs: Some((Vec::new(), Some(manifest), welcome)),
-            gate: Some(gate), snapshots, failures, fail_open: false, retirement_gate: None, retained_bytes: None, close_destination: false, phases: None });
+            gate: Some(gate), snapshots, failures, fail_open: false, retirement_gate: None, retained_bytes: None, close_destination: false, reader_affinity: None, fail_reader: false, reader_gate: None, read_done_gate: None, phases: None });
     });
     (release, saves, errors)
 }
@@ -600,4 +616,183 @@ fn startup_controller_release_phase_evidence() {
         println!("sample={sample} release_to_test_publication_ms={:.3}", total.as_secs_f64() * 1000.);
         cx.quit();
     }
+}
+
+#[test]
+fn startup_reader_actual_begin_route_runs_body_read_off_foreground() {
+    let _settings = crate::settings::override_for_test(crate::settings::Settings { toolbar_hidden: true, ..Default::default() });
+    let _recent = crate::recent::override_snapshot_for_test(Vec::new());
+    let dir = crate::persist::TempDir::new("startup-reader-affinity");
+    let path = dir.join("body.rs"); std::fs::write(&path, "fn recovered() {}\r\n").unwrap();
+    let mut cx = TestAppContext::single();
+    let (release, saves, errors) = install(&mut cx, SessionManifest { tabs: vec![entry(&path, Uuid::new_v4())], ..Default::default() }, Uuid::new_v4());
+    let (observer, affinity) = channel();
+    cx.update(|cx| { cx.global_mut::<Fixture>().reader_affinity = Some(observer); begin(cx, false); });
+    cx.run_until_parked(); assert!(saves.try_recv().is_err());
+    release.send(()).unwrap(); cx.run_until_parked();
+    assert!(saves.try_recv().is_ok()); assert!(errors.try_recv().is_err());
+    let handle = workspace(&mut cx);
+    cx.update(|cx| handle.update(cx, |w, _, _| {
+        assert_eq!(w.buffer().rope.to_string(), "fn recovered() {}\n");
+        assert_eq!(w.buffer().line_ending, crate::text::line_ending::LineEnding::Crlf);
+        assert!(!w.buffer().dirty);
+    }).unwrap());
+    assert!(!affinity.try_recv().expect("actual reader entry affinity"), "actual startup body reader must run on the background executor");
+    cx.quit();
+}
+
+#[test]
+fn startup_reader_actual_begin_preserves_root_history_closed_and_selected_survivor() {
+    use crate::buffer::{EditOp, UndoEntry, ContentRevision, serialize_undo_stack};
+    let _settings = crate::settings::override_for_test(crate::settings::Settings { toolbar_hidden: true, ..Default::default() });
+    let _recent = crate::recent::override_snapshot_for_test(Vec::new());
+    let dir = crate::persist::TempDir::new("startup-reader-positive");
+    let _root = crate::session::override_restore_backup_root(dir.path().to_path_buf());
+    let path = dir.join("selected.rs"); std::fs::write(&path, "fn selected() {}\r\n").unwrap();
+    let id = Uuid::new_v4(); let text = "dirty \u{e9} \u{4e2d}\n";
+    std::fs::write(dir.join(&format!("{id}.bak")), text).unwrap();
+    let history = vec![UndoEntry::Single(EditOp { byte_start: 0, removed: "before".into(), inserted: text.into(),
+        sel_before_anchor: 0, sel_before_head: 0, before_revision: ContentRevision::default(), after_revision: ContentRevision::default() })];
+    std::fs::write(dir.join(&format!("{id}.undo")), serialize_undo_stack(&history)).unwrap();
+    let dirty: crate::session::SessionTab = toml::from_str(&format!("id='{id}'\ndirty=true\nread_only=true")).unwrap();
+    let closed: crate::session::SessionClosedTab = toml::from_str(&format!("id='{id}'\ndirty=true")).unwrap();
+    let mut cx = TestAppContext::single();
+    let (release, saves, errors) = install(&mut cx, SessionManifest {
+        tabs: vec![entry(&dir.join("missing.rs"), Uuid::new_v4()), entry(&path, Uuid::new_v4()), dirty],
+        closed_tabs: vec![closed], active: 1, ..Default::default()
+    }, Uuid::new_v4());
+    cx.update(|cx| begin(cx, false)); cx.run_until_parked(); assert!(saves.try_recv().is_err());
+    release.send(()).unwrap(); cx.run_until_parked();
+    let saved = saves.try_recv().unwrap(); assert_eq!(saved.active, 0); assert_eq!(saved.tabs.len(), 2);
+    assert!(errors.try_recv().is_err());
+    let handle = workspace(&mut cx);
+    cx.update(|cx| handle.update(cx, |w, _, _| {
+        assert_eq!(w.active, 0); assert_eq!(w.buffer().file_path.as_ref(), Some(&path));
+        assert_eq!(w.buffer().line_ending, crate::text::line_ending::LineEnding::Crlf); assert!(!w.buffer().dirty);
+        let dirty = &w.tabs[1]; assert_eq!(dirty.session_id, id); assert_eq!(dirty.buffer.rope.to_string(), text);
+        assert!(dirty.buffer.dirty && dirty.buffer.read_only); assert_eq!(dirty.undo_stack.len(), 1);
+        assert_eq!(w.closed_tabs.len(), 1); assert_ne!(w.closed_tabs[0].session_id, id);
+        assert_eq!(w.closed_tabs[0].buffer.rope.to_string(), text); assert!(w.closed_tabs[0].buffer.dirty);
+        assert!(w.status_message.as_deref().unwrap().contains("1 couldn't be reopened"));
+    }).unwrap());
+    cx.quit();
+}
+
+#[test]
+fn startup_reader_captures_original_root_for_native_csv_and_closed_recovery() {
+    let _settings = crate::settings::override_for_test(crate::settings::Settings { toolbar_hidden: true, ..Default::default() });
+    let _recent = crate::recent::override_snapshot_for_test(Vec::new());
+    let root = crate::persist::TempDir::new("startup-reader-captured-root");
+    let other = crate::persist::TempDir::new("startup-reader-other-root");
+    let native_id = Uuid::new_v4(); let csv_id = Uuid::new_v4(); let basis = Uuid::new_v4();
+    let native_path = root.join("native.rtf"); let raw = r"{\rtf1\ansi recovered native}";
+    std::fs::write(&native_path, raw).unwrap();
+    let payload = crate::rich_doc::open(&native_path).unwrap();
+    crate::session::write_startup_rich_fixture(root.path(), native_id, &payload, raw).unwrap();
+    let mut native = entry(&native_path, native_id); native.dirty = true; native.rich_backup = true;
+    let mut closed: crate::session::SessionClosedTab = toml::from_str(&format!("id='{native_id}'\ndirty=true\nrich_backup=true")).unwrap();
+    closed.path = Some(native_path);
+    let csv_path = root.join("source.csv"); let source = "name,value\r\n\u{e9},1\r\n";
+    std::fs::write(root.join(&format!("{basis}.csv-basis")), source).unwrap();
+    let mut csv = entry(&csv_path, csv_id); csv.dirty = true;
+    csv.csv_draft = Some(crate::session::CsvDraft { backup_id: Some(basis), source_digest: Some(crate::session::csv_source_digest(source)),
+        source_matches: true, value: "edited grid draft".into(), row: Some(0), col: Some(1), delimiter: Some(b','), has_header: true, ..Default::default() });
+    let original_root = crate::session::override_restore_backup_root(root.path().to_path_buf());
+    let mut cx = TestAppContext::single();
+    let (metadata, saves, errors) = install(&mut cx, SessionManifest { tabs: vec![native, csv], closed_tabs: vec![closed], active: 1, ..Default::default() }, Uuid::new_v4());
+    let (body, gate) = oneshot::channel(); let (probe, affinity) = channel();
+    cx.update(|cx| { let f = cx.global_mut::<Fixture>(); f.reader_gate = Some(gate); f.reader_affinity = Some(probe); begin(cx, false); });
+    cx.run_until_parked(); metadata.send(()).unwrap(); cx.run_until_parked();
+    drop(original_root); let _different_root = crate::session::override_restore_backup_root(other.path().to_path_buf());
+    cx.update(|cx| { assert!(cx.windows().is_empty()); assert!(blocks_editor(cx)); });
+    assert!(saves.try_recv().is_err()); assert!(affinity.try_recv().is_err());
+    body.send(()).unwrap(); cx.run_until_parked(); assert!(!affinity.try_recv().unwrap());
+    assert!(saves.try_recv().is_ok()); assert!(errors.try_recv().is_err());
+    let handle = workspace(&mut cx);
+    cx.update(|cx| handle.update(cx, |w, _, _| {
+        assert_eq!(w.active, 1); assert_eq!(w.tabs[0].session_id, native_id);
+        assert!(w.tabs[0].buffer.rich_doc.is_some()); assert_eq!(w.tabs[0].buffer.rope.to_string(), raw);
+        assert_eq!(w.tabs[1].buffer.rope.to_string(), source);
+        let snapshot = w.session_snapshot(crate::session::BakPolicy::Full);
+        let draft = snapshot.tabs[1].csv_draft.as_ref().unwrap(); assert!(draft.source_matches); assert_eq!(draft.value, "edited grid draft");
+        assert_eq!(w.closed_tabs.len(), 1); assert_ne!(w.closed_tabs[0].session_id, native_id); assert!(w.closed_tabs[0].buffer.rich_doc.is_some());
+    }).unwrap());
+    assert!(std::fs::read_dir(other.path()).unwrap().next().is_none()); cx.quit();
+}
+
+#[test]
+fn startup_reader_quit_rejects_held_body_and_completed_body_without_registration() {
+    for after_read in [false, true] {
+        let _settings = crate::settings::override_for_test(crate::settings::Settings { toolbar_hidden: true, ..Default::default() });
+        let dir = crate::persist::TempDir::new("startup-reader-quit"); let path = dir.join("keep.txt");
+        let source = b"original bytes\r\n"; std::fs::write(&path, source).unwrap();
+        let mut cx = TestAppContext::single();
+        let (metadata, saves, errors) = install(&mut cx, SessionManifest { tabs: vec![entry(&path, Uuid::new_v4())], ..Default::default() }, Uuid::new_v4());
+        let (release, gate) = oneshot::channel(); let (probe, affinity) = channel();
+        cx.update(|cx| {
+            let f = cx.global_mut::<Fixture>(); f.reader_affinity = Some(probe);
+            if after_read { f.read_done_gate = Some(gate); } else { f.reader_gate = Some(gate); }
+            begin(cx, false);
+        });
+        cx.run_until_parked(); metadata.send(()).unwrap(); cx.run_until_parked();
+        if after_read { assert!(!affinity.try_recv().unwrap()); } else { assert!(affinity.try_recv().is_err()); }
+        cx.update(|cx| { super::super::quit::quit_with_recovery(cx); assert!(protects_placement(cx)); });
+        release.send(()).unwrap(); cx.run_until_parked();
+        cx.update(|cx| { assert!(cx.windows().is_empty()); assert!(cx.global::<Startup>().quitting); assert!(cx.global::<Startup>().request.is_none()); });
+        assert!(saves.try_recv().is_err()); assert!(errors.try_recv().is_err());
+        assert_eq!(std::fs::read(&path).unwrap(), source); cx.quit();
+    }
+}
+
+#[test]
+fn startup_reader_partial_failure_holds_one_payload_until_physical_retirement() {
+    let dir = crate::persist::TempDir::new("startup-reader-partial-failure"); let path = dir.join("body.txt");
+    let source = b"retained partial recovery"; std::fs::write(&path, source).unwrap();
+    let mut cx = TestAppContext::single();
+    let (metadata, saves, errors) = install(&mut cx, SessionManifest { tabs: vec![entry(&path, Uuid::new_v4())], ..Default::default() }, Uuid::new_v4());
+    let (retire, gate) = oneshot::channel(); let (probe, affinity) = channel();
+    cx.update(|cx| {
+        let f = cx.global_mut::<Fixture>(); f.reader_affinity = Some(probe); f.fail_reader = true; f.retirement_gate = Some(gate);
+        begin(cx, false);
+    });
+    cx.run_until_parked(); metadata.send(()).unwrap(); cx.run_until_parked();
+    assert!(!affinity.try_recv().unwrap()); assert!(errors.try_recv().is_err()); assert!(saves.try_recv().is_err());
+    cx.update(|cx| {
+        assert_eq!(cx.global::<Fixture>().retained_bytes, Some(source.len()));
+        let request = cx.global::<Startup>().request.clone().unwrap();
+        cx.global_mut::<Fixture>().inputs = Some((Vec::new(), Some(SessionManifest::default()), Uuid::new_v4()));
+        for _ in 0..100 { begin(cx, false); }
+        assert!(Arc::ptr_eq(cx.global::<Startup>().request.as_ref().unwrap(), &request));
+        assert!(cx.global::<Fixture>().inputs.is_some()); assert!(cx.windows().is_empty());
+    });
+    assert!(affinity.try_recv().is_err()); retire.send(()).unwrap(); cx.run_until_parked();
+    assert!(errors.try_recv().unwrap().contains("after a real recovered body"));
+    cx.update(|cx| assert!(cx.global::<Startup>().request.is_none()));
+    assert_eq!(std::fs::read(&path).unwrap(), source); cx.quit();
+}
+
+#[test]
+fn startup_reader_completed_payload_cannot_overwrite_a_later_dirty_editor() {
+    let _settings = crate::settings::override_for_test(crate::settings::Settings { toolbar_hidden: true, ..Default::default() });
+    let _recent = crate::recent::override_snapshot_for_test(Vec::new());
+    let dir = crate::persist::TempDir::new("startup-reader-late-editor"); let path = dir.join("old.rs");
+    std::fs::write(&path, "fn old() {}\n").unwrap();
+    let mut cx = TestAppContext::single();
+    let (metadata, saves, errors) = install(&mut cx, SessionManifest { tabs: vec![entry(&path, Uuid::new_v4())], ..Default::default() }, Uuid::new_v4());
+    let (done, gate) = oneshot::channel(); let (retired, retirement_gate) = oneshot::channel();
+    cx.update(|cx| { let f = cx.global_mut::<Fixture>(); f.read_done_gate = Some(gate); f.retirement_gate = Some(retirement_gate); begin(cx, false); });
+    cx.run_until_parked(); metadata.send(()).unwrap(); cx.run_until_parked(); assert!(saves.try_recv().is_err());
+    let (entity, visual) = cx.add_window_view(|_, cx| {
+        let mut w = Workspace::new(cx.focus_handle(), cx.focus_handle(), cx.focus_handle(), cx.focus_handle(), cx.focus_handle(), cx.focus_handle(), 1., gpui::WindowAppearance::Dark);
+        w.tabs[0].buffer.rope = ropey::Rope::from_str("later unsaved edits"); w.tabs[0].buffer.dirty = true; configure_workspace(&mut w, cx); w
+    });
+    let id = visual.update_window_entity(&entity, |w, _, _| w.tabs[0].session_id);
+    done.send(()).unwrap(); visual.run_until_parked();
+    visual.update_window_entity(&entity, |w, _, _| { assert_eq!(w.tabs[0].session_id, id); assert_eq!(w.tabs[0].buffer.rope.to_string(), "later unsaved edits"); assert!(w.tabs[0].buffer.dirty); });
+    visual.cx.update(|cx| { assert_eq!(cx.windows().len(), 1); assert!(cx.global::<Startup>().request.is_some()); assert!(!blocks_editor(cx));
+        super::super::window::open_path_in_active_or_new_window(path.clone(), cx); super::super::window::open_editor_window(cx); });
+    visual.run_until_parked(); assert!(saves.try_recv().is_ok()); assert!(errors.try_recv().is_err());
+    retired.send(()).unwrap(); visual.run_until_parked();
+    visual.update_window_entity(&entity, |w, _, _| { assert_eq!(w.tabs[0].session_id, id); assert_eq!(w.tabs[0].buffer.rope.to_string(), "later unsaved edits"); assert!(w.tabs.iter().any(|t| t.buffer.file_path.as_ref() == Some(&path))); });
+    visual.cx.update(|cx| assert!(cx.global::<Startup>().request.is_none())); cx.quit();
 }

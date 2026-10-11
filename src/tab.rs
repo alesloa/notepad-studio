@@ -107,11 +107,15 @@ impl Tab {
     }
 
     pub(crate) fn empty() -> Self {
+        Self::with_buffer(Buffer::empty())
+    }
+
+    pub(crate) fn with_buffer(buffer: Buffer) -> Self {
         Self {
             instance: std::sync::Arc::new(()),
             content_activity: Default::default(), observed_raw: None, observed_rich: None,
             initial_syntax_pending: false,
-            buffer: Buffer::empty(),
+            buffer,
             selection: Selection::default(),
             block_selection: None,
             desired_col_x: None,

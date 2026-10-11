@@ -1,0 +1,14 @@
+# Gates: bookmark clipboard parity
+
+Scope: add the missing Copy Bookmarked Lines route with original text/EOL fidelity and recordable replay.
+
+- [x] G1: oracle behavior studied and real missing route reproduced
+  EVIDENCE: Notepad_plus.cpp:2962-2976,3094-3106; NppCommands.cpp:2389-2391,4563; Common.cpp:976-1025. Worker log/bookmark-baseline.txt fails actual missing menu route. Empty bookmark output clears clipboard, unlike an empty Copy All tab list.
+- [x] G2: action, menu, catalog, handler and persisted macro event implemented
+  EVIDENCE: Parent reviewed/applied tracked patch C82B9329EA085B62E486C6BED360173D0272D6C3DAC495EFF9A7B310328DDEF5 and manually merged shared action replay/Escape/module additions. Three new main source hashes exactly match bookmark-final-review-manifest.json, verified by Get-FileHash.
+- [x] G3: actual caller tests cover Unicode, CRLF/BOM/UTF-16 metadata, last/blank lines, read-only, no bookmarks, unsafe view/focus and save/reload/replay
+  EVIDENCE: Main log/bookmark-main-focused.txt passes 11 tests with 1 timing fixture ignored in 2.89s. Includes nine loaded EOL/encoding cases, rectangles/marks/history, saved TOML fresh replay, focus/caret ABA, ordinary Copy cancellation and large macro refusal. One test overlaps clipboard_all; counts are not additive.
+- [x] G4: focused checks pass; no document or Undo mutation on copy; reviewed patch ready
+  EVIDENCE: Final leaf 10 focused tests pass, Clippy exits 0 with no touched-code diagnostics. Main root race REDs: log/clipboard-bookmark-main-red.txt (Copy All), log/bookmark-copy-other-routes-red.txt (MarkCopy only; popup initial activation fixture excluded), log/bookmark-popup-copy-red-v2.txt (real painted popup). Shared Copy All/MarkCopy and three popup writers now retire pending work. Main log/bookmark-copy-other-routes-green.txt passes 12 tests/1 timing ignored in 3.76s, including all three painted copy rows and unchanged output/history after releasing the old worker. Combined required Windows gates tracked at gates/resumed-parity.md.
+- [x] G5: default optimized release timing and cancellation controls recorded above streaming threshold
+  EVIDENCE: Frozen pre-dense source default cargo test --release bookmark_clipboard_release_manual_timing -- --ignored --nocapture passes 1 test in 0.25s after 17m42s compilation. Leaf log/bookmark-release-default.txt SHA256 1CA672EED41A1BA2B596510FC669DD0C81BDBBB096704C1EBED7659B2CF825F0. For12,000,600 bytes/600 marks: dispatch/worker/total completion4.0024/5.6144/15.0824ms; Escape3.6714/0.0006/7.5893ms; stale revision4.1872/5.2455/13.7494ms; ordinary Copy5.8121/0.0006/11.4516ms. Unicode physical row12,584,724 bytes:24.7854/21.3226/24.7862ms (TestWindow dispatch includes completion). Controls assert clipboard/history effects; no native responsiveness claim. Final dense optimization has separate exact-source optimized evidence in gates/bookmark-copy-perf-next.md.

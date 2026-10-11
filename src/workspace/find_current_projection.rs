@@ -84,14 +84,22 @@ pub(super) struct CaptureStep {
     pub(super) done: bool,
 }
 impl CaptureCursor {
-    /// Call at most once per scheduled frame after validating source ownership.
-    /// A caller must acquire a permit before entering this method.
+    #[cfg(test)]
     pub(super) fn step(&mut self, source: &impl ProjectionSource, permit: ChunkPermit, pool: &Pool)
         -> Result<CaptureStep, ProjectionError>
     {
+        self.step_with_node_budget(source, permit, pool, FRAME_NODES)
+    }
+    /// Source ownership is checked before the frame; each quantum consumes
+    /// only the remaining aggregate node budget and an acquired chunk permit.
+    pub(super) fn step_with_node_budget(&mut self, source: &impl ProjectionSource,
+        permit: ChunkPermit, pool: &Pool, node_budget: usize) -> Result<CaptureStep, ProjectionError>
+    {
+        let node_budget = node_budget.min(FRAME_NODES);
+        if node_budget == 0 { return Err(ProjectionError::InvalidChunk); }
         let mut chunk = ProjectionChunk::new(permit, pool)?;
         let mut nodes = 0;
-        while self.block < source.block_count() && nodes < FRAME_NODES
+        while self.block < source.block_count() && nodes < node_budget
             && chunk.text.data.len() < FRAME_TEXT_BYTES && chunk.boundaries.data.len() < FRAME_BOUNDARIES
         {
             if !self.open {
@@ -115,7 +123,7 @@ impl CaptureCursor {
                 self.open = false;
                 continue;
             }
-            if nodes >= FRAME_NODES { break; }
+            if nodes >= node_budget { break; }
             nodes += 1;
             let text = source.run_text(self.block, self.run).ok_or(ProjectionError::SourceChanged)?;
             let tail = text.get(self.byte..).ok_or(ProjectionError::SourceChanged)?;

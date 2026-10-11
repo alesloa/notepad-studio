@@ -21,6 +21,14 @@ fn held_status(
     expect_publication: bool,
     expected_stale_status: Option<&str>,
 ) {
+    held_status_elapsed(exercise, expect_publication, expected_stale_status, Duration::ZERO);
+}
+fn held_status_elapsed(
+    exercise: impl FnOnce(&Entity<Workspace>, &mut VisualTestContext, &mut VisualTestContext),
+    expect_publication: bool,
+    expected_stale_status: Option<&str>,
+    capture_elapsed: Duration,
+) {
     let _recent = crate::recent::override_snapshot_for_test(Vec::new());
     let _settings = crate::settings::override_for_test(Settings {
         toolbar_hidden: true, folder_panel_visible: false,
@@ -44,6 +52,7 @@ fn held_status(
         workspace.session_snapshot_sink = Some(std::sync::mpsc::channel().0);
         workspace.session_final_save_result = Some(true);
         workspace.rich_find_current.hold = Some(gate);
+        workspace.rich_find_current.capture_elapsed_override = Some(capture_elapsed);
         workspace.find_state.query = "newhit".into(); workspace.find_state.open = true;
         workspace.dialog_tab = DialogTab::Find;
         workspace
@@ -62,12 +71,15 @@ fn held_status(
     dialog.run_until_parked();
     let button = dialog.debug_bounds("dialog-button-Find All in Current Document").unwrap();
     dialog.simulate_click(button.center(), gpui::Modifiers::none());
-    visual.run_until_parked(); frames(visual, 8);
+    visual.run_until_parked();
+    visual.update(|_, cx| assert_eq!(entity.read(cx).rich_find_current.first_scheduled_capture_bytes, None,
+        "inline action admission must not be counted as a scheduled capture callback"));
+    frames(visual, 8);
     visual.update(|_, cx| {
         let workspace = entity.read(cx);
         assert!(workspace.find_in_files.results.is_empty());
         assert!(workspace.find_in_files.searching);
-        assert!(workspace.rich_find_current.frame_max_bytes <= 64 * 1024);
+        assert!(workspace.rich_find_current.frame_max_bytes <= 1024 * 1024);
         assert!(workspace.rich_find_current.frame_max_nodes <= 1024);
         // The held real worker leaves four aggregate permits in the channel;
         // producer retries neither allocate nor copy further source text.
@@ -283,4 +295,22 @@ fn actual_pending_search_publishes_after_queued_retirement_without_invalidation(
             assert!(workspace.find_in_files.searching);
         });
     }, true);
+}
+
+#[test]
+fn actual_first_scheduled_held_tick_fills_four_chunk_permits() {
+    held(|entity, visual, _| {
+        visual.update(|_, cx| {
+            let workspace = entity.read(cx);
+            assert_eq!(workspace.rich_find_current.first_scheduled_capture_bytes, Some(4 * 64 * 1024),
+                "the first real scheduled capture callback should fill all four held-worker permits");
+        });
+    }, true);
+}
+
+#[test]
+fn actual_expired_capture_target_still_runs_one_first_quantum() {
+    held_status_elapsed(|entity, visual, _| {
+        visual.update(|_, cx| assert_eq!(entity.read(cx).rich_find_current.first_scheduled_capture_bytes, Some(64 * 1024)));
+    }, true, None, Duration::from_millis(3));
 }

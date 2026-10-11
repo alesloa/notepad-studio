@@ -29,7 +29,8 @@ A lightweight, cross-platform text editor inspired by Notepad++, written in Rust
 > editable and rejecting results after intervening edits or cancellation.
 > Find All in the current Doc View captures live formatted text incrementally,
 > matches in background and rejects stale result navigation. Large captures
-> yield between chunks; completion latency near the size limit needs tuning.
+> yield between bounded turns and stop feeding when the worker queue is full.
+> Native completion latency and broader search performance still need testing.
 
 Optional [API completion definitions](docs/api-completion.md) supply language
 names for Function Completion and signatures for parameter hints, including

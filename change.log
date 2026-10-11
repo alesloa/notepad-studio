@@ -512,6 +512,10 @@ v0.0.5 — current
          Word, Function and Combined completion preserve marked text and
          its Undo history; loaded API definitions remain available afterward.
 
+    131. Find All in the current Doc View can feed several bounded capture
+         chunks per turn. It yields when the worker queue is full, retains
+         cancellation, and limits aggregate text and document-node work.
+
 
   v0.1.0 — syntax & language:
 

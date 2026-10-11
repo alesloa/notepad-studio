@@ -20,6 +20,8 @@ mod find_view;
 mod find_current_rich_tests;
 #[cfg(test)]
 mod find_current_rich_lifecycle_tests;
+#[cfg(test)]
+mod find_current_schedule_tests;
 mod find_current_budget;
 mod find_current_controller;
 mod find_current_projection;

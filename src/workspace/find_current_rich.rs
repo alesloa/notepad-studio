@@ -1,5 +1,5 @@
 // Current-tab Doc View Find All: incremental capture, worker matching and proven endpoints.
-use std::{ops::Range, path::PathBuf, sync::{Arc, Mutex, atomic::{AtomicBool, Ordering}}, time::Duration};
+use std::{ops::Range, path::PathBuf, sync::{Arc, Mutex, atomic::{AtomicBool, Ordering}}, time::{Duration, Instant}};
 use futures::{channel::mpsc, FutureExt, StreamExt};
 use gpui::{AppContext, Context, Task};
 use uuid::Uuid;
@@ -97,6 +97,12 @@ pub(super) struct Runtime {
     #[cfg(test)]
     pub(super) frame_max_bytes: usize,
     #[cfg(test)]
+    pub(super) first_scheduled_capture_bytes: Option<usize>,
+    #[cfg(test)]
+    pub(super) capture_elapsed_override: Option<Duration>,
+    #[cfg(test)]
+    pub(super) trace: Option<Arc<super::find_current_schedule_tests::Trace>>,
+    #[cfg(test)]
     pub(super) frame_max_nodes: usize,
 }
 impl Default for Runtime {
@@ -108,6 +114,9 @@ impl Default for Runtime {
             #[cfg(test)] hold: None,
             #[cfg(test)] hold_notices: None,
             #[cfg(test)] frame_max_bytes: 0,
+            #[cfg(test)] first_scheduled_capture_bytes: None,
+            #[cfg(test)] capture_elapsed_override: None,
+            #[cfg(test)] trace: None,
             #[cfg(test)] frame_max_nodes: 0,
         }
     }
@@ -222,10 +231,16 @@ impl Workspace {
         let worker_actor = Arc::clone(&actor);
         let ledger = self.rich_find_current.ledger.clone();
         let metadata = self.rich_find_current.metadata.clone();
+        #[cfg(test)]
+        let driver_trace = self.rich_find_current.trace.clone();
+        #[cfg(test)]
+        let worker_trace = driver_trace.clone();
         cx.background_spawn(async move {
             worker_actor.run(wakes, move |request: Request<Job>| {
                 let notices = Arc::clone(&worker_notices);
                 let ledger = ledger.clone(); let metadata = metadata.clone();
+                #[cfg(test)]
+                let trace = worker_trace.clone();
                 async move {
                     let guard = request.value.guard;
                     let result = async {
@@ -240,12 +255,21 @@ impl Workspace {
                         loop {
                             let step = consumer.next().await.ok_or(Failure::Cancelled)?;
                             if request.cancel.load(Ordering::Acquire) { return Err(Failure::Cancelled); }
-                            let done = step.done; builder.push(step.chunk)?;
+                            let done = step.done;
+                            #[cfg(test)] let push_started = Instant::now();
+                            builder.push(step.chunk)?;
+                            #[cfg(test)] if let Some(trace) = &trace { trace.projection(push_started.elapsed()); }
                             if done { break; }
                         }
-                        find_current_worker::prepare(builder.finish()?, &guard.query.data, &guard.flags,
+                        #[cfg(test)] let finish_started = Instant::now();
+                        let projection = builder.finish()?;
+                        #[cfg(test)] if let Some(trace) = &trace { trace.projection(finish_started.elapsed()); }
+                        #[cfg(test)] let prepare_started = Instant::now();
+                        let prepared = find_current_worker::prepare(projection, &guard.query.data, &guard.flags,
                             guard.scope.as_ref(), &guard.path.data, &guard.label.data, guard.tab_hint,
-                            &ledger, &request.cancel)
+                            &ledger, &request.cancel);
+                        #[cfg(test)] if let Some(trace) = &trace { trace.prepare(prepare_started.elapsed()); }
+                        prepared
                     }.await;
                     Output { guard, result }
                 }
@@ -268,6 +292,8 @@ impl Workspace {
                 let Some(notice) = notice else { break; };
                 if matches!(notice, Notice::Wake) { ui_notices.wake_pending.store(false, Ordering::Release); }
                 let tick = matches!(notice, Notice::Tick);
+                let callback_started = Instant::now();
+                #[cfg(test)] if let Some(trace) = &driver_trace { trace.begin(); }
                 let updated = this.update(cx, |workspace, cx| {
                     if workspace.window_closed { return false; }
                     match notice {
@@ -284,11 +310,12 @@ impl Workspace {
                         }
                         Notice::Wake | Notice::Tick => {}
                     }
-                    if tick { workspace.step_rich_find_current(cx); }
+                    if tick { workspace.step_rich_find_current(cx, callback_started, true); }
                     workspace.rich_find_current.pending.is_some() || workspace.rich_find_current.current.is_some()
                         || workspace.rich_find_current.capture.is_some()
                         || workspace.rich_find_current.completion.is_some()
                 });
+                #[cfg(test)] if let Some(trace) = &driver_trace { trace.finish(callback_started, tick); }
                 let Ok(updated) = updated else { break; };
                 busy = updated;
             }
@@ -339,7 +366,7 @@ impl Workspace {
                 self.find_state.status = Some("Searching current document…".into());
                 self.find_in_files.status = Some("Searching current document…".into());
                 self.find_in_files.error = None;
-                self.step_rich_find_current(cx);
+                self.step_rich_find_current(cx, Instant::now(), false);
                 if let Some(notices) = &self.rich_find_current.notices { let _ = send(notices, Notice::Wake); }
             }
             Err(_) => {
@@ -357,7 +384,7 @@ impl Workspace {
         self.find_in_files.status = Some(status.into());
         cx.notify();
     }
-    fn step_rich_find_current(&mut self, cx: &mut Context<Self>) {
+    fn step_rich_find_current(&mut self, cx: &mut Context<Self>, callback_started: Instant, _scheduled: bool) {
         let Some(actor) = self.rich_find_current.actor.clone() else { return; };
         if self.rich_find_current.pending.is_some() {
             if !actor.retire_using(|| Retired { _caches: self.take_rich_find_caches(), ..Default::default() }) { return; }
@@ -372,18 +399,29 @@ impl Workspace {
             return;
         }
         let Some((id, guard)) = self.rich_find_current.current.clone() else { return; };
-        if !guard.matches(self, true) {
+        #[cfg(test)] let guard_started = Instant::now();
+        let valid = guard.matches(self, true);
+        #[cfg(test)] if let Some(trace) = &self.rich_find_current.trace { trace.guard(guard_started.elapsed()); }
+        if !valid {
             actor.reject(id); self.stop_stale_rich_find_current(cx); return;
         }
         if let Some(mut producer) = self.rich_find_current.capture.take() {
             let Some(payload) = self.tabs.get(self.active).and_then(|tab| tab.buffer.rich_doc.as_ref()) else { actor.reject(id); self.cancel_rich_find_current(); cx.notify(); return; };
-            match producer.capture(payload) {
+            #[cfg(test)]
+            let progress = if let Some(elapsed) = self.rich_find_current.capture_elapsed_override {
+                producer.capture_frame_with_elapsed(payload, || elapsed)
+            } else { producer.capture_frame(payload, callback_started) };
+            #[cfg(not(test))]
+            let progress = producer.capture_frame(payload, callback_started);
+            match progress {
                 Ok(progress) => {
-                    if progress.nodes > 1024 || progress.bytes > 64 * 1024 || (progress.blocked && progress.done) {
+                    if progress.nodes > 1024 || progress.bytes > find_current_pipe::FRAME_COPY_BYTES || progress.attempts > 16 || (progress.blocked && progress.done) {
                         actor.reject(id); self.cancel_rich_find_current();
                         self.find_state.status = Some("Document capture failed; run the search again".into()); cx.notify(); return;
                     }
                     #[cfg(test)] {
+                        if let Some(trace) = &self.rich_find_current.trace { trace.capture(progress.bytes, progress.nodes, progress.attempts); }
+                        if _scheduled { self.rich_find_current.first_scheduled_capture_bytes.get_or_insert(progress.bytes); }
                         self.rich_find_current.frame_max_bytes = self.rich_find_current.frame_max_bytes.max(progress.bytes);
                         self.rich_find_current.frame_max_nodes = self.rich_find_current.frame_max_nodes.max(progress.nodes);
                     }

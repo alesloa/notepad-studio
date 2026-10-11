@@ -242,6 +242,8 @@ impl Workspace {
     }
 
     pub(crate) fn page_up(&mut self, _: &EditPageUp, window: &mut Window, cx: &mut Context<Self>) {
+        if self.autocomplete_page_nav(-1, window, cx) { return; }
+        self.close_autocomplete(cx);
         if self.input_focus(window) == InputFocus::RichDocBody {
             self.rich_doc_move_page(-1, false, cx);
             return;
@@ -259,6 +261,8 @@ impl Workspace {
     }
 
     pub(crate) fn page_down(&mut self, _: &EditPageDown, window: &mut Window, cx: &mut Context<Self>) {
+        if self.autocomplete_page_nav(1, window, cx) { return; }
+        self.close_autocomplete(cx);
         if self.input_focus(window) == InputFocus::RichDocBody {
             self.rich_doc_move_page(1, false, cx);
             return;
@@ -304,6 +308,9 @@ impl Workspace {
     }
 
     pub(crate) fn move_line_start(&mut self, _: &MoveLineStart, window: &mut Window, cx: &mut Context<Self>) {
+        // ScintillaBase.cxx:158-163: plain Home/End navigate the active list.
+        if self.autocomplete_context_valid(window) { self.autocomplete_nav(-i32::MAX, cx); return; }
+        self.close_autocomplete(cx);
         let focus = self.input_focus(window);
         if focus == InputFocus::RichDocBody {
             self.rich_doc_move_to_edge(false, false, cx);
@@ -321,6 +328,9 @@ impl Workspace {
     }
 
     pub(crate) fn move_line_end(&mut self, _: &MoveLineEnd, window: &mut Window, cx: &mut Context<Self>) {
+        // ScintillaBase.cxx:158-163: plain Home/End navigate the active list.
+        if self.autocomplete_context_valid(window) { self.autocomplete_nav(i32::MAX, cx); return; }
+        self.close_autocomplete(cx);
         let focus = self.input_focus(window);
         if focus == InputFocus::RichDocBody {
             self.rich_doc_move_to_edge(true, false, cx);

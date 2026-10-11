@@ -504,6 +504,10 @@ v0.0.5 — current
          search messages when the document or query changes while waiting
          for an earlier worker to finish.
 
+    129. Autocomplete arrows stop at the first and last suggestion. Home,
+         End and Page Up/Down navigate suggestions without moving the
+         editor caret; Shift-selection retains normal editor behavior.
+
 
   v0.1.0 — syntax & language:
 

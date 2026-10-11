@@ -104,7 +104,7 @@ fn initial_manual_function_can_complete_an_explicit_member_from_mouse_or_keys() 
         let mut cx = TestAppContext::single();
         let (workspace, visual) = fixture(&mut cx, "ret");
         press(visual, "EditAutocompleteFunc");
-        visual.simulate_keystrokes("down"); // Wrap from the selected late match to Arc.
+        press(visual, "MoveLineStart"); // Select the first explicit member without wrapping.
         visual.update(|_, cx| {
             let state = workspace.read(cx).autocomplete.as_ref().unwrap();
             assert_eq!(
@@ -163,7 +163,7 @@ fn editing_permanently_revokes_the_manual_member_exception_for_retained_rows() {
         let (workspace, visual) = fixture(&mut cx, "ret");
         press(visual, "EditAutocompleteFunc");
         visual.simulate_input("u");
-        visual.simulate_keystrokes("down");
+        press(visual, "MoveLineStart");
         if mouse {
             let bounds = visual.debug_bounds("autocomplete-menu").unwrap();
             visual.simulate_click(

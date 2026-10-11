@@ -597,20 +597,25 @@ impl Workspace {
         }
     }
 
-    /// Step the selected row by `delta` (positive = down, negative = up).
-    /// Wraps at both ends so a held Up at the top jumps to the bottom (and
-    /// vice versa), matching NPP's native popup feel.
+    /// AutoComplete.cxx:238-246: list navigation clamps at the first/last row.
     pub(crate) fn autocomplete_nav(&mut self, delta: i32, cx: &mut Context<Self>) {
-        let Some(state) = self.autocomplete.as_mut() else {
-            return;
+        let Some(state) = self.autocomplete.as_mut() else { return; };
+        let Some(last) = state.candidates.len().checked_sub(1) else { return; };
+        let current = state.selected.min(last);
+        let next = if delta < 0 {
+            current.saturating_sub(delta.unsigned_abs() as usize)
+        } else { current.saturating_add(delta as usize).min(last) };
+        if state.selected != next { state.selected = next; cx.notify(); }
+    }
+
+    pub(super) fn autocomplete_page_nav(&mut self, direction: i32, window: &mut Window, cx: &mut Context<Self>) -> bool {
+        if !self.autocomplete_context_valid(window) { return false; }
+        let Some(rows) = crate::ui::autocomplete_popup::navigation_page_rows(self, window) else {
+            self.close_autocomplete(cx); return false;
         };
-        let len = state.candidates.len() as i32;
-        if len == 0 {
-            return;
-        }
-        let next = (state.selected as i32 + delta).rem_euclid(len);
-        state.selected = next as usize;
-        cx.notify();
+        let Ok(rows) = i32::try_from(rows) else { self.close_autocomplete(cx); return false; };
+        self.autocomplete_nav(direction.saturating_mul(rows), cx);
+        true
     }
 
     /// Apply the currently-selected candidate at the caret, then dismiss the

@@ -100,7 +100,7 @@ fn caret_selection_tab_and_dialog_changes_dismiss_completion() {
                 2 => { w.tabs.push(Tab::empty()); w.set_active_tab(1, cx); }
                 3 => w.focus_input(InputFocus::Replacement, window, cx),
                 4 => w.select_up(&SelectUp, window, cx),
-                5 => w.page_down(&EditPageDown, window, cx),
+                5 => w.select_page_down(&SelectPageDown, window, cx),
                 6 => w.select_page_up(&SelectPageUp, window, cx),
                 _ => w.move_doc_start(&MoveDocStart, window, cx),
             }

@@ -63,7 +63,7 @@ fn real_workspace_keys_navigate_accept_and_cancel_completion() {
     for accept in ["enter", "tab"] {
         let mut cx = TestAppContext::single();
         let (workspace, visual) = fixture(&mut cx);
-        visual.simulate_keystrokes("down up up down down");
+        visual.simulate_keystrokes("down up down");
         visual.update(|_, cx| {
             let w = workspace.read(cx);
             assert_eq!(w.selection().head, 2);
@@ -358,4 +358,143 @@ fn source_view_actions_return_body_and_grid_focus_to_the_editor() {
         }
         cx.quit();
     }
+}
+
+// Read-only parity audit: ScintillaBase.cxx:141-183, AutoComplete.cxx:238-246.
+fn autocomplete_current_list_key(action: &str, last: bool, expected: usize) {
+    let _settings = crate::settings::override_for_test(preferences());
+    let mut cx = TestAppContext::single(); let (workspace, visual) = fixture(&mut cx);
+    if last { visual.simulate_keystrokes("down down"); }
+    press(visual, &[action]);
+    visual.update(|_, cx| {
+        let w = workspace.read(cx);
+        assert_eq!(w.selection().head, 2, "list navigation must retain the editor caret");
+        let state = w.autocomplete.as_ref().expect("list navigation must retain the opening");
+        assert_eq!(state.selected, expected, "list navigation must follow the oracle boundary");
+        assert_eq!(w.buffer().rope.to_string(), SAMPLE);
+    });
+    assert!(visual.debug_bounds("autocomplete-menu").is_some()); cx.quit();
+}
+
+#[test] fn autocomplete_current_up_clamps_at_first_row() { autocomplete_current_list_key("MoveUp", false, 0); }
+#[test] fn autocomplete_current_down_clamps_at_last_row() { autocomplete_current_list_key("MoveDown", true, 2); }
+#[test] fn autocomplete_current_page_down_moves_the_list() { autocomplete_current_list_key("EditPageDown", false, 2); }
+#[test] fn autocomplete_current_page_up_moves_the_list() { autocomplete_current_list_key("EditPageUp", true, 0); }
+#[test] fn autocomplete_current_home_moves_to_first_row() { autocomplete_current_list_key("MoveLineStart", true, 0); }
+#[test] fn autocomplete_current_end_moves_to_last_row() { autocomplete_current_list_key("MoveLineEnd", false, 2); }
+
+#[test]
+fn autocomplete_current_painted_backspace_and_caret_movement() {
+    let _settings = crate::settings::override_for_test(preferences());
+    for movement in ["MoveLeft", "MoveRight"] {
+        let mut cx = TestAppContext::single(); let (workspace, visual) = fixture(&mut cx);
+        visual.simulate_keystrokes("p");
+        visual.update(|_, cx| {
+            let w = workspace.read(cx); assert_eq!(w.selection().head, 3);
+            assert_eq!(w.autocomplete.as_ref().unwrap().candidates, ["albatross", "alpha", "alpine"]);
+        });
+        assert!(visual.debug_bounds("autocomplete-menu").is_some());
+        press(visual, &["EditBackspace"]);
+        visual.update(|_, cx| {
+            let w = workspace.read(cx); assert_eq!(w.buffer().rope.to_string(), SAMPLE);
+            assert!(w.autocomplete.is_some());
+        });
+        assert!(visual.debug_bounds("autocomplete-menu").is_some());
+        press(visual, &[movement]); visual.run_until_parked();
+        visual.update(|_, cx| assert!(workspace.read(cx).autocomplete.is_none()));
+        // GPUI Frame::clear retains debug_bounds entries; absence cannot be inferred from this cache.
+        visual.update(|window, cx| assert!(crate::ui::autocomplete_popup::occupied_bounds(workspace.read(cx), window).is_none()));
+        cx.quit();
+    }
+}
+
+#[test]
+fn autocomplete_current_no_popup_keeps_normal_home_end_page_movement() {
+    let _settings = crate::settings::override_for_test(preferences());
+    let mut cx = TestAppContext::single(); let (workspace, visual) = fixture(&mut cx);
+    visual.simulate_keystrokes("escape");
+    press(visual, &["MoveLineStart"]);
+    visual.update(|_, cx| assert_eq!(workspace.read(cx).selection().head, 0));
+    press(visual, &["MoveLineEnd"]);
+    visual.update(|_, cx| assert_eq!(workspace.read(cx).selection().head, 2));
+    press(visual, &["EditPageDown"]);
+    visual.update(|_, cx| { let w = workspace.read(cx); assert_ne!(w.selection().head, 2); assert!(w.autocomplete.is_none()); });
+    press(visual, &["EditPageUp"]);
+    visual.update(|_, cx| { let w = workspace.read(cx); assert_eq!(w.buffer().rope.to_string(), SAMPLE); assert!(w.autocomplete.is_none()); });
+    cx.quit();
+}
+
+#[test]
+fn autocomplete_current_extend_commands_keep_editor_selection_behavior() {
+    let _settings = crate::settings::override_for_test(preferences());
+    for action in ["SelectLineStart", "SelectLineEnd", "SelectPageUp", "SelectPageDown"] {
+        let mut cx = TestAppContext::single(); let (workspace, visual) = fixture(&mut cx);
+        press(visual, &[action]);
+        visual.update(|_, cx| { let w = workspace.read(cx); assert!(w.autocomplete.is_none()); assert_eq!(w.selection().anchor, 2); assert_eq!(w.buffer().rope.to_string(), SAMPLE); });
+        cx.quit();
+    }
+}
+
+#[test]
+fn autocomplete_current_one_and_empty_list_boundaries_are_safe() {
+    let _settings = crate::settings::override_for_test(preferences());
+    let mut cx = TestAppContext::single(); let (workspace, visual) = fixture(&mut cx);
+    visual.update_window_entity(&workspace, |w, window, cx| {
+        w.close_autocomplete(cx); w.active_tab_mut().buffer.rope = ropey::Rope::from_str("al\nalpha");
+        w.active_tab_mut().selection.collapse_to(2); w.autocomplete_word(&EditAutocompleteWord, window, cx);
+    }); visual.run_until_parked();
+    for action in ["MoveUp", "MoveDown", "MoveLineStart", "MoveLineEnd", "EditPageUp", "EditPageDown"] {
+        press(visual, &[action]);
+        visual.update(|_, cx| { let w = workspace.read(cx); assert_eq!(w.autocomplete.as_ref().unwrap().selected, 0); assert_eq!(w.selection().head, 2); });
+    }
+    visual.update_window_entity(&workspace, |w, _, cx| {
+        w.autocomplete.as_mut().unwrap().selected = usize::MAX;
+        w.autocomplete_nav(i32::MIN, cx); assert_eq!(w.autocomplete.as_ref().unwrap().selected, 0);
+        w.autocomplete_nav(i32::MAX, cx); assert_eq!(w.autocomplete.as_ref().unwrap().selected, 0);
+        w.autocomplete.as_mut().unwrap().candidates.clear();
+        w.autocomplete_nav(i32::MIN, cx); w.autocomplete_nav(i32::MAX, cx);
+    });
+    visual.update(|window, cx| { let _ = window.draw(cx); }); visual.run_until_parked();
+    visual.update(|_, cx| { let w = workspace.read(cx); assert!(w.autocomplete.is_none()); assert_eq!(w.buffer().rope.to_string(), "al\nalpha"); });
+    cx.quit();
+}
+
+#[test]
+fn autocomplete_current_page_step_uses_painted_small_pane_rows() {
+    let _settings = crate::settings::override_for_test(preferences());
+    let mut cx = TestAppContext::single(); let (workspace, visual) = fixture(&mut cx);
+    let names = (0..30).map(|i| format!("al{i:02}")).collect::<Vec<_>>().join(" ");
+    visual.simulate_resize(gpui::size(gpui::px(600.), gpui::px(160.)));
+    visual.update_window_entity(&workspace, |w, window, cx| {
+        w.close_autocomplete(cx); w.active_tab_mut().buffer.rope = ropey::Rope::from_str(&format!("al\n{names}"));
+        w.active_tab_mut().selection.collapse_to(2); w.autocomplete_word(&EditAutocompleteWord, window, cx);
+        assert_eq!(w.autocomplete.as_ref().unwrap().candidates.len(), 30);
+    }); visual.run_until_parked();
+    let menu = visual.debug_bounds("autocomplete-menu").unwrap();
+    let rows = ((f32::from(menu.size.height) - 6.) / 22.).round() as usize;
+    assert!((1..8).contains(&rows), "controlled small pane has fewer than eight painted rows: {rows}");
+    press(visual, &["EditPageDown"]);
+    visual.update(|_, cx| { let w=workspace.read(cx); assert_eq!(w.selection().head, 2); assert_eq!(w.autocomplete.as_ref().unwrap().selected, rows); });
+    press(visual, &["MoveLineEnd", "EditPageUp"]);
+    visual.update(|_, cx| { let w=workspace.read(cx); assert_eq!(w.selection().head, 2); assert_eq!(w.autocomplete.as_ref().unwrap().selected, 29-rows); });
+    cx.quit();
+}
+
+#[test]
+fn autocomplete_current_list_navigation_does_not_record_editor_macros() {
+    let _settings = crate::settings::override_for_test(preferences());
+    let _execution = crate::macros::override_execution_for_test(true);
+    let mut cx = TestAppContext::single(); let (workspace, visual) = fixture(&mut cx);
+    for action in ["MoveUp", "MoveDown", "EditPageDown", "EditPageUp", "MoveLineEnd", "MoveLineStart"] {
+        press(visual, &[action]);
+    }
+    crate::macros::stop_recording();
+    assert!(crate::macros::current().is_empty());
+    visual.update(|_, cx| assert_eq!(workspace.read(cx).selection().head, 2));
+    visual.simulate_keystrokes("escape");
+    crate::macros::start_recording();
+    press(visual, &["MoveLineStart"]);
+    crate::macros::stop_recording();
+    assert!(matches!(crate::macros::current().as_slice(), [crate::macros::MacroEvent::MoveLineStart]));
+    cx.quit();
 }

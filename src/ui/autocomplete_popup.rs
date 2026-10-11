@@ -198,14 +198,22 @@ impl Element for CaretPopup {
 }
 
 /// Fresh geometry for a simultaneous call hint; no previous-frame bounds.
-pub(crate) fn occupied_bounds(workspace: &Workspace, window: &mut Window) -> Option<Bounds<Pixels>> {
+fn current_placement(workspace: &Workspace, window: &mut Window) -> Option<PopupPlacement> {
     if !workspace.autocomplete_context_valid(window) { return None; }
     let state = workspace.autocomplete.as_ref()?;
     let caret = workspace.autocomplete_caret_bounds()?;
     let viewport = workspace.viewport.bounds.intersect(&Bounds::new(Point::default(), window.viewport_size()));
     let width = candidate_width(&state.candidates, window);
     popup_placement(caret, viewport, width, state.candidates.len(), f32::from(window.rem_size()))
-        .map(|placement| placement.bounds)
+}
+
+pub(crate) fn occupied_bounds(workspace: &Workspace, window: &mut Window) -> Option<Bounds<Pixels>> {
+    current_placement(workspace, window).map(|placement| placement.bounds)
+}
+
+/// ScintillaBase.cxx:152-157: page navigation uses the visible list rows.
+pub(crate) fn navigation_page_rows(workspace: &Workspace, window: &mut Window) -> Option<usize> {
+    current_placement(workspace, window).map(|placement| placement.rows)
 }
 
 fn candidate_width(candidates: &[String], window: &mut Window) -> Pixels {
@@ -738,4 +746,54 @@ mod tests {
         });
         cx.quit();
     }
+    #[test]
+    fn autocomplete_current_long_suggestion_zoom_and_clipped_viewport() {
+        for rem in [8., 16., 32., 48.] {
+            let mut cx = gpui::TestAppContext::single(); let (fixture, visual) = fixture(&mut cx, 260.);
+            let long = format!("long{}", "name".repeat(40));
+            visual.simulate_resize(size(px(420.), px(380.)));
+            visual.update(|window, cx| {
+                window.set_rem_size(px(rem));
+                fixture.read(cx).workspace.clone().update(cx, |w, cx| {
+                    w.close_autocomplete(cx);
+                    w.active_tab_mut().buffer.rope = ropey::Rope::from_str(&format!("lo\n{long}"));
+                    w.active_tab_mut().selection.collapse_to(2);
+                    w.autocomplete_word(&crate::actions::EditAutocompleteWord, window, cx);
+                    assert_eq!(w.autocomplete.as_ref().unwrap().candidates.as_slice(), std::slice::from_ref(&long));
+                }); window.refresh();
+            }); visual.run_until_parked();
+            let menu = visual.debug_bounds("autocomplete-menu").expect("one row fits in clipped pane");
+            visual.update(|window, cx| {
+                let w = fixture.read(cx).workspace.read(cx);
+                let caret = w.autocomplete_caret_bounds().unwrap();
+                let viewport = w.viewport.bounds.intersect(&Bounds::new(Point::default(), window.viewport_size()));
+                assert!(!menu.intersects(&caret), "active line must remain clear at zoom {rem}");
+                assert_eq!(menu.size.height, px(rem * (ROW_HEIGHT_REM + 4. / 16.) + 2.));
+                assert_eq!(menu.size.width, px(rem * 24.).min(viewport.size.width - px(rem * 8. / 16.)));
+                assert!(menu.left() >= viewport.left() && menu.right() <= viewport.right());
+                assert!(menu.top() >= viewport.top() && menu.bottom() <= viewport.bottom());
+            }); cx.quit();
+        }
+    }
+
+    #[test]
+    fn autocomplete_current_painted_row_refuses_added_multi_caret_block() {
+        let mut cx = gpui::TestAppContext::single(); let (fixture, visual) = fixture(&mut cx, 160.);
+        let menu = visual.debug_bounds("autocomplete-menu").unwrap();
+        visual.update(|_, cx| {
+            fixture.read(cx).workspace.clone().update(cx, |w, _| {
+                w.active_tab_mut().block_selection = Some(crate::buffer::BlockSelection {
+                    anchor_line: 0, head_line: 1, anchor_col: 2, head_col: 2, is_dragging: false,
+                });
+            });
+        });
+        // Deliver the previously painted row callback before a replacement frame.
+        visual.simulate_mouse_down(menu.origin + point(px(10.), px(12.)), MouseButton::Left, gpui::Modifiers::default());
+        visual.update(|_, cx| {
+            let w = fixture.read(cx).workspace.read(cx);
+            assert_eq!(w.buffer().rope.to_string(), "al\nalpha albatross alpine");
+            assert!(w.autocomplete.is_none()); assert!(w.tabs.get(w.active).unwrap().block_selection.is_some());
+        }); cx.quit();
+    }
+
 }

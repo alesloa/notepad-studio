@@ -123,10 +123,31 @@ pub fn compound_text_to_utf8(bytes: &[u8]) -> Result<String, DecodeError> {
     let split: Vec<&[u8]> = bytes.split(|&b| b == 0x1b).collect();
 
     let mut result = String::new();
+    let mut latin1_gr = true;
 
-    for chunk in split {
+    for (index, chunk) in split.into_iter().enumerate() {
+        // The first segment has no ESC prefix, even if it resembles a designation.
+        if index == 0 {
+            result.push_str(&encoding_rs::mem::decode_latin1(chunk));
+            continue;
+        }
         let mut iter = chunk.iter();
-        match (iter.next(), iter.next()) {
+        let prefix = (iter.next(), iter.next());
+        if let (Some(0x2d), Some(final_byte)) = prefix {
+            latin1_gr = *final_byte == 0x41;
+        }
+        match prefix {
+            // X Consortium Compound Text 1.1: ESC(B designates ASCII in GL.
+            // It does not reset GR. Independent non-Latin GR decoding is not
+            // supported here, so refuse those bytes rather than corrupt them.
+            (Some(0x28), Some(0x42)) => {
+                let left = iter.as_slice();
+                if !latin1_gr && left.iter().any(|&byte| byte >= 0x80) {
+                    return Err(DecodeError::UnsupportedEncoding);
+                }
+                result.push_str(&encoding_rs::mem::decode_latin1(left));
+            }
+            (Some(0x28), Some(0x49 | 0x4a)) => return Err(DecodeError::UnsupportedEncoding),
             // UTF-8
             (Some(0x25), Some(0x47)) => {
                 let left = iter.as_slice().to_vec();
@@ -254,11 +275,7 @@ pub fn compound_text_to_utf8(bytes: &[u8]) -> Result<String, DecodeError> {
                 let (out, _) = encoding_rs::ISO_8859_16.decode_without_bom_handling(left);
                 result.push_str(&out);
             }
-            // defaults to ISO-8859-1
-            _ => {
-                let out = encoding_rs::mem::decode_latin1(chunk);
-                result.push_str(&out);
-            }
+            _ => return Err(DecodeError::InvalidEncoding),
         };
     }
     Ok(result)
@@ -266,6 +283,65 @@ pub fn compound_text_to_utf8(bytes: &[u8]) -> Result<String, DecodeError> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn ascii_reset_is_not_text() {
+        for (bytes, expected) in [
+            (&b"\x1b(B"[..], ""),
+            (&b"\x1b(Bhello (B)!\t\n"[..], "hello (B)!\t\n"),
+            (&b"\x1b(B\x1b(Btail"[..], "tail"),
+            (&b"\x1b(Bcaf\xe9"[..], "café"),
+        ] {
+            assert_eq!(crate::compound_text_to_utf8(bytes).unwrap(), expected);
+        }
+    }
+
+    #[test]
+    fn literal_ascii_reset_prefixes_are_text() {
+        for text in ["(B", "(I", "(J", "(A", "(", "(B hello (B)", "%G literal", "-A literal", "$", "$(B literal"] {
+            assert_eq!(crate::compound_text_to_utf8(text.as_bytes()).unwrap(), text);
+        }
+    }
+
+    #[test]
+    fn japanese_ascii_reset_preserves_tail_and_next_designation() {
+        let bytes = b"\x1b$(BEl5~\x1b(B, (B)!\t\n\x1b$(BEl5~\x1b(B.";
+        assert_eq!(crate::compound_text_to_utf8(bytes).unwrap(), "東京, (B)!\t\n東京.");
+    }
+
+    #[test]
+    fn ascii_reset_after_utf8_preserves_unicode() {
+        let mut bytes = crate::utf8_to_compound_text("文😀");
+        bytes.extend_from_slice(b"\x1b(B tail!");
+        assert_eq!(crate::compound_text_to_utf8(&bytes).unwrap(), "文😀 tail!");
+    }
+
+    #[test]
+    fn malformed_ascii_designation_is_invalid() {
+        for bytes in [&b"\x1b"[..], &b"\x1b("[..], &b"\x1b(A"[..], &b"\x1b(0"[..], &b"\x1bZ"[..]] {
+            assert!(matches!(crate::compound_text_to_utf8(bytes), Err(crate::DecodeError::InvalidEncoding)));
+        }
+    }
+
+    #[test]
+    fn unsupported_jis_single_byte_designations_return_error() {
+        for bytes in [b"\x1b(I", b"\x1b(J"] {
+            assert!(matches!(crate::compound_text_to_utf8(bytes), Err(crate::DecodeError::UnsupportedEncoding)));
+        }
+    }
+
+    #[test]
+    fn ascii_reset_keeps_prior_gr_designation() {
+        assert_eq!(crate::compound_text_to_utf8(b"\x1b-B\xa1\x1b(B tail!").unwrap(), "Ą tail!");
+        assert_eq!(crate::compound_text_to_utf8(b"\x1b-B\xa1\x1b(B\x1b-A\xa1").unwrap(), "Ą¡");
+        for bytes in [
+            &b"\x1b-B\xa1\x1b(B\xa1"[..],
+            &b"\x1b-B\xa1\x1b(B\x1b(B\xa1"[..],
+            &b"\x1b-B\xa1\x1b%Gtext\x1b%@\x1b(B\xa1"[..],
+        ] {
+            assert!(matches!(crate::compound_text_to_utf8(bytes), Err(crate::DecodeError::UnsupportedEncoding)));
+        }
+    }
+
     #[test]
     fn chinese_high_bytes_are_invalid() {
         for byte in 0x80..=0xff {

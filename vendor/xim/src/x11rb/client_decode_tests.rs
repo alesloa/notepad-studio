@@ -191,6 +191,59 @@ fn valid_commit_compound_text_is_unchanged() { valid_reply(ReplyKind::Commit); }
 #[test]
 fn valid_preedit_compound_text_is_unchanged() { valid_reply(ReplyKind::Preedit); }
 
+fn japanese_ascii_reply(kind: ReplyKind) {
+    for (text, expected) in [
+        (&b"\x1b$(BEl5~\x1b(B, (B)!"[..], "東京, (B)!"),
+        (&b"\x1b(B\x1b(Btail"[..], "tail"),
+        (&b"(B literal"[..], "(B literal"),
+        (&b"%G literal -A $"[..], "%G literal -A $"),
+        (&b"\x1b-B\xa1\x1b(B tail!"[..], "Ą tail!"),
+        (&b"\x1b-B\xa1\x1b(B\x1b-A\xa1"[..], "Ą¡"),
+    ] {
+        let wire = xim_parser::write_to_vec(reply(kind, text));
+        let mut client = client(wire.clone());
+        let mut handler = Handler::default();
+        assert!(client.filter_event(&event(wire.len()), &mut handler).unwrap());
+        assert_eq!(handler.delivered, vec![(7, 11, expected.into())]);
+        assert!(client.has_conn.sent.borrow().is_empty());
+    }
+}
+
+#[test]
+fn reset_consumes_japanese_ascii_reset() { japanese_ascii_reply(ReplyKind::Reset); }
+#[test]
+fn commit_consumes_japanese_ascii_reset() { japanese_ascii_reply(ReplyKind::Commit); }
+#[test]
+fn preedit_consumes_japanese_ascii_reset() { japanese_ascii_reply(ReplyKind::Preedit); }
+
+fn invalid_ascii_reply(kind: ReplyKind) {
+    for text in [&b"\x1b"[..], &b"\x1b("[..], &b"\x1b(A"[..], &b"\x1b(0"[..],
+        &b"\x1b(I"[..], &b"\x1b(J"[..], &b"\x1bZ"[..],
+        &b"\x1b-B\xa1\x1b(B\xa1"[..], &b"\x1b-B\xa1\x1b(B\x1b(B\xa1"[..]] {
+        invalid_reply(kind, text);
+    }
+}
+
+#[test]
+fn reset_rejects_invalid_ascii_designation() { invalid_ascii_reply(ReplyKind::Reset); }
+#[test]
+fn commit_rejects_invalid_ascii_designation() { invalid_ascii_reply(ReplyKind::Commit); }
+#[test]
+fn preedit_rejects_invalid_ascii_designation() { invalid_ascii_reply(ReplyKind::Preedit); }
+
+#[test]
+fn reset_refuses_unsupported_prior_gr_without_callback() {
+    invalid_reply(ReplyKind::Reset, b"\x1b-B\xa1\x1b(B\xa1");
+}
+#[test]
+fn commit_refuses_unsupported_prior_gr_without_callback() {
+    invalid_reply(ReplyKind::Commit, b"\x1b-B\xa1\x1b(B\xa1");
+}
+#[test]
+fn preedit_refuses_unsupported_prior_gr_without_callback() {
+    invalid_reply(ReplyKind::Preedit, b"\x1b-B\xa1\x1b(B\xa1");
+}
+
 #[test]
 fn reset_handler_error_is_propagated() {
     let wire = xim_parser::write_to_vec(reply(ReplyKind::Reset, &xim_ctext::utf8_to_compound_text("文")));

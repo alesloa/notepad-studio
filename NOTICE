@@ -54,6 +54,10 @@ The X11 input-method client is patched locally under `vendor/xim/`.
     Modifications: return the existing InvalidReply error for malformed
     Reset/Commit/Preedit compound text; propagate reset-handler errors;
     reject Chinese/Korean compound-text bytes that would overflow or wrap.
+    Consume the ASCII GL designation ESC(B without inserting it into text,
+    preserve initial literal prefixes, and reject invalid escape sequences.
+    Refuse high GR bytes following this reset under a prior non-Latin GR
+    designation; independent GL/GR decoding remains incomplete.
     Added actual X11 property-transport/parser tests with an in-memory
     connection, and compound-text decoding regressions. The optional
     parser generator is retained to preserve the original manifests.

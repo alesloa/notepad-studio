@@ -376,6 +376,10 @@ v0.0.5 — current
         Costly annotation work also uses the background path. Large macro
         batches and block selections still report their current limits.
 
+    93. Japanese X11 input now consumes ASCII reset markers correctly.
+        Invalid or unsupported character designations report an error instead
+        of inserting escape markers or silently changing high-byte text.
+
   v0.1.0 — syntax & language:
 
     1. Tree-sitter syntax highlighting for 25 modes: Rust, Python, C,

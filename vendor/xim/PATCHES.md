@@ -13,6 +13,11 @@ Changes from the pinned revision:
   the reset handler's result instead of ignoring it.
 - `xim-ctext/src/lib.rs`: reject overflowing high bytes in the Chinese and
   Korean 94N conversion branches instead of panicking or wrapping.
+  Consume ESC(B as an ASCII GL designation, distinguish initial literal
+  text from escaped chunks, and return errors for invalid designations.
+  Known but unsupported JIS X0201 single-byte designations return
+  `UnsupportedEncoding`. Keep prior GR designation across ASCII/UTF8 chunks;
+  refuse high bytes after ESC(B when the prior GR set is not Latin1.
 - `src/x11rb.rs` and its new test module: exercise the actual property
   transport, wire parser and client dispatch with an in-memory connection.
 - Compound-text tests cover malformed high bytes and valid round trips.
@@ -20,5 +25,13 @@ Changes from the pinned revision:
 Two imported whitespace-only lines in `xim-parser/Cargo.toml` and
 `xim-parser/xim-format.yaml` were normalized for the repository diff check.
 Package configuration, other source, examples and benchmarks remain unchanged.
-No composition reset, routing or synchronous-flag behavior is changed. The test
+No platform composition reset, routing or synchronous-flag behavior is changed. The test
 connection does not exercise a native X11 desktop.
+
+ASCII designation behavior follows the X Consortium Compound Text 1.1
+[standard](https://xorg.freedesktop.org/archive/current/doc/xorg-docs/ctext/ctext.html),
+sections Standard Character Set Encodings, Approved Standard Encodings and
+Errors. GL and GR are independent; full independent-set decoding remains open.
+For example, `ESC - B a1 ESC ( B a1` would need to preserve ISO-8859-2 GR
+and decode to `ĄĄ`. This subset returns `UnsupportedEncoding` instead of
+silently interpreting the second high byte as Latin1.

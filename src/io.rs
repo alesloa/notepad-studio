@@ -125,6 +125,9 @@ impl Workspace {
         let basename = buffer.display_short_name().to_string();
         let is_csv = crate::ui::csv_doc::is_csv_path(Some(&path));
         if self.active_is_pristine_empty() {
+            if let Some(id) = self.tabs.get(self.active).map(|tab| tab.session_id) {
+                self.retire_syntax_highlights(id, cx);
+            }
             self.replace_active_buffer(buffer);
             if is_rich_doc {
                 self.active_tab_mut().view_mode = TabViewMode::RichDocView;
@@ -152,6 +155,9 @@ impl Workspace {
         // coalesced on the background executor and does not delay this open.
         recent::record_opened(path);
         rebuild_menus(&mut *cx);
+        if let Some(id) = self.tabs.get(self.active).map(|tab| tab.session_id) {
+            self.request_syntax_refresh_for_tab(id, std::time::Duration::ZERO, cx);
+        }
         cx.notify();
     }
 
@@ -1086,7 +1092,6 @@ pub(crate) fn read_buffer(path: &Path) -> Result<Buffer, String> {
     buffer.read_only = lossy;
     buffer.rich_doc = rich_doc;
     buffer.mark_saved();
-    buffer.reparse_highlights();
     Ok(buffer)
 }
 

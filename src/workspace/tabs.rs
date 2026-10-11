@@ -723,11 +723,14 @@ impl Workspace {
         // Unsupported filesystems refuse; never fall back to an overwrite.
         match renamore::rename_exclusive(&old_path, &new_path) {
             Ok(()) => {
-                let buf = &mut self.tabs[idx].buffer;
+                let Some(tab) = self.tabs.get_mut(idx) else { return; };
+                let id = tab.session_id;
+                let buf = &mut tab.buffer;
                 buf.file_path = Some(new_path.clone());
                 buf.language = crate::syntax::language_for_path(&new_path).or(buf.language);
-                buf.reparse_highlights();
+                self.retire_syntax_highlights(id, cx);
                 self.set_status(format!("Renamed to {}", new_path.display()));
+                self.request_syntax_refresh_for_tab(id, std::time::Duration::ZERO, cx);
             }
             Err(err) => {
                 self.set_status(format!("Rename failed: {err}"));
@@ -853,6 +856,10 @@ impl Workspace {
         self.save_session(cx);
         if recovered_raw {
             self.set_status("Reopened recovered raw source; Doc View recovery was missing or damaged. Save As keeps the original native document safe.");
+        }
+        if let Some(id) = self.tabs.get(self.active).map(|tab| tab.session_id) {
+            self.retire_syntax_highlights(id, cx);
+            self.request_syntax_refresh_for_tab(id, std::time::Duration::ZERO, cx);
         }
         cx.notify();
     }

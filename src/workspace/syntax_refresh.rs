@@ -69,6 +69,8 @@ mod tests {
         let mut request = Request {
             id: Uuid::new_v4(),
             tab: Uuid::new_v4(),
+            instance: Arc::new(()),
+            activity: ContentRevision::default(),
             revision: ContentRevision::default(),
             rope,
             language: LanguageId::Rust,
@@ -106,6 +108,8 @@ impl Policy {
 struct Request {
     id: Uuid,
     tab: Uuid,
+    instance: Arc<()>,
+    activity: ContentRevision,
     revision: ContentRevision,
     rope: Rope,
     language: LanguageId,
@@ -230,7 +234,8 @@ impl Workspace {
                 .iter()
                 .find(|tab| tab.session_id == request.tab)
                 .is_some_and(|tab| {
-                    tab.buffer.loading.is_none()
+                    Arc::ptr_eq(&tab.instance, &request.instance)
+                        && tab.buffer.loading.is_none()
                         && tab.buffer.language == Some(request.language)
                         && tab.buffer.rope.is_instance(&request.rope)
                 })
@@ -242,7 +247,15 @@ impl Workspace {
                 .tabs
                 .iter()
                 .find(|tab| tab.session_id == request.tab)
-                .is_some_and(|tab| tab.buffer.raw_revision == request.revision)
+                .is_some_and(|tab| tab.buffer.raw_revision == request.revision
+                    && tab.content_activity == request.activity)
+    }
+
+    pub(crate) fn retire_syntax_highlights(&mut self, id: Uuid, cx: &mut Context<Self>) {
+        self.retire_syntax_tab(id, cx);
+        if let Some(tab) = self.tabs.iter_mut().find(|tab| tab.session_id == id) {
+            dispose(cx.background_executor(), std::mem::take(&mut tab.buffer.highlights));
+        }
     }
 
     pub(super) fn retire_syntax_tab(&mut self, tab: Uuid, cx: &mut Context<Self>) {
@@ -300,7 +313,8 @@ impl Workspace {
         self.syntax_refresh.executor = Some(cx.background_executor().clone());
         self.retire_closed_syntax_refresh(cx);
         let Some(index) = self.tabs.iter().position(|tab| tab.session_id == id) else { return; };
-        let Some(tab) = self.tabs.get(index) else { return; };
+        let Some(tab) = self.tabs.get_mut(index) else { return; };
+        tab.observe_content_activity();
         let language = tab.buffer.language;
         let policy = Policy::current();
         let size = tab.buffer.rope.len_bytes();
@@ -339,6 +353,8 @@ impl Workspace {
         let mut request = Request {
             id: Uuid::new_v4(),
             tab: id,
+            instance: tab.instance.clone(),
+            activity: tab.content_activity.clone(),
             revision: tab.buffer.raw_revision.clone(),
             rope: tab.buffer.rope.clone(),
             language,
@@ -393,7 +409,8 @@ impl Workspace {
         };
         // Single-entry Undo/Redo restores its canonical history revision after
         // apply_edit schedules this debounce. Finalize identity only while the
-        // exact captured Rope/context still matches; running results never retarget.
+        // exact captured Rope/incarnation still matches. Activity and revision
+        // finalize here; queued and running requests never retarget.
         if !self.syntax_source_valid(&delayed.request) {
             self.syntax_refresh.latest.remove(&tab);
             dispose(cx.background_executor(), delayed.request);
@@ -402,9 +419,11 @@ impl Workspace {
         }
         if let Some(tab) = self
             .tabs
-            .iter()
+            .iter_mut()
             .find(|tab| tab.session_id == delayed.request.tab)
         {
+            tab.observe_content_activity();
+            delayed.request.activity = tab.content_activity.clone();
             delayed.request.revision = tab.buffer.raw_revision.clone();
         }
         self.syntax_refresh.queued.push_back(delayed.request);
@@ -570,3 +589,7 @@ mod stream_tests;
 #[cfg(test)]
 #[path = "stream_eof_bench.rs"]
 mod stream_bench;
+
+#[cfg(test)]
+#[path = "initial_syntax_tests.rs"]
+mod initial_tests;

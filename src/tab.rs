@@ -100,7 +100,6 @@ impl Tab {
         } else {
             TabViewMode::Edit
         };
-        tab.buffer.reparse_highlights();
         tab
     }
 

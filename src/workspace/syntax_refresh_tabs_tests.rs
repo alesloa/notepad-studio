@@ -12,26 +12,29 @@ fn close_and_restore(batch: bool) {
         } else {
             visual.dispatch_action(FileCloseTab);
         }
+        visual.update(|_, cx| assert_eq!(entity.read(cx).syntax_pending_for_test().0, 0, "close must retire the old invocation"));
         visual.dispatch_action(FileRestoreClosedTab);
         visual.update(|_, cx| {
             entity.update(cx, |w, _| {
                 assert_eq!(w.tabs.len(), 2);
                 assert_eq!(
                     w.syntax_pending_for_test().0,
-                    0,
-                    "close must retire the invocation before the same UUID returns"
+                    1,
+                    "reopen queues a fresh invocation for the new incarnation"
                 );
-                // Restoring independently reparses today. Mark its freshly installed vector
-                // so an older painted/worker callback cannot silently replace its ownership.
-                w.tabs[w.active].buffer.highlights.clear();
+                assert!(w.tabs[w.active].buffer.highlights.is_empty());
                 w.set_status("newer restored-tab status");
             })
         });
-        visual.update(|_, cx| entity.update(cx, |w, cx| w.release_syntax_refresh(cx)));
+        visual.update(|_, cx| entity.update(cx, |w, cx| {
+            w.release_syntax_refresh(cx);
+            assert!(w.tabs[w.active].buffer.highlights.is_empty(), "retired completion must not publish before fresh parsing");
+        }));
         visual.run_until_parked();
         visual.update(|_, cx| {
             let w = entity.read(cx);
-            assert!(w.tabs[w.active].buffer.highlights.is_empty());
+            assert!(!w.tabs[w.active].buffer.highlights.is_empty());
+            assert_eq!(w.syntax_refresh.started, 2);
             assert_eq!(
                 w.status_message.as_deref(),
                 Some("newer restored-tab status")

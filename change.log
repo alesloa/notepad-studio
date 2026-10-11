@@ -450,6 +450,9 @@ v0.0.5 — current
     114. Replace in Files refuses oversized literal expansions before writing,
          preserves the original file and reports its path.
 
+    115. Opening, reopening and renaming files schedules syntax highlighting
+         in background and rejects results from an older tab or edit.
+
   v0.1.0 — syntax & language:
 
     1. Tree-sitter syntax highlighting for 25 modes: Rust, Python, C,

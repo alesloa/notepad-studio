@@ -1,6 +1,6 @@
 // PowerEditor/src/NppCommands.cpp:4008-4017 — selecting a buffer's language.
 
-use gpui::{AppContext, Context, Window};
+use gpui::{Context, Window};
 
 use crate::actions::*;
 use crate::buffer::Buffer;
@@ -19,6 +19,7 @@ fn select_language(buffer: &mut Buffer, language: Option<LanguageId>) -> Result<
     Ok(true)
 }
 
+#[cfg(test)]
 fn parse_language(rope: &ropey::Rope, language: LanguageId, settings: &crate::settings::Settings) -> Vec<HighlightSpan> {
     if crate::syntax::should_skip_syntax(rope.len_bytes() as u64, settings) {
         return Vec::new();
@@ -26,12 +27,11 @@ fn parse_language(rope: &ropey::Rope, language: LanguageId, settings: &crate::se
     crate::syntax::highlight(language, &rope.to_string())
 }
 
-fn install_highlights(buffer: &mut Buffer, language: LanguageId, source: &ropey::Rope, highlights: Vec<HighlightSpan>) -> bool {
+pub(super) fn install_highlights(buffer: &mut Buffer, language: LanguageId, source: &ropey::Rope, highlights: Vec<HighlightSpan>) -> Result<Vec<HighlightSpan>, Vec<HighlightSpan>> {
     if buffer.loading.is_some() || buffer.language != Some(language) || !buffer.rope.is_instance(source) {
-        return false;
+        return Err(highlights);
     }
-    buffer.highlights = highlights;
-    true
+    Ok(std::mem::replace(&mut buffer.highlights, highlights))
 }
 
 macro_rules! language_handlers {
@@ -76,7 +76,11 @@ language_handlers! {
 impl Workspace {
     fn set_language(&mut self, language: Option<LanguageId>, cx: &mut Context<Self>) {
         match select_language(&mut self.active_tab_mut().buffer, language) {
-            Ok(false) => return,
+            Ok(false) => {
+                // Reselecting the current language retries a bounded-queue refusal.
+                self.request_syntax_refresh(std::time::Duration::ZERO, cx);
+                return;
+            }
             Err(message) => {
                 self.set_status(message);
                 cx.notify();
@@ -92,24 +96,7 @@ impl Workspace {
         self.save_session(cx);
         cx.notify();
 
-        let Some(language) = language else { return; };
-        let tab = self.active_tab_mut();
-        let id = tab.session_id;
-        let rope = tab.buffer.rope.clone();
-        let settings = crate::settings::snapshot();
-        let task = cx.background_spawn(async move {
-            let highlights = parse_language(&rope, language, &settings);
-            (rope, highlights)
-        });
-        cx.spawn(async move |this, cx| {
-            let (source, highlights) = task.await;
-            let _ = this.update(cx, |workspace, cx| {
-                let Some(tab) = workspace.tabs.iter_mut().find(|tab| tab.session_id == id) else { return; };
-                if !install_highlights(&mut tab.buffer, language, &source, highlights) { return; }
-                workspace.last_lines.clear();
-                cx.notify();
-            });
-        }).detach();
+        self.request_syntax_refresh(std::time::Duration::ZERO, cx);
     }
 }
 
@@ -181,13 +168,13 @@ mod tests {
         let source = buffer.rope.clone();
         let spans = parse_language(&source, LanguageId::Rust, &crate::settings::Settings::default());
         assert!(!spans.is_empty());
-        assert!(install_highlights(&mut buffer, LanguageId::Rust, &source, spans.clone()));
+        assert!(install_highlights(&mut buffer, LanguageId::Rust, &source, spans.clone()).is_ok());
         select_language(&mut buffer, Some(LanguageId::Python)).unwrap();
-        assert!(!install_highlights(&mut buffer, LanguageId::Rust, &source, spans.clone()));
+        assert!(install_highlights(&mut buffer, LanguageId::Rust, &source, spans.clone()).is_err());
         assert!(buffer.highlights.is_empty());
         select_language(&mut buffer, Some(LanguageId::Rust)).unwrap();
         buffer.rope.insert(0, "// draft\n");
-        assert!(!install_highlights(&mut buffer, LanguageId::Rust, &source, spans));
+        assert!(install_highlights(&mut buffer, LanguageId::Rust, &source, spans).is_err());
         assert!(buffer.highlights.is_empty());
     }
 

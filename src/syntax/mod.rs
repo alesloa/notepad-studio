@@ -1,12 +1,12 @@
-// Tree-sitter–powered syntax highlighting. Per-buffer parse runs in
-// `Buffer::reparse_highlights` and the resulting `Vec<HighlightSpan>` is
-// sliced per visible line in `editor_element.rs` to build colored
-// `TextRun`s. v1 does a full reparse on every edit; the bookmark
-// `apply_edit` funnel calls into us so all text mutations track.
+// Tree-sitter syntax spans are sliced per visible line in editor_element.rs.
+// Post-edit/language refresh uses Workspace's bounded background controller;
+// initial load and restoration callers still use Buffer::reparse_highlights.
 
 pub(crate) mod comments;
 pub(crate) mod grammars;
 pub(crate) mod keywords;
+mod bounded_highlight;
+pub(crate) use bounded_highlight::{HighlightError, highlight_cancellable};
 
 use std::cell::RefCell;
 use std::collections::HashMap;
@@ -14,7 +14,7 @@ use std::ops::Range;
 use std::path::Path;
 
 use serde::{Deserialize, Serialize};
-use tree_sitter_highlight::{HighlightConfiguration, HighlightEvent, Highlighter};
+use tree_sitter_highlight::{HighlightConfiguration, Highlighter};
 
 #[derive(Clone, Copy, PartialEq, Eq, Hash, Debug, Serialize, Deserialize)]
 #[serde(rename_all = "snake_case")]
@@ -376,61 +376,15 @@ thread_local! {
 /// `Buffer::isLargeFile` gate (Buffer.cpp:942) — when the restriction is
 /// enabled and the file size is at or above
 /// `large_file_threshold_bytes`, the styling pass is skipped.
-/// `large_file_disable_syntax` keeps the gate user-overridable for the
-/// rare case where someone wants colored text on huge files anyway.
+/// The 50 MiB safety ceiling applies even when user restrictions are disabled.
 pub(crate) fn should_skip_syntax(buffer_size_bytes: u64, settings: &crate::settings::Settings) -> bool {
-    settings.large_file_restriction_enabled
+    buffer_size_bytes > crate::io_stream::HIGHLIGHT_SIZE_LIMIT || (settings.large_file_restriction_enabled
         && settings.large_file_disable_syntax
-        && buffer_size_bytes >= settings.large_file_threshold_bytes
+        && buffer_size_bytes >= settings.large_file_threshold_bytes)
 }
 
 pub(crate) fn highlight(lang: LanguageId, source: &str) -> Vec<HighlightSpan> {
-    HIGHLIGHTER.with(|h_cell| {
-        let mut highlighter = h_cell.borrow_mut();
-        CONFIGS.with(|c_cell| {
-            let mut configs = c_cell.borrow_mut();
-            if !configs.contains_key(&lang) {
-                let Some(mut config) = grammars::build_config(lang) else {
-                    return Vec::new();
-                };
-                config.configure(HIGHLIGHT_NAMES);
-                configs.insert(lang, config);
-            }
-            let Some(config) = configs.get(&lang) else {
-                return Vec::new();
-            };
-
-            let events = match highlighter.highlight(config, source.as_bytes(), None, |_| None) {
-                Ok(it) => it,
-                Err(_) => return Vec::new(),
-            };
-
-            let mut stack: Vec<usize> = Vec::new();
-            let mut spans: Vec<HighlightSpan> = Vec::new();
-            for event in events {
-                match event {
-                    Ok(HighlightEvent::Source { start, end }) => {
-                        if start >= end {
-                            continue;
-                        }
-                        if let Some(&idx) = stack.last() {
-                            if let Some(kind) = index_to_kind(idx) {
-                                spans.push(HighlightSpan { range: start..end, kind });
-                            }
-                        }
-                    }
-                    Ok(HighlightEvent::HighlightStart(tree_sitter_highlight::Highlight(idx))) => {
-                        stack.push(idx);
-                    }
-                    Ok(HighlightEvent::HighlightEnd) => {
-                        stack.pop();
-                    }
-                    Err(_) => break,
-                }
-            }
-            spans
-        })
-    })
+    highlight_cancellable(lang, source, None).unwrap_or_default()
 }
 
 /// Map a `HighlightKind` to a syntax-theme color. `None` means "use default

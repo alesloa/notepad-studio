@@ -400,6 +400,10 @@ v0.0.5 — current
         movement, including same-frame round trips. No-op movement keeps current
         input usable; final selections after edits no longer retire fresh input.
 
+    99. Syntax highlighting after edits runs in bounded background workers,
+        coalesces work per tab and cancels stale parses. Undo/Redo, tab close
+        and window close cannot publish older highlighting over newer state.
+
   v0.1.0 — syntax & language:
 
     1. Tree-sitter syntax highlighting for 25 modes: Rust, Python, C,

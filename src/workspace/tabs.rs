@@ -216,6 +216,7 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        self.retire_closed_syntax_refresh(cx);
         self.close_autocomplete(cx);
         self.close_function_hint(cx);
         self.cancel_regex_replacement();
@@ -378,6 +379,7 @@ impl Workspace {
                         Err(()) => return false,
                     };
                     let removed = w.tabs.remove(idx);
+                    w.retire_closed_syntax_refresh(cx);
                     w.remember_closed(removed);
                     w.active = active_after_removal(w.active, idx, w.tabs.len());
                     if w.tabs.is_empty() {

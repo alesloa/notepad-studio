@@ -19,6 +19,8 @@ A lightweight, cross-platform text editor inspired by Notepad++, written in Rust
 > Manual large line indentation and its Undo/Redo also prepare in the
 > background, with Escape cancellation and one Undo per completed edit.
 > This includes costly annotations and a few very long selected lines.
+> Post-edit syntax highlighting runs in background workers, with per-tab
+> coalescing and bounded output.
 
 Optional [API completion definitions](docs/api-completion.md) supply language
 names for Function Completion and signatures for parameter hints, including

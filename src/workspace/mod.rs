@@ -28,6 +28,11 @@ mod prepared_edits;
 mod ime;
 mod input_handler;
 mod language;
+mod syntax_refresh;
+#[cfg(test)]
+mod syntax_refresh_tests;
+#[cfg(test)]
+mod syntax_refresh_tabs_tests;
 mod macros;
 mod markdown_format;
 mod menu_bar;
@@ -249,12 +254,9 @@ pub(crate) struct Workspace {
     pub(crate) session_snapshot_sink: Option<std::sync::mpsc::Sender<SessionManifest>>,
     #[cfg(test)]
     pub(crate) session_final_save_result: Option<bool>,
-    /// Generation guard for the debounced post-edit reparse + eager-persist
-    /// task (`schedule_reparse`). Mirrors `autosave_generation`: each edit
-    /// bumps it, and only the latest scheduled task does the heavyweight
-    /// reparse so a burst of edits (Replace All, fast typing) reparses once
-    /// after things settle instead of once per edit on the UI thread.
+    /// Independent post-edit eager-recovery debounce; syntax work is tracked per tab.
     pub(crate) post_edit_generation: u64,
+    syntax_refresh: syntax_refresh::Runtime,
     /// Set once the last tab has closed and the window is torn down. The
     /// entity can outlive its window (Preferences and Text Tools hold it),
     /// so session saves from late timers and `on_release` become no-ops
@@ -733,6 +735,7 @@ impl Workspace {
             #[cfg(test)]
             session_final_save_result: None,
             post_edit_generation: 0,
+            syntax_refresh: syntax_refresh::Runtime::default(),
             window_closed: false,
             session_window_id: Uuid::new_v4(),
             input_drag: None,
@@ -1204,6 +1207,7 @@ impl Workspace {
     pub(crate) fn release_session_window(&mut self) {
         self.window_closed = true;
         self.cancel_regex_replacement();
+        self.syntax_refresh.close();
         session::release_workspace(self.session_window_id);
     }
 
@@ -1230,35 +1234,6 @@ impl Workspace {
                 if w.autosave_generation == gen {
                     w.save_session(cx);
                 }
-            });
-        })
-        .detach();
-    }
-
-    /// Debounced post-edit settle: runs the heavyweight syntax reparse and the
-    /// eager untitled-buffer persistence ~100ms after the last edit, OFF the
-    /// synchronous edit-commit path. Mirrors `schedule_autosave`'s generation
-    /// guard so a burst of edits (Replace All, fast typing, undo of a big
-    /// group) reparses + persists once after things settle instead of once
-    /// per edit. Keeping the full reparse + `serialize_undo_stack` + disk
-    /// writes out of the synchronous path is what stops a large Replace All /
-    /// undo from blocking the UI thread (the loading spinner). Highlights lag
-    /// ~100ms after a batch — the same async-highlight tradeoff Zed makes.
-    pub(crate) fn schedule_reparse(&mut self, cx: &mut Context<Self>) {
-        self.post_edit_generation = self.post_edit_generation.wrapping_add(1);
-        let gen = self.post_edit_generation;
-        cx.spawn(async move |this, cx| {
-            gpui::Timer::after(Duration::from_millis(100)).await;
-            let _ = this.update(cx, |w, cx| {
-                if w.post_edit_generation != gen {
-                    return;
-                }
-                let Some(tab) = w.tabs.get_mut(w.active) else {
-                    return;
-                };
-                tab.buffer.reparse_highlights();
-                w.save_session_eager(cx);
-                cx.notify();
             });
         })
         .detach();

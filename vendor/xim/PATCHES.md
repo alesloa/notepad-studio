@@ -21,6 +21,12 @@ Changes from the pinned revision:
 - `src/x11rb.rs` and its new test module: exercise the actual property
   transport, wire parser and client dispatch with an in-memory connection.
 - Compound-text tests cover malformed high bytes and valid round trips.
+- `xim-parser/src/parser.rs` and `xim-gen/res/snippet.rs`: bound hotkey
+  counts and required bytes before fallible allocation, read each key's
+  state without indexing past the array, and size every 16-byte entry.
+  Public parser/writer regressions cover count, truncation and state errors.
+  The upstream infallible writer API and general attribute-size limits
+  remain unchanged; this does not make arbitrary oversized values safe.
 
 Two imported whitespace-only lines in `xim-parser/Cargo.toml` and
 `xim-parser/xim-format.yaml` were normalized for the repository diff check.

@@ -384,6 +384,10 @@ v0.0.5 — current
         lines. Unicode row separators cannot hide expensive line scans, and
         a short selection skips scanning the next unselected line.
 
+    95. The X11 input parser no longer panics on nonempty hot-key lists.
+        It checks array bounds before allocation, preserves key/state order
+        and reserves the correct size when serializing the list.
+
   v0.1.0 — syntax & language:
 
     1. Tree-sitter syntax highlighting for 25 modes: Rust, Python, C,

@@ -58,6 +58,9 @@ The X11 input-method client is patched locally under `vendor/xim/`.
     preserve initial literal prefixes, and reject invalid escape sequences.
     Refuse high GR bytes following this reset under a prior non-Latin GR
     designation; independent GL/GR decoding remains incomplete.
+    Bound HotKeyTriggers counts before allocation, assign parsed states to
+    their matching keys, and include all fields in its serialized size.
+    Keep that fix in the generator snippet as well as generated parser.
     Added actual X11 property-transport/parser tests with an in-memory
     connection, and compound-text decoding regressions. The optional
     parser generator is retained to preserve the original manifests.

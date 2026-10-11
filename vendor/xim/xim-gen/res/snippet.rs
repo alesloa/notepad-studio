@@ -398,15 +398,33 @@ impl XimWrite for CommitData {
 
 impl XimRead for HotKeyTriggers {
     fn read(reader: &mut Reader) -> Result<Self, ReadError> {
-        let n = reader.u32()? as usize;
-        let mut out = Vec::with_capacity(n);
+        // XIM #15: three CARD32 key fields and one CARD32 state per entry.
+        // XICATTRIBUTE carries its value length in a CARD16.
+        const ENTRY_BYTES: usize = 16;
+        const MAX_ENTRIES: usize = (u16::MAX as usize - 4) / ENTRY_BYTES;
+        let count = reader.u32()?;
+        let n: usize = count
+            .try_into()
+            .map_err(|_| reader.invalid_data("HotKeyTriggersCount", count))?;
+        if n > MAX_ENTRIES {
+            return Err(reader.invalid_data("HotKeyTriggersCount", count));
+        }
+        let required = n
+            .checked_mul(ENTRY_BYTES)
+            .ok_or_else(|| reader.invalid_data("HotKeyTriggersCount", count))?;
+        if required > reader.bytes.len() {
+            return Err(reader.eos());
+        }
+        let mut out = Vec::new();
+        out.try_reserve_exact(n)
+            .map_err(|_| reader.invalid_data("HotKeyTriggers", "allocation failed"))?;
 
         for _ in 0..n {
             out.push((TriggerKey::read(reader)?, HotKeyState::Off));
         }
 
-        for _ in 0..n {
-            out[n].1 = HotKeyState::read(reader)?;
+        for (_, state) in out.iter_mut() {
+            *state = HotKeyState::read(reader)?;
         }
 
         Ok(Self { triggers: out })
@@ -427,7 +445,7 @@ impl XimWrite for HotKeyTriggers {
     }
 
     fn size(&self) -> usize {
-        self.triggers.len() * 8 + 4
+        self.triggers.len().saturating_mul(16).saturating_add(4)
     }
 }
 

@@ -18,6 +18,8 @@ use alloc::vec::Vec;
 
 pub mod attrs;
 mod parser;
+#[cfg(test)]
+mod hotkey_tests;
 
 pub use parser::*;
 

@@ -223,6 +223,11 @@ v0.0.5 — current
     58. CSV Save, Save All, tab changes and close commit unfinished cell text.
         Refused commits keep the draft editable.
 
+    59. View > Tab now includes numbered, first/last and next/previous tabs,
+        tab reordering and colors. All commands are rebindable; moving tabs
+        preserves the selected document and its edits. Open Folder as
+        Workspace is also available in the Shortcut Mapper.
+
   v0.1.0 — syntax & language:
 
     1. Tree-sitter syntax highlighting for 25 modes: Rust, Python, C,

@@ -20,6 +20,7 @@ impl Workspace {
             encoding: Some(buffer.encoding),
             line_ending: Some(buffer.line_ending),
             language: buffer.language,
+            tab_color: buffer.tab_color,
         });
         if changed && cfg!(target_os = "macos") {
             cx.defer(crate::app::menus::rebuild_menus);

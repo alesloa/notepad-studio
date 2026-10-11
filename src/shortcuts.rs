@@ -125,6 +125,7 @@ static CATALOG: &[ActionEntry] = &[
     row!(FileNewWindow,        "New Window",                EXTRA,                                  GLOBAL, ["ctrl-shift-n"], ["cmd-shift-n"]),
     row!(FileNew,              "New",                       Some("IDM_FILE_NEW"),                   W,      ["ctrl-n"],       ["cmd-n"]),
     row!(FileOpen,             "Open",                      Some("IDM_FILE_OPEN"),                  W,      ["ctrl-o"],       ["cmd-o"]),
+    row!(FileOpenFolderAsWorkspace, "Open Folder as Workspace", Some("IDM_FILE_OPENFOLDERASWORKSPACE"), W, [], []),
     row!(FileSave,             "Save",                      Some("IDM_FILE_SAVE"),                  W,      ["ctrl-s"],       ["cmd-s"]),
     row!(FileSaveAs,           "Save As",                   Some("IDM_FILE_SAVEAS"),                W,      ["ctrl-alt-s"],   ["cmd-shift-s"]),
     row!(FileSaveAll,          "Save All",                  Some("IDM_FILE_SAVEALL"),               W,      ["ctrl-shift-s"], ["cmd-alt-s"]),
@@ -260,6 +261,19 @@ static CATALOG: &[ActionEntry] = &[
     row!(TabGoto7,          "Go to Tab 7",           Some("IDM_VIEW_TAB7"),     W, ["ctrl-7"],         ["cmd-7"]),
     row!(TabGoto8,          "Go to Tab 8",           Some("IDM_VIEW_TAB8"),     W, ["ctrl-8"],         ["cmd-8"]),
     row!(TabGoto9,          "Go to Tab 9",           Some("IDM_VIEW_TAB9"),     W, ["ctrl-9"],         ["cmd-9"]),
+
+    row!(TabFirst,         "First Tab",        Some("IDM_VIEW_TAB_START"),        W, [], []),
+    row!(TabLast,          "Last Tab",         Some("IDM_VIEW_TAB_END"),          W, [], []),
+    row!(TabMoveToStart,   "Move to Start",    Some("IDM_VIEW_GOTO_START"),       W, [], []),
+    row!(TabMoveToEnd,     "Move to End",      Some("IDM_VIEW_GOTO_END"),         W, [], []),
+    row!(TabMoveForward,   "Move Tab Forward", Some("IDM_VIEW_TAB_MOVEFORWARD"),  W, ["ctrl-shift-pagedown"], ["cmd-shift-pagedown"]),
+    row!(TabMoveBackward,  "Move Tab Backward",Some("IDM_VIEW_TAB_MOVEBACKWARD"), W, ["ctrl-shift-pageup"],   ["cmd-shift-pageup"]),
+    row!(TabColor1,        "Apply Color 1",    Some("IDM_VIEW_TAB_COLOUR_1"),     W, [], []),
+    row!(TabColor2,        "Apply Color 2",    Some("IDM_VIEW_TAB_COLOUR_2"),     W, [], []),
+    row!(TabColor3,        "Apply Color 3",    Some("IDM_VIEW_TAB_COLOUR_3"),     W, [], []),
+    row!(TabColor4,        "Apply Color 4",    Some("IDM_VIEW_TAB_COLOUR_4"),     W, [], []),
+    row!(TabColor5,        "Apply Color 5",    Some("IDM_VIEW_TAB_COLOUR_5"),     W, [], []),
+    row!(TabClearColor,    "Remove Color",     Some("IDM_VIEW_TAB_COLOUR_NONE"),  W, [], []),
 
     // --- View ---
     // Notepad++ zooms with Ctrl+Numpad+/-//. Windows reports those keys as

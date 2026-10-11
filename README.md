@@ -146,6 +146,7 @@ icons from new source art → [`docs/icons.md`](docs/icons.md).
 - [x] File ▸ Recent Files (persistent MRU, capped at 10, `<config>/Notepad Studio/recent.toml`)
 - [x] Per-window placement persistence (replaces the v0.0.3 single-slot file)
 - [x] Tab drag-reorder
+- [x] View ▸ Tab — numbered/first/last/next/previous selection, reordering and colors; rebindable commands
 
 ### v0.0.5 — Notepad++ basics ✅
 - [x] Find bar with incremental search (`Cmd/Ctrl-F`)

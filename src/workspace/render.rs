@@ -297,6 +297,18 @@ impl Render for Workspace {
             .on_action(cx.listener(Self::goto_tab_7))
             .on_action(cx.listener(Self::goto_tab_8))
             .on_action(cx.listener(Self::goto_tab_9))
+            .on_action(cx.listener(Self::first_tab))
+            .on_action(cx.listener(Self::last_tab))
+            .on_action(cx.listener(Self::move_active_tab_to_start))
+            .on_action(cx.listener(Self::move_active_tab_to_end))
+            .on_action(cx.listener(Self::move_active_tab_forward))
+            .on_action(cx.listener(Self::move_active_tab_backward))
+            .on_action(cx.listener(Self::tab_color_1))
+            .on_action(cx.listener(Self::tab_color_2))
+            .on_action(cx.listener(Self::tab_color_3))
+            .on_action(cx.listener(Self::tab_color_4))
+            .on_action(cx.listener(Self::tab_color_5))
+            .on_action(cx.listener(Self::tab_clear_color))
             // Open the find dialog from the editor side. Each chord lands on
             // the matching dialog tab.
             .on_action(cx.listener(Self::open_find))

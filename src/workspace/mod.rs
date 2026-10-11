@@ -32,6 +32,7 @@ mod rich_edit;
 mod status;
 mod menu_state;
 mod tabs;
+mod tab_actions;
 
 use gpui::{
     AppContext,

@@ -25,6 +25,7 @@ pub(crate) struct MenuState {
     pub(crate) line_ending: Option<LineEnding>,
     /// `None` with `has_document` is a plain-text buffer ("Normal Text").
     pub(crate) language: Option<LanguageId>,
+    pub(crate) tab_color: Option<u8>,
 }
 
 static STATE: OnceLock<Mutex<MenuState>> = OnceLock::new();

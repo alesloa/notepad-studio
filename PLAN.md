@@ -26,3 +26,5 @@ Shared-file edits are surgical, re-read before integration. Agent branches are a
 - 2026-10-10: reviewed completion routing 181087cf integrated; 1312 units + 1 integration passed, 8 ignored; build/clippy passed with no new warnings. G2 met. Inline input dispatch and macro/CSV persistence leaves continue.
 
 - 2026-10-10: reviewed CSV pending-cell fec4d0c/e257957 integrated; 1325 units + 1 integration passed, 8 ignored; build/clippy passed with no new touched-code warnings. Save/close/switch now include pending text; G3 remains open for recovery.
+
+- 2026-10-10: View Tab menu and actions implemented from behavior-only oracle review; 1332 units + 1 integration passed,8 ignored; build/clippy passed. G11 met; G7 remains open for broader parity. Inline crash/focus and macro context branches are ready for integration; CSV recovery is active.

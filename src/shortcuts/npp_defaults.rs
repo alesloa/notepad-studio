@@ -207,6 +207,17 @@ pub(super) const NPP_DEFAULTS: &[(&str, &str, u32)] = &[
 
 /// Notepad++ commands without a default chord.
 pub(super) const NPP_NO_DEFAULT: &[(&str, u32)] = &[
+    ("IDM_FILE_OPENFOLDERASWORKSPACE", 114),
+    ("IDM_VIEW_GOTO_START", 334),
+    ("IDM_VIEW_GOTO_END", 335),
+    ("IDM_VIEW_TAB_START", 350),
+    ("IDM_VIEW_TAB_END", 351),
+    ("IDM_VIEW_TAB_COLOUR_NONE", 397),
+    ("IDM_VIEW_TAB_COLOUR_1", 398),
+    ("IDM_VIEW_TAB_COLOUR_2", 399),
+    ("IDM_VIEW_TAB_COLOUR_3", 400),
+    ("IDM_VIEW_TAB_COLOUR_4", 401),
+    ("IDM_VIEW_TAB_COLOUR_5", 402),
     ("IDM_EXECUTE_VALIDATE_SHORTCUTSXML", 488),
     ("IDM_SEARCH_CLEAR_BOOKMARKS", 305),
     ("IDM_SETTING_PREFERENCE", 473),

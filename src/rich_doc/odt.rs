@@ -47,6 +47,9 @@ const STYLE_ALL: &str = "__rd_bold_italic_underline";
 const LIST_STYLE_BULLET: &str = "__rd_list_bullet";
 const LIST_STYLE_NUMBER: &str = "__rd_list_number";
 
+/// Bound expanded space runs before allocating their text.
+const MAX_SPACE_COUNT: usize = u16::MAX as usize;
+
 pub fn open(path: &Path) -> Result<RichDocPayload> {
     let original_bytes = std::fs::read(path)?;
     let content_xml = container::read_zip_entry_text(path, "content.xml")?;
@@ -731,8 +734,12 @@ impl<'a> BodyWalker<'a> {
                         push_run(&mut self.cur_runs, &self.span_stack, "\n");
                     }
                     if self.in_block && name == b"s" {
-                        let n: usize =
-                            read_attr(e, "text:c").and_then(|s| s.parse().ok()).unwrap_or(1);
+                        let count = read_attr(e, "text:c");
+                        let n = count.as_deref().unwrap_or("1").parse::<usize>()
+                            .map_err(|_| RichDocError::Odt("invalid text:s space count".into()))?;
+                        if n > MAX_SPACE_COUNT {
+                            return Err(RichDocError::Odt(format!("space run exceeds the {MAX_SPACE_COUNT}-space limit")));
+                        }
                         let spaces = " ".repeat(n);
                         push_run(&mut self.cur_runs, &self.span_stack, &spaces);
                     }
@@ -1855,6 +1862,27 @@ office:version=\"1.2\">\
             _ => panic!(),
         };
         assert_eq!(combined, "a   b");
+    }
+
+    #[test]
+    fn oversized_or_invalid_space_counts_are_refused() {
+        for count in [usize::MAX.to_string(), "9999999999999999999999999999999999".into(), "-1".into(), "wrong".into()] {
+            let body = format!("<text:p>a<text:s text:c=\"{count}\"/>b</text:p>");
+            let content = minimal_content(&body, "");
+            assert!(matches!(parse_content_xml(&content, minimal_styles_xml()), Err(RichDocError::Odt(_))), "count {count}");
+        }
+    }
+
+    #[test]
+    fn ordinary_space_counts_keep_every_space() {
+        for count in [0, 1, 3, 65_535] {
+            let body = format!("<text:p>a<text:s text:c=\"{count}\"/>b</text:p>");
+            let content = minimal_content(&body, "");
+            let doc = parse_content_xml(&content, minimal_styles_xml()).expect("parse");
+            let ast::Block::Paragraph { runs, .. } = &doc.blocks[0] else { panic!("paragraph") };
+            let text: String = runs.iter().map(|run| run.text.as_str()).collect();
+            assert_eq!(text, format!("a{}b", " ".repeat(count)));
+        }
     }
 
     #[test]

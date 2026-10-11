@@ -101,6 +101,8 @@ v0.0.5 — current
    28. Autosave includes every editor window. Saving or closing one window
        no longer removes another window's session entries, unsaved drafts
        or undo backups. Moving a tab keeps a single recovery entry.
+   29. ODT files with invalid or oversized space counts return an error
+       instead of crashing or allocating unlimited text.
 
   v0.1.0 — syntax & language:
 

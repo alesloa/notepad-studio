@@ -8,14 +8,22 @@ Current integrated batch, with combined Windows build/tests/Clippy and default-r
 - Bookmark edits: Cut, Paste, Remove Bookmarked Lines, Remove Non-Bookmarked Lines and Inverse Bookmark. This leaf owns arbitrary prepared line edits and mixed prepared/legacy macro history.
 - Line sorts: ascending/descending case-insensitive lexical, UTF-16 length and Windows locale sorting, rectangle keys, worker preparation and macro continuation. The user delegated the Windows NLS seam decision; the parent approved the bounded two-call bridge described in `windows-nls-seam-proposal.md`.
 
-Next leaves:
+The safety follow-up is committed as `10d4723` (synced save rescue) and `b42c889`
+(column preflight and physical line boundaries). Combined build, 2,652 unit plus
+three integration tests, Clippy with zero new diagnostics, inventory checks and
+scoped release controls pass. See [safety validation](windows-safety-validation-20261011.md)
+for exact proof and limits. Gates/logs remain local and ignored.
 
-- Save durability audit: reproduce or disprove interrupted writes after the existing rescue-copy failure falls back to memory. Local checks are in ignored `gates/windows-save-durability.md`. Existing error-rollback tests do not prove interruption recovery.
-- Column safety: reproduce or disprove oversized virtual-space and stale rectangle-row panic paths, then refuse invalid plans before any partial edit. Extend the mutating bookmark commands with exact rectangle remapping; the current leaf refuses that context while allowing metadata-only Inverse. Local checks are in `gates/windows-column-safety.md`.
-- Physical lines: establish whether Ropey's Unicode line splitting differs from the oracle's default CR/LF policy in real callers. Local checks are in `gates/windows-physical-lines.md`. This remains an investigation, not a verified product defect.
-- Tools: all twelve hash commands. Contract and gates are in `gates/windows-hash-tools.md`.
+Active next leaves:
+
+- Bounded save restoration: an actual 18,874,368-byte restoration callback violates the proposed 65,536-byte budget; injected read OOM retains exact rescue/errors. The reviewed fixed 64 KiB same-handle pump is in implementation, with no allocator-abort claim. Local checks are in `gates/windows-bounded-restore.md`. Normal Save/Save As/Save All foreground work has a separate frozen background-ownership contract; no implementation yet.
+- Tools: all twelve hash commands. Source-only G1 preparation audits editor-selection bytes, EOL/BOM, strict Windows-1252, rectangles, focus and clipboard supersession. Contract and gates are in `gates/windows-hash-tools.md`; [oracle notes](windows-hash-tools-oracle-20261011.md) preserve the behavior audit.
+- Existing sort/reverse/shuffle/dedup callers: source-only G1 preparation at `b42c889` for guarded worker preparation, UTF-16 lexical and numeric error behavior, selection retention, rectangle keys and macro recording. Existing `src/edit_ops/line_ops.rs` flattens/transforms on the UI thread and collapses selection; existing macro events omit these commands. Actual defects require caller evidence before a policy/fix. Local checks are in `gates/windows-legacy-lines.md`.
+
+Then continue:
+
+- Column parity: temporary safety caps are integrated. Large column preparation, ragged word deletion, external clipboard semantics, active rectangle IME and mutating bookmark rectangles remain open. Metadata-only Inverse already works in rectangles. See [column limits](column-safety.md).
 - Brace navigation and bracket highlighting: the two missing Search commands share a cancellable matcher and cached paint result. Baseline painting scans the whole Rope for a partner. Contract and gates are in `gates/windows-brace-navigation.md`; exact lexer-style distinctions remain part of the language audit.
-- Existing sort/reverse/shuffle/dedup callers: migrate their synchronous preparation to the guarded worker pipeline; establish UTF-16 lexical and numeric error behavior, selection retention, rectangle keys and macro recording. At baseline, `src/edit_ops/line_ops.rs:406-438` copies and transforms the block on the UI thread, then collapses the selection. The baseline `MacroEvent` enum has no sort/reverse/shuffle/dedup events.
 - Search: independent mark styles, brace/change navigation, result navigation, incremental/volatile find and character-range search.
 - File/session/tab state: pinned tabs, session exchange, printing, and close rules. Audit explicit renamed-label precedence over the use-first-line title preference; current save-picker suggestions honor the stored label but the title preference can mask it.
 - View: split panes, folding, character/EOL controls, monitoring and document panels.

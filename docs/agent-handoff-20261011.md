@@ -10,8 +10,9 @@ checkpoint for one completed batch.
 - Feature checkpoint: `c077e2dca48b6c35c457691c84f4b9c2c843b935`, adding 17 File,
   bookmark and line-sort commands plus the shared background engine. Save
   protection is committed as `10d47236c088ea83309505c0398334af7ddd035e`.
-  The later column/physical-line composition also passes the combined gates
-  below. Verify actual Git status and log before editing or applying patches.
+  Column/physical-line composition is committed as
+  `b42c889f8d37f09b244bab8037ad31a4e82caede`, with the combined gates below
+  passing. Verify actual Git status and log before editing or applying patches.
 - Gitignore: `1b1a11a` adds `/gates/` and removes eight old gate files from the
   index. All eight remain locally. Essential evidence is in committed documents.
 - Previous baseline: `d01099f01dd464607cdbe62736789192ba8787eb`. Earlier resumed
@@ -23,7 +24,8 @@ checkpoint for one completed batch.
   `C:/Program Files/LLVM/bin/clang-cl.exe` for Cargo.
 - Completed save, column and physical-line worktrees preserve frozen evidence.
   File now implements bounded restoration in `windows-bounded-restore`; Book
-  prepares hash-tool controls in `windows-hash-tools`. Sort is idle. Caches have
+  prepares hash-tool controls in `windows-hash-tools`. Sort prepares existing
+  line-operation controls in `windows-legacy-lines` at `b42c889`. Caches have
   exclusive owners; inspect actual agent/process state before using one.
 - No push, release publication, Linux/WSL/VM work or Mac testing occurred.
 
@@ -214,6 +216,11 @@ Active next leaves:
   bytes, document EOL, no transport BOM, strict Windows-1252 and rectangle/focus
   behavior. Read [oracle preparation](windows-hash-tools-oracle-20261011.md).
   Rebase onto the latest combined checkpoint before production work.
+- `windows-legacy-lines`, detached at `b42c889`: source-only G1 preparation
+  for the eight older lexical/integer/decimal sort routes, Reverse, Randomize
+  and both duplicate-removal commands. No Cargo or production fixes yet.
+  Audit exact numeric/refusal, UTF16 lexical, rectangle and selection behavior
+  before reusing the guarded prepared-line engine and saved macro pipeline.
 
 Then continue older sort/reverse/shuffle/dedup performance/macro/fidelity repair,
 hash tools, brace navigation/highlighting, session/pinning/printing, Search

@@ -466,7 +466,6 @@ fn files_hiding_results_panel_preserves_confirmation() {
 }
 
 #[test]
-#[ignore = "Separate proven project-root overlap issue; excluded from lifecycle batch"]
 fn projects_overlapping_roots_do_not_replace_one_file_twice() {
     let dir = tempfile::tempdir().unwrap(); let child = dir.path().join("neutral-sub");
     std::fs::create_dir(&child).unwrap(); let file = neutral(&child);
@@ -521,3 +520,71 @@ fn pending_directory_owner_preserves_panel(route: Route, all_opened: bool) {
 #[test] fn projects_pending_owner_preserves_panel_on_find_all_current() { pending_directory_owner_preserves_panel(Route::Projects, false); }
 #[test] fn files_pending_owner_preserves_panel_on_find_all_opened() { pending_directory_owner_preserves_panel(Route::Files, true); }
 #[test] fn projects_pending_owner_preserves_panel_on_find_all_opened() { pending_directory_owner_preserves_panel(Route::Projects, true); }
+
+fn project_overlap_case(case: &str) {
+    let dir = tempfile::tempdir().unwrap();
+    let child = dir.path().join(if case == "hidden" { ".neutral-hidden" } else if case == "pruned" { "target" } else { "neutral-sub" });
+    std::fs::create_dir(&child).unwrap(); let file = neutral(&child);
+    let mut roots = vec![dir.path().to_path_buf(), child.clone()];
+    if case == "reverse" { roots.reverse(); }
+    if case == "identical" { roots = vec![child.clone(), child.clone()]; }
+    if case == "hardlink" {
+        std::fs::hard_link(&file, child.join("neutral-alias.txt")).unwrap(); roots = vec![child.clone()];
+    }
+    if case == "case" {
+        let alias = std::path::PathBuf::from(child.to_str().unwrap().to_uppercase());
+        assert!(alias.is_dir(), "controlled filesystem must support this case alias");
+        roots = vec![child.clone(), alias];
+    }
+    let _settings = crate::settings::override_for_test(Settings {
+        toolbar_hidden: true, folder_panel_visible: false, folder_panel_roots: roots.clone(), ..Settings::default()
+    });
+    let mut cx = TestAppContext::single();
+    let (entity, _, mut dialog) = fixture(&mut cx, dir.path(), Route::Projects);
+    dialog.update(|_, cx| entity.update(cx, |w, _| {
+        w.find_in_files.project_panel_2 = roots.len() > 1;
+        w.find_in_files.replacement = "hit!".into();
+        if case == "norecurse" { w.find_in_files.in_subfolders = false; }
+    }));
+    request(&entity, &mut dialog, Route::Projects).send(rfd::MessageDialogResult::Yes).unwrap();
+    dialog.run_until_parked(); assert_eq!(std::fs::read(&file).unwrap(), b"hit!\r\n"); cx.quit();
+}
+
+#[test] fn project_overlap_child_before_parent_replaces_once() { project_overlap_case("reverse"); }
+#[test] fn project_overlap_identical_roots_replace_once() { project_overlap_case("identical"); }
+#[test] fn project_overlap_hardlinks_replace_once() { project_overlap_case("hardlink"); }
+#[cfg(windows)]
+#[test] fn project_overlap_case_alias_replace_once() { project_overlap_case("case"); }
+#[test] fn project_overlap_explicit_hidden_root_is_not_suppressed() { project_overlap_case("hidden"); }
+#[test] fn project_overlap_explicit_pruned_root_is_not_suppressed() { project_overlap_case("pruned"); }
+#[test] fn project_overlap_projects_recurse_with_files_toggle_off() { project_overlap_case("norecurse"); }
+#[test]
+#[ignore = "Matched release benchmark on synthetic 16 MiB project"]
+fn project_overlap_release_benchmark() {
+    let dir = tempfile::tempdir().unwrap(); let child = dir.path().join("neutral-sub");
+    std::fs::create_dir(&child).unwrap();
+    let mut bytes = vec![b'x'; 256 * 1024]; bytes.get_mut(..4).unwrap().copy_from_slice(b"hit\n");
+    for i in 0..64 { std::fs::write(child.join(format!("neutral-{i}.txt")), &bytes).unwrap(); }
+    let _settings = crate::settings::override_for_test(Settings {
+        toolbar_hidden: true, folder_panel_visible: false,
+        folder_panel_roots: vec![dir.path().to_path_buf(), child], ..Settings::default()
+    });
+    let mut cx = TestAppContext::single(); let (entity, _, mut dialog) = fixture(&mut cx, dir.path(), Route::Projects);
+    dialog.update(|_, cx| entity.update(cx, |w, _| {
+        w.find_in_files.project_panel_2 = true; w.find_in_files.replacement = "hit!".into();
+    }));
+    let yes = request(&entity, &mut dialog, Route::Projects); let start = std::time::Instant::now();
+    yes.send(rfd::MessageDialogResult::Yes).unwrap(); dialog.run_until_parked();
+    dialog.cx.update(|cx| {
+        let w=entity.read(cx); assert!(!w.directory_operations.busy()); assert!(w.find_in_files.error.is_none());
+        eprintln!("BENCH project16MiB files64 roots2 elapsed_ms={} status={:?}", start.elapsed().as_millis(), w.find_in_files.status);
+        assert_eq!(w.find_in_files.status.as_deref(), Some("Replaced 64 occurrences in 64 files"));
+    });
+    // Correctness checks are outside the matched worker timing.
+    use std::io::Read;
+    for i in 0..64 {
+        let mut file = std::fs::File::open(dir.path().join("neutral-sub").join(format!("neutral-{i}.txt"))).unwrap();
+        let mut prefix = [0; 5]; file.read_exact(&mut prefix).unwrap(); assert_eq!(&prefix, b"hit!\n");
+    }
+    cx.quit();
+}

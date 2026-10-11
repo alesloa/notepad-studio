@@ -35,6 +35,7 @@ mod regex_replacement_tests;
 mod file_tab_actions;
 mod find_in_files;
 mod directory_operations;
+mod project_file_visits;
 mod folder_panel;
 mod format;
 mod history;

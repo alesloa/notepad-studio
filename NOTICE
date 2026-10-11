@@ -126,3 +126,9 @@ existing fallback. Transport negotiation and input-context ownership are unchang
 Vendored gpui Windows IMM input: Windows IMM composition and attribute reads validate signed results, enforce a 1 MiB per-buffer allocation cap with fallible reservation and actual-capacity checks, honor second-read lengths, decode UTF-16 without alignment casts, and reject invalid cursor positions. Ten helper regressions cover error, size, truncation, Unicode and cursor boundaries.
 
 Vendored gpui Cocoa text input: macOS Cocoa text-input range conversion rejects overflowing endpoints, and attributed-substring replies skip optional null actualRange output storage and reversed adjustments. Seven permanent tests cover available/overflowing ranges, reverse conversion and actual output selection; portable source probes distinguish native compilation from contract coverage.
+
+Windows project replacement uses file-id 0.2.3 from notify-rs/notify, licensed
+MIT OR Apache-2.0. It is an exact registry dependency, not modified or vendored.
+Copyright (c) 2023 Notify Contributors.
+Source revision: a1d7c2d8f80786679d58ec6d5986a1d4278bc8cf (file-id/).
+Original licences are preserved under licenses/file-id-0.2.3/.

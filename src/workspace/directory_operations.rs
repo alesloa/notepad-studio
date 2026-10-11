@@ -398,11 +398,13 @@ impl Workspace {
                 }
                 match result {
                     WorkResult::Replace(Ok(report)) => {
+                        let mut details = if report.failures > 0 { report.failure_status() } else { String::new() };
+                        if let Some(reason) = report.stopped { details.push_str(" | "); details.push_str(reason.reason()); }
                         w.find_in_files.status = Some(format!("{} {} occurrence{} in {} file{}{}",
-                            if was_cancelled || report.cancelled { "Cancelled after replacing" } else { "Replaced" },
+                            if was_cancelled || report.cancelled { "Cancelled after replacing" } else if report.stopped.is_some() { "Stopped after replacing" } else { "Replaced" },
                             report.replacements, if report.replacements == 1 { "" } else { "s" },
                             report.files_changed, if report.files_changed == 1 { "" } else { "s" },
-                            if report.failures > 0 { report.failure_status() } else { String::new() }));
+                            details));
                         w.find_in_files.error = None;
                     }
                     WorkResult::Replace(Err(error)) => { w.find_in_files.error = Some(error); w.find_in_files.status = None; }
@@ -451,8 +453,15 @@ fn replace_scope(snapshot: &Snapshot, cancelled: &AtomicBool) -> Result<super::f
 }
 
 fn replace_scope_with_reader(snapshot: &Snapshot, cancelled: &AtomicBool,
-    mut read: impl FnMut(&Path, u64) -> std::io::Result<Option<Vec<u8>>>) -> Result<super::find_in_files::ReplaceInFilesReport, String>
+    read: impl FnMut(&Path, u64) -> std::io::Result<Option<Vec<u8>>>) -> Result<super::find_in_files::ReplaceInFilesReport, String>
 {
+    replace_scope_with_reader_and_visits(snapshot, cancelled, read, &mut super::project_file_visits::FileVisits::default())
+}
+
+fn replace_scope_with_reader_and_visits(snapshot: &Snapshot, cancelled: &AtomicBool,
+    mut read: impl FnMut(&Path, u64) -> std::io::Result<Option<Vec<u8>>>,
+    visits: &mut super::project_file_visits::FileVisits,
+) -> Result<super::find_in_files::ReplaceInFilesReport, String> {
     let mut total = super::find_in_files::ReplaceInFilesReport::default();
     for root in &snapshot.roots {
         if cancelled.load(Ordering::Acquire) { total.cancelled = true; break; }
@@ -461,13 +470,16 @@ fn replace_scope_with_reader(snapshot: &Snapshot, cancelled: &AtomicBool,
             Err(error) if snapshot.route == Route::Files => return Err(error),
             Err(error) => { record_root_failure(&mut total, root, error); break; }
         };
-        match super::find_in_files::run_replace_in_files_with_reader_cancelled(&query, &snapshot.replacement, &mut read, cancelled) {
+        match super::find_in_files::run_replace_in_files_with_visits(&query, &snapshot.replacement, &mut read, cancelled, visits) {
             Ok(report) => {
                 total.files_changed = total.files_changed.saturating_add(report.files_changed);
                 total.replacements = total.replacements.saturating_add(report.replacements);
                 total.failures = total.failures.saturating_add(report.failures);
                 total.cancelled |= report.cancelled;
+                total.duplicate_visits = total.duplicate_visits.saturating_add(report.duplicate_visits);
+                total.stopped = report.stopped;
                 if total.first_failure.is_none() { total.first_failure = report.first_failure; }
+                if total.stopped.is_some() { break; }
             }
             Err(error) if snapshot.route == Route::Files => return Err(error),
             Err(error) => record_root_failure(&mut total, root, error),
@@ -615,4 +627,115 @@ mod tests {
         assert!(failure.contains(&file.display().to_string())); assert!(failure.contains("synthetic read refusal"));
         assert_eq!(std::fs::read(file).unwrap(), b"hit\r\n");
     }
+}
+
+#[cfg(test)]
+mod project_overlap_visit_tests {
+    use super::*;
+    use super::super::project_file_visits::{FileVisits, VisitStop};
+    use std::sync::atomic::{AtomicBool, Ordering};
+    use std::cell::Cell;
+
+    fn scope(roots: Vec<PathBuf>, query: &str) -> Snapshot {
+        Snapshot { route: Route::Projects,
+            query: FindInFilesQuery { text: query.into(), directory: roots.first().unwrap().clone(), filter: "*".into(),
+                match_case: true, whole_word: false, regex: false, extended: false, dot_matches_newline: false,
+                in_subfolders: true, in_hidden_folders: false },
+            replacement: "done".into(), roots, retained: 0 }
+    }
+
+    #[test]
+    fn project_overlap_nohit_and_read_failure_claim_only_one_attempt_per_identity() {
+        for fail in [false, true] {
+            let dir = tempfile::tempdir().unwrap(); let file=dir.path().join("neutral.txt");
+            std::fs::write(&file, b"hit\r\n").unwrap(); std::fs::hard_link(&file, dir.path().join("neutral-alias.txt")).unwrap();
+            let snapshot=scope(vec![dir.path().to_path_buf(), dir.path().to_path_buf()], if fail { "hit" } else { "absent" });
+            let calls=Cell::new(0); let mut visits=FileVisits::default();
+            let report=replace_scope_with_reader_and_visits(&snapshot, &AtomicBool::new(false), |path, limit| {
+                calls.set(calls.get()+1);
+                if fail { Err(std::io::Error::new(std::io::ErrorKind::PermissionDenied, "controlled reader refusal")) }
+                else { crate::find_in_files::read_capped(path,limit) }
+            }, &mut visits).unwrap();
+            assert_eq!(calls.get(),1); assert_eq!(report.duplicate_visits,3);
+            assert_eq!(report.failures,usize::from(fail)); assert_eq!(report.files_changed,0);
+            assert_eq!(std::fs::read(&file).unwrap(),b"hit\r\n");
+        }
+    }
+
+    #[test]
+    fn project_overlap_scope_capacity_keeps_success_failure_prefix_and_stops_later_roots() {
+        let dir=tempfile::tempdir().unwrap(); let a=dir.path().join("neutral-a"); let b=dir.path().join("neutral-b");
+        std::fs::create_dir(&a).unwrap(); std::fs::create_dir(&b).unwrap();
+        let good=a.join("good.txt");let bad=a.join("bad.txt");let later=b.join("later.txt");
+        for path in [&good,&bad,&later] {std::fs::write(path,b"hit\r\n").unwrap();}
+        let snapshot=scope(vec![a,b],"hit");let calls=Cell::new(0);let mut visits=FileVisits::limited(2);
+        let report=replace_scope_with_reader_and_visits(&snapshot,&AtomicBool::new(false),|path,limit| {
+            calls.set(calls.get()+1);
+            if path==bad {Err(std::io::Error::new(std::io::ErrorKind::PermissionDenied,"controlled read failure"))}
+            else {crate::find_in_files::read_capped(path,limit)}
+        },&mut visits).unwrap();
+        assert_eq!(calls.get(),2);assert_eq!(report.stopped,Some(VisitStop::Capacity));
+        assert_eq!(report.files_changed,1);assert_eq!(report.replacements,1);assert_eq!(report.failures,1);
+        assert!(report.first_failure.as_deref().unwrap().contains("bad.txt"));
+        assert_eq!(std::fs::read(good).unwrap(),b"done\r\n");assert_eq!(std::fs::read(later).unwrap(),b"hit\r\n");
+    }
+
+    #[test]
+    fn project_overlap_scope_allocation_refusal_never_reads_or_writes_any_root() {
+        let dir=tempfile::tempdir().unwrap();let file=dir.path().join("neutral.txt");std::fs::write(&file,b"hit").unwrap();
+        let snapshot=scope(vec![dir.path().to_path_buf(),dir.path().to_path_buf()],"hit");
+        let mut visits=FileVisits::limited(2);visits.fail_reservation();let calls=Cell::new(0);
+        let report=replace_scope_with_reader_and_visits(&snapshot,&AtomicBool::new(false),|path,limit| {
+            calls.set(calls.get()+1);crate::find_in_files::read_capped(path,limit)
+        },&mut visits).unwrap();
+        assert_eq!(calls.get(),0);assert_eq!(report.stopped,Some(VisitStop::Allocation));assert_eq!(report.files_changed,0);
+        assert_eq!(std::fs::read(file).unwrap(),b"hit");
+    }
+
+    #[test]
+    fn project_overlap_scope_cancel_retains_written_prefix_and_never_reads_next_root() {
+        let dir=tempfile::tempdir().unwrap();let a=dir.path().join("neutral-a");let b=dir.path().join("neutral-b");
+        std::fs::create_dir(&a).unwrap();std::fs::create_dir(&b).unwrap();
+        for path in [a.join("one.txt"),a.join("two.txt"),b.join("later.txt")] {std::fs::write(path,b"hit").unwrap();}
+        let snapshot=scope(vec![a,b.clone()],"hit");let cancelled=AtomicBool::new(false);let calls=Cell::new(0);
+        let report=replace_scope_with_reader_and_visits(&snapshot,&cancelled,|path,limit| {
+            assert!(!path.starts_with(&b));calls.set(calls.get()+1);let bytes=crate::find_in_files::read_capped(path,limit)?;
+            if calls.get()==2 {cancelled.store(true,Ordering::Release);} Ok(bytes)
+        },&mut FileVisits::default()).unwrap();
+        assert_eq!(calls.get(),2);assert!(report.cancelled);assert_eq!(report.files_changed,1);assert_eq!(report.replacements,1);
+        assert_eq!(std::fs::read(b.join("later.txt")).unwrap(),b"hit");
+    }
+    #[test]
+    fn project_overlap_unsupported_first_root_counts_failure_and_processes_supported_root() {
+        let dir=tempfile::tempdir().unwrap();let a=dir.path().join("neutral-a");let b=dir.path().join("neutral-b");
+        std::fs::create_dir(&a).unwrap();std::fs::create_dir(&b).unwrap();
+        let refused=a.join("refused.txt");let good=b.join("good.txt");
+        std::fs::write(&refused,b"hit").unwrap();std::fs::write(&good,b"hit").unwrap();
+        let snapshot=scope(vec![a,b],"hit");let mut visits=FileVisits::default();
+        visits.fail_next_identity(std::io::ErrorKind::Unsupported);let calls=Cell::new(0);
+        let report=replace_scope_with_reader_and_visits(&snapshot,&AtomicBool::new(false),|path,limit| {
+            assert_ne!(path,refused);calls.set(calls.get()+1);crate::find_in_files::read_capped(path,limit)
+        },&mut visits).unwrap();
+        assert_eq!(calls.get(),1);assert_eq!(report.failures,1);assert_eq!(report.files_changed,1);assert!(report.stopped.is_none());
+        assert!(report.first_failure.as_deref().unwrap().contains("refused.txt"));
+        assert_eq!(std::fs::read(refused).unwrap(),b"hit");assert_eq!(std::fs::read(good).unwrap(),b"done");
+    }
+
+
+    #[test]
+    #[cfg(windows)]
+    fn project_overlap_descriptor_refusal_stops_later_roots_without_reading() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("neutral.txt"); std::fs::write(&file, b"hit").unwrap();
+        let snapshot = scope(vec![dir.path().to_path_buf(), dir.path().to_path_buf()], "hit");
+        let mut visits = super::super::project_file_visits::FileVisits::default();
+        visits.fail_next_identity_error(std::io::Error::from_raw_os_error(4));
+        let report = replace_scope_with_reader_and_visits(&snapshot, &AtomicBool::new(false), |_, _| {
+            panic!("resource refusal must precede every file read")
+        }, &mut visits).unwrap();
+        assert_eq!(report.stopped, Some(super::super::project_file_visits::VisitStop::FileResources));
+        assert_eq!(report.files_changed, 0); assert_eq!(report.replacements, 0);
+        assert_eq!(std::fs::read(file).unwrap(), b"hit");
+    }
+
 }

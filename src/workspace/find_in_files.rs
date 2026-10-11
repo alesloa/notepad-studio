@@ -634,6 +634,8 @@ fn result_range_in_rope(
 #[derive(Default)]
 pub(super) struct ReplaceInFilesReport {
     pub(super) cancelled: bool,
+    pub(super) stopped: Option<super::project_file_visits::VisitStop>,
+    pub(super) duplicate_visits: usize,
     pub(super) files_changed: usize,
     pub(super) replacements: usize,
     pub(super) failures: usize,
@@ -671,10 +673,20 @@ fn run_replace_in_files_with_reader(
     run_replace_in_files_with_reader_cancelled(query, replacement, read, &std::sync::atomic::AtomicBool::new(false))
 }
 
+#[cfg(test)]
 pub(super) fn run_replace_in_files_with_reader_cancelled(
+    query: &FindInFilesQuery, replacement: &str,
+    read: impl FnMut(&std::path::Path, u64) -> std::io::Result<Option<Vec<u8>>>,
+    cancelled: &std::sync::atomic::AtomicBool,
+) -> Result<ReplaceInFilesReport, String> {
+    run_replace_in_files_with_visits(query, replacement, read, cancelled, &mut super::project_file_visits::FileVisits::default())
+}
+
+pub(super) fn run_replace_in_files_with_visits(
     query: &FindInFilesQuery, replacement: &str,
     mut read: impl FnMut(&std::path::Path, u64) -> std::io::Result<Option<Vec<u8>>>,
     cancelled: &std::sync::atomic::AtomicBool,
+    visits: &mut super::project_file_visits::FileVisits,
 ) -> Result<ReplaceInFilesReport, String> {
     use walkdir::WalkDir;
     if cancelled.load(std::sync::atomic::Ordering::Acquire) {
@@ -703,6 +715,7 @@ pub(super) fn run_replace_in_files_with_reader_cancelled(
     let mut replacements = 0usize;
     let mut failures = 0usize;
     let mut first_failure = None;
+    let mut stopped = None; let mut duplicate_visits = 0usize;
 
     let in_subfolders = query.in_subfolders;
     let in_hidden = query.in_hidden_folders;
@@ -763,6 +776,17 @@ pub(super) fn run_replace_in_files_with_reader_cancelled(
         let limit = crate::find_in_files::FIND_IN_FILES_FILE_SIZE_LIMIT;
         if metadata.len() > limit {
             continue;
+        }
+        if cancelled.load(std::sync::atomic::Ordering::Acquire) { break; }
+        match visits.admit(path) {
+            Ok(true) => {}
+            Ok(false) => { duplicate_visits = duplicate_visits.saturating_add(1); continue; }
+            Err(super::project_file_visits::VisitError::File(error)) => {
+                failures = failures.saturating_add(1);
+                if first_failure.is_none() { first_failure = Some(format!("{}: {error}", path.display())); }
+                continue;
+            }
+            Err(super::project_file_visits::VisitError::Stop(reason)) => { stopped = Some(reason); break; }
         }
         // Bounded read: a file that grew past the limit since the stat is
         // skipped whole, never rewritten from a truncated copy.
@@ -833,6 +857,7 @@ pub(super) fn run_replace_in_files_with_reader_cancelled(
 
     Ok(ReplaceInFilesReport {
         cancelled: cancelled.load(std::sync::atomic::Ordering::Acquire),
+        stopped, duplicate_visits,
         files_changed,
         replacements,
         failures,

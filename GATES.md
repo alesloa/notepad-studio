@@ -24,7 +24,7 @@ Scope: Continue the requested cross-platform Notepad++ parity audit and fix the 
   EVIDENCE: pending
 
 - [ ] G8: Native Windows, macOS and Linux builds and exercised UI flows confirm placement, focus, typing and save behavior.
-  EVIDENCE: partial; immutable8a1a353 built on Ubuntu24.04/WSL with Rust1.99.0;1425 units+1 integration passed,8ignored (Windows-only test omitted), logs log/linux-8a1a353-{build,tests}.txt. Current native computer-use transport is unavailable and CUA native surfaces are disabled. macOS/current later batches/native exercised UI remain open; headless GPUI tests are not native screenshots.
+  EVIDENCE: partial; immutable80d23fd built on Ubuntu24.04/WSL with Rust1.99.0;1547 units+1 integration passed,8ignored (Windows-only test omitted), logs log/linux-80d23fd-{build,tests}.txt. Clippy now installed but fails on inherited vendored GPUI golden-ratio literal under new Rust1.99 approx_constant lint; independent portability fix in progress, log/linux-80d23fd-clippy.txt. Earlier8a1a353 build/tests remain historical evidence. Current native computer-use transport is unavailable and CUA native surfaces are disabled. macOS/current later batches/native exercised UI remain open; headless GPUI tests are not native screenshots.
 
 - [x] G9: The integrated main tree builds and passes its required unit/integration/clippy checks with no new warnings on touched code.
   CHECK: powershell -NoProfile -Command "Get-Content log/ime-integration-tests.txt -Tail 16"
@@ -50,3 +50,5 @@ Scope: Continue the requested cross-platform Notepad++ parity audit and fix the 
 
 - [x] G15: Exit saves recovery before quitting; failure keeps editor windows, documents and pending drafts available for retry with an actionable error.
   EVIDENCE: Two red actual global-action tests then five passing actual dispatch/close-hook regressions: failed raw/CSV recovery, multiwindow retry, no-workspace Exit, native-close veto and last-tab strip/closed-document retention. Recovery returns an IO error to its caller; close/Exit report it in the status bar without a synchronous native modal.1518-unit main gate. OS shutdown fallback still cannot veto teardown, and asynchronous Exit/performance work remains G7; native exercised close remains G8.
+
+- 2026-10-10: reviewed adccf497 original parity inventory integrated as documentation only. Entire oracle tree accounted for; no native/behavior-completion claim. Current80d23fd Linux build+1547units+1integration pass/8ignored; Rust1.99 Clippy exposes inherited vendor lint. Menu commands/hints/async Exit/mapper/native gaps continue.

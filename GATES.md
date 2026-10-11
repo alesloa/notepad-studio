@@ -21,20 +21,20 @@ Scope: Continue the requested cross-platform Notepad++ parity audit and fix the 
   EVIDENCE: reviewed 766b763..ec8869b source delta; reproduced Go to Line Enter crash, seven actual-frame focus/edit/clipboard/Enter/Escape regressions, and multiline raw-value rendering tests pass in the 1339-unit main gate. Bounded shaping and catalog-derived Mac fixture chords were reviewed in 4ffcf61 and integrated. Native evidence remains G8.
 
 - [ ] G7: A complete menu/behavior parity inventory names and closes remaining Notepad++ gaps, including command shortcuts, lexer/API completion and platform behavior.
-  EVIDENCE: pending
+  EVIDENCE: reviewed adccf497 inventory in docs/notepadpp-parity.md:716 ordered nodes/581 command occurrences/481 IDs,19 source hashes,421 file/line references,63 missing static-menu CATALOG rows. Pinned2707355 evidence; later Rename/IME are separate. Inventory complete; closing all behavior/menu/native gaps remains open. This batch separates line-menu actions from Tab/selection-duplicate and tests19 cases;4096-line foreground cap, block selections, legacy keyboard behavior and larger background editing remain open.
 
 - [ ] G8: Native Windows, macOS and Linux builds and exercised UI flows confirm placement, focus, typing and save behavior.
   EVIDENCE: partial; immutable80d23fd built on Ubuntu24.04/WSL with Rust1.99.0;1547 units+1 integration passed,8ignored (Windows-only test omitted), logs log/linux-80d23fd-{build,tests}.txt. Clippy now installed but fails on inherited vendored GPUI golden-ratio literal under new Rust1.99 approx_constant lint; independent portability fix in progress, log/linux-80d23fd-clippy.txt. Earlier8a1a353 build/tests remain historical evidence. Current native computer-use transport is unavailable and CUA native surfaces are disabled. macOS/current later batches/native exercised UI remain open; headless GPUI tests are not native screenshots.
 
 - [x] G9: The integrated main tree builds and passes its required unit/integration/clippy checks with no new warnings on touched code.
-  CHECK: powershell -NoProfile -Command "Get-Content log/ime-integration-tests.txt -Tail 16"
-  EXPECT: 1548 passed; 0 failed
-  EVIDENCE: Reviewedd46b446 Source/CSV IME batch; cargo build and clippy all-targets passed;1548 units + 1 integration passed,8 ignored, no new touched-code warnings. Refresh for each source batch.
+  CHECK: powershell -NoProfile -Command "Get-Content log/edit-menu-line-integration-tests.txt -Tail 16"
+  EXPECT: 1567 passed; 0 failed
+  EVIDENCE: Original line-menu command batch; cargo build and clippy all-targets passed;1567 units + 1 integration passed,8 ignored,196app/210test warnings all inherited.19 new pure/actual menu dispatch/history/encoding/custom-binding/macro cases, no new touched-code warnings. Refresh for each source batch.
 
 - [x] G10: Completed source batches have separate conventional commits and current change.log/devlog entries; the main working tree is clean before beginning a new batch.
   CHECK: git status --porcelain
   EXPECT: /^$/
-  EVIDENCE: maindd23181 was clean before this Source/CSV IME batch;75 current-version release notes and a devlog entry accompany it. Refresh after each source batch.
+  EVIDENCE: main80d23fd was clean before this line-command batch; docs56633b8 integrated separately during it.76 current-version release notes and a devlog entry accompany the source change. Refresh after each source batch.
 
 - [x] G11: View > Tab exposes every oracle Tab command in order with rebindable shortcuts; selection/reordering/color commands preserve document UUID, text, encoding/EOL, saved state and history, with edge and pending-cell refusal coverage.
   EVIDENCE: oracle RC789-817 / Commands1304-1412,3532-3537; red missing-menu contract then 7 new menu/actual-dispatch/refusal/edge tests pass. 1332-unit main gate; existing shortcut parity/collision tests cover added rows. Native appearance remains G8.
@@ -52,3 +52,5 @@ Scope: Continue the requested cross-platform Notepad++ parity audit and fix the 
   EVIDENCE: Two red actual global-action tests then five passing actual dispatch/close-hook regressions: failed raw/CSV recovery, multiwindow retry, no-workspace Exit, native-close veto and last-tab strip/closed-document retention. Recovery returns an IO error to its caller; close/Exit report it in the status bar without a synchronous native modal.1518-unit main gate. OS shutdown fallback still cannot veto teardown, and asynchronous Exit/performance work remains G7; native exercised close remains G8.
 
 - 2026-10-10: reviewed adccf497 original parity inventory integrated as documentation only. Entire oracle tree accounted for; no native/behavior-completion claim. Current80d23fd Linux build+1547units+1integration pass/8ignored; Rust1.99 Clippy exposes inherited vendor lint. Menu commands/hints/async Exit/mapper/native gaps continue.
+
+- 2026-10-10: line menu commands use distinct actions/catalog IDs/macro events, prefix-only indentation and caret-line duplication. Four real-menu red regressions then19 new pure/actual dispatch/Unicode/encoding/save/history/refusal/custom-binding/macro tests;1567units+1integration/8ignored,build/clippy green,no owned warnings. Release12MiB planning single-line3.5us/duplicate1.3us; formerly267k-row planning232.539ms now atomic4096-row cap refuses5us;4096-row planning+Rope application median6.886ms/p9518.421ms. Core timings are not native UI latency. Larger operations/block selections/legacy keyboard semantics remainG7.

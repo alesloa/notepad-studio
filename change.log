@@ -300,6 +300,12 @@ v0.0.5 — current
       UTF-16 selection and commits Source input as one Undo action. Changing
       tabs, views or focus retires the old composition range safely.
 
+  76. Edit menu line indentation preserves selected text and uses language
+      tab settings. Duplicate Current Line duplicates the caret line, with
+      separate rebindable actions and macro events. Unicode, line endings
+      and undo are preserved. Indentation currently accepts up to 4096 lines;
+      larger selections are refused before editing to keep the UI responsive.
+
   v0.1.0 — syntax & language:
 
     1. Tree-sitter syntax highlighting for 25 modes: Rust, Python, C,

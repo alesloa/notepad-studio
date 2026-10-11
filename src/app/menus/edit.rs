@@ -13,6 +13,10 @@ use gpui::{Menu, MenuItem};
 use crate::actions::*;
 use super::MenuState;
 
+#[cfg(test)]
+#[path = "edit_line_command_tests.rs"]
+mod line_command_tests;
+
 pub(crate) fn build(_state: &MenuState) -> Menu {
     Menu {
         name: "&Edit".into(),
@@ -76,8 +80,8 @@ fn indent_menu() -> Menu {
     Menu {
         name: "Indent".into(),
         items: vec![
-            MenuItem::action("Increase Line Indent", EditInsertTab),
-            MenuItem::action("Decrease Line Indent", EditOutdent),
+            MenuItem::action("Increase Line Indent", EditIncreaseLineIndent),
+            MenuItem::action("Decrease Line Indent", EditDecreaseLineIndent),
         ],
     }
 }
@@ -104,7 +108,7 @@ fn line_operations_menu() -> Menu {
     Menu {
         name: "Line Operations".into(),
         items: vec![
-            MenuItem::action("Duplicate Current Line", EditDuplicateLine),
+            MenuItem::action("Duplicate Current Line", EditDuplicateCurrentLine),
             MenuItem::action("Remove Duplicate Lines", EditRemoveDuplicateLines),
             MenuItem::action(
                 "Remove Consecutive Duplicate Lines",

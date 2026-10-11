@@ -165,6 +165,9 @@ static CATALOG: &[ActionEntry] = &[
     row!(EditInsertNewline, "Insert Newline",     Some("SCI_NEWLINE"),            W, ["enter", "shift-enter"],            ["enter", "shift-enter"]),
     row!(EditInsertTab,     "Insert Tab",         Some("SCI_TAB"),                W, ["tab"],                             ["tab"]),
     row!(EditOutdent,       "Decrease Line Indent", Some("SCI_BACKTAB"),          W, ["shift-tab"],                       ["shift-tab"]),
+    row!(EditIncreaseLineIndent, "Increase Line Indent", Some("IDM_EDIT_INS_TAB"), W, [], []),
+    row!(EditDecreaseLineIndent, "Decrease Line Indent", Some("IDM_EDIT_RMV_TAB"), W, [], []),
+    row!(EditDuplicateCurrentLine, "Duplicate Current Line", Some("IDM_EDIT_DUP_LINE"), W, [], []),
     row!(EditDuplicateLine, "Duplicate Line",     Some("SCI_SELECTIONDUPLICATE"), W, ["ctrl-d"],                          ["cmd-d"]),
     // Ctrl/Cmd+R belongs to Reload. CSV Fill Right remains unassigned on
     // Windows/Linux and uses Cmd+Alt+R on macOS.

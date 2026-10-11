@@ -207,6 +207,10 @@ pub(super) const NPP_DEFAULTS: &[(&str, &str, u32)] = &[
 
 /// Notepad++ commands without a default chord.
 pub(super) const NPP_NO_DEFAULT: &[(&str, u32)] = &[
+    ("IDM_EDIT_INS_TAB", 159),
+    ("IDM_EDIT_RMV_TAB", 160),
+    // scintKeyDefs[]: SCI_LINEDUPLICATE has no key and redirects this menu ID.
+    ("IDM_EDIT_DUP_LINE", 642),
     ("IDM_FILE_OPEN_FOLDER", 110),
     ("IDM_FILE_OPEN_DEFAULT_VIEWER", 113),
     ("IDM_FILE_CLOSEALL_BUT_CURRENT", 123),

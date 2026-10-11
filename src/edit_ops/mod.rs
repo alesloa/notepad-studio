@@ -13,6 +13,7 @@ pub(crate) mod editor_keys;
 pub(crate) mod indent_ops;
 pub(crate) mod insert;
 pub(crate) mod line_ops;
+pub(crate) mod menu_line_commands;
 pub(crate) mod on_selection;
 pub(crate) mod readonly;
 pub(crate) mod util;

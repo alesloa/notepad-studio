@@ -1,3 +1,7 @@
+mod save_as_dialog;
+#[cfg(test)]
+mod save_as_identity_tests;
+
 // File I/O — open / save / save-as flows plus the async dialog helpers
 // invoked from the close-tab path.
 //
@@ -472,10 +476,12 @@ impl Workspace {
     }
 
     pub(crate) fn save_active_as(&mut self, _: &FileSaveAs, window: &mut Window, cx: &mut Context<Self>) {
+        if self.window_closed { return; }
         if !crate::ui::csv_doc::actions::commit_cell_edit(self, cx) { return; }
-        // The dialog is async and the user can switch tabs while it's open:
-        // remember which tab asked.
-        let Some(tab_id) = self.tabs.get(self.active).map(|t| t.session_id) else {
+        // PowerEditor/src/NppIO.cpp:1994-2090 saves the requesting buffer.
+        // Async replies also need its incarnation: restoring a closed tab
+        // retains the session ID but must not inherit the old dialog.
+        let Some((tab_id, tab_instance)) = self.tabs.get(self.active).map(|t| (t.session_id, t.instance.clone())) else {
             return;
         };
         let active_dir = self
@@ -491,32 +497,26 @@ impl Workspace {
 
         let suggested = suggested_save_name(self.buffer());
 
+        let selected = save_as_dialog::pick(starting, suggested);
         cx.spawn_in(window, async move |this, cx| {
-            let mut dialog = rfd::AsyncFileDialog::new()
-                .set_title("Save As")
-                .set_file_name(&suggested);
-            if let Some(dir) = starting {
-                dialog = dialog.set_directory(dir);
-            }
-            let Some(handle) = dialog.save_file().await else {
-                return;
-            };
-            let path = handle.path().to_path_buf();
-            crate::settings::record_last_used_directory(&path);
-            let refused = this
+            let Some(path) = selected.await else { return; };
+            let Some(refused) = this
                 .update(cx, |w, cx| {
-                    match w.tabs.iter().position(|t| t.session_id == tab_id) {
-                        Some(saving) => w.save_target_open_elsewhere(&path, saving, cx),
-                        None => false,
-                    }
+                    if w.window_closed { return None; }
+                    let saving = w.tabs.iter().position(|t| t.session_id == tab_id
+                        && std::sync::Arc::ptr_eq(&t.instance, &tab_instance))?;
+                    Some(w.save_target_open_elsewhere(&path, saving, cx))
                 })
-                .unwrap_or(false);
+                .ok().flatten() else { return; };
             if refused {
                 crate::workspace::show_already_open_error().await;
                 return;
             }
             this.update(cx, |w, cx| {
+                if w.window_closed || !w.tabs.iter().any(|t| t.session_id == tab_id
+                    && std::sync::Arc::ptr_eq(&t.instance, &tab_instance)) { return; }
                 if crate::ui::csv_doc::actions::commit_cell_edit_for_tab(w, tab_id, cx).is_err() { return; }
+                crate::settings::record_last_used_directory(&path);
                 let outcome = w.with_tab_active(tab_id, |w| {
                     w.save_active_to_new_path(path.clone())
                         .map(|()| w.buffer().display_short_name().to_string())

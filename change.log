@@ -582,6 +582,9 @@ v0.0.5 — current
     147. Trim Leading and Trailing Space now changes only the selected
          physical lines, including partially selected lines. Rectangular
          selections are refused, and Undo restores the original selection.
+    148. Save As ignores late dialog replies after the requesting tab is
+         closed and restored, or its window closes. An unrelated existing
+         file can no longer be overwritten through that stale dialog.
 
   v0.1.0 — syntax & language:
 

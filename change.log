@@ -189,6 +189,11 @@ v0.0.5 — current
        replay, with the same single Undo and caret as accepting the list.
        Mismatched prefixes and invalid editor contexts are skipped safely.
 
+   51. Undo and Redo recognize the last successful Save across text and
+       Doc View edits, grouped actions and branching history. Encoding and
+       line-ending changes stay unsaved until restored or written. Invalid
+       undo history is refused before it can change unrelated text.
+
   v0.1.0 — syntax & language:
 
     1. Tree-sitter syntax highlighting for 25 modes: Rust, Python, C,

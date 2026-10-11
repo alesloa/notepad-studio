@@ -139,6 +139,7 @@ impl TextSelection {
 /// Full parsed payload stored on `Buffer::rich_doc`.
 #[derive(Debug, Clone)]
 pub struct RichDocPayload {
+    pub(crate) revision: crate::buffer::ContentRevision,
     pub format: DocFormat,
     pub ast: ast::Document,
     /// Raw text shown in Raw View. For DOCX this is the extracted `word/document.xml`.
@@ -209,6 +210,7 @@ pub struct RichDocPayload {
 /// `edit_log.is_empty()`.
 #[derive(Debug, Clone)]
 pub struct UndoSnapshot {
+    pub(crate) revision: crate::buffer::ContentRevision,
     pub ast: ast::Document,
     pub selection: Option<TextSelection>,
     pub active_block: Option<usize>,
@@ -230,6 +232,7 @@ impl RichDocPayload {
             self.redo_stack.clear();
         }
         edits::apply(&edit, &mut self.ast);
+        self.revision = crate::buffer::ContentRevision::default();
         self.edit_log.push(edit);
     }
 
@@ -260,6 +263,7 @@ impl RichDocPayload {
 
     fn current_snapshot(&self) -> UndoSnapshot {
         UndoSnapshot {
+            revision: self.revision.clone(),
             ast: self.ast.clone(),
             selection: self.selection,
             active_block: self.active_block,
@@ -268,6 +272,7 @@ impl RichDocPayload {
     }
 
     fn restore_snapshot(&mut self, snap: UndoSnapshot) {
+        self.revision = snap.revision;
         self.ast = snap.ast;
         self.selection = snap.selection;
         self.active_block = snap.active_block;
@@ -905,6 +910,7 @@ mod tests {
     #[test]
     fn save_for_doc_returns_save_as_required() {
         let payload = RichDocPayload {
+            revision: crate::buffer::ContentRevision::default(),
             format: DocFormat::Doc,
             ast: ast::Document { blocks: vec![] },
             raw_view_text: String::new(),
@@ -937,6 +943,7 @@ mod tests {
 
     fn single_para_payload(text: &str) -> RichDocPayload {
         RichDocPayload {
+            revision: crate::buffer::ContentRevision::default(),
             format: DocFormat::Docx,
             ast: ast::Document {
                 blocks: vec![ast::Block::Paragraph {

@@ -1,8 +1,7 @@
 // Per-buffer formatting toggles — currently the on-save line-ending
 // (CRLF / LF / CR) and text encoding (UTF-8, UTF-8 BOM, UTF-16 LE/BE,
 // Latin-1). Both surface through the status bar and a top-level menu, and
-// both flip the active buffer's dirty flag because the next save would
-// produce different bytes than the last one.
+// both compare against the saved format to update the dirty flag.
 //
 // Important: we keep the rope LF-internal and UTF-8-internal regardless of
 // the chosen on-disk format. Conversion happens only at save time inside
@@ -27,9 +26,9 @@ impl Workspace {
         }
         tab.buffer.line_ending = le;
         // The rope itself is LF-internal so it doesn't change shape; the
-        // *file on disk* will. That's an unsaved change as far as the user
-        // is concerned, so flip dirty + update status.
-        tab.buffer.dirty = true;
+        // *file on disk* will. Returning to the saved format clears this
+        // part of the unsaved state.
+        tab.buffer.refresh_dirty();
         let label = le.status_label();
         self.set_status(format!("Line ending: {label}"));
         self.save_session(cx);
@@ -71,12 +70,12 @@ impl Workspace {
         }
         tab.buffer.encoding = enc;
         // Same reasoning as set_line_ending: rope contents don't change, but
-        // the next save would produce different bytes. Flip dirty.
+        // the next save may produce different bytes than the saved encoding.
         //
         // v1 trade-off: we do NOT re-decode the original raw bytes. Switching
         // encoding only affects the save target. A future revision could
         // stash the raw bytes on the Buffer and re-decode here.
-        tab.buffer.dirty = true;
+        tab.buffer.refresh_dirty();
         let label = enc.label();
         self.set_status(format!("Encoding: {label}"));
         self.save_session(cx);

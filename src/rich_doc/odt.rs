@@ -59,6 +59,7 @@ pub fn open(path: &Path) -> Result<RichDocPayload> {
     let raw_view_text = pretty_print_xml(&content_xml);
     let (headers, footers) = parse_master_pages(&styles_xml, &content_xml, Some(path));
     Ok(RichDocPayload {
+        revision: crate::buffer::ContentRevision::default(),
         format: DocFormat::Odt,
         ast,
         raw_view_text,

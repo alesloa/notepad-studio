@@ -178,7 +178,7 @@ impl Workspace {
         let (line_ending, normalized) = split_line_endings(raw);
         let rope = ropey::Rope::from_str(&normalized);
 
-        let buffer = Buffer {
+        let mut buffer = Buffer {
             rope,
             file_path: Some(path),
             dirty: false,
@@ -195,7 +195,10 @@ impl Workspace {
             is_changelog: true,
             rich_doc: None,
             flat_text_cache: None,
+            raw_revision: crate::buffer::ContentRevision::default(),
+            savepoint: None,
         };
+        buffer.mark_saved();
 
         // Replace an existing changelog tab in place — happens on a
         // version bump where the prior version's changelog is still in
@@ -392,7 +395,7 @@ impl Workspace {
             }
             match crate::rich_doc::save(payload, &path, raw_override.as_deref()) {
                 Ok(()) => {
-                    tab.buffer.dirty = false;
+                    tab.buffer.mark_saved();
                     return Ok(());
                 }
                 Err(err) => return Err(format!("rich-doc save failed: {err}")),
@@ -412,7 +415,7 @@ impl Workspace {
             encoding::encode_checked(utf8, tab.buffer.encoding).map_err(|e| e.to_string())?
         };
         save_bytes_with_backup(&path, &bytes, run_save_backup).map_err(|e| e.to_string())?;
-        tab.buffer.dirty = false;
+        tab.buffer.mark_saved();
         Ok(())
     }
 
@@ -1070,12 +1073,236 @@ pub(crate) fn read_buffer(path: &Path) -> Result<Buffer, String> {
     buffer.language = language;
     buffer.read_only = lossy;
     buffer.rich_doc = rich_doc;
+    buffer.mark_saved();
     buffer.reparse_highlights();
     Ok(buffer)
 }
 
 #[cfg(test)]
 mod tests {
+    use gpui::VisualContext;
+
+    fn with_saved_file(
+        name: &str,
+        test: impl FnOnce(&mut Workspace, &mut gpui::Window, &mut Context<Workspace>, &Path, bool),
+    ) {
+        let dir = TempDir::new("savepoint-handler");
+        let path = dir.join(name);
+        let rich = !name.ends_with(".txt");
+        let buffer = if rich {
+            rich_save_fixture(&path)
+        } else {
+            std::fs::write(&path, encoding::encode_checked("caf\u{00E9}\r\n\u{4E2D}\u{1F600}", Encoding::Utf16Le).expect("fixture encoding")).expect("text fixture");
+            read_buffer(&path).expect("text buffer")
+        };
+        let mut cx = gpui::TestAppContext::single();
+        let entity = rich_save_workspace(buffer, &mut cx);
+        {
+            let cx = cx.add_empty_window();
+            cx.update_window_entity(&entity, |workspace, window, cx| {
+                let focus = if rich { workspace.ensure_rich_doc_body_focus(cx) } else { workspace.focus_handle.clone() };
+                window.focus(&focus, cx);
+                if let Some(payload) = workspace.active_tab_mut().buffer.rich_doc.as_mut() {
+                    let start = payload.block_start(0);
+                    payload.active_block = Some(0);
+                    payload.selection = Some(crate::rich_doc::TextSelection { anchor: start, cursor: start });
+                }
+                workspace.write_active_to_disk().expect("save initial content");
+                test(workspace, window, cx, &path, rich);
+            });
+        }
+        cx.quit();
+    }
+
+    fn insert_savepoint_text(workspace: &mut Workspace, rich: bool, text: &str, cx: &mut Context<Workspace>) {
+        if rich { workspace.rich_doc_insert_text(text, cx); }
+        else { workspace.replace_byte_range(0..0, text, cx); }
+    }
+
+    fn assert_savepoint_history(name: &str, redo_to_save: bool) {
+        with_saved_file(name, |workspace, window, cx, path, rich| {
+            if rich {
+                workspace.rich_doc_insert_text("draft \u{4E2D} ", cx);
+            } else {
+                workspace.replace_byte_range(0..0, "draft \u{4E2D} ", cx);
+            }
+            assert!(workspace.buffer().dirty);
+            if redo_to_save {
+                workspace.write_active_to_disk().expect("save edited content");
+            }
+            let saved = std::fs::read(path).expect("saved bytes");
+            workspace.undo(&crate::actions::edit::EditUndo, window, cx);
+            if redo_to_save {
+                assert!(workspace.buffer().dirty, "{name}: undo must leave saved content");
+                workspace.redo(&crate::actions::edit::EditRedo, window, cx);
+            }
+            assert!(!workspace.buffer().dirty, "{name}: history returned to the actual successful save");
+            assert_eq!(std::fs::read(path).expect("history leaves disk alone"), saved);
+        });
+    }
+
+    #[test]
+    fn plain_undo_returns_to_the_saved_state() { assert_savepoint_history("source.txt", false); }
+
+    #[test]
+    fn plain_redo_returns_to_the_saved_state() { assert_savepoint_history("source.txt", true); }
+
+    #[test]
+    fn rich_undo_returns_to_the_saved_state() {
+        for name in ["source.docx", "source.odt", "source.rtf"] { assert_savepoint_history(name, false); }
+    }
+
+    #[test]
+    fn rich_redo_returns_to_the_saved_state() {
+        for name in ["source.docx", "source.odt", "source.rtf"] { assert_savepoint_history(name, true); }
+    }
+
+    #[test]
+    fn branching_history_does_not_reuse_a_saved_stack_depth() {
+        for name in ["branch.txt", "branch.rtf"] {
+            with_saved_file(name, |w, window, cx, _, rich| {
+                insert_savepoint_text(w, rich, "saved ", cx);
+                w.write_active_to_disk().expect("save edited branch");
+                w.undo(&crate::actions::edit::EditUndo, window, cx);
+                assert!(w.buffer().dirty);
+                insert_savepoint_text(w, rich, "different ", cx);
+                assert!(w.buffer().dirty, "same history depth is a different state");
+                w.redo(&crate::actions::edit::EditRedo, window, cx);
+                assert!(w.buffer().dirty, "discarded redo cannot reach the savepoint");
+                w.undo(&crate::actions::edit::EditUndo, window, cx);
+                assert!(w.buffer().dirty, "original state differs from the edited save");
+            });
+        }
+    }
+
+    #[test]
+    fn grouped_history_crosses_and_returns_to_saved_states() {
+        for name in ["group.txt", "group.rtf"] {
+            with_saved_file(name, |w, window, cx, _, rich| {
+                if rich { w.rich_doc_paste("\u{00E9}\n\u{4E2D}", cx); }
+                else {
+                    w.begin_edit_group();
+                    w.replace_byte_range(0..0, "\u{00E9}", cx);
+                    w.replace_byte_range(0..0, "\u{4E2D}", cx);
+                    w.end_edit_group(cx);
+                }
+                assert!(w.buffer().dirty);
+                w.undo(&crate::actions::edit::EditUndo, window, cx);
+                assert!(!w.buffer().dirty);
+                w.redo(&crate::actions::edit::EditRedo, window, cx);
+                assert!(w.buffer().dirty);
+                w.write_active_to_disk().expect("save group");
+                w.undo(&crate::actions::edit::EditUndo, window, cx);
+                assert!(w.buffer().dirty);
+                w.redo(&crate::actions::edit::EditRedo, window, cx);
+                assert!(!w.buffer().dirty);
+            });
+        }
+    }
+
+    #[test]
+    fn history_does_not_hide_unsaved_encoding_or_line_endings() {
+        with_saved_file("metadata.txt", |w, window, cx, _, rich| {
+            assert!(!rich);
+            w.eol_unix(&crate::actions::EditEolUnix, window, cx);
+            insert_savepoint_text(w, false, "draft ", cx);
+            w.undo(&crate::actions::edit::EditUndo, window, cx);
+            assert!(w.buffer().dirty, "LF still differs from saved CRLF");
+            w.eol_windows(&crate::actions::EditEolWindows, window, cx);
+            assert!(!w.buffer().dirty);
+            w.encoding_utf8(&crate::actions::EncodingUtf8, window, cx);
+            insert_savepoint_text(w, false, "draft ", cx);
+            w.undo(&crate::actions::edit::EditUndo, window, cx);
+            assert!(w.buffer().dirty, "UTF-8 still differs from saved UTF-16 BOM");
+            w.encoding_utf16_le(&crate::actions::EncodingUtf16Le, window, cx);
+            assert!(!w.buffer().dirty);
+        });
+    }
+
+    #[test]
+    fn raw_and_doc_view_history_keep_independent_unsaved_states() {
+        with_saved_file("mixed.docx", |w, window, cx, _, _| {
+            insert_savepoint_text(w, true, "AST draft ", cx);
+            window.focus(&w.focus_handle, cx);
+            w.replace_byte_range(0..0, "raw draft ", cx);
+            w.undo(&crate::actions::edit::EditUndo, window, cx);
+            assert!(w.buffer().dirty, "undoing raw text must retain AST edits");
+            let focus = w.ensure_rich_doc_body_focus(cx);
+            window.focus(&focus, cx);
+            w.undo(&crate::actions::edit::EditUndo, window, cx);
+            assert!(!w.buffer().dirty, "both views now match the saved state");
+            window.focus(&w.focus_handle, cx);
+            w.redo(&crate::actions::edit::EditRedo, window, cx);
+            assert!(w.buffer().dirty, "raw redo is independent of the clean AST");
+            window.focus(&focus, cx);
+            w.redo(&crate::actions::edit::EditRedo, window, cx);
+            w.undo(&crate::actions::edit::EditUndo, window, cx);
+            assert!(w.buffer().dirty, "undoing AST must retain the raw draft");
+        });
+    }
+
+    #[test]
+    fn failed_save_and_save_as_keep_the_previous_marker() {
+        for name in ["failed.txt", "failed.rtf"] {
+            with_saved_file(name, |w, window, cx, path, rich| {
+                let saved = std::fs::read(path).expect("saved bytes");
+                insert_savepoint_text(w, rich, "draft ", cx);
+                w.active_tab_mut().buffer.read_only = true;
+                assert!(w.write_active_to_disk().is_err());
+                w.active_tab_mut().buffer.read_only = false;
+                assert!(w.save_active_to_new_path(path.parent().expect("fixture directory").to_owned()).is_err());
+                assert_eq!(w.buffer().file_path.as_deref(), Some(path));
+                assert!(w.buffer().dirty);
+                w.undo(&crate::actions::edit::EditUndo, window, cx);
+                assert!(!w.buffer().dirty, "failed writes did not move the savepoint");
+                assert_eq!(std::fs::read(path).expect("original file"), saved);
+            });
+        }
+    }
+
+    #[test]
+    fn stale_history_cannot_reach_a_saved_token_or_replace_unrelated_text() {
+        for redo in [false, true] {
+            for damage in ["utf8", "overflow", "text", "revision", "group"] {
+                with_saved_file("stale.txt", |w, window, cx, _, _| {
+                    let saved_revision = w.buffer().raw_revision.clone();
+                    w.replace_byte_range(0..0, "d", cx);
+                    let crate::buffer::UndoEntry::Single(mut op) = w.active_tab_mut().undo_stack.pop().expect("recorded edit") else { panic!("single") };
+                    if redo {
+                        std::mem::swap(&mut op.before_revision, &mut op.after_revision);
+                        std::mem::swap(&mut op.removed, &mut op.inserted);
+                    }
+                    match damage {
+                        "utf8" => { op.byte_start = 5; op.removed = "x".into(); op.inserted = "x".into(); }
+                        "overflow" => { op.byte_start = usize::MAX; }
+                        "text" => { op.removed = "x".into(); op.inserted = "x".into(); }
+                        "revision" => {
+                            if redo { op.before_revision = crate::buffer::ContentRevision::default(); }
+                            else { op.after_revision = crate::buffer::ContentRevision::default(); }
+                        }
+                        _ => {}
+                    }
+                    if redo { op.after_revision = saved_revision; } else { op.before_revision = saved_revision; }
+                    let entry = if damage == "group" {
+                        let mut bad = op.clone();
+                        bad.byte_start = usize::MAX;
+                        // A later failing op must refuse the whole group before the valid one runs.
+                        let ops = if redo { vec![op, bad] } else { vec![bad, op] };
+                        crate::buffer::UndoEntry::Group { ops, sel_before_anchor: 0, sel_before_head: 0 }
+                    } else { crate::buffer::UndoEntry::Single(op) };
+                    if redo { w.active_tab_mut().redo_stack.push(entry); }
+                    else { w.active_tab_mut().undo_stack.push(entry); }
+                    let original = w.buffer().rope.to_string();
+                    if redo { w.redo(&crate::actions::edit::EditRedo, window, cx); }
+                    else { w.undo(&crate::actions::edit::EditUndo, window, cx); }
+                    assert!(w.buffer().dirty, "{redo}/{damage}: malformed replay cannot restore a saved identity");
+                    assert_eq!(w.buffer().rope.to_string(), original, "{redo}/{damage}: refuse before changing unrelated text");
+                    assert!(w.status_message.as_ref().is_some_and(|message| message.contains("history")));
+                });
+            }
+        }
+    }
+
     fn rich_save_fixture(path: &Path) -> Buffer {
         use std::io::Write;
         match path.extension().and_then(|ext| ext.to_str()) {

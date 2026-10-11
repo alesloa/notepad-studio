@@ -4,6 +4,7 @@ use gpui::Context;
 
 use crate::buffer::{EditOp, EditTransaction, UndoEntry};
 use crate::workspace::Workspace;
+use super::history::{HistoryDirection, text_history_matches};
 
 impl Workspace {
     // ---- Buffer mutation -------------------------------------------------------------------
@@ -24,6 +25,7 @@ impl Workspace {
             crate::buffer::char_boundary_range(&tab.buffer.rope, byte_range);
 
         let removed = tab.buffer.slice_bytes(start..end);
+        let before_revision = tab.buffer.raw_revision.clone();
         let sel_before_anchor = tab.selection.anchor;
         let sel_before_head = tab.selection.head;
 
@@ -70,7 +72,10 @@ impl Workspace {
         // batched Replace All / multi-cursor run reparses ONCE at the end
         // instead of once per edit — a full reparse per edit is O(n²).
 
-        tab.buffer.dirty = true;
+        if removed != new_text {
+            tab.buffer.raw_revision = crate::buffer::ContentRevision::default();
+        }
+        tab.buffer.refresh_dirty();
         // Any rope mutation invalidates the cached wrap layout — visual rows
         // depend directly on byte content. Cache is rebuilt lazily on the
         // next paint when `word_wrap` is on.
@@ -78,6 +83,7 @@ impl Workspace {
         let new_pos = start + new_text.len();
         tab.selection.collapse_to(new_pos);
         tab.desired_col_x = None;
+        let after_revision = tab.buffer.raw_revision.clone();
 
         // Inside a Replace-All / multi-cursor transaction (`edit_transaction`)
         // or an undo/redo group replay (`bulk_edit`), defer the heavyweight
@@ -89,6 +95,8 @@ impl Workspace {
         let in_bulk = self.bulk_edit || self.tabs[active].edit_transaction.is_some();
 
         let op = EditOp {
+            before_revision,
+            after_revision,
             byte_start: start,
             removed,
             inserted: new_text.to_string(),
@@ -245,6 +253,9 @@ impl Workspace {
         // `byte_start` may come from an undo file on disk: no overflow.
         let undo_range = op.byte_start..op.byte_start.saturating_add(op.inserted.len());
         let _ = self.apply_edit(undo_range, &op.removed, cx);
+        let buffer = &mut self.active_tab_mut().buffer;
+        buffer.raw_revision = op.before_revision.clone();
+        buffer.refresh_dirty();
     }
 
     /// Redo a single `EditOp` by replaying it forward. Same role as
@@ -252,6 +263,9 @@ impl Workspace {
     fn replay_redo_op(&mut self, op: &EditOp, cx: &mut Context<Self>) {
         let redo_range = op.byte_start..op.byte_start.saturating_add(op.removed.len());
         let _ = self.apply_edit(redo_range, &op.inserted, cx);
+        let buffer = &mut self.active_tab_mut().buffer;
+        buffer.raw_revision = op.after_revision.clone();
+        buffer.refresh_dirty();
     }
 
     /// Replay an entire `UndoEntry` in reverse. Used by the `EditUndo`
@@ -263,7 +277,13 @@ impl Workspace {
         &mut self,
         entry: &UndoEntry,
         cx: &mut Context<Self>,
-    ) {
+    ) -> bool {
+        if !text_history_matches(self.buffer(), entry, HistoryDirection::Undo) {
+            self.active_tab_mut().buffer.forget_savepoint();
+            self.set_status("Undo history no longer matches this document; no changes applied");
+            cx.notify();
+            return false;
+        }
         match entry {
             UndoEntry::Single(op) => {
                 self.replay_undo_op(op, cx);
@@ -293,6 +313,7 @@ impl Workspace {
                 self.after_edit_flush(cx);
             }
         }
+        true
     }
 
     /// Replay an entire `UndoEntry` forward. Used by `EditRedo`. Groups walk
@@ -304,7 +325,13 @@ impl Workspace {
         &mut self,
         entry: &UndoEntry,
         cx: &mut Context<Self>,
-    ) {
+    ) -> bool {
+        if !text_history_matches(self.buffer(), entry, HistoryDirection::Redo) {
+            self.active_tab_mut().buffer.forget_savepoint();
+            self.set_status("Redo history no longer matches this document; no changes applied");
+            cx.notify();
+            return false;
+        }
         match entry {
             UndoEntry::Single(op) => {
                 self.replay_redo_op(op, cx);
@@ -320,6 +347,7 @@ impl Workspace {
                 self.after_edit_flush(cx);
             }
         }
+        true
     }
 
     // ---- Navigation helpers ----------------------------------------------------------------

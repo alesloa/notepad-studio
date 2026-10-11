@@ -640,7 +640,10 @@ fn restore_tab_in(entry: &SessionTab, bak_dir: &Path) -> RestoreOutcome {
         is_changelog: entry.is_changelog,
         rich_doc: rich_doc_payload,
         flat_text_cache: None,
+        raw_revision: crate::buffer::ContentRevision::default(),
+        savepoint: None,
     };
+    if dirty { buffer.forget_savepoint(); } else { buffer.mark_saved(); }
     buffer.normalize_bookmarks();
     buffer.reparse_highlights();
 
@@ -686,6 +689,7 @@ fn restore_tab_in(entry: &SessionTab, bak_dir: &Path) -> RestoreOutcome {
         if let Some(bytes) = read_undo_in(bak_dir, entry.id) {
             tab.undo_stack =
                 retain_replayable_undo(deserialize_undo_stack(&bytes), &tab.buffer.rope);
+            crate::buffer::rebind_undo_revisions(&mut tab.undo_stack, &tab.buffer.raw_revision);
         }
     }
 
@@ -790,7 +794,7 @@ fn restore_closed_tab_in(entry: &SessionClosedTab, dir: &Path) -> Option<ClosedT
         }
     }
     let read_only = entry.read_only || rich_doc.as_ref().is_some_and(|p| p.format == crate::rich_doc::DocFormat::Doc);
-    let buffer = Buffer {
+    let mut buffer = Buffer {
         rope: ropey::Rope::from_str(&body),
         file_path,
         dirty,
@@ -807,7 +811,10 @@ fn restore_closed_tab_in(entry: &SessionClosedTab, dir: &Path) -> Option<ClosedT
         is_changelog: false,
         rich_doc,
         flat_text_cache: None,
+        raw_revision: crate::buffer::ContentRevision::default(),
+        savepoint: None,
     };
+    if dirty { buffer.forget_savepoint(); } else { buffer.mark_saved(); }
     Some(ClosedTab {
         buffer,
         session_id: entry.id,
@@ -1018,6 +1025,35 @@ mod tests {
     use crate::persist::TempDir;
     use crate::text::encoding;
     use crate::text::line_ending::rope_to_bytes;
+
+    #[test]
+    fn restored_history_keeps_dirty_recovery_conservative_and_clean_redo_known() {
+        let dir = TempDir::new("savepoint-restore");
+        let path = dir.join("source.txt");
+        std::fs::write(&path, "saved \u{00E9}").expect("disk fixture");
+        for dirty in [false, true] {
+            let id = Uuid::new_v4();
+            let entry = entry(id, Some(path.clone()), dirty);
+            std::fs::write(bak_path_in(dir.path(), id), "saved \u{00E9}").expect("backup fixture");
+            let history = vec![UndoEntry::Single(EditOp {
+                byte_start: 0, removed: "earlier".into(), inserted: "saved \u{00E9}".into(),
+                sel_before_anchor: 0, sel_before_head: 0,
+                before_revision: crate::buffer::ContentRevision::default(),
+                after_revision: crate::buffer::ContentRevision::default(),
+            })];
+            std::fs::write(undo_path_in(dir.path(), id), serialize_undo_stack(&history)).expect("legacy undo fixture");
+            let RestoreOutcome::Restored(mut tab) = restore_tab_in(&entry, dir.path()) else { panic!("restored") };
+            let UndoEntry::Single(op) = &tab.undo_stack[0] else { panic!("single") };
+            let before = op.before_revision.clone();
+            let after = op.after_revision.clone();
+            tab.buffer.raw_revision = before;
+            tab.buffer.refresh_dirty();
+            assert!(tab.buffer.dirty);
+            tab.buffer.raw_revision = after;
+            tab.buffer.refresh_dirty();
+            assert_eq!(tab.buffer.dirty, dirty, "dirty recovery has no proven historical marker");
+        }
+    }
 
     fn entry(id: Uuid, path: Option<PathBuf>, dirty: bool) -> SessionTab {
         SessionTab {
@@ -1313,6 +1349,8 @@ mod tests {
         assert!(fs::write(&path, "éé").is_ok());
         let id = Uuid::new_v4();
         let stale = vec![UndoEntry::Single(EditOp {
+            before_revision: crate::buffer::ContentRevision::default(),
+            after_revision: crate::buffer::ContentRevision::default(),
             byte_start: 1,
             removed: String::new(),
             inserted: "xy".into(),

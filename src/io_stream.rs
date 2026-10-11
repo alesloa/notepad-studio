@@ -500,6 +500,8 @@ fn start_streaming(
         is_changelog: false,
         rich_doc: None,
         flat_text_cache: None,
+        raw_revision: crate::buffer::ContentRevision::default(),
+        savepoint: None,
     };
 
     let pristine = active_is_pristine_empty(workspace);
@@ -681,6 +683,7 @@ fn start_streaming(
             tab.buffer.line_ending = line_ending;
             tab.buffer.encoding = encoding;
             tab.buffer.loading = None;
+            tab.buffer.mark_saved();
             // Malformed UTF-16 can't be saved back as it was read; open
             // read-only, as the whole-file path does.
             tab.buffer.read_only = lossy;
@@ -758,6 +761,7 @@ fn abort_load(workspace: &mut Workspace, idx: usize, status: String) {
         tab.buffer.file_path = None;
         tab.buffer.new_label = Some(label);
         tab.buffer.read_only = false;
+        tab.buffer.mark_saved();
     }
     workspace.set_status(status);
 }

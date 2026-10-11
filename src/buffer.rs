@@ -44,10 +44,31 @@ pub(crate) struct LoadProgress {
     pub(crate) cancel: Arc<AtomicBool>,
 }
 
+/// Runtime history identity. Clones identify the same state; fresh edits get
+/// distinct allocations, even when they fork at the same undo-stack depth.
+#[derive(Clone, Debug, Default)]
+pub(crate) struct ContentRevision(Arc<()>);
+
+impl PartialEq for ContentRevision {
+    fn eq(&self, other: &Self) -> bool { Arc::ptr_eq(&self.0, &other.0) }
+}
+
+impl Eq for ContentRevision {}
+
+#[derive(Clone)]
+pub(crate) struct SavePoint {
+    raw: ContentRevision,
+    rich: Option<ContentRevision>,
+    encoding: Encoding,
+    line_ending: LineEnding,
+}
+
 pub(crate) struct Buffer {
     pub(crate) rope: ropey::Rope,
     pub(crate) file_path: Option<PathBuf>,
     pub(crate) dirty: bool,
+    pub(crate) raw_revision: ContentRevision,
+    pub(crate) savepoint: Option<SavePoint>,
     pub(crate) line_ending: LineEnding,
     /// Per-buffer text encoding. Drives both the on-disk byte format at save
     /// time and the encoding chip on the status bar. New / scratch buffers
@@ -152,10 +173,12 @@ impl Buffer {
                            //   * Right-click a tab     close, save as, reveal, color, rename, …\n\
                            //\n\
                            // See change.log for the full release history.\n";
-        Self {
+        let mut buffer = Self {
             rope: ropey::Rope::from_str(placeholder),
             file_path: None,
             dirty: false,
+            raw_revision: ContentRevision::default(),
+            savepoint: None,
             line_ending: crate::settings::resolved_default_line_ending(),
             encoding: crate::settings::resolved_default_encoding(),
             bookmarks: BTreeSet::new(),
@@ -169,7 +192,9 @@ impl Buffer {
             is_changelog: false,
             rich_doc: None,
             flat_text_cache: None,
-        }
+        };
+        buffer.mark_saved();
+        buffer
     }
 
     /// Clone enough of a buffer to spawn a sibling tab in another window.
@@ -182,6 +207,8 @@ impl Buffer {
             rope: self.rope.clone(),
             file_path: self.file_path.clone(),
             dirty: self.dirty,
+            raw_revision: self.raw_revision.clone(),
+            savepoint: self.savepoint.clone(),
             line_ending: self.line_ending,
             encoding: self.encoding,
             bookmarks: self.bookmarks.clone(),
@@ -200,10 +227,12 @@ impl Buffer {
 
     /// A truly empty buffer for tabs created after the first.
     pub(crate) fn empty() -> Self {
-        Self {
+        let mut buffer = Self {
             rope: ropey::Rope::new(),
             file_path: None,
             dirty: false,
+            raw_revision: ContentRevision::default(),
+            savepoint: None,
             line_ending: crate::settings::resolved_default_line_ending(),
             encoding: crate::settings::resolved_default_encoding(),
             bookmarks: BTreeSet::new(),
@@ -217,7 +246,35 @@ impl Buffer {
             is_changelog: false,
             rich_doc: None,
             flat_text_cache: None,
-        }
+        };
+        buffer.mark_saved();
+        buffer
+    }
+
+    // PowerEditor/src/NppNotification.cpp:88-125 — reaching/leaving a saved
+    // history state clears/sets the document's modified flag.
+    pub(crate) fn refresh_dirty(&mut self) {
+        self.dirty = self.savepoint.as_ref().is_none_or(|saved| {
+            saved.raw != self.raw_revision
+                || saved.rich.as_ref() != self.rich_doc.as_ref().map(|payload| &payload.revision)
+                || saved.encoding != self.encoding || saved.line_ending != self.line_ending
+        });
+    }
+
+    /// Only a successful write or a verified clean load establishes a marker.
+    /// Keep the history and native replay log so Undo can cross this point.
+    pub(crate) fn mark_saved(&mut self) {
+        self.savepoint = Some(SavePoint {
+            raw: self.raw_revision.clone(),
+            rich: self.rich_doc.as_ref().map(|payload| payload.revision.clone()),
+            encoding: self.encoding, line_ending: self.line_ending,
+        });
+        self.dirty = false;
+    }
+
+    pub(crate) fn forget_savepoint(&mut self) {
+        self.savepoint = None;
+        self.dirty = true;
     }
 
     /// Lazily build (or reuse) the flat `String` snapshot of `rope` used by
@@ -598,6 +655,8 @@ pub(crate) struct LineGeo {
 
 #[derive(Clone)]
 pub(crate) struct EditOp {
+    pub(crate) before_revision: ContentRevision,
+    pub(crate) after_revision: ContentRevision,
     pub(crate) byte_start: usize,
     pub(crate) removed: String,
     pub(crate) inserted: String,
@@ -621,6 +680,26 @@ pub(crate) enum UndoEntry {
         sel_before_anchor: usize,
         sel_before_head: usize,
     },
+}
+
+/// The legacy codec stores edits, not runtime identities. Reconnect its
+/// replayable chain to the restored current state; earlier states get fresh
+/// tokens. A recovered dirty buffer still has no known saved marker.
+pub(crate) fn rebind_undo_revisions(stack: &mut [UndoEntry], current: &ContentRevision) {
+    fn bind(op: &mut EditOp, current: &mut ContentRevision) {
+        op.after_revision = current.clone();
+        op.before_revision = if op.removed == op.inserted { current.clone() } else { ContentRevision::default() };
+        *current = op.before_revision.clone();
+    }
+    let mut current = current.clone();
+    for entry in stack.iter_mut().rev() {
+        match entry {
+            UndoEntry::Single(op) => bind(op, &mut current),
+            UndoEntry::Group { ops, .. } => {
+                for op in ops.iter_mut().rev() { bind(op, &mut current); }
+            }
+        }
+    }
 }
 
 /// State of an open `begin_edit_group` / `end_edit_group` transaction. Lives
@@ -789,6 +868,8 @@ impl<'a> UndoReader<'a> {
         let sel_before_anchor = self.read_offset()?;
         let sel_before_head = self.read_offset()?;
         Some(EditOp {
+            before_revision: ContentRevision::default(),
+            after_revision: ContentRevision::default(),
             byte_start,
             removed,
             inserted,
@@ -1025,6 +1106,8 @@ mod tests {
     #[test]
     fn undo_round_trip_still_works() {
         let op = EditOp {
+            before_revision: crate::buffer::ContentRevision::default(),
+            after_revision: crate::buffer::ContentRevision::default(),
             byte_start: 3,
             removed: "é".into(),
             inserted: "中".into(),
@@ -1068,6 +1151,8 @@ mod tests {
 
     fn op(start: usize, removed: &str, inserted: &str, sel: usize) -> EditOp {
         EditOp {
+            before_revision: crate::buffer::ContentRevision::default(),
+            after_revision: crate::buffer::ContentRevision::default(),
             byte_start: start,
             removed: removed.into(),
             inserted: inserted.into(),
@@ -1189,6 +1274,8 @@ mod tests {
         // Inserting "é" after "a" with the caret saved inside the "ñ" that
         // was there before.
         EditOp {
+            before_revision: crate::buffer::ContentRevision::default(),
+            after_revision: crate::buffer::ContentRevision::default(),
             byte_start: 1,
             removed: "ñ".into(),
             inserted: "é".into(),
@@ -1202,5 +1289,63 @@ mod tests {
         let rope = ropey::Rope::from_str("abc");
         let stack = vec![UndoEntry::Single(op(usize::MAX, "", "x", 0))];
         assert!(retain_replayable_undo(stack, &rope).is_empty());
+    }
+}
+
+#[cfg(test)]
+mod savepoint_tests {
+    use super::*;
+
+    #[test]
+    fn revisions_compare_allocation_identity_instead_of_unit_values() {
+        let first = ContentRevision::default();
+        assert_eq!(first, first.clone());
+        assert_ne!(first, ContentRevision::default());
+    }
+
+    #[test]
+    fn transferred_buffers_keep_the_marker_but_fork_new_edits() {
+        let mut original = Buffer::empty();
+        original.mark_saved();
+        let mut sibling = original.clone_for_transfer();
+        sibling.raw_revision = ContentRevision::default();
+        sibling.refresh_dirty();
+        original.refresh_dirty();
+        assert!(sibling.dirty);
+        assert!(!original.dirty);
+    }
+
+    #[test]
+    fn missing_historical_savepoints_stay_dirty_until_a_real_save() {
+        let mut buffer = Buffer::empty();
+        buffer.forget_savepoint();
+        buffer.refresh_dirty();
+        assert!(buffer.dirty);
+        buffer.raw_revision = ContentRevision::default();
+        buffer.refresh_dirty();
+        assert!(buffer.dirty);
+        buffer.mark_saved();
+        buffer.refresh_dirty();
+        assert!(!buffer.dirty);
+    }
+
+    #[test]
+    fn legacy_grouped_undo_reconnects_to_the_restored_current_revision() {
+        let op = |text: &str| EditOp {
+            byte_start: 0, removed: String::new(), inserted: text.into(),
+            sel_before_anchor: 0, sel_before_head: 0,
+            before_revision: ContentRevision::default(), after_revision: ContentRevision::default(),
+        };
+        let mut stack = vec![UndoEntry::Group {
+            ops: vec![op("first"), op("second")], sel_before_anchor: 0, sel_before_head: 0,
+        }];
+        let bytes = serialize_undo_stack(&stack);
+        let terminal = ContentRevision::default();
+        rebind_undo_revisions(&mut stack, &terminal);
+        let UndoEntry::Group { ops, .. } = &stack[0] else { panic!("group") };
+        assert_eq!(ops[1].after_revision, terminal);
+        assert_eq!(ops[0].after_revision, ops[1].before_revision);
+        assert_ne!(ops[0].before_revision, terminal);
+        assert_eq!(serialize_undo_stack(&stack), bytes, "runtime tokens do not change the legacy codec");
     }
 }

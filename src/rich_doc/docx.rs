@@ -33,6 +33,7 @@ pub fn open(path: &Path) -> Result<RichDocPayload> {
     let headers = read_header_footer_blocks(path, "word/header", ".xml")?;
     let footers = read_header_footer_blocks(path, "word/footer", ".xml")?;
     Ok(RichDocPayload {
+        revision: crate::buffer::ContentRevision::default(),
         format: DocFormat::Docx,
         ast,
         raw_view_text,

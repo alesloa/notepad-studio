@@ -1,7 +1,7 @@
 // PowerEditor/src/NppCommands.cpp:477-493 — Undo / Redo commands.
 // scintilla/src/Document.cxx:1589-1594,1661-1666 — read-only history guard.
 
-use crate::buffer::Buffer;
+use crate::buffer::{Buffer, ContentRevision, UndoEntry};
 use crate::tab::{InputFocus, Tab, TabViewMode};
 use crate::ui::csv_doc::CsvModel;
 
@@ -51,9 +51,41 @@ pub(super) fn apply_rich_history(buffer: &mut Buffer, direction: HistoryDirectio
         HistoryDirection::Redo => payload.redo(),
     };
     if changed {
-        buffer.dirty = true;
+        buffer.refresh_dirty();
     }
     changed
+}
+
+/// Check an entire entry before replay so stale file-derived ranges cannot
+/// replace unrelated text or revive an identity for different contents.
+pub(super) fn text_history_matches(buffer: &Buffer, entry: &UndoEntry, direction: HistoryDirection) -> bool {
+    fn apply(rope: &mut ropey::Rope, revision: &mut ContentRevision, op: &crate::buffer::EditOp, direction: HistoryDirection) -> bool {
+        let (expected, next, removed, inserted) = match direction {
+            HistoryDirection::Undo => (&op.after_revision, &op.before_revision, &op.inserted, &op.removed),
+            HistoryDirection::Redo => (&op.before_revision, &op.after_revision, &op.removed, &op.inserted),
+        };
+        if revision != expected { return false; }
+        let Some(end) = op.byte_start.checked_add(removed.len()) else { return false; };
+        let range = op.byte_start..end;
+        if crate::buffer::char_boundary_range(rope, range.clone()) != range { return false; }
+        let Some(slice) = rope.get_byte_slice(range) else { return false; };
+        if slice != removed.as_str() { return false; }
+        let start_char = rope.byte_to_char(op.byte_start);
+        let end_char = rope.byte_to_char(end);
+        rope.remove(start_char..end_char);
+        rope.insert(start_char, inserted);
+        *revision = next.clone();
+        true
+    }
+    let mut rope = buffer.rope.clone();
+    let mut revision = buffer.raw_revision.clone();
+    match entry {
+        UndoEntry::Single(op) => apply(&mut rope, &mut revision, op, direction),
+        UndoEntry::Group { ops, .. } => match direction {
+            HistoryDirection::Undo => ops.iter().rev().all(|op| apply(&mut rope, &mut revision, op, direction)),
+            HistoryDirection::Redo => ops.iter().all(|op| apply(&mut rope, &mut revision, op, direction)),
+        },
+    }
 }
 
 pub(super) fn history_availability(
@@ -149,11 +181,11 @@ mod tests {
         });
         let edited = buffer.rich_doc.as_ref().expect("rich payload").block_text(0);
         assert_ne!(edited, original);
-        buffer.dirty = false; // Simulate a save before undo.
+        buffer.mark_saved(); // Simulate a save before undo.
         assert!(apply_rich_history(&mut buffer, HistoryDirection::Undo));
         assert_eq!(buffer.rich_doc.as_ref().expect("rich payload").block_text(0), original);
         assert!(buffer.dirty, "undo of a saved rich document must enter recovery");
-        buffer.dirty = false; // Simulate another save before redo.
+        buffer.mark_saved(); // Simulate another save before redo.
         assert!(apply_rich_history(&mut buffer, HistoryDirection::Redo));
         assert_eq!(buffer.rich_doc.as_ref().expect("rich payload").block_text(0), edited);
         assert!(buffer.dirty, "redo of a saved rich document must enter recovery");

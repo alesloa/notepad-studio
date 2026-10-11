@@ -47,6 +47,7 @@ pub fn open(path: &Path) -> Result<RichDocPayload> {
         })
         .collect();
     Ok(RichDocPayload {
+        revision: crate::buffer::ContentRevision::default(),
         format: DocFormat::Doc,
         ast: ast::Document { blocks },
         raw_view_text,
@@ -979,6 +980,7 @@ mod tests {
         // want test fixtures bundled. The Save-As path doesn't care how the
         // payload got built, only that the AST is correct.
         let payload = RichDocPayload {
+            revision: crate::buffer::ContentRevision::default(),
             format: DocFormat::Doc,
             ast: ast::Document {
                 blocks: vec![

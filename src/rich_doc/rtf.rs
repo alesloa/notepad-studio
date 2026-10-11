@@ -32,6 +32,7 @@ pub(crate) fn open_bytes(original_bytes: Vec<u8>) -> Result<RichDocPayload> {
     let raw_view_text = String::from_utf8_lossy(&original_bytes).into_owned();
     let ast = parse_bytes(&original_bytes)?;
     Ok(RichDocPayload {
+        revision: crate::buffer::ContentRevision::default(),
         format: DocFormat::Rtf,
         ast,
         raw_view_text,
@@ -1039,6 +1040,7 @@ mod tests {
     fn save_with_no_edits_writes_original_bytes() {
         let bytes: Vec<u8> = b"{\\rtf1\\ansi Hello}".to_vec();
         let payload = RichDocPayload {
+            revision: crate::buffer::ContentRevision::default(),
             format: DocFormat::Rtf,
             ast: ast::Document::default(),
             raw_view_text: String::from_utf8(bytes.clone()).unwrap(),
@@ -1065,6 +1067,7 @@ mod tests {
     fn save_with_raw_override_writes_override_when_no_edits() {
         let bytes: Vec<u8> = b"{\\rtf1\\ansi Hello}".to_vec();
         let payload = RichDocPayload {
+            revision: crate::buffer::ContentRevision::default(),
             format: DocFormat::Rtf,
             ast: ast::Document::default(),
             raw_view_text: String::from_utf8(bytes.clone()).unwrap(),
@@ -1092,6 +1095,7 @@ mod tests {
     fn round_trip_with_bold_edit_keeps_bold_after_reopen() {
         let bytes = b"{\\rtf1\\ansi Hello world}".to_vec();
         let mut payload = RichDocPayload {
+            revision: crate::buffer::ContentRevision::default(),
             format: DocFormat::Rtf,
             ast: parse_bytes(&bytes).expect("parses src"),
             raw_view_text: String::from_utf8(bytes.clone()).unwrap(),
@@ -1129,6 +1133,7 @@ mod tests {
     fn round_trip_with_color_edit_keeps_color_after_reopen() {
         let bytes = b"{\\rtf1\\ansi Hello world}".to_vec();
         let mut payload = RichDocPayload {
+            revision: crate::buffer::ContentRevision::default(),
             format: DocFormat::Rtf,
             ast: parse_bytes(&bytes).expect("parses src"),
             raw_view_text: String::from_utf8(bytes.clone()).unwrap(),
@@ -1169,6 +1174,7 @@ mod tests {
     fn round_trip_with_alignment_and_indent_edits_persist() {
         let bytes = b"{\\rtf1\\ansi Hello world\\par Second line}".to_vec();
         let mut payload = RichDocPayload {
+            revision: crate::buffer::ContentRevision::default(),
             format: DocFormat::Rtf,
             ast: parse_bytes(&bytes).expect("parses src"),
             raw_view_text: String::from_utf8(bytes.clone()).unwrap(),
@@ -1235,6 +1241,7 @@ mod tests {
         // ListMarker kind. Level stays at 0 (Phase 5d.2 toolbar only emits 0).
         let bytes = b"{\\rtf1\\ansi First\\par Second}".to_vec();
         let mut payload = RichDocPayload {
+            revision: crate::buffer::ContentRevision::default(),
             format: DocFormat::Rtf,
             ast: parse_bytes(&bytes).expect("parses src"),
             raw_view_text: String::from_utf8(bytes.clone()).unwrap(),

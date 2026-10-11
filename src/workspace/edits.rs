@@ -447,7 +447,7 @@ impl Workspace {
         let Some(entry) = self.active_tab_mut().undo_stack.pop() else {
             return;
         };
-        self.replay_undo_entry(&entry, cx);
+        if !self.replay_undo_entry(&entry, cx) { return; }
         self.active_tab_mut().redo_stack.push(entry);
         if self.find_state.open && !self.find_state.query.is_empty() {
             self.refresh_matches();
@@ -479,7 +479,7 @@ impl Workspace {
         let Some(entry) = self.active_tab_mut().redo_stack.pop() else {
             return;
         };
-        self.replay_redo_entry(&entry, cx);
+        if !self.replay_redo_entry(&entry, cx) { return; }
         self.active_tab_mut().undo_stack.push(entry);
         if self.find_state.open && !self.find_state.query.is_empty() {
             self.refresh_matches();

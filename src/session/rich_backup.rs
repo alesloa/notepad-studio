@@ -265,6 +265,7 @@ fn read_inner(path: &Path) -> io::Result<(RichDocPayload, String)> {
     let footers = state.footers.into_iter().map(|doc| doc.decode(&images)).collect::<io::Result<_>>()?;
     let edit_log = state.edits.into_iter().map(|edit| edit.decode(&images)).collect::<io::Result<_>>()?;
     Ok((RichDocPayload {
+        revision: crate::buffer::ContentRevision::default(),
         format: state.format, ast, raw_view_text: state.raw, original_bytes: original, edit_log,
         headers, footers, active_block: None, selection: None, drag_active: false,
         pending_drag_anchor: None, undo_stack: Vec::new(), redo_stack: Vec::new(), edit_group_start: None,

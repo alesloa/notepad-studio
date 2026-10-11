@@ -342,10 +342,18 @@ pub(crate) fn collect_scoped_results(
     display_label: Option<&str>,
     out: &mut Vec<FindResult>,
 ) -> usize {
+    collect_results_from_ranges(text, scoped_match_ranges(text, re, scope.clone()),
+        path, tab_idx, display_label, out)
+}
+
+// Search the document prefix so the target start does not invent an anchor.
+pub(crate) fn scoped_match_ranges<'a>(
+    text: &'a str, re: &'a Regex, scope: Range<usize>,
+) -> impl Iterator<Item = Range<usize>> + 'a {
     let end = text.floor_char_boundary(scope.end.min(text.len()));
     let mut start = text.floor_char_boundary(scope.start.min(end));
     let prefix = text.get(..end).unwrap_or_default();
-    let ranges = std::iter::from_fn(|| {
+    std::iter::from_fn(move || {
         while start <= end {
             let m = re.find_at(prefix, start)?;
             if m.start() != m.end() {
@@ -358,8 +366,7 @@ pub(crate) fn collect_scoped_results(
             start = m.end().saturating_add(ch.len_utf8());
         }
         None
-    });
-    collect_results_from_ranges(text, ranges, path, tab_idx, display_label, out)
+    })
 }
 
 fn collect_results_from_ranges(

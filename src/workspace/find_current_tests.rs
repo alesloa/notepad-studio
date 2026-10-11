@@ -3,7 +3,10 @@ use crate::actions::{MoveDown, MoveLineStart, MoveRight, SelectLineEnd, SelectRi
 use crate::{settings::Settings, tab::Tab};
 use gpui::TestAppContext;
 
-fn painted_current(scoped: bool, count: bool, word_scope: bool, query: &str, expected: usize) {
+#[derive(Clone, Copy)]
+enum SearchButton { All, Count, Next }
+
+fn painted_current(scoped: bool, button: SearchButton, word_scope: bool, query: &str, expected: usize) {
     let _recent = crate::recent::override_snapshot_for_test(Vec::new());
     let _settings = crate::settings::override_for_test(Settings {
         toolbar_hidden: true,
@@ -75,10 +78,12 @@ fn painted_current(scoped: bool, count: bool, word_scope: bool, query: &str, exp
             assert_eq!(w.find_state.in_selection_scope, Some(before.3.ordered()));
         });
     }
-    let button = dialog.debug_bounds(if count { "dialog-button-Count" } else {
-        "dialog-button-Find All in Current Document"
+    let bounds = dialog.debug_bounds(match button {
+        SearchButton::Count => "dialog-button-Count",
+        SearchButton::Next => "dialog-button-Find Next",
+        SearchButton::All => "dialog-button-Find All in Current Document",
     }).unwrap();
-    dialog.simulate_click(button.center(), gpui::Modifiers::none());
+    dialog.simulate_click(bounds.center(), gpui::Modifiers::none());
     visual.update(|_, cx| {
         let w = entity.read(cx);
         assert!(w.buffer().rope.is_instance(&before.0));
@@ -89,8 +94,12 @@ fn painted_current(scoped: bool, count: bool, word_scope: bool, query: &str, exp
         assert_eq!(w.selection().is_dragging, before.3.is_dragging);
         assert_eq!(w.tabs[0].undo_stack.len(), before.4);
         assert_eq!(w.tabs[0].redo_stack.len(), before.5);
-        if count {
-            assert_eq!(w.find_state.status.as_deref(), Some("1 match"));
+        if matches!(button, SearchButton::Count) {
+            let status = format!("{expected} match{}", if expected == 1 { "" } else { "es" });
+            assert_eq!(w.find_state.status.as_deref(), Some(status.as_str()));
+            assert_eq!(w.find_state.matches.len(), expected);
+        } else if matches!(button, SearchButton::Next) {
+            assert_eq!(w.find_state.matches.len(), expected);
         } else {
             assert_eq!(w.find_in_files.results.len(), expected);
             if scoped && expected == 1 {
@@ -106,25 +115,42 @@ fn painted_current(scoped: bool, count: bool, word_scope: bool, query: &str, exp
 
 #[test]
 fn painted_find_all_current_limits_results_to_real_selected_line() {
-    painted_current(true, false, false, "hit", 1);
+    painted_current(true, SearchButton::All, false, "hit", 1);
 }
 #[test]
 fn painted_find_all_current_full_document_control() {
-    painted_current(false, false, false, "hit", 3);
+    painted_current(false, SearchButton::All, false, "hit", 3);
 }
 #[test]
 fn painted_count_real_selected_line_control() {
-    painted_current(true, true, false, "hit", 1);
+    painted_current(true, SearchButton::Count, false, "hit", 1);
 }
 #[test]
 fn painted_find_all_current_preserves_midline_anchor_context() {
-    painted_current(true, false, true, "^hit", 0);
+    painted_current(true, SearchButton::All, true, "^hit", 0);
 }
 #[test]
 fn painted_find_all_current_bounds_greedy_match_to_selected_word() {
-    painted_current(true, false, true, "hit.*", 1);
+    painted_current(true, SearchButton::All, true, "hit.*", 1);
 }
 #[test]
 fn painted_find_all_current_treats_selection_end_as_target_end() {
-    painted_current(true, false, true, "hit$", 1);
+    painted_current(true, SearchButton::All, true, "hit$", 1);
+}
+
+#[test]
+fn painted_count_preserves_midline_anchor_context() {
+    painted_current(true, SearchButton::Count, true, "^hit", 0);
+}
+#[test]
+fn painted_find_next_preserves_midline_anchor_context() {
+    painted_current(true, SearchButton::Next, true, "^hit", 0);
+}
+#[test]
+fn painted_count_bounds_greedy_match_to_selected_word() {
+    painted_current(true, SearchButton::Count, true, "hit.*", 1);
+}
+#[test]
+fn painted_find_next_treats_selection_end_as_target_end() {
+    painted_current(true, SearchButton::Next, true, "hit$", 1);
 }

@@ -80,19 +80,7 @@ pub(super) fn search_regex(query: &str, flags: &SearchFlags) -> Result<regex::Re
 fn collect_matches(text: &str, re: &regex::Regex, scope: Option<&Range<usize>>) -> Vec<Range<usize>> {
     let mut matches: Vec<Range<usize>> = Vec::new();
     if let Some(s) = scope {
-        let lo = text.floor_char_boundary(s.start.min(text.len()));
-        let hi = text.floor_char_boundary(s.end.min(text.len()));
-        if lo < hi {
-            let Some(slice) = text.get(lo..hi) else {
-                return matches;
-            };
-            for m in re.find_iter(slice) {
-                if m.start() == m.end() {
-                    continue;
-                }
-                matches.push((lo + m.start())..(lo + m.end()));
-            }
-        }
+        matches.extend(crate::find_in_files::scoped_match_ranges(text, re, s.clone()));
     } else {
         for m in re.find_iter(text) {
             if m.start() == m.end() {
@@ -2089,6 +2077,29 @@ mod tests {
 
     fn literal(q: &str) -> regex::Regex {
         regex::Regex::new(&regex::escape(q)).unwrap()
+    }
+
+    #[test]
+    fn scoped_search_preserves_prior_anchor_and_word_context() {
+        for pattern in ["^hit", r"\bhit"] {
+            let re = regex::Regex::new(pattern).unwrap();
+            assert!(collect_matches("xhit", &re, Some(&(1..4))).is_empty());
+        }
+        let re = regex::Regex::new("(?m)^hit").unwrap();
+        assert_eq!(collect_matches("x\r\nhit tail", &re, Some(&(3..6))), vec![3..6]);
+    }
+
+    #[test]
+    fn scoped_search_bounds_target_end_and_skips_empty_utf8_matches() {
+        let text = "x中hit tail";
+        for pattern in ["hit.*", "hit$"] {
+            let re = regex::Regex::new(pattern).unwrap();
+            assert_eq!(collect_matches(text, &re, Some(&(4..7))), vec![4..7]);
+        }
+        let re = regex::Regex::new("(?:|hit)").unwrap();
+        assert!(collect_matches(text, &re, Some(&(1..usize::MAX))).is_empty());
+        let re = regex::Regex::new("中|hit").unwrap();
+        assert_eq!(collect_matches(text, &re, Some(&(2..7))), vec![1..4, 4..7]);
     }
 
     #[test]

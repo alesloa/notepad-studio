@@ -38,7 +38,7 @@ mod windows;
 mod persistence;
 mod rich_backup;
 use persistence::Backup;
-pub(crate) use persistence::{prepare_save, write_prepared};
+pub(crate) use persistence::{prepare_save, retire_prepared_writes, write_prepared};
 #[cfg(test)]
 pub(crate) use persistence::write_csv_fixture;
 pub(crate) use windows::{register_workspace, release_workspace};

@@ -116,6 +116,11 @@ pub(super) fn update(id: Uuid, snapshot: SessionManifest) -> Option<(u128, Sessi
     Some((windows.generation, combined))
 }
 
+pub(super) fn prepared_generation() -> std::io::Result<u128> {
+    let windows = store().lock().map_err(|_| std::io::Error::other("session window lock is poisoned"))?;
+    Ok(windows.generation)
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

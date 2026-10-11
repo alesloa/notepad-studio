@@ -93,6 +93,7 @@ pub(crate) fn prepare_save(window_id: Uuid, manifest: SessionManifest, policy: B
 #[derive(Default)]
 struct Writer {
     committed: u128,
+    retired_through: Option<u128>,
     written_backups: BTreeMap<Uuid, Arc<Backup>>,
     #[cfg(test)]
     fail_before_publish: bool,
@@ -100,6 +101,9 @@ struct Writer {
 
 impl Writer {
     fn write_at(&mut self, mut pending: PendingSave, path: &Path, dir: &Path) -> io::Result<()> {
+        // Shutdown releases the instance lock only after in-flight writes end.
+        // Jobs still queued at that point must not touch the next process's files.
+        if self.retired_through.is_some_and(|generation| pending.generation <= generation) { return Ok(()); }
         // Every job contains all windows' captured backups. A newer job may
         // finish first; an older one must then leave both bytes and metadata alone.
         if pending.generation < self.committed { return Ok(()); }
@@ -172,10 +176,25 @@ impl Writer {
 }
 
 static WRITER: Mutex<Writer> = Mutex::new(Writer {
-    committed: 0, written_backups: BTreeMap::new(),
+    committed: 0, retired_through: None, written_backups: BTreeMap::new(),
     #[cfg(test)]
     fail_before_publish: false,
 });
+
+fn retire_writer(writer: &Mutex<Writer>, generation: u128) -> io::Result<()> {
+    let mut writer = writer.lock().map_err(|_| io::Error::other("session writer lock is poisoned"))?;
+    writer.retired_through = Some(writer.retired_through.unwrap_or(0).max(generation));
+    Ok(())
+}
+
+/// Only call after the final Exit freshness check, on the uncancellable
+/// app-quit stack. No foreground job can be prepared before windows are cleared.
+pub(crate) fn retire_prepared_writes() -> io::Result<()> {
+    // Drop WINDOWS before waiting for WRITER. This waits for an in-flight
+    // write and retires every job prepared before the final callback.
+    let generation = super::windows::prepared_generation()?;
+    retire_writer(&WRITER, generation)
+}
 
 pub(crate) fn write_prepared(pending: PendingSave) -> io::Result<()> {
     let (Some(path), Some(dir)) = (manifest_path(), bak_dir()) else {
@@ -209,6 +228,81 @@ mod tests {
             manifest: super::super::snapshot_workspace_with_policy(tabs, 0, &[], ThemeMode::Dark, false, false, &[], BakPolicy::Full),
             reap: true,
         }
+    }
+
+    #[test]
+    fn final_retirement_rejects_queued_jobs_before_filesystem_access() {
+        let dir = TempDir::new("session-retired-jobs");
+        let path = dir.join("session.toml");
+        let mut tabs = vec![draft("accepted café\r\n中😀")];
+        let id = tabs[0].session_id;
+        let writer = Mutex::new(Writer::default());
+        writer.lock().unwrap().write_at(pending(1, &tabs), &path, dir.path()).unwrap();
+        let accepted_manifest = std::fs::read(&path).unwrap();
+        let accepted_body = std::fs::read(bak_path_in(dir.path(), id)).unwrap();
+        let blocked = dir.join("blocked");
+        std::fs::write(&blocked, "no directory can be created here").unwrap();
+        retire_writer(&writer, 3).unwrap();
+        // Same and older generations are all retired, including failed retries.
+        for generation in [0, 1, 2, 3] {
+            writer.lock().unwrap().write_at(pending(generation, &tabs), &blocked.join("session.toml"), &blocked.join("backups")).unwrap();
+        }
+        tabs[0].buffer.rope = ropey::Rope::from_str("a delayed job must not touch accepted bytes");
+        writer.lock().unwrap().write_at(pending(3, &tabs), &path, dir.path()).unwrap();
+        assert_eq!(std::fs::read(&path).unwrap(), accepted_manifest);
+        assert_eq!(std::fs::read(bak_path_in(dir.path(), id)).unwrap(), accepted_body);
+        assert_eq!(writer.lock().unwrap().committed, 1, "retirement is not a published generation");
+        writer.lock().unwrap().write_at(pending(4, &tabs), &path, dir.path()).unwrap();
+        assert_eq!(std::fs::read_to_string(bak_path_in(dir.path(), id)).unwrap(), tabs[0].buffer.rope.to_string());
+    }
+
+    #[test]
+    fn final_retirement_waits_for_the_in_flight_writer_and_reports_poison() {
+        use std::sync::mpsc::channel;
+        use std::time::Instant;
+        let dir = TempDir::new("session-retirement-barrier");
+        let path = dir.join("session.toml");
+        let tabs = vec![draft(&"café 中😀\r\n".repeat(1024 * 1024))];
+        let id = tabs[0].session_id;
+        let job = pending(7, &tabs);
+        let writer = Arc::new(Mutex::new(Writer::default()));
+        let (locked, has_lock) = channel();
+        let (release, wait_for_release) = channel();
+        let worker = {
+            let writer = writer.clone(); let path = path.clone(); let backup_dir = dir.path().to_owned();
+            std::thread::spawn(move || {
+                let mut guard = writer.lock().unwrap();
+                locked.send(()).unwrap(); wait_for_release.recv().unwrap();
+                guard.write_at(job, &path, &backup_dir).unwrap();
+            })
+        };
+        has_lock.recv().unwrap();
+        let (started, has_started) = channel(); let (finished, has_finished) = channel();
+        let barrier = {
+            let writer = writer.clone();
+            std::thread::spawn(move || {
+                let start = Instant::now(); started.send(()).unwrap();
+                retire_writer(&writer, 9).unwrap();
+                finished.send(start.elapsed()).unwrap();
+            })
+        };
+        has_started.recv().unwrap();
+        assert!(has_finished.try_recv().is_err(), "the instance lock cannot be released while WRITER is held");
+        release.send(()).unwrap();
+        let wait = has_finished.recv().unwrap();
+        worker.join().unwrap(); barrier.join().unwrap();
+        assert_eq!(std::fs::read_to_string(bak_path_in(dir.path(), id)).unwrap(), tabs[0].buffer.rope.to_string());
+        assert_eq!(writer.lock().unwrap().committed, 7);
+        assert_eq!(writer.lock().unwrap().retired_through, Some(9));
+        eprintln!("[quit barrier timing] in_flight_bytes={}, wait_ms={:.3}", tabs[0].buffer.rope.len_bytes(), wait.as_secs_f64() * 1000.);
+        let start = Instant::now();
+        for _ in 0..1000 { retire_writer(&writer, 9).unwrap(); }
+        eprintln!("[quit barrier timing] uncontended_mean_us={:.3}", start.elapsed().as_secs_f64() * 1_000_000. / 1000.);
+
+        let poisoned = Arc::new(Mutex::new(Writer::default()));
+        let other = poisoned.clone();
+        assert!(std::thread::spawn(move || { let _guard = other.lock().unwrap(); panic!("fixture writer poison"); }).join().is_err());
+        assert_eq!(retire_writer(&poisoned, 1).unwrap_err().to_string(), "session writer lock is poisoned");
     }
 
     #[test]

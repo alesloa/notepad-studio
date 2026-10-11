@@ -317,6 +317,11 @@ v0.0.5 — current
    79. Closing a function call dismisses a successfully opened manual hint
        quietly. An initial request with no open call still explains why.
 
+   80. Exit writes captured recovery in the background. Edits, window changes
+       or write failures keep the app open for retry; incomplete loads refuse
+       Exit. Final shutdown fences queued recovery writes before releasing
+       the instance lock and retains the OS shutdown fallback.
+
   v0.1.0 — syntax & language:
 
     1. Tree-sitter syntax highlighting for 25 modes: Rust, Python, C,

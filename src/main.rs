@@ -142,11 +142,7 @@ fn main() {
         // on_window_closed runs per-window; on_app_quit catches the case where
         // the OS kills the run loop without firing per-window close handlers.
         cx.on_app_quit(|cx: &mut App| {
-            for handle in cx.windows() {
-                if let Some(ws) = handle.downcast::<workspace::Workspace>() {
-                    ws.update(cx, |w, _window, _cx| w.save_session_now()).ok();
-                }
-            }
+            app::quit::save_final_recovery(cx);
             let alive: Vec<_> = cx.windows().into_iter().map(|h| h.window_id()).collect();
             flush_window_settings_for_alive(&alive);
             // Release after window teardown has flushed its recovery state,

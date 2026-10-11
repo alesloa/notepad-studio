@@ -34,7 +34,7 @@ Scope: Continue the requested cross-platform Notepad++ parity audit and fix the 
 - [x] G10: Completed source batches have separate conventional commits and current change.log/devlog entries; the main working tree is clean before beginning a new batch.
   CHECK: git status --porcelain
   EXPECT: /^$/
-  EVIDENCE: main75ffbbd was clean before this transport batch.100 current-version release notes and devlog entry accompany the independently reviewed source change and conventional commit. Exact Source caret release timing is complete and will be recorded separately. Refresh after each source batch.
+  EVIDENCE: maina7e2f6a is clean after100 release notes and the independently gated transport commit. Exact772 Source caret release timing is complete and recorded in this separate docs commit; copied logs preserve39 optimized passing tests and12-sample warmed bounded checks. Refresh after each source batch.
 
 - [x] G11: View > Tab exposes every oracle Tab command in order with rebindable shortcuts; selection/reordering/color commands preserve document UUID, text, encoding/EOL, saved state and history, with edge and pending-cell refusal coverage.
   EVIDENCE: oracle RC789-817 / Commands1304-1412,3532-3537; red missing-menu contract then 7 new menu/actual-dispatch/refusal/edge tests pass. 1332-unit main gate; existing shortcut parity/collision tests cover added rows. Native appearance remains G8.

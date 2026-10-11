@@ -141,6 +141,9 @@ v0.0.5 — current
        history changes mark the document unsaved and schedule recovery.
        Toolbar and context-menu history controls follow the focused view.
 
+   39. Legacy Word documents reject incomplete text ranges and corrupt FAT
+       chains with an error instead of opening a truncated or repeated body.
+
   v0.1.0 — syntax & language:
 
     1. Tree-sitter syntax highlighting for 25 modes: Rust, Python, C,

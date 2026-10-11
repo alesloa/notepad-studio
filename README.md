@@ -4,7 +4,7 @@ A lightweight, cross-platform text editor inspired by Notepad++, written in Rust
 
 ![Notepad Studio — a lightweight cross-platform text editor for macOS, Windows, and Linux](docs/screenshot.png)
 
-> **Status:** v0.1.0 effectively complete + Beyond section shipped. Word wrap
+> **Status:** v0.0.5. The core editor and Beyond section have shipped. Word wrap
 > + horizontal scrollbar, show whitespace, full-screen (F11), bracket matching,
 > auto-indent, syntax-aware comment toggle (24 langs), drop-to-open, recent
 > files, tab drag-reorder, per-window placement persistence, multi-click
@@ -12,7 +12,8 @@ A lightweight, cross-platform text editor inspired by Notepad++, written in Rust
 > single-undo, user-customisable Shortcut Mapper, in-window right-click context
 > menu, column/multi-cursor edit, macro record / replay, plugin host, session
 > restore, and large-file streaming reads have all landed. Currently in flight:
-> Notepad++-style tab right-click context menu.
+> Notepad++ behavior parity and correctness audit, including undo save points,
+> session handling across windows, and remaining menu/view gaps.
 
 ## Goals
 

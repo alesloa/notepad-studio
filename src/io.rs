@@ -110,76 +110,17 @@ impl Workspace {
             }
         }
 
-        // Rich-document formats (DOCX, …) parse through their own path before
-        // the generic byte-decode below — the file is a zip/binary container,
-        // not raw text, so we extract the inner document.xml for Raw View and
-        // build the AST that drives Doc View.
-        let rich_doc_payload = if crate::rich_doc::detect_format(&path).is_some() {
-            match crate::rich_doc::open(&path) {
-                Ok(p) => Some(p),
-                Err(err) => {
-                    self.set_status(format!("Failed to open {display}: {err}"));
-                    cx.notify();
-                    return;
-                }
+        let buffer = match read_buffer(&path) {
+            Ok(buffer) => buffer,
+            Err(err) => {
+                self.set_status(format!("Failed to open {display}: {err}"));
+                cx.notify();
+                return;
             }
-        } else {
-            None
         };
-
-        let mut lossy_decode = false;
-        let (rope, line_ending, enc, language) = if let Some(p) = rich_doc_payload.as_ref() {
-            // Raw View shows the extracted XML — already UTF-8, no BOM sniff needed.
-            let (le, normalized) = split_line_endings(p.raw_view_text.clone());
-            (
-                ropey::Rope::from_str(&normalized),
-                le,
-                Encoding::Utf8,
-                crate::syntax::language_for_path(&path),
-            )
-        } else {
-            let raw_bytes = match std::fs::read(&path) {
-                Ok(b) => b,
-                Err(err) => {
-                    self.set_status(format!("Failed to open {display}: {err}"));
-                    cx.notify();
-                    return;
-                }
-            };
-            // Sniff BOM and decode into a UTF-8 String, recording which encoding
-            // the bytes came from so subsequent saves round-trip correctly.
-            let decoded = encoding::decode_bytes(&raw_bytes);
-            drop(raw_bytes);
-            lossy_decode = decoded.lossy;
-            let enc = decoded.encoding;
-            let (le, normalized) = split_line_endings(decoded.text);
-            let language = crate::syntax::language_for_path(&path)
-                .or_else(|| crate::syntax::language_for_shebang(&normalized));
-            (ropey::Rope::from_str(&normalized), le, enc, language)
-        };
-
-        let is_rich_doc = rich_doc_payload.is_some();
-        let mut buffer = Buffer {
-            rope,
-            file_path: Some(path.clone()),
-            dirty: false,
-            line_ending,
-            encoding: enc,
-            bookmarks: std::collections::BTreeSet::new(),
-            marks: Vec::new(),
-            language,
-            highlights: Vec::new(),
-            loading: None,
-            new_label: None,
-            // A lossy decode can't be saved back without rewriting the bad
-            // bytes; open read-only so that takes a deliberate step.
-            read_only: lossy_decode,
-            tab_color: None,
-            is_changelog: false,
-            rich_doc: rich_doc_payload,
-            flat_text_cache: None,
-        };
-        buffer.reparse_highlights();
+        let is_rich_doc = buffer.is_rich_doc();
+        let lossy_decode = buffer.read_only;
+        let enc = buffer.encoding;
 
         let basename = buffer.display_short_name().to_string();
         let is_csv = crate::ui::csv_doc::is_csv_path(Some(&path));
@@ -1101,6 +1042,40 @@ pub(crate) fn reset_tab_with(tab: &mut Tab, buffer: Buffer) {
     *tab = Tab::empty();
     tab.session_id = session_id;
     tab.buffer = buffer;
+}
+
+/// Open and Reload share decoding, container parsing and lossy-input protection.
+pub(crate) fn read_buffer(path: &Path) -> Result<Buffer, String> {
+    let rich_doc = if crate::rich_doc::detect_format(path).is_some() {
+        Some(crate::rich_doc::open(path).map_err(|err| err.to_string())?)
+    } else {
+        None
+    };
+    let (text, enc, lossy) = if let Some(payload) = rich_doc.as_ref() {
+        (payload.raw_view_text.clone(), Encoding::Utf8, false)
+    } else {
+        let bytes = std::fs::read(path).map_err(|err| err.to_string())?;
+        let decoded = encoding::decode_bytes(&bytes);
+        (decoded.text, decoded.encoding, decoded.lossy)
+    };
+    let (line_ending, normalized) = split_line_endings(text);
+    let language = crate::syntax::language_for_path(path).or_else(|| {
+        if rich_doc.is_none() {
+            crate::syntax::language_for_shebang(&normalized)
+        } else {
+            None
+        }
+    });
+    let mut buffer = Buffer::empty();
+    buffer.rope = ropey::Rope::from_str(&normalized);
+    buffer.file_path = Some(path.to_path_buf());
+    buffer.line_ending = line_ending;
+    buffer.encoding = enc;
+    buffer.language = language;
+    buffer.read_only = lossy;
+    buffer.rich_doc = rich_doc;
+    buffer.reparse_highlights();
+    Ok(buffer)
 }
 
 #[cfg(test)]

@@ -562,9 +562,7 @@ impl Workspace {
         cx.notify();
     }
 
-    /// Reload tab `idx` from disk. Drops in-memory edits — caller is
-    /// expected to have warned the user via the menu (NPP doesn't dirty-
-    /// prompt on Reload either; symmetry).
+    /// Reload tab `idx` from disk, replacing its in-memory edits.
     pub(crate) fn reload_tab(&mut self, idx: usize, cx: &mut Context<Self>) {
         if idx >= self.tabs.len() {
             return;
@@ -574,31 +572,14 @@ impl Workspace {
             cx.notify();
             return;
         };
-        match std::fs::read(&path) {
-            Ok(bytes) => {
-                let (enc, raw) = crate::text::encoding::decode(&bytes);
-                let line_ending = crate::text::line_ending::LineEnding::detect(&raw);
-                let normalized = crate::text::line_ending::normalize_to_lf(raw, line_ending);
-                let rope = ropey::Rope::from_str(&normalized);
-                let language = crate::syntax::language_for_path(&path)
-                    .or_else(|| crate::syntax::language_for_shebang(&normalized));
-                let buf = &mut self.tabs[idx].buffer;
-                buf.rope = rope;
-                buf.invalidate_flat_text();
-                buf.dirty = false;
-                buf.encoding = enc;
-                buf.line_ending = line_ending;
-                buf.language = language;
-                buf.bookmarks.clear();
-                buf.marks.clear();
-                buf.reparse_highlights();
-                self.tabs[idx].selection = crate::buffer::Selection::default();
-                self.tabs[idx].undo_stack.clear();
-                self.tabs[idx].redo_stack.clear();
-                self.tabs[idx].wrap_cache = None;
-                self.tabs[idx].scroll_top = gpui::px(0.);
-                self.tabs[idx].scroll_left = gpui::px(0.);
-                self.set_status(format!("Reloaded {}", path.display()));
+        match reload_tab_from_disk(&mut self.tabs[idx]) {
+            Ok(()) => {
+                self.csv_models.remove(&self.tabs[idx].session_id);
+                if self.tabs[idx].buffer.read_only {
+                    self.set_status(format!("Reloaded {} read-only", path.display()));
+                } else {
+                    self.set_status(format!("Reloaded {}", path.display()));
+                }
             }
             Err(err) => {
                 self.set_status(format!("Reload failed: {err}"));
@@ -947,6 +928,21 @@ fn tab_index_of(tabs: &[Tab], id: Uuid) -> Option<usize> {
     tabs.iter().position(|t| t.session_id == id)
 }
 
+fn reload_tab_from_disk(tab: &mut Tab) -> Result<(), String> {
+    if tab.buffer.loading.is_some() {
+        return Err("file is still loading".to_string());
+    }
+    let path = tab.buffer.file_path.as_ref().ok_or("tab has no file path")?;
+    let mut buffer = crate::io::read_buffer(path)?;
+    buffer.read_only |= tab.buffer.read_only;
+    buffer.tab_color = tab.buffer.tab_color;
+    buffer.is_changelog = tab.buffer.is_changelog;
+    let view_mode = tab.view_mode;
+    crate::io::reset_tab_with(tab, buffer);
+    tab.view_mode = view_mode;
+    Ok(())
+}
+
 /// Active-tab index after the tab at `removed` has been taken out of a strip
 /// that now holds `len` tabs. The same buffer stays active when it is still
 /// open; otherwise its right neighbour (or the new last tab) takes over.
@@ -968,8 +964,115 @@ fn park_closed_strip(tabs: &mut Vec<Tab>, active: &mut usize) {
 
 #[cfg(test)]
 mod tests {
-    use super::{active_after_removal, park_closed_strip};
+    use super::{active_after_removal, park_closed_strip, reload_tab_from_disk};
     use crate::tab::Tab;
+
+    #[test]
+    fn reload_preserves_mixed_line_endings_and_encoding() {
+        use crate::text::{encoding, line_ending::rope_to_bytes};
+        let dir = crate::persist::TempDir::new("reload-mixed");
+        for enc in [encoding::Encoding::Utf8, encoding::Encoding::Utf8Bom,
+            encoding::Encoding::Utf16Le, encoding::Encoding::Utf16Be,
+            encoding::Encoding::Latin1] {
+            let path = dir.join("mixed.txt");
+            let bytes = encoding::encode_checked("café\r\nsecond\nthird\rfourth", enc).expect("fixture");
+            std::fs::write(&path, &bytes).expect("write fixture");
+            let mut tab = Tab::empty();
+            tab.buffer.file_path = Some(path);
+            reload_tab_from_disk(&mut tab).expect("reload");
+            let text = rope_to_bytes(&tab.buffer.rope, tab.buffer.line_ending);
+            let saved = encoding::encode_checked(std::str::from_utf8(&text).expect("UTF-8"), tab.buffer.encoding).expect("encode");
+            assert_eq!(saved, bytes, "{enc:?}");
+        }
+    }
+
+    #[test]
+    fn reload_malformed_utf16_is_read_only() {
+        let dir = crate::persist::TempDir::new("reload-lossy");
+        let path = dir.join("broken.txt");
+        std::fs::write(&path, [0xff, 0xfe, 0x00, 0xd8]).expect("write fixture");
+        let mut tab = Tab::empty();
+        tab.buffer.file_path = Some(path);
+        reload_tab_from_disk(&mut tab).expect("reload");
+        assert!(tab.buffer.read_only, "reload must protect bytes that could not be decoded");
+    }
+
+    #[test]
+    fn reload_replaces_rich_document_payload() {
+        let dir = crate::persist::TempDir::new("reload-rtf");
+        let path = dir.join("document.rtf");
+        std::fs::write(&path, b"{\\rtf1 old}").expect("write fixture");
+        let mut tab = Tab::empty();
+        tab.buffer.file_path = Some(path.clone());
+        tab.buffer.rich_doc = Some(crate::rich_doc::open(&path).expect("open"));
+        std::fs::write(&path, b"{\\rtf1 changed}").expect("update fixture");
+        reload_tab_from_disk(&mut tab).expect("reload");
+        assert_eq!(tab.buffer.rich_doc.as_ref().expect("payload").block_text(0), "changed");
+    }
+
+    #[test]
+    fn reload_clears_positions_and_open_transactions() {
+        let dir = crate::persist::TempDir::new("reload-state");
+        let path = dir.join("short.txt");
+        std::fs::write(&path, "é").expect("write fixture");
+        let mut tab = Tab::empty();
+        let id = tab.session_id;
+        tab.buffer.file_path = Some(path);
+        tab.buffer.read_only = true;
+        tab.buffer.tab_color = Some(3);
+        tab.view_mode = crate::tab::TabViewMode::Edit;
+        tab.begin_select_marker = Some(40);
+        tab.block_selection = Some(crate::buffer::BlockSelection {
+            anchor_line: 10, head_line: 20, ..Default::default()
+        });
+        tab.edit_transaction = Some(crate::buffer::EditTransaction {
+            ops: Vec::new(), sel_before_anchor: 40, sel_before_head: 60,
+        });
+        reload_tab_from_disk(&mut tab).expect("reload");
+        assert_eq!(tab.session_id, id);
+        assert!(tab.buffer.read_only);
+        assert_eq!(tab.buffer.tab_color, Some(3));
+        assert!(tab.begin_select_marker.is_none());
+        assert!(tab.block_selection.is_none());
+        assert!(tab.edit_transaction.is_none());
+    }
+
+    #[test]
+    fn failed_reload_keeps_unsaved_document() {
+        let dir = crate::persist::TempDir::new("reload-fail");
+        let path = dir.join("broken.rtf");
+        std::fs::write(&path, b"{\\rtf1 old}").expect("write fixture");
+        let mut tab = Tab::empty();
+        tab.buffer.file_path = Some(path.clone());
+        tab.buffer.rich_doc = Some(crate::rich_doc::open(&path).expect("open"));
+        tab.buffer.rope = ropey::Rope::from_str("unsaved source");
+        tab.buffer.dirty = true;
+        tab.selection.collapse_to(7);
+        // A directory cannot be parsed or read as a document on any platform.
+        tab.buffer.file_path = Some(dir.path().to_path_buf());
+        assert!(reload_tab_from_disk(&mut tab).is_err());
+        assert_eq!(tab.buffer.rope.to_string(), "unsaved source");
+        assert_eq!(tab.buffer.rich_doc.as_ref().expect("payload").block_text(0), "old");
+        assert!(tab.buffer.dirty);
+        assert_eq!(tab.selection.head, 7);
+    }
+
+    #[test]
+    fn reload_does_not_replace_a_streaming_buffer() {
+        let dir = crate::persist::TempDir::new("reload-streaming");
+        let path = dir.join("loading.txt");
+        std::fs::write(&path, "complete").expect("write fixture");
+        let mut tab = Tab::empty();
+        tab.buffer.file_path = Some(path);
+        tab.buffer.rope = ropey::Rope::from_str("partial");
+        tab.buffer.loading = Some(crate::buffer::LoadProgress {
+            bytes_read: 7, total_bytes: 20,
+            cancel: std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)),
+        });
+        assert!(reload_tab_from_disk(&mut tab).is_err());
+        assert_eq!(tab.buffer.rope.to_string(), "partial");
+        assert!(tab.buffer.loading.is_some());
+    }
 
     /// A closed window's strip must still answer `tabs[active]`: the
     /// debounced reparse indexed it after the window was gone.

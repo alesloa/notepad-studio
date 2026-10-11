@@ -3052,6 +3052,14 @@ impl Workspace {
         if payload.format != crate::rich_doc::DocFormat::Doc {
             return;
         }
+        if buf.dirty {
+            let raw = buf.rope.to_string();
+            if let Err(err) = crate::rich_doc::validate_raw_view(payload, Some(&raw)) {
+                self.set_status(format!("Save As failed: {err}"));
+                cx.notify();
+                return;
+            }
+        }
         let payload_owned = payload.clone();
         let starting_dir = buf
             .file_path

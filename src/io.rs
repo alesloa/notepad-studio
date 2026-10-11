@@ -382,16 +382,11 @@ impl Workspace {
         // serializer would write `word/document.xml` (the raw-view text)
         // back to disk as the entire file and destroy the container.
         if let Some(payload) = tab.buffer.rich_doc.as_ref() {
-            // For RTF, the rope IS the editable raw view — pass it through so
-            // a save with no toolbar edits but with raw-text edits writes the
-            // user's typed source instead of the original file bytes. DOCX
-            // ignores this since raw XML editing inside a zip is unsafe in v1.
-            let raw_override: Option<String> =
-                if matches!(payload.format, crate::rich_doc::DocFormat::Rtf) && tab.buffer.dirty {
-                    Some(tab.buffer.rope.to_string())
-                } else {
-                    None
-                };
+            // Pass every dirty raw view through validation so Save cannot
+            // silently discard source edits while clearing the dirty flag.
+            let raw_override = tab.buffer.dirty.then(|| tab.buffer.rope.to_string());
+            crate::rich_doc::validate_raw_view(payload, raw_override.as_deref())
+                .map_err(|err| format!("rich-doc save failed: {err}"))?;
             if path.is_file() {
                 run_save_backup(&path);
             }
@@ -1081,6 +1076,150 @@ pub(crate) fn read_buffer(path: &Path) -> Result<Buffer, String> {
 
 #[cfg(test)]
 mod tests {
+    fn rich_save_fixture(path: &Path) -> Buffer {
+        use std::io::Write;
+        match path.extension().and_then(|ext| ext.to_str()) {
+            Some("docx") => {
+                let xml = "<w:document xmlns:w=\"http://schemas.openxmlformats.org/wordprocessingml/2006/main\">\r\n<w:body><w:p><w:r><w:t>café</w:t></w:r></w:p></w:body></w:document>";
+                let mut zip = zip::ZipWriter::new(std::fs::File::create(path).expect("DOCX fixture"));
+                for (name, contents) in [
+                    ("[Content_Types].xml", r#"<Types xmlns="http://schemas.openxmlformats.org/package/2006/content-types"><Default Extension="xml" ContentType="application/xml"/><Override PartName="/word/document.xml" ContentType="application/vnd.openxmlformats-officedocument.wordprocessingml.document.main+xml"/></Types>"#),
+                    ("_rels/.rels", r#"<Relationships xmlns="http://schemas.openxmlformats.org/package/2006/relationships"><Relationship Id="rId1" Type="http://schemas.openxmlformats.org/officeDocument/2006/relationships/officeDocument" Target="word/document.xml"/></Relationships>"#),
+                    ("word/document.xml", xml),
+                ] {
+                    zip.start_file(name, zip::write::SimpleFileOptions::default()).expect("DOCX entry");
+                    zip.write_all(contents.as_bytes()).expect("DOCX XML");
+                }
+                zip.finish().expect("finish DOCX");
+            }
+            Some("odt") => {
+                let xml = "<office:document-content xmlns:office=\"urn:oasis:names:tc:opendocument:xmlns:office:1.0\" xmlns:text=\"urn:oasis:names:tc:opendocument:xmlns:text:1.0\">\r\n<office:body><office:text><text:p>café</text:p></office:text></office:body></office:document-content>";
+                let mut zip = zip::ZipWriter::new(std::fs::File::create(path).expect("ODT fixture"));
+                zip.start_file("content.xml", zip::write::SimpleFileOptions::default()).expect("content entry");
+                zip.write_all(xml.as_bytes()).expect("content XML");
+                zip.finish().expect("finish ODT");
+            }
+            Some("rtf") => std::fs::write(path, br"{\rtf1\ansi caf\'e9}").expect("RTF fixture"),
+            _ => panic!("unsupported fixture format"),
+        }
+        read_buffer(path).expect("open native fixture")
+    }
+
+    fn rich_save_workspace(buffer: Buffer, cx: &mut gpui::TestAppContext) -> gpui::Entity<Workspace> {
+        use gpui::AppContext;
+        cx.new(move |cx| {
+            let mut workspace = Workspace::new(
+                cx.focus_handle(), cx.focus_handle(), cx.focus_handle(),
+                cx.focus_handle(), cx.focus_handle(), cx.focus_handle(),
+                1., gpui::WindowAppearance::Dark,
+            );
+            let mut tab = Tab::empty();
+            tab.buffer = buffer;
+            workspace.tabs = vec![tab];
+            workspace.active = 0;
+            workspace.window_closed = true;
+            workspace
+        })
+    }
+
+    fn edit_rich_source(buffer: &mut Buffer, edit_doc_view: bool) {
+        if edit_doc_view {
+            buffer.rich_doc.as_mut().expect("native payload").apply_edit(
+                crate::rich_doc::edits::Edit::SetBlockBold { block: 0, on: true });
+        }
+        buffer.rope.insert(0, "unsaved raw 中 ");
+        buffer.dirty = true;
+    }
+
+    #[test]
+    fn native_save_refuses_source_edits_it_cannot_preserve() {
+        let dir = TempDir::new("rich-raw-save");
+        for name in ["source.docx", "source.odt", "source.rtf"] {
+            let path = dir.join(name);
+            let mut buffer = rich_save_fixture(&path);
+            let original = std::fs::read(&path).expect("original bytes");
+            edit_rich_source(&mut buffer, name.ends_with("rtf"));
+            let raw = buffer.rope.to_string();
+            let result = crate::rich_doc::save(buffer.rich_doc.as_ref().expect("payload"), &path, Some(&raw));
+            assert!(result.is_err(), "{name}: Save silently discarded edited raw source");
+            assert_eq!(std::fs::read(&path).expect("untouched source"), original, "{name}");
+        }
+    }
+
+    #[test]
+    fn refused_native_save_and_save_as_keep_the_dirty_source_and_path() {
+        let dir = TempDir::new("rich-raw-save-handler");
+        for name in ["source.docx", "source.odt", "source.rtf"] {
+            let path = dir.join(name);
+            let target = dir.join(&format!("copy-{name}"));
+            let mut buffer = rich_save_fixture(&path);
+            let original = std::fs::read(&path).expect("original bytes");
+            edit_rich_source(&mut buffer, name.ends_with("rtf"));
+            let raw = buffer.rope.to_string();
+            let mut cx = gpui::TestAppContext::single();
+            let entity = rich_save_workspace(buffer, &mut cx);
+            entity.update(&mut cx, |workspace, _| {
+                assert!(workspace.write_active_to_disk().is_err(), "{name}: native Save must fail");
+                assert!(workspace.buffer().dirty);
+                assert_eq!(workspace.buffer().rope.to_string(), raw);
+                assert!(workspace.save_active_to_new_path(target.clone()).is_err(), "{name}: native Save As must fail");
+                assert!(workspace.buffer().dirty);
+                assert_eq!(workspace.buffer().file_path.as_deref(), Some(path.as_path()));
+                assert_eq!(workspace.buffer().rope.to_string(), raw);
+                assert!(!target.exists());
+            });
+            cx.quit();
+            assert_eq!(std::fs::read(&path).expect("untouched source"), original, "{name}");
+        }
+    }
+
+    #[test]
+    fn native_doc_view_save_accepts_normalized_source_without_discarding_edits() {
+        let dir = TempDir::new("rich-doc-view-save");
+        for name in ["source.docx", "source.odt", "source.rtf"] {
+            let path = dir.join(name);
+            let target = dir.join(&format!("saved-{name}"));
+            let mut buffer = rich_save_fixture(&path);
+            let original = std::fs::read(&path).expect("original bytes");
+            let payload = buffer.rich_doc.as_mut().expect("native payload");
+            payload.apply_edit(crate::rich_doc::edits::Edit::SetBlockBold { block: 0, on: true });
+            let expected = payload.block_text(0);
+            buffer.dirty = true;
+            let mut cx = gpui::TestAppContext::single();
+            let entity = rich_save_workspace(buffer, &mut cx);
+            entity.update(&mut cx, |workspace, _| {
+                workspace.save_active_to_new_path(target.clone()).expect("save Doc View edits");
+                assert!(!workspace.buffer().dirty);
+                assert_eq!(workspace.buffer().file_path.as_deref(), Some(target.as_path()));
+            });
+            cx.quit();
+            let reopened = crate::rich_doc::open(&target).expect("reopen saved native file");
+            assert_eq!(reopened.block_text(0), expected);
+            assert!(reopened.block_is_bold(0));
+            assert_eq!(std::fs::read(&path).expect("original source"), original);
+        }
+    }
+
+    #[test]
+    fn native_rtf_save_preserves_source_only_edits() {
+        let dir = TempDir::new("rich-rtf-source-save");
+        let source = dir.join("source.rtf");
+        let target = dir.join("edited.rtf");
+        let mut buffer = rich_save_fixture(&source);
+        let raw = r"{\rtf1\ansi edited caf\'e9 \u20013?}";
+        buffer.rope = ropey::Rope::from_str(raw);
+        buffer.dirty = true;
+        let mut cx = gpui::TestAppContext::single();
+        let entity = rich_save_workspace(buffer, &mut cx);
+        entity.update(&mut cx, |workspace, _| {
+            workspace.save_active_to_new_path(target.clone()).expect("save RTF source");
+            assert!(!workspace.buffer().dirty);
+        });
+        cx.quit();
+        assert_eq!(std::fs::read_to_string(&target).expect("saved source"), raw);
+        assert!(crate::rich_doc::open(&target).expect("reopen RTF").block_text(0).contains("中"));
+    }
+
     #[test]
     fn recovered_native_documents_keep_their_format_in_save_as_names() {
         let mut buffer = crate::buffer::Buffer::empty();

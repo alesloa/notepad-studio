@@ -256,6 +256,36 @@ mod tests {
     }
 
     #[test]
+    fn recovered_native_raw_edits_remain_unsaved_when_save_is_refused() {
+        let dir = TempDir::new("session-native-raw-edits");
+        let manifest_path = dir.join("session.toml");
+        for name in ["source.docx", "source.odt"] {
+            let path = dir.join(name);
+            super::super::tests::rich_fixture(&path);
+            let original = std::fs::read(&path).expect("original bytes");
+            let mut tab = Tab::empty();
+            tab.buffer = crate::io::read_buffer(&path).expect("open native document");
+            tab.buffer.rope.insert(0, "unsaved source 中 ");
+            tab.buffer.dirty = true;
+            let expected = tab.buffer.rope.to_string();
+            let mut writer = Writer::default();
+            writer.write_at(pending(1, &[tab]), &manifest_path, dir.path()).expect("recovery write");
+            let manifest = super::super::load_manifest_at(&manifest_path, dir.path()).expect("manifest");
+            let entry = manifest.tabs.first().expect("entry");
+            let restored = match super::super::restore_tab_in(entry, dir.path()) {
+                super::super::RestoreOutcome::Restored(tab) => tab,
+                super::super::RestoreOutcome::Skipped(reason) => panic!("raw edits lost: {reason}"),
+            };
+            assert!(restored.buffer.dirty);
+            assert_eq!(restored.buffer.rope.to_string(), expected);
+            let payload = restored.buffer.rich_doc.as_ref().expect("native payload");
+            assert!(matches!(crate::rich_doc::save(payload, &path, Some(&expected)),
+                Err(crate::rich_doc::RichDocError::UnsupportedRawEdits)));
+            assert_eq!(std::fs::read(&path).expect("untouched original"), original);
+        }
+    }
+
+    #[test]
     fn damaged_doc_view_recovery_keeps_raw_source_as_a_safe_scratch_tab() {
         let dir = TempDir::new("session-rich-fallback");
         let path = dir.join("source.docx");

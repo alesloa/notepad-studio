@@ -151,6 +151,10 @@ v0.0.5 — current
        recovery. Read-Only blocks these edits, and Replace All schedules a
        single recovery snapshot for the batch.
 
+   42. Save refuses unsupported native raw-source edits instead of silently
+       discarding them. Failed Save/Save As keeps the original file and
+       unsaved source, including recovered drafts and legacy conversion.
+
   v0.1.0 — syntax & language:
 
     1. Tree-sitter syntax highlighting for 25 modes: Rust, Python, C,

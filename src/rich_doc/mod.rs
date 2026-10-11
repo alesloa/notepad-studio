@@ -46,6 +46,8 @@ pub enum RichDocError {
     Unsupported,
     #[error("saving edited documents with tables or images is not supported; the file has not been changed")]
     UnsupportedContent,
+    #[error("raw source edits cannot be saved in this native format or combined with Doc View edits; undo the source edits or copy them into a new text tab. No file has been changed")]
+    UnsupportedRawEdits,
 }
 
 pub type Result<T> = std::result::Result<T, RichDocError>;
@@ -706,11 +708,12 @@ pub(crate) fn open_as(path: &Path, format: DocFormat) -> Result<RichDocPayload> 
 /// Write a rich-doc payload back to disk in its native format.
 ///
 /// For RTF, `raw_view_override` carries the current rope text — when set and the
-/// edit_log is empty, RTF saves the rope directly (raw view is editable). DOCX
-/// and ODT ignore it; raw XML editing inside a zip container is unsafe in v1.
+/// edit_log is empty, RTF saves the rope directly (raw view is editable).
+/// Unsupported raw edits are refused before writing instead of discarded.
 /// Legacy `.doc` returns `SaveAsRequired` — the binary format can't be
 /// regenerated safely, so the only persistence path is Save As .docx.
 pub fn save(payload: &RichDocPayload, path: &Path, raw_view_override: Option<&str>) -> Result<()> {
+    validate_raw_view(payload, raw_view_override)?;
     match payload.format {
         DocFormat::Docx => docx::save(payload, path),
         DocFormat::Rtf => rtf::save(payload, path, raw_view_override),
@@ -719,9 +722,53 @@ pub fn save(payload: &RichDocPayload, path: &Path, raw_view_override: Option<&st
     }
 }
 
+pub(crate) fn validate_raw_view(payload: &RichDocPayload, raw: Option<&str>) -> Result<()> {
+    let Some(raw) = raw else { return Ok(()); };
+    if raw == payload.raw_view_text || normalized_lines(raw).eq(normalized_lines(&payload.raw_view_text)) {
+        return Ok(());
+    }
+    if payload.format == DocFormat::Rtf && payload.edit_log.is_empty() {
+        return Ok(());
+    }
+    Err(RichDocError::UnsupportedRawEdits)
+}
+
+fn normalized_lines(text: &str) -> impl Iterator<Item = char> + '_ {
+    let mut chars = text.chars().peekable();
+    std::iter::from_fn(move || {
+        let ch = chars.next()?;
+        if ch == '\r' {
+            if chars.peek() == Some(&'\n') { chars.next(); }
+            Some('\n')
+        } else {
+            Some(ch)
+        }
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn raw_validation_handles_line_endings_and_legacy_conversion() {
+        let mut payload = rtf::open_bytes(br"{\rtf1\ansi text}".to_vec()).expect("fixture");
+        payload.raw_view_text = "café 中😀\r\nnext\rlast".into();
+        for format in [DocFormat::Docx, DocFormat::Odt, DocFormat::Doc, DocFormat::Rtf] {
+            payload.format = format;
+            assert!(validate_raw_view(&payload, None).is_ok());
+            assert!(validate_raw_view(&payload, Some("café 中😀\nnext\nlast")).is_ok());
+            let changed = validate_raw_view(&payload, Some("changed 中😀\nnext\nlast"));
+            if format == DocFormat::Rtf {
+                assert!(changed.is_ok());
+            } else {
+                assert!(matches!(changed, Err(RichDocError::UnsupportedRawEdits)));
+            }
+        }
+        payload.apply_edit(edits::Edit::SetBlockBold { block: 0, on: true });
+        assert!(matches!(validate_raw_view(&payload, Some("changed source")), Err(RichDocError::UnsupportedRawEdits)));
+        assert!(validate_raw_view(&payload, Some("café 中😀\nnext\nlast")).is_ok());
+    }
 
     #[test]
     fn edited_image_blocks_are_refused_before_writing() {

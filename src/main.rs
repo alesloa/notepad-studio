@@ -33,6 +33,8 @@ mod io;
 mod io_stream;
 mod io_reload;
 mod locale_date;
+#[cfg(target_os = "windows")]
+mod locale_sort_windows;
 mod macros;
 mod panic_log;
 mod persist;

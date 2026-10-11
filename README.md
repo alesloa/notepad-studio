@@ -45,8 +45,19 @@ A lightweight, cross-platform text editor inspired by Notepad++, written in Rust
 > wait for background regex edits. Copy All Filenames / File Paths uses the
 > current window's tab order; [Copy Bookmarked Lines](docs/bookmark-copy.md)
 > preserves line endings and prepares large manual copies in the background.
+> [Bookmark editing](docs/bookmark-edits.md) adds Cut, Paste, Remove, Remove Non-
+> Bookmarked Lines, and Inverse Bookmarks, with background planning and saved macro replay.
 > Move to Trash / Recycle Bin now confirms before deletion and rejects stale
 > replies; recovery errors keep the original document open for Save As.
+> Case-insensitive lexical, length and native Windows locale line sorts prepare in background,
+> including rectangle column keys, cancellation and one Undo for mixed macros.
+> Windows locale sorting uses the user locale with case-insensitive numeric keys.
+> The File menu now exposes Rename, Move to Trash / Recycle Bin and the
+> containing-folder terminals and workspace route. Save a Copy As preserves
+> the original document's path and dirty state, with an option to open the copy.
+> Copy preparation and cross-volume rename run in the background with progress
+> and Cancel. Edited native-document copy snapshots have a 512 MiB memory limit;
+> exceeding it leaves both files unchanged and directs the user to Save As.
 
 Optional [API completion definitions](docs/api-completion.md) supply language
 names for Function Completion and signatures for parameter hints, including
@@ -177,6 +188,7 @@ icons from new source art → [`docs/icons.md`](docs/icons.md).
 - [x] File ▸ Open via `rfd` — loads into the active empty tab or a new tab, detects LF / CRLF / CR
 - [x] File ▸ Save (`Cmd/Ctrl-S`) and Save As (`Cmd-Shift-S` mac, `Ctrl-Alt-S` Linux/Win)
 - [x] File ▸ Save All (`Cmd-Opt-S` mac, `Ctrl-Shift-S` Linux/Win)
+- [x] File ▸ Save a Copy As; Rename, Move to Trash / Recycle Bin, containing-folder terminals and workspace
 - [x] Dirty-prompt on close-tab and Close All — Save / Don't Save / Cancel
 - [x] Window title and tab strip sync to active tab's file path and dirty bit
 - [x] Drop-to-open: drag a file onto the window (opens a new tab)

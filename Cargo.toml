@@ -145,6 +145,8 @@ libc = "0.2"
 
 [target.'cfg(target_os = "windows")'.dependencies]
 file-id = "=0.2.3"
+windows = { workspace = true }
+winreg = "=0.55.0"
 
 [profile.release]
 opt-level = 3

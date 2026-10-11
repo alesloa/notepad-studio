@@ -154,8 +154,35 @@ fn supplied_recent_paths_keep_flat_and_submenu_behavior() {
         .expect("containing folder submenu");
     assert_eq!(
         folders.items.len(),
-        1,
-        "only audited file manager action is exposed"
+        5,
+        "containing-folder commands match Notepad++"
     );
     assert_eq!(label(&folders.items[0]), file_manager_label());
+}
+
+#[test]
+fn remaining_file_commands_are_in_the_menu_and_catalog() {
+    let menu = build_with_recent(&settings::Settings::default(), &[]);
+    let names: Vec<_> = menu.items.iter().map(label).collect();
+    for name in ["Save a Copy As…", "Rename…", &mnemonic::strip(trash_label())] {
+        assert!(names.iter().any(|row| row == name), "missing {name}");
+    }
+    for id in ["FileSaveCopyAs", "FileRename", "FileMoveToTrash", "FileOpenContainingFolderCmd",
+        "FileOpenContainingFolderPowerShell", "FileContainingFolderAsWorkspace"] {
+        let row = crate::shortcuts::catalog().iter().find(|row| row.id == id).expect("File catalog entry");
+        assert!(row.keys.is_empty() && row.mac_keys.is_empty(), "{id} has no oracle default");
+        assert_eq!(row.context, Some("Workspace"));
+        assert!(row.npp.is_some());
+    }
+    let position = |label: &str| names.iter().position(|row| row == label).expect("File row");
+    assert!(position("Save As…") < position("Save a Copy As…"));
+    assert!(position("Save a Copy As…") < position("Save All"));
+    assert!(position("Save All") < position("Rename…"));
+    assert!(position("Rename…") < position("Close Tab"));
+    assert!(position("Close Multiple Documents") < position(&mnemonic::strip(trash_label())));
+    let containing = menu.items.iter().find_map(|item| match item {
+        MenuItem::Submenu(menu) if mnemonic::strip(&menu.name) == "Open Containing Folder" => Some(menu), _ => None,
+    }).expect("containing folder submenu");
+    assert_eq!(containing.items.iter().map(label).collect::<Vec<_>>(),
+        [file_manager_label(), command_prompt_label(), "PowerShell", "---", "Folder as Workspace"]);
 }

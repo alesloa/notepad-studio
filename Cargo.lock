@@ -3597,6 +3597,8 @@ dependencies = [
  "tree-sitter-yaml",
  "uuid",
  "walkdir",
+ "windows 0.61.3",
+ "winreg",
  "zip",
 ]
 

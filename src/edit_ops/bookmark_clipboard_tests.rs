@@ -49,11 +49,12 @@ fn bookmark_clipboard_menu_exposes_copy_bookmarked_lines() {
         gpui::MenuItem::Action { name, .. } => name.as_ref(),
         _ => "unexpected separator or submenu",
     }).collect();
-    assert_eq!(labels, ["Toggle Bookmark", "Next Bookmark", "Previous Bookmark", "Clear All Bookmarks", "Copy Bookmarked Lines"]);
+    assert_eq!(labels, ["Toggle Bookmark", "Next Bookmark", "Previous Bookmark", "Clear All Bookmarks", "Cut Bookmarked Lines",
+        "Copy Bookmarked Lines", "Paste to (Replace) Bookmarked Lines", "Remove Bookmarked Lines", "Remove Non-Bookmarked Lines", "Inverse Bookmarks"]);
     let index = menu.items.iter().position(|item| matches!(item,
         gpui::MenuItem::Action { name, .. } if name.as_ref() == "Copy Bookmarked Lines"))
         .expect("Copy Bookmarked Lines must have a real Bookmark menu route");
-    assert!(matches!(menu.items.get(index - 1), Some(gpui::MenuItem::Action { name, .. }) if name.as_ref() == "Clear All Bookmarks"));
+    assert!(matches!(menu.items.get(index - 1), Some(gpui::MenuItem::Action { name, .. }) if name.as_ref() == "Cut Bookmarked Lines"));
     let row = crate::shortcuts::catalog().iter().find(|row| row.id == "CopyBookmarkedLines").unwrap();
     assert_eq!(row.npp, Some("IDM_SEARCH_COPYMARKEDLINES"));
     assert!(row.keys.is_empty() && row.mac_keys.is_empty());
@@ -335,7 +336,7 @@ fn bookmark_clipboard_background_completion_cancellation_and_stale_results_prese
                     }
                     11 => {
                         let _record = macros::override_execution_for_test(true);
-                        assert!(!w.run_copy_bookmarked_lines(window, cx));
+                        assert!(w.run_copy_bookmarked_lines(window, cx));
                     }
                     12 => w.close_find(&EditFindClose, window, cx),
                     _ => {},
@@ -344,7 +345,7 @@ fn bookmark_clipboard_background_completion_cancellation_and_stale_results_prese
             send.send(()).unwrap();
             visual.run_until_parked();
             assert_eq!(clipboard(visual), match case {
-                0 => format!("{}\n", "é".repeat(FOREGROUND_BYTES)),
+                0 | 11 => format!("{}\n", "é".repeat(FOREGROUND_BYTES)),
                 7 | 10 => "é".into(),
                 _ => "sentinel".into(),
             });
@@ -415,19 +416,21 @@ fn bookmark_clipboard_release_manual_timing() {
 }
 
 #[test]
-fn bookmark_clipboard_large_macro_refuses_before_following_paste_or_clipboard_mutation() {
+fn bookmark_clipboard_large_macro_records_and_runs_before_following_paste() {
     let source = "x".repeat(FOREGROUND_BYTES + 1);
     with_source(&source, &[0], |workspace, visual| {
         let _record = macros::override_execution_for_test(true);
         visual.dispatch_action(CopyBookmarkedLines);
         macros::stop_recording();
-        assert!(macros::current().is_empty());
+        assert!(matches!(macros::current().as_slice(), [MacroEvent::CopyBookmarkedLines]));
+        visual.run_until_parked();
         visual.update_window_entity(workspace, |w, window, cx| {
             assert!(!w.replay_macro(&[MacroEvent::CopyBookmarkedLines, MacroEvent::Paste], 1, window, cx));
-            assert!(w.status_message.as_deref().is_some_and(|message| message.contains("Large Copy Bookmarked Lines")));
             assert!(w.tabs[0].undo_stack.is_empty() && w.tabs[0].edit_transaction.is_none());
             assert_eq!(w.buffer().rope.to_string(), source);
         });
-        assert_eq!(clipboard(visual), "sentinel");
+        visual.run_until_parked();
+        assert_eq!(clipboard(visual), source);
+        visual.update(|_, cx| { let w = workspace.read(cx); assert_eq!(w.buffer().rope.to_string(), source); assert_eq!(w.tabs[0].undo_stack.len(), 1); });
     });
 }

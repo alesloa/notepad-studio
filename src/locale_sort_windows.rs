@@ -1,0 +1,60 @@
+// PowerEditor/src/MISC/Common/SortLocale.cpp:28–38, 208–220 — menu defaults.
+// Windows NLS sort keys; original Rust wrapper, no copied Notepad++ code.
+
+use windows::{core::PCWSTR, Win32::{Foundation::LPARAM, Globalization::{LCMapStringEx, LCMAP_SORTKEY,
+    LINGUISTIC_IGNORECASE, NORM_LINGUISTIC_CASING, SORT_DIGITSASNUMBERS}}};
+
+const MAX_TEXT_BYTES: usize = 32 * 1024 * 1024;
+const MAX_KEY_BYTES: usize = 64 * 1024 * 1024;
+const MEMORY_ERROR: &str = "Not enough memory to prepare Windows locale sort keys";
+
+pub(crate) fn sort_key(text: &str) -> Result<Vec<u8>, &'static str> {
+    if text.is_empty() { return Ok(Vec::new()); }
+    if text.len() > MAX_TEXT_BYTES { return Err("Select at most 32 MiB of text to sort lines"); }
+    let mut source = Vec::new();
+    source.try_reserve_exact(text.len()).map_err(|_| MEMORY_ERROR)?;
+    source.extend(text.encode_utf16());
+    if source.len() > i32::MAX as usize { return Err("A line is too long for Windows locale sorting"); }
+    let flags = LCMAP_SORTKEY | NORM_LINGUISTIC_CASING.0 | LINGUISTIC_IGNORECASE.0 | SORT_DIGITSASNUMBERS.0;
+    // SAFETY: The input slice owns initialized UTF16 units and its length is
+    // within i32. Null locale selects the user default. Null destination asks
+    // for a byte count; version, reserved and sort handle use documented defaults.
+    let needed = unsafe { LCMapStringEx(PCWSTR::null(), flags, &source, None, None, None, LPARAM(0)) };
+    let needed = usize::try_from(needed).ok().filter(|&size| size > 0 && size <= MAX_KEY_BYTES)
+        .ok_or("Windows could not size the locale sort key; no lines sorted")?;
+    let mut native = Vec::new();
+    native.try_reserve_exact(needed).map_err(|_| MEMORY_ERROR)?;
+    native.resize(needed, 0u16);
+    // LCMAP_SORTKEY measures destination capacity in BYTES. windows-rs passes
+    // this slice's element count as capacity, so needed u16 elements provide
+    // twice the required initialized storage while declaring needed bytes.
+    // SAFETY: Both buffers outlive the call and do not overlap. The source
+    // and destination counts fit i32; native owns at least needed writable
+    // bytes with u16 alignment. Flags make NLS write opaque key bytes.
+    let written = unsafe { LCMapStringEx(PCWSTR::null(), flags, &source, Some(&mut native), None, None, LPARAM(0)) };
+    let written = usize::try_from(written).ok().filter(|&size| size > 0 && size <= needed)
+        .ok_or("Windows could not create the locale sort key; no lines sorted")?;
+    let mut key = Vec::new();
+    key.try_reserve_exact(written).map_err(|_| MEMORY_ERROR)?;
+    key.extend(native.iter().flat_map(|unit| unit.to_ne_bytes()).take(written));
+    Ok(key)
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    #[test]
+    fn nls_menu_defaults_fold_case_order_numbers_and_keep_accents() {
+        assert_eq!(sort_key("cafe").unwrap(), sort_key("CAFE").unwrap());
+        assert!(sort_key("item2").unwrap() < sort_key("item10").unwrap());
+        assert_ne!(sort_key("cafe").unwrap(), sort_key("café").unwrap());
+        assert_eq!(sort_key("").unwrap(), Vec::<u8>::new());
+    }
+    #[test]
+    fn explicit_lengths_accept_nul_emoji_and_reject_oversized_input() {
+        assert_ne!(sort_key("a\0z").unwrap(), sort_key("a").unwrap());
+        let prefix = "é😀".repeat(1024);
+        assert!(sort_key(&(prefix.clone() + "a")).unwrap() < sort_key(&(prefix + "z")).unwrap());
+        assert!(sort_key(&"x".repeat(MAX_TEXT_BYTES + 1)).is_err());
+    }
+}

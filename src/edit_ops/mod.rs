@@ -6,6 +6,7 @@
 pub(crate) mod begin_end_select;
 pub(crate) mod blank_ops;
 pub(crate) mod bookmark_clipboard;
+pub(crate) mod bookmark_edits;
 pub(crate) mod case_ops;
 pub(crate) mod clipboard_all;
 pub(crate) mod clipboard_ops;
@@ -15,6 +16,7 @@ pub(crate) mod editor_keys;
 pub(crate) mod indent_ops;
 pub(crate) mod insert;
 pub(crate) mod line_ops;
+pub(crate) mod line_sort;
 pub(crate) mod menu_line_commands;
 pub(crate) mod on_selection;
 pub(crate) mod readonly;
@@ -23,3 +25,6 @@ pub(crate) mod util;
 
 #[cfg(test)]
 mod trim_trailing_scope_tests;
+
+#[cfg(test)]
+mod bookmark_edits_tests;

@@ -85,7 +85,7 @@ impl Workspace {
             Some("Focus the active Source or Raw View editor to run a macro")
         } else if tab.buffer.loading.is_some() {
             Some("Wait for the file to finish loading before running a macro")
-        } else if tab.buffer.read_only {
+        } else if tab.buffer.read_only && !events.iter().all(|event| matches!(event, MacroEvent::InverseBookmarks)) {
             Some("Buffer is read-only")
         } else if self.is_composing_text(window) {
             Some("Finish the active composition before running a macro")
@@ -155,7 +155,7 @@ impl Workspace {
             MacroEvent::Redo => self.tabs.get(self.active).and_then(|tab| tab.redo_stack.last()),
             _ => None,
         };
-        if matches!(prepared, Some(crate::buffer::UndoEntry::Prepared(_))) {
+        if matches!(prepared, Some(crate::buffer::UndoEntry::Prepared(group)) if !group.is_line_edit()) {
             self.set_status("Large indentation Undo/Redo is unavailable during macro playback");
             cx.notify();
             return false;
@@ -178,6 +178,12 @@ impl Workspace {
             MacroEvent::IncreaseLineIndent => return self.run_menu_line_command(crate::edit_ops::menu_line_commands::MenuLineCommand::Increase, window, cx),
             MacroEvent::DecreaseLineIndent => return self.run_menu_line_command(crate::edit_ops::menu_line_commands::MenuLineCommand::Decrease, window, cx),
             MacroEvent::DuplicateCurrentLine => return self.run_menu_line_command(crate::edit_ops::menu_line_commands::MenuLineCommand::Duplicate, window, cx),
+            MacroEvent::SortLinesLexIgnoreCaseAsc => return self.run_line_sort(crate::edit_ops::line_sort::SortCommand::IgnoreCaseAsc, window, cx),
+            MacroEvent::SortLinesLexIgnoreCaseDesc => return self.run_line_sort(crate::edit_ops::line_sort::SortCommand::IgnoreCaseDesc, window, cx),
+            MacroEvent::SortLinesLocaleAsc => return self.run_line_sort(crate::edit_ops::line_sort::SortCommand::LocaleAsc, window, cx),
+            MacroEvent::SortLinesLocaleDesc => return self.run_line_sort(crate::edit_ops::line_sort::SortCommand::LocaleDesc, window, cx),
+            MacroEvent::SortLinesLengthAsc => return self.run_line_sort(crate::edit_ops::line_sort::SortCommand::LengthAsc, window, cx),
+            MacroEvent::SortLinesLengthDesc => return self.run_line_sort(crate::edit_ops::line_sort::SortCommand::LengthDesc, window, cx),
             MacroEvent::DuplicateLine => self.duplicate_line(&EditDuplicateLine, window, cx),
             MacroEvent::MoveLineUp => self.move_line_up(&EditMoveLineUp, window, cx),
             MacroEvent::MoveLineDown => self.move_line_down(&EditMoveLineDown, window, cx),
@@ -209,6 +215,11 @@ impl Workspace {
             MacroEvent::CopyAllFilenames => return self.copy_all_tab_labels(false, cx),
             MacroEvent::CopyAllFilePaths => return self.copy_all_tab_labels(true, cx),
             MacroEvent::CopyBookmarkedLines => return self.run_copy_bookmarked_lines(window, cx),
+            MacroEvent::CutBookmarkedLines => return self.run_bookmark_command(crate::edit_ops::bookmark_edits::BookmarkCommand::Cut, window, cx),
+            MacroEvent::PasteToBookmarkedLines => return self.run_bookmark_command(crate::edit_ops::bookmark_edits::BookmarkCommand::Paste, window, cx),
+            MacroEvent::RemoveBookmarkedLines => return self.run_bookmark_command(crate::edit_ops::bookmark_edits::BookmarkCommand::Remove, window, cx),
+            MacroEvent::RemoveNonBookmarkedLines => return self.run_bookmark_command(crate::edit_ops::bookmark_edits::BookmarkCommand::RemoveNon, window, cx),
+            MacroEvent::InverseBookmarks => return self.run_bookmark_command(crate::edit_ops::bookmark_edits::BookmarkCommand::Inverse, window, cx),
             MacroEvent::Paste => self.paste(&EditPaste, window, cx),
             MacroEvent::SelectAll => self.select_all(&EditSelectAll, window, cx),
             MacroEvent::Undo => self.undo(&EditUndo, window, cx),

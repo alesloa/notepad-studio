@@ -1,11 +1,11 @@
 {
-  "studio_source_sha256": "103a595416cfc74a02d01036d85a612c3f4bc572dab13307b8e8357de6d2b948",
+  "studio_source_sha256": "0b28fcc1c0ac5f2c2b5d4c6f005aa3857ffe8cf656c7cdc3b597b9d6d0dfd7d3",
   "studio_sources": {
-    "src/actions/bookmarks.rs": "392c3e800a8976043add84bddbb9a11b8d3126c952cbfe77955e2e6c9086e87b",
+    "src/actions/bookmarks.rs": "eeaf95badc144e0fa7f8c2445495e706f1209291c1285ddd3578fef0c84eb5fc",
     "src/actions/edit.rs": "90200c45bc846149a2a05b8ce0b1ab98118b185094686abacccc0ddc882969b4",
-    "src/actions/edit_ops.rs": "ee33c4f462abeeb2a7755e6b0ddf028f472c2f077ed9a4254875d256349e44e5",
+    "src/actions/edit_ops.rs": "3377b7a417992287df841914d6cf5cb025b5a114994d90e4952540fa60c0e07b",
     "src/actions/encoding.rs": "cccab93cd6f7dd916b0222f5346ae7fc0093fd728e2f16ac2228b72240fece4c",
-    "src/actions/file.rs": "feb3c49a3095d5cbefc4d0465dd38811ae3d2f14b3c677f14e5351f833577b8f",
+    "src/actions/file.rs": "cb11c505fab43a1915071f392200fd4604d3301f1ff4d2ecb3729524f1ffc58c",
     "src/actions/help.rs": "b2845c5f1d477d887341766c7ea5c6c4b4a368de32d31dc44384a739c2570c8c",
     "src/actions/language.rs": "dc905c4367614b369e40ef69a9550706f7777b76e91a1e856857afbbcee3da37",
     "src/actions/macros.rs": "db7465af438ab78802f2b8cbb24115f15b9f1ebb5f0f2a639ec9a6aa425901a5",
@@ -23,10 +23,10 @@
     "src/api_registry.rs": "60dfe5418abf2097cd0fd71fcb5906ca32aefb1bbc47203c194bc05cf59ecb3e",
     "src/app/keymap.rs": "a80009f2e271ca2ace56f1a9fcd65b009773710931f3a1424a3c139d1befe34f",
     "src/app/menus/app_menu.rs": "703d08cc9f7a62abff24b51f2b1e61075830ed62b02efaee11444ca1a3618d2b",
-    "src/app/menus/bookmarks.rs": "16dfd98f8fb22a305eae106fe4107f27b50c2e4d4b29da499db36d3a9d375ce6",
-    "src/app/menus/edit.rs": "4747e39de6c084593795f2f5ebde6d5a39ba1742d1c5646d1c4cf39e763fa394",
+    "src/app/menus/bookmarks.rs": "3e6858d5482370ef6d1d757cf39fb50b5a4823199f7ec24abfb535cd9eb282af",
+    "src/app/menus/edit.rs": "cccbc604cd37efd4e09ccd562b204031d33ad99a34a3237b7d98b57ad59d7201",
     "src/app/menus/encoding.rs": "50c53eed1ae652d4b076de3e8cc17a365cd56050d5c759cc10458fa4313f455a",
-    "src/app/menus/file.rs": "253ccb0d1a77606423632b1a8c9267fa87cd70cafe7b00db11f512854478b9e2",
+    "src/app/menus/file.rs": "6b0ab811d1f50d61798c60700b20ffe56abc9ae77facc6460a4df1ca0570aa5a",
     "src/app/menus/help.rs": "c8cc90a6954a8a4fc653f3588253e6b4cbbaa679a4146ee47d6b6c022cecbad4",
     "src/app/menus/language.rs": "9412d06d56ce78fa01c3a79f7ed1f23c57080bbd3644c0f007dd9c26f528e9ed",
     "src/app/menus/macros.rs": "7f5f0b1ccd25d94da19880d1dfea2dad7d3787ea44fcdb6a59585f589dc91953",
@@ -44,17 +44,18 @@
     "src/app/startup.rs": "ed3356bfde9b66d54caff71b3cb09f52d5761d5ebf49da73291acda40abf1ba1",
     "src/app/window.rs": "42f1117f4c7940254786aa67dea89e21f2be2b71d644ac81b48198de204c246d",
     "src/assets.rs": "58f498f42210c21e76038342146108d5a2d584a69804c1d1b75d49b63a1c6bf7",
-    "src/buffer/prepared.rs": "793a0218baaef74eb4087dfe528d53930eec36f1929a0742346c6f557cd61d26",
+    "src/buffer/prepared.rs": "85f08ca8854789015378372a257835faa4a6c77a2e0a64f15d834ae3e6523362",
     "src/buffer.rs": "f842c5486f0280a6c347fcc80c4174a6c81dc02159eb03aa56f32a430dd8babd",
     "src/call_context.rs": "c0f382cfec3d27faefda0e2cfdd1aa8c6aed86823121f90dd05a605bd35273bd",
     "src/changelog.rs": "6f1cdf601ac205897a3d06a86cbc2c8ca8fcb2e29686ee7785992d666be0fcc8",
-    "src/clipboard_history.rs": "0222a36ead8a10690a68ee19f1cf892f4ac6d2afd93968d62660384967a74161",
+    "src/clipboard_history.rs": "bfe665d23bdcebcb1198eb3c7f379a26664a4aa6dfe3377b0baf7d40d8a7c731",
     "src/clipboard_rich.rs": "dad033bee22d196bad4fb5039894b955b427704b3d3dc41431458d9f91b3b82a",
     "src/config.rs": "8e7af0eca571680c683f5aa7286393c31e8907dcdec519aebefda4bf9be5f692",
     "src/consts.rs": "ecae4caac8f1e3f17933059b9919f5001b72f8ebf954a4b2ac1abdd75277e51d",
     "src/edit_ops/begin_end_select.rs": "7e3919976f49f2ef2af7564e46d16ef0cbc5fb5e2b1b335a647123d3dc5ff5f4",
     "src/edit_ops/blank_ops.rs": "095023726fa1732362b1385b17b2466c18ac2344675724c6b0625a89d0571d2b",
-    "src/edit_ops/bookmark_clipboard.rs": "3f080cc46f887479738cdad6492f2b7e61949dbe40ac7849ff88c519ce3bbe7e",
+    "src/edit_ops/bookmark_clipboard.rs": "706caea8990e6c67a8d54e4b2142e92300a738d8254fb2fbf6db456a6367eb84",
+    "src/edit_ops/bookmark_edits.rs": "be80375239bb51fceb1574c00688622dd023989c52bdc87b41803069b6a539a5",
     "src/edit_ops/case_ops.rs": "32829a74636747210a7855cb81522af83cc87e617b0c2575862afe43fa609446",
     "src/edit_ops/clipboard_all.rs": "c988507c1c3b03d9a4d0c49bcfae2aca196fc17e4664c9bf22de567e8611b17d",
     "src/edit_ops/clipboard_ops.rs": "020534cb8aa4cef4e57e673861e7e6b1b4bd87542f909e87ab0c82d8abb8bde6",
@@ -63,9 +64,10 @@
     "src/edit_ops/editor_keys.rs": "e781c24a9a2170592b0c0c17af01bf81d6f06682358e1c0a1ad2b495a2973c84",
     "src/edit_ops/indent_ops.rs": "2380542c41bee8963729042c65b5f2d4af905092a9f74d90c0a966e205e789e2",
     "src/edit_ops/insert.rs": "6b131b2ed7c21b4d2b08942d3f6f19f8559fc96efc1ea917c5016befcc79af01",
-    "src/edit_ops/line_ops.rs": "a2b4f0fb8fb4d57d6416c2d54a78326419287619907aac8652af6b0026541d69",
+    "src/edit_ops/line_ops.rs": "9d18a8e19482116b1df0feba9ade37e4a50560a47b9d9e547d35ecc106ddf086",
+    "src/edit_ops/line_sort.rs": "8897039681c177a1bc58d94f4088088687f4a0385bc74149377d2be0f02c7d31",
     "src/edit_ops/menu_line_commands.rs": "db6feab022a8b9bc14d20132902bb5b946ed9fb8e1e8f34084c231f08efff6fe",
-    "src/edit_ops/mod.rs": "70ef36c6bc2088ecc52bf76027116471722d674c58a0c6c68d5af123b1c584f8",
+    "src/edit_ops/mod.rs": "7730b24af2bcd280b1b23f3358cbabcbfbb34f1d355774317380d682cd13d242",
     "src/edit_ops/on_selection.rs": "a189ef1126a9072a28a8d232fb64ec118da514281744d6f876b3e76990cb7a0e",
     "src/edit_ops/readonly.rs": "a0b71fa924e537a091c95a561c188cb7ed3d0bb92126e615095d103646fe051f",
     "src/edit_ops/trim_both_scope.rs": "e69a6c4becb48689fc73e7f157d482869f17f5cf7a1384324a3c49ac6767b8f4",
@@ -75,21 +77,27 @@
     "src/editor_proofreading.rs": "b3b5362455509e74cd35a95ecea58d5e5c1b8af505862dc00d094aaded290c7f",
     "src/find_block_map.rs": "c7a1eb06a3e2c74557328b59b1776b2f14817cfb9a817aa63508daf83aa4c436",
     "src/find_in_files.rs": "97fcdb31ad7c7ebaf55d653e46b11dc5789d84f7d8fe1a88db301d6f698d07c1",
-    "src/find_state.rs": "657f048563ac5baf3fcdc5073e6ee60d9547d21e2a6fb25c22a9119af8888e4d",
+    "src/find_state.rs": "6b2d159b9c588d70029d3f663681c64680cc5938d4daf855a4ecd49ac98ae334",
     "src/fonts.rs": "6e26e40847e3f3b15f32410d0a8804d2e787d1d2c633ebd76938b3c389ea5201",
     "src/gutter.rs": "dfe87247f9532c628183d3ef82c54f610a2df83c005a4b284f29801cc305e44b",
     "src/input_field.rs": "0bf16dc3fc2bda306e857b5cb330e366e6e6df228762cceac1dd7d45dae22cc2",
     "src/input_field_rename.rs": "cca9d26adf6c235778b9315f5d4f3511cd3d8409527da83418603537f8e4f9b4",
     "src/input_field_window.rs": "f6cc271f385be21f29ce6a81b324c2e22715aa62d687fd869881ab3bf5d58912",
+    "src/io/background_drop.rs": "9fc5aadeb3251706439e5dd5ad846f88880788fa35783ee28687d9d3ad62dec9",
+    "src/io/copy_snapshot.rs": "ffa012c2df868d18ecfea86d4fe3b41eff389d1e25871f1d79e5c571d8724717",
+    "src/io/copy_stage.rs": "90b06c4b9bb148ae6fec1085b4330e1822b6faf8fc7d22f73b94e07183de9267",
+    "src/io/copy_writer.rs": "7fce5b2251728b311c5d11c002efa1abf4f2b914f7bfc540c179e3aa5df78ed1",
     "src/io/save_all.rs": "2799cad7525aa0d4db3b97634942c415ac92c8ad2fb3046b64200bfc5f287b9e",
-    "src/io/save_as_dialog.rs": "cdf85fb68dba316d16cab64cabaa01513dd5aecdfb308cca175a96cd2ae36961",
-    "src/io.rs": "a8aa95dfa9fcc8f0fbfb525974916414ce3b1288638bbc612d4ee90bafadffea",
+    "src/io/save_as_dialog.rs": "870b9d7970e5c213b5b07c1465881f07862073f6d14dde9a586dabeda6d89a68",
+    "src/io/save_copy.rs": "d348265847bf05002e12fc41c7b2c98900a713d2043478f0506260f76c859396",
+    "src/io.rs": "6cc257b2c9486d5f59472a7f9f2793f058eec3f72c52e222c9f6425ae28df346",
     "src/io_reload.rs": "6d167ea8cfea21d1b86b131f6cd9d31fe7c78affb5829de7a54cd83d5e0ea47a",
     "src/io_stream.rs": "450a533562310b8c50d18cb4b2a425be85bd830eac2ce321537ef20ed1126f61",
     "src/locale_date.rs": "b7c0a84062bcd5a8142bf9ff3c3c62dcce03f40fa5fc3ff7824b858f52b1f7c8",
-    "src/macros.rs": "1eeb68a554fbd17e05ac871640da6a42eaa6217db96bf6bf3c16cdc0adf68158",
+    "src/locale_sort_windows.rs": "456d5f41ceaa63ec1c0acf33a082a01a0814b779097f2aed8cfd662a9ca5dfcd",
+    "src/macros.rs": "8f6b17d428aec351820987d7eee9177a8affa40794cf08fb4ef6809e1ecccff8",
     "src/macros_playback_fixture.rs": "8ccc6740548146836bc0f0cbe7dc7d73b64560c268b37704790185ccdd59656a",
-    "src/main.rs": "8e57a8e5eefcd1447b921ff5bf49d8761b4874bef1526013134953c316cb55f5",
+    "src/main.rs": "c4e677bd9dbddd531fb39e99bfab56de13b68c492d22b7d93f3e584f6389d30f",
     "src/panic_log.rs": "f3b24ecf846e2b7a6b218ba1a732efad70da2113cba2746175dbd33e96290c6f",
     "src/persist.rs": "7995c33c733153eaffa48f17512b7ea0fd52884cf389c1311259397889176fe2",
     "src/plugins/host_api.rs": "a3ecf172f8174a3502aaf74c3254582088a872434ac073756c4224164421edda",
@@ -120,8 +128,8 @@
     "src/settings/persistence_fixture.rs": "a7cec9a94d21c3da5cbfdeff8ba0f57854de89f642315576d4e016097ade1bd5",
     "src/settings.rs": "65d3fe1a335a2806574a8f10524687d43619d7c2c6aa591db016db4f71af16c6",
     "src/shell.rs": "04f1f44c04af6cbabd9f02aae93a8b0642b3d8b392b2f78a1371433e17aea646",
-    "src/shortcuts/npp_defaults.rs": "5dc02901fa75906f8e8e698f50cf80837057c11a607a2a3f0ed453fe852b0be3",
-    "src/shortcuts.rs": "922b6c1ac5dc5cb9d942d7597b589481ef27f0e4067d40ee7eae798c9184d6c1",
+    "src/shortcuts/npp_defaults.rs": "8c7b344dfdb263fd87ae0310f33eefb720bbde54db56e694fb7f6b9b44091e64",
+    "src/shortcuts.rs": "7b986734b01550a4ebff7290828a22179f6a01d6b9f91cc917c106f445b9279a",
     "src/single_instance.rs": "9136898987ad1f83bfc8d4c510b3141acd670d4dd4c041509a0b3d0f7cf559da",
     "src/style_model/active_theme.rs": "0e560d798075155e6304196946d4f4dd486c70121eac326d47754edfdb297407",
     "src/style_model/bundled.rs": "065d9228af7882fb11b0ac2e90ca0659178529457830b834fdd3b3f0c5f0214f",
@@ -275,9 +283,11 @@
     "src/workspace/completion_macro.rs": "b75aedfd58b6dbbbbd4f96bf1d27d59406d04e527beead4b8371fb11132b1e52",
     "src/workspace/cursor.rs": "959f5aba0a3d9cb07a49c33f27fbbf13a0486c0832948b2a64f6dac2c9356cf7",
     "src/workspace/directory_operations.rs": "e99b779cb52f093598a39d612a274e7808ed522fc74c1a907de7aa1574f04024",
-    "src/workspace/edits.rs": "dd8cd41bc1cd4c21d4898140952bab258f0c6f658a9557e1d4b57a4cea36a69f",
+    "src/workspace/edits.rs": "da954f9eba87b8c3fb3e9f7aed00e74f3c040713911211ba59bf25b5c9f101f3",
+    "src/workspace/file_move.rs": "4b2b28d4a2b831b6e59f56b105a0ad3d8ec32a933c066d8d1e17d42155673e49",
+    "src/workspace/file_routes.rs": "43ec082625774a477985e81926a84c547a2f5e7c817ad7d5b73d3b1253ccacb2",
     "src/workspace/file_tab_actions.rs": "da125d264a4d080a47a81ac213db73c5199eae9e5fd7ae42d9ecca458b0a108f",
-    "src/workspace/find.rs": "698997d04773e770480f13bd1c268e3ba8ca19b22c70a6bfdac1e6f074d18660",
+    "src/workspace/find.rs": "103c478559357f43b2cf983aff7f4026b759e8f0278acd41bd795d0695768950",
     "src/workspace/find_current_budget.rs": "9dc9a69bce849720e64bd84c7ea5ff2344e8e7471f709ed76e8e6821362dfff8",
     "src/workspace/find_current_controller.rs": "946195362ae726684941f02aa08c8d811c5358c1d56fb2bac5008e17075264c0",
     "src/workspace/find_current_endpoints.rs": "e9a6d156baab172aaaa21ebf14fc223afe00349f6b9a2f9de93f6b1c2f1a0599",
@@ -295,26 +305,27 @@
     "src/workspace/ime.rs": "761420f3a3a2a82a86609f909df4809d44372b2e61d4d68855146db100fa088b",
     "src/workspace/input_handler.rs": "a3b40903d21edbd5028970aed6d81c577e059210f3e50bcce48aa8958fbb7798",
     "src/workspace/language.rs": "2354cd797e6775c07bfcc6e1c7a24dbf76f8d59704fa737c6886ed9abcd2d204",
-    "src/workspace/macros.rs": "8a1859470292e27c6799342609401f7e4dd1af814a020915e6669a48e57b560a",
+    "src/workspace/macros.rs": "58cda38a02c7a713039b85ac5d27d4a0389c2339d77e3a7db173d53d455714f4",
     "src/workspace/markdown_format.rs": "1e8c6fa671dfb4f0304f9c885628d0ce8c537f0cdaf5d9d044bb3929694201f0",
     "src/workspace/menu_bar.rs": "eb33b9884b6e0574c700fa5c6a7460139c23bc09dfb4c5dff3ea4cfd936b8795",
     "src/workspace/menu_state.rs": "c08c5730ca88b4773ff7e69c8375574d6b9946653ff0b8eb9c4245dec4707989",
-    "src/workspace/mod.rs": "9d816afb2d6d23d879e2685b8f7e6b2ca25597b4ab329eee70b856bf8ab23ee4",
+    "src/workspace/mod.rs": "031e022262081f50db631cd1da05d2371257c1b2e53eac41830d7f68ee3613a6",
     "src/workspace/mouse.rs": "d33004f7e533a7290340fdcd47b18bbbb0f30c0650d05ff77cc5d671f65a32ad",
     "src/workspace/movement.rs": "842121092e1c8537d4a9eb47c890fea8fcd08ce6eb427e5d067e89c5d544af9e",
     "src/workspace/open_existing.rs": "2f0688288f495fb8717aa9e7338e47be14c405af2e33491a70a7f2e57b06ccbd",
     "src/workspace/plugins.rs": "9e1c3d4dd021e69ecf0e7f3ac26db856e40a3413d86336dffeb3830bb5f61e92",
-    "src/workspace/prepared_edits.rs": "d4f3d39c3c3a86b4543f47692de4ec7480765f203716a5e75557f542597f0b3f",
+    "src/workspace/prepared_edits.rs": "7038196aeeda7066b407f00754b1ca1b3cf82f13b32170d1b15761bf3e4309ee",
+    "src/workspace/prepared_macro_capture.rs": "926de786c5269f0425b1aeb62ce92fdbf88f5a4ac230360150ac3ff62a81fe50",
     "src/workspace/project_file_visits.rs": "c359c6b1f887f8849a03831435663f5e628d1d518c61923ca3b486452143255e",
     "src/workspace/proofreading.rs": "60304192a859e36321e3f69c8ce458884b5f851d5818e809c59bd403526f2d0b",
     "src/workspace/reload.rs": "661872a83d432cf68d1cf0ed0c9a4471ebb6abc0744e34f28c56afc79845b3f4",
     "src/workspace/reload_csv.rs": "31fcefc7f786c0f67c431b09c9c9d1fb65d08a6f5e9364c1c83eaee68465ab10",
     "src/workspace/reload_guard.rs": "3ef6b45a0a902612de7295f8948ee699bab9937d98abfb6f2ee1bf8ad0593a32",
-    "src/workspace/render.rs": "74d7013d8360b283e2eafae8f53186a55916c5ab3b049aa686cc080833eb41e9",
+    "src/workspace/render.rs": "f6f3f96b74228f5ee316705ddf3e6a8f31de65ea34cca87913ee17f23a51daa5",
     "src/workspace/rich_edit.rs": "6e19702656046073b5388eac4cdf93bc3a3b218b5fa63cf9cbedcbbe747068c2",
     "src/workspace/rich_replacement.rs": "8b3dc53ff3638c61f110346021c58c8b01a81fe70c0ebca3a0072a16157aecf2",
     "src/workspace/run.rs": "c0ffc5d538bbb7135d7d471850a1e0564d5282d43a716c03a7e50767e27c03bd",
-    "src/workspace/search_macro.rs": "93bf497f9043413028d1e4bfc6045b33d4812975e6fc354c4d4d5e849876a590",
+    "src/workspace/search_macro.rs": "94accbec9048de8c83490c78c3485463f796b340e6309a20f66bee50981f0ecd",
     "src/workspace/session_syntax_bench.rs": "d8d114a040c63b6c3a69c7c1b83d8e350fba9a66c7f14429c4a506abd215595c",
     "src/workspace/source_input.rs": "08752743d74f93856561f80f1f10c69354effc0688a202c9b70e3accd3f132a7",
     "src/workspace/status.rs": "338218be900828e0bb19a57570021582980fcce542d0a04e130e49912937726c",
@@ -341,23 +352,23 @@
     "unique_ids": 481,
     "duplicate_appearances": 100,
     "separators": 45,
-    "catalog_rows": 258,
+    "catalog_rows": 275,
     "conditional_directives_in_resource": 0,
     "appearance_statuses": {
       "action-only": 2,
-      "alternate-only": 4,
-      "missing": 375,
+      "alternate-only": 2,
+      "missing": 360,
       "partial": 8,
-      "routed": 190,
+      "routed": 207,
       "status-only": 1,
       "stub": 1
     },
     "unique_statuses": {
       "action-only": 2,
-      "alternate-only": 4,
-      "missing": 300,
+      "alternate-only": 2,
+      "missing": 285,
       "partial": 8,
-      "routed": 165,
+      "routed": 182,
       "status-only": 1,
       "stub": 1
     },
@@ -534,7 +545,7 @@
         {
           "method": "open_new_tab",
           "path": "src/io.rs",
-          "line": 38,
+          "line": 49,
           "wire_path": "src/workspace/render.rs",
           "wire_line": 289
         }
@@ -593,7 +604,7 @@
         {
           "method": "open_dialog",
           "path": "src/io.rs",
-          "line": 237,
+          "line": 248,
           "wire_path": "src/workspace/render.rs",
           "wire_line": 290
         }
@@ -639,7 +650,7 @@
       "studio_menu": [
         {
           "path": "src/app/menus/file.rs",
-          "line": 24,
+          "line": 25,
           "menu_path": "File > Open Containing Folder > Explorer / Finder / File Manager",
           "label": "<computed label>"
         }
@@ -677,14 +688,40 @@
         241
       ],
       "mapping": "catalog command ID",
-      "studio_action": null,
-      "studio_declaration": null,
-      "studio_catalog": null,
-      "studio_menu": [],
-      "studio_handlers": [],
+      "studio_action": "FileOpenContainingFolderCmd",
+      "studio_declaration": {
+        "path": "src/actions/file.rs",
+        "line": 13
+      },
+      "studio_catalog": {
+        "action": "FileOpenContainingFolderCmd",
+        "label": "Open containing folder in Command Prompt",
+        "npp": "IDM_FILE_OPEN_CMD",
+        "context": "W",
+        "windows": [],
+        "mac": [],
+        "line": 133
+      },
+      "studio_menu": [
+        {
+          "path": "src/app/menus/file.rs",
+          "line": 26,
+          "menu_path": "File > Open Containing Folder > <computed label>",
+          "label": "<computed label>"
+        }
+      ],
+      "studio_handlers": [
+        {
+          "method": "file_open_containing_folder_cmd",
+          "path": "src/workspace/file_routes.rs",
+          "line": 140,
+          "wire_path": "src/workspace/render.rs",
+          "wire_line": 293
+        }
+      ],
       "alternate": [],
-      "status": "missing",
-      "note": "No mapped static main-menu/catalog action found; this does not prove the behavior is absent from every other UI."
+      "status": "routed",
+      "note": "Connected production route; full oracle behavior and native visuals are unverified by this static audit."
     },
     {
       "index": 5,
@@ -706,14 +743,40 @@
         248
       ],
       "mapping": "catalog command ID",
-      "studio_action": null,
-      "studio_declaration": null,
-      "studio_catalog": null,
-      "studio_menu": [],
-      "studio_handlers": [],
+      "studio_action": "FileOpenContainingFolderPowerShell",
+      "studio_declaration": {
+        "path": "src/actions/file.rs",
+        "line": 14
+      },
+      "studio_catalog": {
+        "action": "FileOpenContainingFolderPowerShell",
+        "label": "Open containing folder in PowerShell",
+        "npp": "IDM_FILE_OPEN_POWERSHELL",
+        "context": "W",
+        "windows": [],
+        "mac": [],
+        "line": 134
+      },
+      "studio_menu": [
+        {
+          "path": "src/app/menus/file.rs",
+          "line": 27,
+          "menu_path": "File > Open Containing Folder > PowerShell",
+          "label": "PowerShell"
+        }
+      ],
+      "studio_handlers": [
+        {
+          "method": "file_open_containing_folder_powershell",
+          "path": "src/workspace/file_routes.rs",
+          "line": 143,
+          "wire_path": "src/workspace/render.rs",
+          "wire_line": 294
+        }
+      ],
       "alternate": [],
-      "status": "missing",
-      "note": "No mapped static main-menu/catalog action found; this does not prove the behavior is absent from every other UI."
+      "status": "routed",
+      "note": "Connected production route; full oracle behavior and native visuals are unverified by this static audit."
     },
     {
       "index": 6,
@@ -729,14 +792,40 @@
         273
       ],
       "mapping": "catalog command ID",
-      "studio_action": null,
-      "studio_declaration": null,
-      "studio_catalog": null,
-      "studio_menu": [],
-      "studio_handlers": [],
+      "studio_action": "FileContainingFolderAsWorkspace",
+      "studio_declaration": {
+        "path": "src/actions/file.rs",
+        "line": 15
+      },
+      "studio_catalog": {
+        "action": "FileContainingFolderAsWorkspace",
+        "label": "Containing Folder as Workspace",
+        "npp": "IDM_FILE_CONTAININGFOLDERASWORKSPACE",
+        "context": "W",
+        "windows": [],
+        "mac": [],
+        "line": 135
+      },
+      "studio_menu": [
+        {
+          "path": "src/app/menus/file.rs",
+          "line": 29,
+          "menu_path": "File > Open Containing Folder > Folder as Workspace",
+          "label": "Folder as Workspace"
+        }
+      ],
+      "studio_handlers": [
+        {
+          "method": "file_containing_folder_as_workspace",
+          "path": "src/workspace/file_routes.rs",
+          "line": 146,
+          "wire_path": "src/workspace/render.rs",
+          "wire_line": 295
+        }
+      ],
       "alternate": [],
-      "status": "missing",
-      "note": "No mapped static main-menu/catalog action found; this does not prove the behavior is absent from every other UI."
+      "status": "routed",
+      "note": "Connected production route; full oracle behavior and native visuals are unverified by this static audit."
     },
     {
       "index": 7,
@@ -761,7 +850,7 @@
       "studio_action": "FileOpenDefaultViewer",
       "studio_declaration": {
         "path": "src/actions/file.rs",
-        "line": 13
+        "line": 16
       },
       "studio_catalog": {
         "action": "FileOpenDefaultViewer",
@@ -770,12 +859,12 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 133
+        "line": 136
       },
       "studio_menu": [
         {
           "path": "src/app/menus/file.rs",
-          "line": 26,
+          "line": 32,
           "menu_path": "File > Open in Default Viewer",
           "label": "Open in &Default Viewer"
         }
@@ -786,7 +875,7 @@
           "path": "src/workspace/file_tab_actions.rs",
           "line": 152,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 293
+          "wire_line": 298
         }
       ],
       "alternate": [],
@@ -816,7 +905,7 @@
       "studio_action": "FileOpenFolderAsWorkspace",
       "studio_declaration": {
         "path": "src/actions/file.rs",
-        "line": 14
+        "line": 17
       },
       "studio_catalog": {
         "action": "FileOpenFolderAsWorkspace",
@@ -825,12 +914,12 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 135
+        "line": 138
       },
       "studio_menu": [
         {
           "path": "src/app/menus/file.rs",
-          "line": 27,
+          "line": 33,
           "menu_path": "File > Open Folder as Workspace…",
           "label": "Open Folder as Workspace…"
         }
@@ -839,7 +928,7 @@
         {
           "method": "open_folder_as_workspace",
           "path": "src/io.rs",
-          "line": 269,
+          "line": 280,
           "wire_path": "src/workspace/render.rs",
           "wire_line": 291
         }
@@ -872,7 +961,7 @@
       "studio_action": "FileReloadFromDisk",
       "studio_declaration": {
         "path": "src/actions/file.rs",
-        "line": 15
+        "line": 18
       },
       "studio_catalog": {
         "action": "FileReloadFromDisk",
@@ -885,12 +974,12 @@
         "mac": [
           "cmd-r"
         ],
-        "line": 134
+        "line": 137
       },
       "studio_menu": [
         {
           "path": "src/app/menus/file.rs",
-          "line": 28,
+          "line": 34,
           "menu_path": "File > Reload from Disk",
           "label": "Re&load from Disk"
         }
@@ -901,7 +990,7 @@
           "path": "src/workspace/file_tab_actions.rs",
           "line": 168,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 294
+          "wire_line": 299
         }
       ],
       "alternate": [],
@@ -932,7 +1021,7 @@
       "studio_action": "FileSave",
       "studio_declaration": {
         "path": "src/actions/file.rs",
-        "line": 16
+        "line": 19
       },
       "studio_catalog": {
         "action": "FileSave",
@@ -945,12 +1034,12 @@
         "mac": [
           "cmd-s"
         ],
-        "line": 137
+        "line": 140
       },
       "studio_menu": [
         {
           "path": "src/app/menus/file.rs",
-          "line": 58,
+          "line": 64,
           "menu_path": "File > Save",
           "label": "Save"
         }
@@ -959,9 +1048,9 @@
         {
           "method": "save_active",
           "path": "src/io.rs",
-          "line": 452,
+          "line": 429,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 296
+          "wire_line": 301
         }
       ],
       "alternate": [],
@@ -991,7 +1080,7 @@
       "studio_action": "FileSaveAs",
       "studio_declaration": {
         "path": "src/actions/file.rs",
-        "line": 17
+        "line": 20
       },
       "studio_catalog": {
         "action": "FileSaveAs",
@@ -1004,12 +1093,12 @@
         "mac": [
           "cmd-shift-s"
         ],
-        "line": 138
+        "line": 141
       },
       "studio_menu": [
         {
           "path": "src/app/menus/file.rs",
-          "line": 59,
+          "line": 65,
           "menu_path": "File > Save As…",
           "label": "Save As…"
         }
@@ -1018,9 +1107,9 @@
         {
           "method": "save_active_as",
           "path": "src/io.rs",
-          "line": 483,
+          "line": 460,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 297
+          "wire_line": 302
         }
       ],
       "alternate": [],
@@ -1047,14 +1136,40 @@
         453
       ],
       "mapping": "catalog command ID",
-      "studio_action": null,
-      "studio_declaration": null,
-      "studio_catalog": null,
-      "studio_menu": [],
-      "studio_handlers": [],
+      "studio_action": "FileSaveCopyAs",
+      "studio_declaration": {
+        "path": "src/actions/file.rs",
+        "line": 21
+      },
+      "studio_catalog": {
+        "action": "FileSaveCopyAs",
+        "label": "Save a Copy As",
+        "npp": "IDM_FILE_SAVECOPYAS",
+        "context": "W",
+        "windows": [],
+        "mac": [],
+        "line": 142
+      },
+      "studio_menu": [
+        {
+          "path": "src/app/menus/file.rs",
+          "line": 66,
+          "menu_path": "File > Save a Copy As…",
+          "label": "Save a Cop&y As…"
+        }
+      ],
+      "studio_handlers": [
+        {
+          "method": "save_copy_as",
+          "path": "src/io/save_copy.rs",
+          "line": 93,
+          "wire_path": "src/workspace/render.rs",
+          "wire_line": 303
+        }
+      ],
       "alternate": [],
-      "status": "missing",
-      "note": "No mapped static main-menu/catalog action found; this does not prove the behavior is absent from every other UI."
+      "status": "routed",
+      "note": "Connected production route; full oracle behavior and native visuals are unverified by this static audit."
     },
     {
       "index": 13,
@@ -1080,7 +1195,7 @@
       "studio_action": "FileSaveAll",
       "studio_declaration": {
         "path": "src/actions/file.rs",
-        "line": 18
+        "line": 22
       },
       "studio_catalog": {
         "action": "FileSaveAll",
@@ -1093,12 +1208,12 @@
         "mac": [
           "cmd-alt-s"
         ],
-        "line": 140
+        "line": 144
       },
       "studio_menu": [
         {
           "path": "src/app/menus/file.rs",
-          "line": 61,
+          "line": 68,
           "menu_path": "File > Save All",
           "label": "Save All"
         }
@@ -1107,9 +1222,9 @@
         {
           "method": "save_all",
           "path": "src/io.rs",
-          "line": 555,
+          "line": 532,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 298
+          "wire_line": 304
         }
       ],
       "alternate": [],
@@ -1136,20 +1251,46 @@
         404
       ],
       "mapping": "catalog command ID",
-      "studio_action": null,
-      "studio_declaration": null,
-      "studio_catalog": null,
-      "studio_menu": [],
-      "studio_handlers": [],
+      "studio_action": "FileRename",
+      "studio_declaration": {
+        "path": "src/actions/file.rs",
+        "line": 23
+      },
+      "studio_catalog": {
+        "action": "FileRename",
+        "label": "Rename",
+        "npp": "IDM_FILE_RENAME",
+        "context": "W",
+        "windows": [],
+        "mac": [],
+        "line": 145
+      },
+      "studio_menu": [
+        {
+          "path": "src/app/menus/file.rs",
+          "line": 69,
+          "menu_path": "File > Rename…",
+          "label": "&Rename…"
+        }
+      ],
+      "studio_handlers": [
+        {
+          "method": "file_rename",
+          "path": "src/workspace/file_routes.rs",
+          "line": 156,
+          "wire_path": "src/workspace/render.rs",
+          "wire_line": 296
+        }
+      ],
       "alternate": [
         {
           "path": "src/workspace/mod.rs",
-          "line": 1142,
+          "line": 1168,
           "method": "open_tab_rename"
         }
       ],
-      "status": "alternate-only",
-      "note": "Tab popup Rename calls open_tab_rename; the static File menu, action and catalog route are missing."
+      "status": "routed",
+      "note": "Connected production route; full oracle behavior and native visuals are unverified by this static audit."
     },
     {
       "index": 15,
@@ -1175,7 +1316,7 @@
       "studio_action": "FileCloseTab",
       "studio_declaration": {
         "path": "src/actions/file.rs",
-        "line": 19
+        "line": 25
       },
       "studio_catalog": {
         "action": "FileCloseTab",
@@ -1188,12 +1329,12 @@
         "mac": [
           "cmd-w"
         ],
-        "line": 141
+        "line": 146
       },
       "studio_menu": [
         {
           "path": "src/app/menus/file.rs",
-          "line": 63,
+          "line": 71,
           "menu_path": "File > Close Tab",
           "label": "Close Tab"
         }
@@ -1204,7 +1345,7 @@
           "path": "src/workspace/tabs.rs",
           "line": 291,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 299
+          "wire_line": 305
         }
       ],
       "alternate": [],
@@ -1235,7 +1376,7 @@
       "studio_action": "FileCloseAllTabs",
       "studio_declaration": {
         "path": "src/actions/file.rs",
-        "line": 20
+        "line": 26
       },
       "studio_catalog": {
         "action": "FileCloseAllTabs",
@@ -1248,12 +1389,12 @@
         "mac": [
           "cmd-shift-w"
         ],
-        "line": 142
+        "line": 147
       },
       "studio_menu": [
         {
           "path": "src/app/menus/file.rs",
-          "line": 64,
+          "line": 72,
           "menu_path": "File > Close All Tabs",
           "label": "Close All Tabs"
         }
@@ -1264,7 +1405,7 @@
           "path": "src/workspace/tabs.rs",
           "line": 306,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 300
+          "wire_line": 306
         }
       ],
       "alternate": [],
@@ -1295,7 +1436,7 @@
       "studio_action": "FileCloseAllButActive",
       "studio_declaration": {
         "path": "src/actions/file.rs",
-        "line": 21
+        "line": 27
       },
       "studio_catalog": {
         "action": "FileCloseAllButActive",
@@ -1304,12 +1445,12 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 143
+        "line": 148
       },
       "studio_menu": [
         {
           "path": "src/app/menus/file.rs",
-          "line": 68,
+          "line": 76,
           "menu_path": "File > Close Multiple Documents > Close All but Active Document",
           "label": "Close All but Active Document"
         }
@@ -1320,7 +1461,7 @@
           "path": "src/workspace/file_tab_actions.rs",
           "line": 180,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 301
+          "wire_line": 307
         }
       ],
       "alternate": [],
@@ -1381,7 +1522,7 @@
       "studio_action": "FileCloseAllToLeft",
       "studio_declaration": {
         "path": "src/actions/file.rs",
-        "line": 22
+        "line": 28
       },
       "studio_catalog": {
         "action": "FileCloseAllToLeft",
@@ -1390,12 +1531,12 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 144
+        "line": 149
       },
       "studio_menu": [
         {
           "path": "src/app/menus/file.rs",
-          "line": 69,
+          "line": 77,
           "menu_path": "File > Close Multiple Documents > Close All to the Left",
           "label": "Close All to the Left"
         }
@@ -1406,7 +1547,7 @@
           "path": "src/workspace/file_tab_actions.rs",
           "line": 193,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 302
+          "wire_line": 308
         }
       ],
       "alternate": [],
@@ -1437,7 +1578,7 @@
       "studio_action": "FileCloseAllToRight",
       "studio_declaration": {
         "path": "src/actions/file.rs",
-        "line": 23
+        "line": 29
       },
       "studio_catalog": {
         "action": "FileCloseAllToRight",
@@ -1446,12 +1587,12 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 145
+        "line": 150
       },
       "studio_menu": [
         {
           "path": "src/app/menus/file.rs",
-          "line": 70,
+          "line": 78,
           "menu_path": "File > Close Multiple Documents > Close All to the Right",
           "label": "Close All to the Right"
         }
@@ -1462,7 +1603,7 @@
           "path": "src/workspace/file_tab_actions.rs",
           "line": 206,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 303
+          "wire_line": 309
         }
       ],
       "alternate": [],
@@ -1493,7 +1634,7 @@
       "studio_action": "FileCloseAllUnchanged",
       "studio_declaration": {
         "path": "src/actions/file.rs",
-        "line": 24
+        "line": 30
       },
       "studio_catalog": {
         "action": "FileCloseAllUnchanged",
@@ -1502,12 +1643,12 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 146
+        "line": 151
       },
       "studio_menu": [
         {
           "path": "src/app/menus/file.rs",
-          "line": 71,
+          "line": 79,
           "menu_path": "File > Close Multiple Documents > Close All Unchanged",
           "label": "Close All Unchanged"
         }
@@ -1518,7 +1659,7 @@
           "path": "src/workspace/file_tab_actions.rs",
           "line": 219,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 304
+          "wire_line": 310
         }
       ],
       "alternate": [],
@@ -1545,11 +1686,37 @@
         399
       ],
       "mapping": "catalog command ID",
-      "studio_action": null,
-      "studio_declaration": null,
-      "studio_catalog": null,
-      "studio_menu": [],
-      "studio_handlers": [],
+      "studio_action": "FileMoveToTrash",
+      "studio_declaration": {
+        "path": "src/actions/file.rs",
+        "line": 24
+      },
+      "studio_catalog": {
+        "action": "FileMoveToTrash",
+        "label": "Move to Recycle Bin",
+        "npp": "IDM_FILE_DELETE",
+        "context": "W",
+        "windows": [],
+        "mac": [],
+        "line": 152
+      },
+      "studio_menu": [
+        {
+          "path": "src/app/menus/file.rs",
+          "line": 82,
+          "menu_path": "File > <computed label>",
+          "label": "<computed label>"
+        }
+      ],
+      "studio_handlers": [
+        {
+          "method": "file_move_to_trash",
+          "path": "src/workspace/file_routes.rs",
+          "line": 152,
+          "wire_path": "src/workspace/render.rs",
+          "wire_line": 297
+        }
+      ],
       "alternate": [
         {
           "path": "src/workspace/tabs.rs",
@@ -1557,8 +1724,8 @@
           "method": "move_tab_to_trash"
         }
       ],
-      "status": "alternate-only",
-      "note": "Tab popup Move to Recycle Bin calls move_tab_to_trash; the static File menu, action and catalog route are missing."
+      "status": "routed",
+      "note": "Connected production route; full oracle behavior and native visuals are unverified by this static audit."
     },
     {
       "index": 23,
@@ -1723,7 +1890,7 @@
         },
         {
           "path": "src/app/menus/file.rs",
-          "line": 76,
+          "line": 85,
           "menu_path": "File > Exit",
           "label": "Exit"
         }
@@ -1784,12 +1951,12 @@
         "mac": [
           "cmd-z"
         ],
-        "line": 150
+        "line": 156
       },
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 21,
+          "line": 25,
           "menu_path": "Edit > Undo",
           "label": "Undo"
         }
@@ -1798,7 +1965,7 @@
         {
           "method": "undo",
           "path": "src/workspace/edits.rs",
-          "line": 430,
+          "line": 431,
           "wire_path": "src/workspace/render.rs",
           "wire_line": 179
         }
@@ -1850,12 +2017,12 @@
         "mac": [
           "cmd-shift-z"
         ],
-        "line": 151
+        "line": 157
       },
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 22,
+          "line": 26,
           "menu_path": "Edit > Redo",
           "label": "Redo"
         }
@@ -1864,7 +2031,7 @@
         {
           "method": "redo",
           "path": "src/workspace/edits.rs",
-          "line": 464,
+          "line": 465,
           "wire_path": "src/workspace/render.rs",
           "wire_line": 180
         }
@@ -1916,12 +2083,12 @@
         "mac": [
           "cmd-x"
         ],
-        "line": 152
+        "line": 158
       },
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 24,
+          "line": 28,
           "menu_path": "Edit > Cut",
           "label": "Cut"
         }
@@ -1982,12 +2149,12 @@
         "mac": [
           "cmd-c"
         ],
-        "line": 153
+        "line": 159
       },
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 25,
+          "line": 29,
           "menu_path": "Edit > Copy",
           "label": "Copy"
         }
@@ -2048,12 +2215,12 @@
         "mac": [
           "cmd-v"
         ],
-        "line": 154
+        "line": 160
       },
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 26,
+          "line": 30,
           "menu_path": "Edit > Paste",
           "label": "Paste"
         }
@@ -2062,7 +2229,7 @@
         {
           "method": "paste",
           "path": "src/workspace/edits.rs",
-          "line": 331,
+          "line": 332,
           "wire_path": "src/workspace/render.rs",
           "wire_line": 178
         }
@@ -2108,12 +2275,12 @@
         "mac": [
           "delete"
         ],
-        "line": 157
+        "line": 163
       },
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 27,
+          "line": 31,
           "menu_path": "Edit > Delete",
           "label": "Delete"
         }
@@ -2122,7 +2289,7 @@
         {
           "method": "delete",
           "path": "src/workspace/edits.rs",
-          "line": 591,
+          "line": 592,
           "wire_path": "src/workspace/render.rs",
           "wire_line": 248
         }
@@ -2168,12 +2335,12 @@
         "mac": [
           "cmd-a"
         ],
-        "line": 155
+        "line": 161
       },
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 29,
+          "line": 33,
           "menu_path": "Edit > Select All",
           "label": "Select All"
         }
@@ -2215,7 +2382,7 @@
       "studio_action": "EditBeginEndSelect",
       "studio_declaration": {
         "path": "src/actions/edit_ops.rs",
-        "line": 112
+        "line": 118
       },
       "studio_catalog": {
         "action": "EditBeginEndSelect",
@@ -2228,12 +2395,12 @@
         "mac": [
           "cmd-shift-b"
         ],
-        "line": 206
+        "line": 212
       },
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 30,
+          "line": 34,
           "menu_path": "Edit > Begin/End Select",
           "label": "Begin/End Select"
         }
@@ -2244,7 +2411,7 @@
           "path": "src/edit_ops/begin_end_select.rs",
           "line": 28,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 487
+          "wire_line": 504
         }
       ],
       "alternate": [],
@@ -2275,7 +2442,7 @@
       "studio_action": "EditBeginEndSelectColumnMode",
       "studio_declaration": {
         "path": "src/actions/edit_ops.rs",
-        "line": 113
+        "line": 119
       },
       "studio_catalog": {
         "action": "EditBeginEndSelectColumnMode",
@@ -2286,12 +2453,12 @@
           "alt-shift-b"
         ],
         "mac": [],
-        "line": 207
+        "line": 213
       },
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 31,
+          "line": 35,
           "menu_path": "Edit > Begin/End Select in Column Mode",
           "label": "Begin/End Select in Column Mode"
         }
@@ -2302,7 +2469,7 @@
           "path": "src/edit_ops/begin_end_select.rs",
           "line": 37,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 488
+          "wire_line": 505
         }
       ],
       "alternate": [],
@@ -2342,12 +2509,12 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 223
+        "line": 229
       },
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 67,
+          "line": 71,
           "menu_path": "Edit > Insert > Date Time (short)",
           "label": "Date Time (short)"
         }
@@ -2358,7 +2525,7 @@
           "path": "src/edit_ops/insert.rs",
           "line": 26,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 443
+          "wire_line": 454
         }
       ],
       "alternate": [],
@@ -2398,12 +2565,12 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 222
+        "line": 228
       },
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 68,
+          "line": 72,
           "menu_path": "Edit > Insert > Date Time (long)",
           "label": "Date Time (long)"
         }
@@ -2414,7 +2581,7 @@
           "path": "src/edit_ops/insert.rs",
           "line": 45,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 444
+          "wire_line": 455
         }
       ],
       "alternate": [],
@@ -2454,12 +2621,12 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 221
+        "line": 227
       },
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 69,
+          "line": 73,
           "menu_path": "Edit > Insert > Date Time (customized)",
           "label": "Date Time (customized)"
         }
@@ -2470,7 +2637,7 @@
           "path": "src/edit_ops/insert.rs",
           "line": 61,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 445
+          "wire_line": 456
         }
       ],
       "alternate": [],
@@ -2510,12 +2677,12 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 213
+        "line": 219
       },
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 78,
+          "line": 82,
           "menu_path": "Edit > Copy to Clipboard > Current Full File path to Clipboard",
           "label": "Current Full File path to Clipboard"
         }
@@ -2526,7 +2693,7 @@
           "path": "src/edit_ops/clipboard_ops.rs",
           "line": 20,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 446
+          "wire_line": 457
         }
       ],
       "alternate": [],
@@ -2566,12 +2733,12 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 212
+        "line": 218
       },
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 79,
+          "line": 83,
           "menu_path": "Edit > Copy to Clipboard > Current Filename to Clipboard",
           "label": "Current Filename to Clipboard"
         }
@@ -2582,7 +2749,7 @@
           "path": "src/edit_ops/clipboard_ops.rs",
           "line": 36,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 447
+          "wire_line": 458
         }
       ],
       "alternate": [],
@@ -2622,12 +2789,12 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 211
+        "line": 217
       },
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 80,
+          "line": 84,
           "menu_path": "Edit > Copy to Clipboard > Current Dir. Path to Clipboard",
           "label": "Current Dir. Path to Clipboard"
         }
@@ -2638,7 +2805,7 @@
           "path": "src/edit_ops/clipboard_ops.rs",
           "line": 56,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 448
+          "wire_line": 459
         }
       ],
       "alternate": [],
@@ -2678,12 +2845,12 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 215
+        "line": 221
       },
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 83,
+          "line": 87,
           "menu_path": "Edit > Copy to Clipboard > Copy All Filenames",
           "label": "Copy All Filenames"
         }
@@ -2694,7 +2861,7 @@
           "path": "src/edit_ops/clipboard_all.rs",
           "line": 44,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 449
+          "wire_line": 460
         }
       ],
       "alternate": [],
@@ -2734,12 +2901,12 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 216
+        "line": 222
       },
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 84,
+          "line": 88,
           "menu_path": "Edit > Copy to Clipboard > Copy All File Paths",
           "label": "Copy All File Paths"
         }
@@ -2750,7 +2917,7 @@
           "path": "src/edit_ops/clipboard_all.rs",
           "line": 53,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 450
+          "wire_line": 461
         }
       ],
       "alternate": [],
@@ -2790,12 +2957,12 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 174
+        "line": 180
       },
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 93,
+          "line": 97,
           "menu_path": "Edit > Indent > Increase Line Indent",
           "label": "Increase Line Indent"
         }
@@ -2846,12 +3013,12 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 175
+        "line": 181
       },
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 94,
+          "line": 98,
           "menu_path": "Edit > Indent > Decrease Line Indent",
           "label": "Decrease Line Indent"
         }
@@ -2906,12 +3073,12 @@
         "mac": [
           "cmd-shift-u"
         ],
-        "line": 188
+        "line": 194
       },
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 103,
+          "line": 107,
           "menu_path": "Edit > Convert Case to > UPPERCASE",
           "label": "UPPERCASE"
         }
@@ -2920,9 +3087,9 @@
         {
           "method": "uppercase_selection",
           "path": "src/workspace/edits.rs",
-          "line": 3555,
+          "line": 3556,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 356
+          "wire_line": 362
         }
       ],
       "alternate": [],
@@ -2966,12 +3133,12 @@
         "mac": [
           "cmd-u"
         ],
-        "line": 189
+        "line": 195
       },
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 104,
+          "line": 108,
           "menu_path": "Edit > Convert Case to > lowercase",
           "label": "lowercase"
         }
@@ -2980,9 +3147,9 @@
         {
           "method": "lowercase_selection",
           "path": "src/workspace/edits.rs",
-          "line": 3568,
+          "line": 3569,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 357
+          "wire_line": 363
         }
       ],
       "alternate": [],
@@ -3024,12 +3191,12 @@
           "alt-u"
         ],
         "mac": [],
-        "line": 192
+        "line": 198
       },
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 106,
+          "line": 110,
           "menu_path": "Edit > Convert Case to > Proper Case",
           "label": "Proper Case"
         }
@@ -3040,7 +3207,7 @@
           "path": "src/edit_ops/case_ops.rs",
           "line": 44,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 452
+          "wire_line": 463
         }
       ],
       "alternate": [],
@@ -3082,12 +3249,12 @@
           "alt-shift-u"
         ],
         "mac": [],
-        "line": 193
+        "line": 199
       },
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 107,
+          "line": 111,
           "menu_path": "Edit > Convert Case to > Proper Case (blend)",
           "label": "Proper Case (blend)"
         }
@@ -3098,7 +3265,7 @@
           "path": "src/edit_ops/case_ops.rs",
           "line": 53,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 453
+          "wire_line": 464
         }
       ],
       "alternate": [],
@@ -3142,12 +3309,12 @@
         "mac": [
           "cmd-alt-u"
         ],
-        "line": 194
+        "line": 200
       },
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 108,
+          "line": 112,
           "menu_path": "Edit > Convert Case to > Sentence case",
           "label": "Sentence case"
         }
@@ -3158,7 +3325,7 @@
           "path": "src/edit_ops/case_ops.rs",
           "line": 62,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 454
+          "wire_line": 465
         }
       ],
       "alternate": [],
@@ -3202,12 +3369,12 @@
         "mac": [
           "cmd-alt-shift-u"
         ],
-        "line": 195
+        "line": 201
       },
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 109,
+          "line": 113,
           "menu_path": "Edit > Convert Case to > Sentence case (blend)",
           "label": "Sentence case (blend)"
         }
@@ -3218,7 +3385,7 @@
           "path": "src/edit_ops/case_ops.rs",
           "line": 71,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 455
+          "wire_line": 466
         }
       ],
       "alternate": [],
@@ -3258,12 +3425,12 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 224
+        "line": 230
       },
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 111,
+          "line": 115,
           "menu_path": "Edit > Convert Case to > iNVERT cASE",
           "label": "iNVERT cASE"
         }
@@ -3274,7 +3441,7 @@
           "path": "src/edit_ops/case_ops.rs",
           "line": 80,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 456
+          "wire_line": 467
         }
       ],
       "alternate": [],
@@ -3314,12 +3481,12 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 234
+        "line": 240
       },
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 112,
+          "line": 116,
           "menu_path": "Edit > Convert Case to > rANdOm cASe",
           "label": "rANdOm cASe"
         }
@@ -3330,7 +3497,7 @@
           "path": "src/edit_ops/case_ops.rs",
           "line": 89,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 457
+          "wire_line": 468
         }
       ],
       "alternate": [],
@@ -3370,12 +3537,12 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 176
+        "line": 182
       },
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 121,
+          "line": 125,
           "menu_path": "Edit > Line Operations > Duplicate Current Line",
           "label": "Duplicate Current Line"
         }
@@ -3426,12 +3593,12 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 237
+        "line": 243
       },
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 122,
+          "line": 126,
           "menu_path": "Edit > Line Operations > Remove Duplicate Lines",
           "label": "Remove Duplicate Lines"
         }
@@ -3442,7 +3609,7 @@
           "path": "src/edit_ops/line_ops.rs",
           "line": 592,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 458
+          "wire_line": 469
         }
       ],
       "alternate": [],
@@ -3482,12 +3649,12 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 236
+        "line": 242
       },
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 123,
+          "line": 127,
           "menu_path": "Edit > Line Operations > Remove Consecutive Duplicate Lines",
           "label": "Remove Consecutive Duplicate Lines"
         }
@@ -3498,7 +3665,7 @@
           "path": "src/edit_ops/line_ops.rs",
           "line": 610,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 459
+          "wire_line": 470
         }
       ],
       "alternate": [],
@@ -3542,12 +3709,12 @@
         "mac": [
           "ctrl-i"
         ],
-        "line": 198
+        "line": 204
       },
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 127,
+          "line": 131,
           "menu_path": "Edit > Line Operations > Split Lines",
           "label": "Split Lines"
         }
@@ -3558,7 +3725,7 @@
           "path": "src/edit_ops/line_ops.rs",
           "line": 629,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 460
+          "wire_line": 471
         }
       ],
       "alternate": [],
@@ -3602,12 +3769,12 @@
         "mac": [
           "cmd-j"
         ],
-        "line": 199
+        "line": 205
       },
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 128,
+          "line": 132,
           "menu_path": "Edit > Line Operations > Join Lines",
           "label": "Join Lines"
         }
@@ -3618,7 +3785,7 @@
           "path": "src/edit_ops/line_ops.rs",
           "line": 646,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 461
+          "wire_line": 472
         }
       ],
       "alternate": [],
@@ -3662,12 +3829,12 @@
         "mac": [
           "alt-shift-up"
         ],
-        "line": 185
+        "line": 191
       },
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 129,
+          "line": 133,
           "menu_path": "Edit > Line Operations > Move Up Current Line",
           "label": "Move Up Current Line"
         }
@@ -3676,9 +3843,9 @@
         {
           "method": "move_line_up",
           "path": "src/workspace/edits.rs",
-          "line": 3403,
+          "line": 3404,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 353
+          "wire_line": 359
         }
       ],
       "alternate": [],
@@ -3722,12 +3889,12 @@
         "mac": [
           "alt-shift-down"
         ],
-        "line": 186
+        "line": 192
       },
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 130,
+          "line": 134,
           "menu_path": "Edit > Line Operations > Move Down Current Line",
           "label": "Move Down Current Line"
         }
@@ -3736,9 +3903,9 @@
         {
           "method": "move_line_down",
           "path": "src/workspace/edits.rs",
-          "line": 3416,
+          "line": 3417,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 354
+          "wire_line": 360
         }
       ],
       "alternate": [],
@@ -3778,12 +3945,12 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 238
+        "line": 244
       },
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 131,
+          "line": 135,
           "menu_path": "Edit > Line Operations > Remove Empty Lines",
           "label": "Remove Empty Lines"
         }
@@ -3794,7 +3961,7 @@
           "path": "src/edit_ops/line_ops.rs",
           "line": 670,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 462
+          "wire_line": 473
         }
       ],
       "alternate": [],
@@ -3834,12 +4001,12 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 239
+        "line": 245
       },
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 132,
+          "line": 136,
           "menu_path": "Edit > Line Operations > Remove Empty Lines (Containing Blank chars)",
           "label": "Remove Empty Lines (Containing Blank chars)"
         }
@@ -3850,7 +4017,7 @@
           "path": "src/edit_ops/line_ops.rs",
           "line": 682,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 463
+          "wire_line": 474
         }
       ],
       "alternate": [],
@@ -3894,12 +4061,18 @@
         "mac": [
           "cmd-alt-enter"
         ],
-        "line": 204
+        "line": 210
       },
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 230,
+          "line": 140,
+          "menu_path": "Edit > Line Operations > Insert Blank Line Above Current",
+          "label": "Insert Blank Line Above Current"
+        },
+        {
+          "path": "src/app/menus/edit.rs",
+          "line": 224,
           "menu_path": "Edit > Blank Operations > Insert Blank Line Above",
           "label": "Insert Blank Line Above"
         }
@@ -3908,9 +4081,9 @@
         {
           "method": "insert_blank_line_above",
           "path": "src/workspace/edits.rs",
-          "line": 3966,
+          "line": 3967,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 371
+          "wire_line": 377
         }
       ],
       "alternate": [],
@@ -3954,12 +4127,18 @@
         "mac": [
           "cmd-shift-enter"
         ],
-        "line": 205
+        "line": 211
       },
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 231,
+          "line": 141,
+          "menu_path": "Edit > Line Operations > Insert Blank Line Below Current",
+          "label": "Insert Blank Line Below Current"
+        },
+        {
+          "path": "src/app/menus/edit.rs",
+          "line": 225,
           "menu_path": "Edit > Blank Operations > Insert Blank Line Below",
           "label": "Insert Blank Line Below"
         }
@@ -3968,9 +4147,9 @@
         {
           "method": "insert_blank_line_below",
           "path": "src/workspace/edits.rs",
-          "line": 3988,
+          "line": 3989,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 372
+          "wire_line": 378
         }
       ],
       "alternate": [],
@@ -4001,7 +4180,7 @@
       "studio_action": "EditReverseLineOrder",
       "studio_declaration": {
         "path": "src/actions/edit_ops.rs",
-        "line": 66
+        "line": 72
       },
       "studio_catalog": {
         "action": "EditReverseLineOrder",
@@ -4010,12 +4189,12 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 241
+        "line": 247
       },
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 164,
+          "line": 142,
           "menu_path": "Edit > Line Operations > Reverse Line Order",
           "label": "Reverse Line Order"
         }
@@ -4026,7 +4205,7 @@
           "path": "src/edit_ops/line_ops.rs",
           "line": 566,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 472
+          "wire_line": 489
         }
       ],
       "alternate": [],
@@ -4057,7 +4236,7 @@
       "studio_action": "EditRandomizeLineOrder",
       "studio_declaration": {
         "path": "src/actions/edit_ops.rs",
-        "line": 67
+        "line": 73
       },
       "studio_catalog": {
         "action": "EditRandomizeLineOrder",
@@ -4066,12 +4245,12 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 235
+        "line": 241
       },
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 165,
+          "line": 143,
           "menu_path": "Edit > Line Operations > Randomize Line Order",
           "label": "Randomize Line Order"
         }
@@ -4082,7 +4261,7 @@
           "path": "src/edit_ops/line_ops.rs",
           "line": 578,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 473
+          "wire_line": 490
         }
       ],
       "alternate": [],
@@ -4122,12 +4301,12 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 250
+        "line": 256
       },
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 137,
+          "line": 145,
           "menu_path": "Edit > Line Operations > Sort Lines Lexicographically Ascending",
           "label": "Sort Lines Lexicographically Ascending"
         }
@@ -4138,7 +4317,7 @@
           "path": "src/edit_ops/line_ops.rs",
           "line": 459,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 464
+          "wire_line": 475
         }
       ],
       "alternate": [],
@@ -4166,14 +4345,40 @@
         4483
       ],
       "mapping": "catalog command ID",
-      "studio_action": null,
-      "studio_declaration": null,
-      "studio_catalog": null,
-      "studio_menu": [],
-      "studio_handlers": [],
+      "studio_action": "EditSortLinesLexIgnoreCaseAsc",
+      "studio_declaration": {
+        "path": "src/actions/edit_ops.rs",
+        "line": 60
+      },
+      "studio_catalog": {
+        "action": "EditSortLinesLexIgnoreCaseAsc",
+        "label": "Sort Lines Lex. Ascending Ignoring Case",
+        "npp": "IDM_EDIT_SORTLINES_LEXICO_CASE_INSENS_ASCENDING",
+        "context": "W",
+        "windows": [],
+        "mac": [],
+        "line": 258
+      },
+      "studio_menu": [
+        {
+          "path": "src/app/menus/edit.rs",
+          "line": 146,
+          "menu_path": "Edit > Line Operations > Sort Lines Lex. Ascending Ignoring Case",
+          "label": "Sort Lines Lex. Ascending Ignoring Case"
+        }
+      ],
+      "studio_handlers": [
+        {
+          "method": "sort_lines_lex_ignore_case_asc",
+          "path": "src/edit_ops/line_sort.rs",
+          "line": 322,
+          "wire_path": "src/workspace/render.rs",
+          "wire_line": 477
+        }
+      ],
       "alternate": [],
-      "status": "missing",
-      "note": "No mapped static main-menu/catalog action found; this does not prove the behavior is absent from every other UI."
+      "status": "routed",
+      "note": "Connected production route; full oracle behavior and native visuals are unverified by this static audit."
     },
     {
       "index": 70,
@@ -4196,14 +4401,40 @@
         4600
       ],
       "mapping": "catalog command ID",
-      "studio_action": null,
-      "studio_declaration": null,
-      "studio_catalog": null,
-      "studio_menu": [],
-      "studio_handlers": [],
+      "studio_action": "EditSortLinesLocaleAsc",
+      "studio_declaration": {
+        "path": "src/actions/edit_ops.rs",
+        "line": 62
+      },
+      "studio_catalog": {
+        "action": "EditSortLinesLocaleAsc",
+        "label": "Sort Lines In Locale Order Ascending",
+        "npp": "IDM_EDIT_SORTLINES_LOCALE_ASCENDING",
+        "context": "W",
+        "windows": [],
+        "mac": [],
+        "line": 260
+      },
+      "studio_menu": [
+        {
+          "path": "src/app/menus/edit.rs",
+          "line": 147,
+          "menu_path": "Edit > Line Operations > Sort Lines In Locale Order Ascending",
+          "label": "Sort Lines In Locale Order Ascending"
+        }
+      ],
+      "studio_handlers": [
+        {
+          "method": "sort_lines_locale_asc",
+          "path": "src/edit_ops/line_sort.rs",
+          "line": 324,
+          "wire_path": "src/workspace/render.rs",
+          "wire_line": 479
+        }
+      ],
       "alternate": [],
-      "status": "missing",
-      "note": "No mapped static main-menu/catalog action found; this does not prove the behavior is absent from every other UI."
+      "status": "routed",
+      "note": "Connected production route; full oracle behavior and native visuals are unverified by this static audit."
     },
     {
       "index": 71,
@@ -4229,7 +4460,7 @@
       "studio_action": "EditSortLinesIntAsc",
       "studio_declaration": {
         "path": "src/actions/edit_ops.rs",
-        "line": 60
+        "line": 66
       },
       "studio_catalog": {
         "action": "EditSortLinesIntAsc",
@@ -4238,14 +4469,14 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 248
+        "line": 254
       },
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 145,
-          "menu_path": "Edit > Line Operations > Sort Lines as Integers Ascending",
-          "label": "Sort Lines as Integers Ascending"
+          "line": 148,
+          "menu_path": "Edit > Line Operations > Sort Lines As Integers Ascending",
+          "label": "Sort Lines As Integers Ascending"
         }
       ],
       "studio_handlers": [
@@ -4254,7 +4485,7 @@
           "path": "src/edit_ops/line_ops.rs",
           "line": 483,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 466
+          "wire_line": 483
         }
       ],
       "alternate": [],
@@ -4285,7 +4516,7 @@
       "studio_action": "EditSortLinesDecCommaAsc",
       "studio_declaration": {
         "path": "src/actions/edit_ops.rs",
-        "line": 62
+        "line": 68
       },
       "studio_catalog": {
         "action": "EditSortLinesDecCommaAsc",
@@ -4294,14 +4525,14 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 244
+        "line": 250
       },
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 147,
-          "menu_path": "Edit > Line Operations > Sort Lines as Decimals (Comma) Ascending",
-          "label": "Sort Lines as Decimals (Comma) Ascending"
+          "line": 149,
+          "menu_path": "Edit > Line Operations > Sort Lines As Decimals (Comma) Ascending",
+          "label": "Sort Lines As Decimals (Comma) Ascending"
         }
       ],
       "studio_handlers": [
@@ -4310,7 +4541,7 @@
           "path": "src/edit_ops/line_ops.rs",
           "line": 507,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 468
+          "wire_line": 485
         }
       ],
       "alternate": [],
@@ -4341,7 +4572,7 @@
       "studio_action": "EditSortLinesDecDotAsc",
       "studio_declaration": {
         "path": "src/actions/edit_ops.rs",
-        "line": 64
+        "line": 70
       },
       "studio_catalog": {
         "action": "EditSortLinesDecDotAsc",
@@ -4350,14 +4581,14 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 246
+        "line": 252
       },
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 155,
-          "menu_path": "Edit > Line Operations > Sort Lines as Decimals (Dot) Ascending",
-          "label": "Sort Lines as Decimals (Dot) Ascending"
+          "line": 150,
+          "menu_path": "Edit > Line Operations > Sort Lines As Decimals (Dot) Ascending",
+          "label": "Sort Lines As Decimals (Dot) Ascending"
         }
       ],
       "studio_handlers": [
@@ -4366,7 +4597,7 @@
           "path": "src/edit_ops/line_ops.rs",
           "line": 531,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 470
+          "wire_line": 487
         }
       ],
       "alternate": [],
@@ -4394,14 +4625,40 @@
         4604
       ],
       "mapping": "catalog command ID",
-      "studio_action": null,
-      "studio_declaration": null,
-      "studio_catalog": null,
-      "studio_menu": [],
-      "studio_handlers": [],
+      "studio_action": "EditSortLinesLengthAsc",
+      "studio_declaration": {
+        "path": "src/actions/edit_ops.rs",
+        "line": 64
+      },
+      "studio_catalog": {
+        "action": "EditSortLinesLengthAsc",
+        "label": "Sort Lines By Length Ascending",
+        "npp": "IDM_EDIT_SORTLINES_LENGTH_ASCENDING",
+        "context": "W",
+        "windows": [],
+        "mac": [],
+        "line": 262
+      },
+      "studio_menu": [
+        {
+          "path": "src/app/menus/edit.rs",
+          "line": 151,
+          "menu_path": "Edit > Line Operations > Sort Lines By Length Ascending",
+          "label": "Sort Lines By Length Ascending"
+        }
+      ],
+      "studio_handlers": [
+        {
+          "method": "sort_lines_length_asc",
+          "path": "src/edit_ops/line_sort.rs",
+          "line": 326,
+          "wire_path": "src/workspace/render.rs",
+          "wire_line": 481
+        }
+      ],
       "alternate": [],
-      "status": "missing",
-      "note": "No mapped static main-menu/catalog action found; this does not prove the behavior is absent from every other UI."
+      "status": "routed",
+      "note": "Connected production route; full oracle behavior and native visuals are unverified by this static audit."
     },
     {
       "index": 75,
@@ -4436,12 +4693,12 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 251
+        "line": 257
       },
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 141,
+          "line": 153,
           "menu_path": "Edit > Line Operations > Sort Lines Lexicographically Descending",
           "label": "Sort Lines Lexicographically Descending"
         }
@@ -4452,7 +4709,7 @@
           "path": "src/edit_ops/line_ops.rs",
           "line": 471,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 465
+          "wire_line": 476
         }
       ],
       "alternate": [],
@@ -4480,14 +4737,40 @@
         4484
       ],
       "mapping": "catalog command ID",
-      "studio_action": null,
-      "studio_declaration": null,
-      "studio_catalog": null,
-      "studio_menu": [],
-      "studio_handlers": [],
+      "studio_action": "EditSortLinesLexIgnoreCaseDesc",
+      "studio_declaration": {
+        "path": "src/actions/edit_ops.rs",
+        "line": 61
+      },
+      "studio_catalog": {
+        "action": "EditSortLinesLexIgnoreCaseDesc",
+        "label": "Sort Lines Lex. Descending Ignoring Case",
+        "npp": "IDM_EDIT_SORTLINES_LEXICO_CASE_INSENS_DESCENDING",
+        "context": "W",
+        "windows": [],
+        "mac": [],
+        "line": 259
+      },
+      "studio_menu": [
+        {
+          "path": "src/app/menus/edit.rs",
+          "line": 154,
+          "menu_path": "Edit > Line Operations > Sort Lines Lex. Descending Ignoring Case",
+          "label": "Sort Lines Lex. Descending Ignoring Case"
+        }
+      ],
+      "studio_handlers": [
+        {
+          "method": "sort_lines_lex_ignore_case_desc",
+          "path": "src/edit_ops/line_sort.rs",
+          "line": 323,
+          "wire_path": "src/workspace/render.rs",
+          "wire_line": 478
+        }
+      ],
       "alternate": [],
-      "status": "missing",
-      "note": "No mapped static main-menu/catalog action found; this does not prove the behavior is absent from every other UI."
+      "status": "routed",
+      "note": "Connected production route; full oracle behavior and native visuals are unverified by this static audit."
     },
     {
       "index": 77,
@@ -4510,14 +4793,40 @@
         4601
       ],
       "mapping": "catalog command ID",
-      "studio_action": null,
-      "studio_declaration": null,
-      "studio_catalog": null,
-      "studio_menu": [],
-      "studio_handlers": [],
+      "studio_action": "EditSortLinesLocaleDesc",
+      "studio_declaration": {
+        "path": "src/actions/edit_ops.rs",
+        "line": 63
+      },
+      "studio_catalog": {
+        "action": "EditSortLinesLocaleDesc",
+        "label": "Sort Lines In Locale Order Descending",
+        "npp": "IDM_EDIT_SORTLINES_LOCALE_DESCENDING",
+        "context": "W",
+        "windows": [],
+        "mac": [],
+        "line": 261
+      },
+      "studio_menu": [
+        {
+          "path": "src/app/menus/edit.rs",
+          "line": 155,
+          "menu_path": "Edit > Line Operations > Sort Lines In Locale Order Descending",
+          "label": "Sort Lines In Locale Order Descending"
+        }
+      ],
+      "studio_handlers": [
+        {
+          "method": "sort_lines_locale_desc",
+          "path": "src/edit_ops/line_sort.rs",
+          "line": 325,
+          "wire_path": "src/workspace/render.rs",
+          "wire_line": 480
+        }
+      ],
       "alternate": [],
-      "status": "missing",
-      "note": "No mapped static main-menu/catalog action found; this does not prove the behavior is absent from every other UI."
+      "status": "routed",
+      "note": "Connected production route; full oracle behavior and native visuals are unverified by this static audit."
     },
     {
       "index": 78,
@@ -4543,7 +4852,7 @@
       "studio_action": "EditSortLinesIntDesc",
       "studio_declaration": {
         "path": "src/actions/edit_ops.rs",
-        "line": 61
+        "line": 67
       },
       "studio_catalog": {
         "action": "EditSortLinesIntDesc",
@@ -4552,14 +4861,14 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 249
+        "line": 255
       },
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 146,
-          "menu_path": "Edit > Line Operations > Sort Lines as Integers Descending",
-          "label": "Sort Lines as Integers Descending"
+          "line": 156,
+          "menu_path": "Edit > Line Operations > Sort Lines As Integers Descending",
+          "label": "Sort Lines As Integers Descending"
         }
       ],
       "studio_handlers": [
@@ -4568,7 +4877,7 @@
           "path": "src/edit_ops/line_ops.rs",
           "line": 495,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 467
+          "wire_line": 484
         }
       ],
       "alternate": [],
@@ -4599,7 +4908,7 @@
       "studio_action": "EditSortLinesDecCommaDesc",
       "studio_declaration": {
         "path": "src/actions/edit_ops.rs",
-        "line": 63
+        "line": 69
       },
       "studio_catalog": {
         "action": "EditSortLinesDecCommaDesc",
@@ -4608,14 +4917,14 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 245
+        "line": 251
       },
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 151,
-          "menu_path": "Edit > Line Operations > Sort Lines as Decimals (Comma) Descending",
-          "label": "Sort Lines as Decimals (Comma) Descending"
+          "line": 157,
+          "menu_path": "Edit > Line Operations > Sort Lines As Decimals (Comma) Descending",
+          "label": "Sort Lines As Decimals (Comma) Descending"
         }
       ],
       "studio_handlers": [
@@ -4624,7 +4933,7 @@
           "path": "src/edit_ops/line_ops.rs",
           "line": 519,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 469
+          "wire_line": 486
         }
       ],
       "alternate": [],
@@ -4655,7 +4964,7 @@
       "studio_action": "EditSortLinesDecDotDesc",
       "studio_declaration": {
         "path": "src/actions/edit_ops.rs",
-        "line": 65
+        "line": 71
       },
       "studio_catalog": {
         "action": "EditSortLinesDecDotDesc",
@@ -4664,14 +4973,14 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 247
+        "line": 253
       },
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 159,
-          "menu_path": "Edit > Line Operations > Sort Lines as Decimals (Dot) Descending",
-          "label": "Sort Lines as Decimals (Dot) Descending"
+          "line": 158,
+          "menu_path": "Edit > Line Operations > Sort Lines As Decimals (Dot) Descending",
+          "label": "Sort Lines As Decimals (Dot) Descending"
         }
       ],
       "studio_handlers": [
@@ -4680,7 +4989,7 @@
           "path": "src/edit_ops/line_ops.rs",
           "line": 543,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 471
+          "wire_line": 488
         }
       ],
       "alternate": [],
@@ -4708,14 +5017,40 @@
         4605
       ],
       "mapping": "catalog command ID",
-      "studio_action": null,
-      "studio_declaration": null,
-      "studio_catalog": null,
-      "studio_menu": [],
-      "studio_handlers": [],
+      "studio_action": "EditSortLinesLengthDesc",
+      "studio_declaration": {
+        "path": "src/actions/edit_ops.rs",
+        "line": 65
+      },
+      "studio_catalog": {
+        "action": "EditSortLinesLengthDesc",
+        "label": "Sort Lines By Length Descending",
+        "npp": "IDM_EDIT_SORTLINES_LENGTH_DESCENDING",
+        "context": "W",
+        "windows": [],
+        "mac": [],
+        "line": 263
+      },
+      "studio_menu": [
+        {
+          "path": "src/app/menus/edit.rs",
+          "line": 159,
+          "menu_path": "Edit > Line Operations > Sort Lines By Length Descending",
+          "label": "Sort Lines By Length Descending"
+        }
+      ],
+      "studio_handlers": [
+        {
+          "method": "sort_lines_length_desc",
+          "path": "src/edit_ops/line_sort.rs",
+          "line": 327,
+          "wire_path": "src/workspace/render.rs",
+          "wire_line": 482
+        }
+      ],
       "alternate": [],
-      "status": "missing",
-      "note": "No mapped static main-menu/catalog action found; this does not prove the behavior is absent from every other UI."
+      "status": "routed",
+      "note": "Connected production route; full oracle behavior and native visuals are unverified by this static audit."
     },
     {
       "index": 82,
@@ -4754,12 +5089,12 @@
         "mac": [
           "cmd-/"
         ],
-        "line": 200
+        "line": 206
       },
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 174,
+          "line": 168,
           "menu_path": "Edit > Comment/Uncomment > Toggle Block Comment",
           "label": "Toggle Block Comment"
         }
@@ -4768,9 +5103,9 @@
         {
           "method": "block_comment",
           "path": "src/workspace/edits.rs",
-          "line": 3626,
+          "line": 3627,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 358
+          "wire_line": 364
         }
       ],
       "alternate": [],
@@ -4801,7 +5136,7 @@
       "studio_action": "EditBlockCommentSet",
       "studio_declaration": {
         "path": "src/actions/edit_ops.rs",
-        "line": 75
+        "line": 81
       },
       "studio_catalog": {
         "action": "EditBlockCommentSet",
@@ -4814,12 +5149,12 @@
         "mac": [
           "ctrl-k"
         ],
-        "line": 201
+        "line": 207
       },
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 175,
+          "line": 169,
           "menu_path": "Edit > Comment/Uncomment > Block Comment",
           "label": "Block Comment"
         }
@@ -4830,7 +5165,7 @@
           "path": "src/edit_ops/comment_ops.rs",
           "line": 21,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 494
+          "wire_line": 511
         }
       ],
       "alternate": [],
@@ -4861,7 +5196,7 @@
       "studio_action": "EditBlockUncomment",
       "studio_declaration": {
         "path": "src/actions/edit_ops.rs",
-        "line": 76
+        "line": 82
       },
       "studio_catalog": {
         "action": "EditBlockUncomment",
@@ -4874,12 +5209,12 @@
         "mac": [
           "cmd-shift-k"
         ],
-        "line": 202
+        "line": 208
       },
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 176,
+          "line": 170,
           "menu_path": "Edit > Comment/Uncomment > Block Uncomment",
           "label": "Block Uncomment"
         }
@@ -4890,7 +5225,7 @@
           "path": "src/edit_ops/comment_ops.rs",
           "line": 33,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 495
+          "wire_line": 512
         }
       ],
       "alternate": [],
@@ -4934,12 +5269,12 @@
         "mac": [
           "cmd-shift-/"
         ],
-        "line": 203
+        "line": 209
       },
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 178,
+          "line": 172,
           "menu_path": "Edit > Comment/Uncomment > Toggle Stream Comment",
           "label": "Toggle Stream Comment"
         }
@@ -4948,9 +5283,9 @@
         {
           "method": "stream_comment",
           "path": "src/workspace/edits.rs",
-          "line": 3880,
+          "line": 3881,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 359
+          "wire_line": 365
         }
       ],
       "alternate": [],
@@ -4980,7 +5315,7 @@
       "studio_action": "EditStreamUncomment",
       "studio_declaration": {
         "path": "src/actions/edit_ops.rs",
-        "line": 77
+        "line": 83
       },
       "studio_catalog": {
         "action": "EditStreamUncomment",
@@ -4989,12 +5324,12 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 254
+        "line": 266
       },
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 179,
+          "line": 173,
           "menu_path": "Edit > Comment/Uncomment > Stream Uncomment",
           "label": "Stream Uncomment"
         }
@@ -5005,7 +5340,7 @@
           "path": "src/edit_ops/comment_ops.rs",
           "line": 45,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 496
+          "wire_line": 513
         }
       ],
       "alternate": [],
@@ -5048,12 +5383,12 @@
         "mac": [
           "ctrl-space"
         ],
-        "line": 264
+        "line": 276
       },
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 188,
+          "line": 182,
           "menu_path": "Edit > Auto-Completion > Function Completion",
           "label": "Function Completion"
         }
@@ -5064,7 +5399,7 @@
           "path": "src/workspace/autocomplete.rs",
           "line": 412,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 377
+          "wire_line": 383
         }
       ],
       "alternate": [],
@@ -5107,12 +5442,12 @@
         "mac": [
           "ctrl-enter"
         ],
-        "line": 265
+        "line": 277
       },
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 189,
+          "line": 183,
           "menu_path": "Edit > Auto-Completion > Word Completion",
           "label": "Word Completion"
         }
@@ -5123,7 +5458,7 @@
           "path": "src/workspace/autocomplete.rs",
           "line": 391,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 376
+          "wire_line": 382
         }
       ],
       "alternate": [],
@@ -5166,12 +5501,12 @@
         "mac": [
           "ctrl-shift-space"
         ],
-        "line": 267
+        "line": 279
       },
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 192,
+          "line": 186,
           "menu_path": "Edit > Auto-Completion > Function Parameters Hint",
           "label": "Function Parameters Hint"
         }
@@ -5182,7 +5517,7 @@
           "path": "src/workspace/autocomplete.rs",
           "line": 452,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 379
+          "wire_line": 385
         }
       ],
       "alternate": [],
@@ -5225,12 +5560,12 @@
         "mac": [
           "alt-up"
         ],
-        "line": 269
+        "line": 281
       },
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 193,
+          "line": 187,
           "menu_path": "Edit > Auto-Completion > Function Parameters Previous Hint",
           "label": "Function Parameters Previous Hint"
         }
@@ -5241,7 +5576,7 @@
           "path": "src/workspace/call_hint.rs",
           "line": 555,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 380
+          "wire_line": 386
         }
       ],
       "alternate": [],
@@ -5284,12 +5619,12 @@
         "mac": [
           "alt-down"
         ],
-        "line": 270
+        "line": 282
       },
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 194,
+          "line": 188,
           "menu_path": "Edit > Auto-Completion > Function Parameters Next Hint",
           "label": "Function Parameters Next Hint"
         }
@@ -5300,7 +5635,7 @@
           "path": "src/workspace/call_hint.rs",
           "line": 566,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 381
+          "wire_line": 387
         }
       ],
       "alternate": [],
@@ -5369,12 +5704,12 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 220
+        "line": 226
       },
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 203,
+          "line": 197,
           "menu_path": "Edit > EOL Conversion > Windows (CR LF)",
           "label": "Windows (CR LF)"
         }
@@ -5385,7 +5720,7 @@
           "path": "src/workspace/format.rs",
           "line": 38,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 361
+          "wire_line": 367
         }
       ],
       "alternate": [],
@@ -5425,12 +5760,12 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 219
+        "line": 225
       },
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 204,
+          "line": 198,
           "menu_path": "Edit > EOL Conversion > Unix (LF)",
           "label": "Unix (LF)"
         }
@@ -5441,7 +5776,7 @@
           "path": "src/workspace/format.rs",
           "line": 47,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 362
+          "wire_line": 368
         }
       ],
       "alternate": [],
@@ -5481,12 +5816,12 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 217
+        "line": 223
       },
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 205,
+          "line": 199,
           "menu_path": "Edit > EOL Conversion > Macintosh (CR)",
           "label": "Macintosh (CR)"
         }
@@ -5497,7 +5832,7 @@
           "path": "src/workspace/format.rs",
           "line": 51,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 363
+          "wire_line": 369
         }
       ],
       "alternate": [],
@@ -5537,12 +5872,12 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 259
+        "line": 271
       },
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 214,
+          "line": 208,
           "menu_path": "Edit > Blank Operations > Trim Trailing Space",
           "label": "Trim Trailing Space"
         }
@@ -5551,9 +5886,9 @@
         {
           "method": "trim_trailing_ws",
           "path": "src/workspace/edits.rs",
-          "line": 3956,
+          "line": 3957,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 360
+          "wire_line": 366
         }
       ],
       "alternate": [],
@@ -5584,7 +5919,7 @@
       "studio_action": "EditTrimLeadingWs",
       "studio_declaration": {
         "path": "src/actions/edit_ops.rs",
-        "line": 85
+        "line": 91
       },
       "studio_catalog": {
         "action": "EditTrimLeadingWs",
@@ -5593,12 +5928,12 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 258
+        "line": 270
       },
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 215,
+          "line": 209,
           "menu_path": "Edit > Blank Operations > Trim Leading Space",
           "label": "Trim Leading Space"
         }
@@ -5609,7 +5944,7 @@
           "path": "src/edit_ops/blank_ops.rs",
           "line": 44,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 474
+          "wire_line": 491
         }
       ],
       "alternate": [],
@@ -5640,7 +5975,7 @@
       "studio_action": "EditTrimLeadingAndTrailingWs",
       "studio_declaration": {
         "path": "src/actions/edit_ops.rs",
-        "line": 86
+        "line": 92
       },
       "studio_catalog": {
         "action": "EditTrimLeadingAndTrailingWs",
@@ -5649,12 +5984,12 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 257
+        "line": 269
       },
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 216,
+          "line": 210,
           "menu_path": "Edit > Blank Operations > Trim Leading and Trailing Space",
           "label": "Trim Leading and Trailing Space"
         }
@@ -5665,7 +6000,7 @@
           "path": "src/edit_ops/blank_ops.rs",
           "line": 94,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 475
+          "wire_line": 492
         }
       ],
       "alternate": [],
@@ -5696,7 +6031,7 @@
       "studio_action": "EditEolToSpace",
       "studio_declaration": {
         "path": "src/actions/edit_ops.rs",
-        "line": 87
+        "line": 93
       },
       "studio_catalog": {
         "action": "EditEolToSpace",
@@ -5705,12 +6040,12 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 218
+        "line": 224
       },
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 220,
+          "line": 214,
           "menu_path": "Edit > Blank Operations > EOL to Space",
           "label": "EOL to Space"
         }
@@ -5721,7 +6056,7 @@
           "path": "src/edit_ops/blank_ops.rs",
           "line": 104,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 476
+          "wire_line": 493
         }
       ],
       "alternate": [],
@@ -5752,7 +6087,7 @@
       "studio_action": "EditRemoveUnnecessaryBlankAndEol",
       "studio_declaration": {
         "path": "src/actions/edit_ops.rs",
-        "line": 88
+        "line": 94
       },
       "studio_catalog": {
         "action": "EditRemoveUnnecessaryBlankAndEol",
@@ -5761,12 +6096,12 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 240
+        "line": 246
       },
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 221,
+          "line": 215,
           "menu_path": "Edit > Blank Operations > Remove Unnecessary Blank and EOL",
           "label": "Remove Unnecessary Blank and EOL"
         }
@@ -5777,7 +6112,7 @@
           "path": "src/edit_ops/blank_ops.rs",
           "line": 114,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 477
+          "wire_line": 494
         }
       ],
       "alternate": [],
@@ -5808,7 +6143,7 @@
       "studio_action": "EditTabToSpace",
       "studio_declaration": {
         "path": "src/actions/edit_ops.rs",
-        "line": 89
+        "line": 95
       },
       "studio_catalog": {
         "action": "EditTabToSpace",
@@ -5817,12 +6152,12 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 255
+        "line": 267
       },
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 226,
+          "line": 220,
           "menu_path": "Edit > Blank Operations > TAB to Space",
           "label": "TAB to Space"
         }
@@ -5833,7 +6168,7 @@
           "path": "src/edit_ops/blank_ops.rs",
           "line": 129,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 478
+          "wire_line": 495
         }
       ],
       "alternate": [],
@@ -5864,7 +6199,7 @@
       "studio_action": "EditSpaceToTabAll",
       "studio_declaration": {
         "path": "src/actions/edit_ops.rs",
-        "line": 90
+        "line": 96
       },
       "studio_catalog": {
         "action": "EditSpaceToTabAll",
@@ -5873,12 +6208,12 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 252
+        "line": 264
       },
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 227,
+          "line": 221,
           "menu_path": "Edit > Blank Operations > Space to TAB (All)",
           "label": "Space to TAB (All)"
         }
@@ -5889,7 +6224,7 @@
           "path": "src/edit_ops/blank_ops.rs",
           "line": 144,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 479
+          "wire_line": 496
         }
       ],
       "alternate": [],
@@ -5920,7 +6255,7 @@
       "studio_action": "EditSpaceToTabLeading",
       "studio_declaration": {
         "path": "src/actions/edit_ops.rs",
-        "line": 91
+        "line": 97
       },
       "studio_catalog": {
         "action": "EditSpaceToTabLeading",
@@ -5929,12 +6264,12 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 253
+        "line": 265
       },
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 228,
+          "line": 222,
           "menu_path": "Edit > Blank Operations > Space to TAB (Leading)",
           "label": "Space to TAB (Leading)"
         }
@@ -5945,7 +6280,7 @@
           "path": "src/edit_ops/blank_ops.rs",
           "line": 155,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 480
+          "wire_line": 497
         }
       ],
       "alternate": [],
@@ -6120,7 +6455,7 @@
       "studio_action": "EditOpenSelectedFile",
       "studio_declaration": {
         "path": "src/actions/edit_ops.rs",
-        "line": 99
+        "line": 105
       },
       "studio_catalog": {
         "action": "EditOpenSelectedFile",
@@ -6129,12 +6464,12 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 229
+        "line": 235
       },
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 240,
+          "line": 234,
           "menu_path": "Edit > On Selection > Open File",
           "label": "Open File"
         }
@@ -6145,7 +6480,7 @@
           "path": "src/edit_ops/on_selection.rs",
           "line": 26,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 481
+          "wire_line": 498
         }
       ],
       "alternate": [],
@@ -6175,7 +6510,7 @@
       "studio_action": "EditOpenContainingFolder",
       "studio_declaration": {
         "path": "src/actions/edit_ops.rs",
-        "line": 101
+        "line": 107
       },
       "studio_catalog": {
         "action": "EditOpenContainingFolder",
@@ -6184,12 +6519,12 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 227
+        "line": 233
       },
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 242,
+          "line": 236,
           "menu_path": "Edit > On Selection > Open Containing Folder in Explorer",
           "label": "Open Containing Folder in Explorer"
         }
@@ -6200,7 +6535,7 @@
           "path": "src/edit_ops/on_selection.rs",
           "line": 87,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 483
+          "wire_line": 500
         }
       ],
       "alternate": [],
@@ -6254,7 +6589,7 @@
       "studio_action": "EditSearchSelectionOnInternet",
       "studio_declaration": {
         "path": "src/actions/edit_ops.rs",
-        "line": 103
+        "line": 109
       },
       "studio_catalog": {
         "action": "EditSearchSelectionOnInternet",
@@ -6263,12 +6598,12 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 242
+        "line": 248
       },
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 247,
+          "line": 241,
           "menu_path": "Edit > On Selection > Search on Internet",
           "label": "Search on Internet"
         }
@@ -6279,7 +6614,7 @@
           "path": "src/edit_ops/on_selection.rs",
           "line": 148,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 485
+          "wire_line": 502
         }
       ],
       "alternate": [],
@@ -6688,7 +7023,7 @@
       "studio_action": "EditOpenCharacterPanel",
       "studio_declaration": {
         "path": "src/actions/edit_ops.rs",
-        "line": 146
+        "line": 152
       },
       "studio_catalog": {
         "action": "EditOpenCharacterPanel",
@@ -6697,12 +7032,12 @@
         "context": "GLOBAL",
         "windows": [],
         "mac": [],
-        "line": 225
+        "line": 231
       },
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 46,
+          "line": 50,
           "menu_path": "Edit > Character Panel…",
           "label": "Character Panel…"
         }
@@ -6743,7 +7078,7 @@
       "studio_action": "EditOpenClipboardHistory",
       "studio_declaration": {
         "path": "src/actions/edit_ops.rs",
-        "line": 138
+        "line": 144
       },
       "studio_catalog": {
         "action": "EditOpenClipboardHistory",
@@ -6752,12 +7087,12 @@
         "context": "GLOBAL",
         "windows": [],
         "mac": [],
-        "line": 226
+        "line": 232
       },
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 45,
+          "line": 49,
           "menu_path": "Edit > Clipboard History…",
           "label": "Clipboard History…"
         }
@@ -6799,7 +7134,7 @@
       "studio_action": "EditToggleReadOnly",
       "studio_declaration": {
         "path": "src/actions/edit_ops.rs",
-        "line": 121
+        "line": 127
       },
       "studio_catalog": {
         "action": "EditToggleReadOnly",
@@ -6808,12 +7143,12 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 256
+        "line": 268
       },
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 57,
+          "line": 61,
           "menu_path": "Edit > Set Read-Only",
           "label": "Set Read-Only"
         }
@@ -6824,7 +7159,7 @@
           "path": "src/edit_ops/readonly.rs",
           "line": 20,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 489
+          "wire_line": 506
         }
       ],
       "alternate": [],
@@ -6915,7 +7250,7 @@
       "studio_action": "EditClearReadOnlyFlag",
       "studio_declaration": {
         "path": "src/actions/edit_ops.rs",
-        "line": 122
+        "line": 128
       },
       "studio_catalog": {
         "action": "EditClearReadOnlyFlag",
@@ -6924,12 +7259,12 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 210
+        "line": 216
       },
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 58,
+          "line": 62,
           "menu_path": "Edit > Clear Read-Only Flag",
           "label": "Clear Read-Only Flag"
         }
@@ -6940,7 +7275,7 @@
           "path": "src/edit_ops/readonly.rs",
           "line": 38,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 490
+          "wire_line": 507
         }
       ],
       "alternate": [],
@@ -6983,7 +7318,7 @@
         "mac": [
           "cmd-f"
         ],
-        "line": 309
+        "line": 321
       },
       "studio_menu": [
         {
@@ -6999,7 +7334,7 @@
           "path": "src/workspace/find.rs",
           "line": 423,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 333
+          "wire_line": 339
         }
       ],
       "alternate": [],
@@ -7042,7 +7377,7 @@
         "mac": [
           "cmd-shift-f"
         ],
-        "line": 317
+        "line": 329
       },
       "studio_menu": [
         {
@@ -7058,7 +7393,7 @@
           "path": "src/workspace/find_in_files.rs",
           "line": 29,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 390
+          "wire_line": 401
         }
       ],
       "alternate": [],
@@ -7103,7 +7438,7 @@
           "f3",
           "cmd-g"
         ],
-        "line": 311
+        "line": 323
       },
       "studio_menu": [
         {
@@ -7117,9 +7452,9 @@
         {
           "method": "find_next",
           "path": "src/workspace/find.rs",
-          "line": 1005,
+          "line": 1015,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 335
+          "wire_line": 341
         }
       ],
       "alternate": [],
@@ -7164,7 +7499,7 @@
           "shift-f3",
           "cmd-shift-g"
         ],
-        "line": 312
+        "line": 324
       },
       "studio_menu": [
         {
@@ -7178,9 +7513,9 @@
         {
           "method": "find_prev",
           "path": "src/workspace/find.rs",
-          "line": 1016,
+          "line": 1026,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 336
+          "wire_line": 342
         }
       ],
       "alternate": [],
@@ -7343,7 +7678,7 @@
         "mac": [
           "cmd-alt-f"
         ],
-        "line": 315
+        "line": 327
       },
       "studio_menu": [
         {
@@ -7357,9 +7692,9 @@
         {
           "method": "toggle_replace_bar",
           "path": "src/workspace/find.rs",
-          "line": 617,
+          "line": 627,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 339
+          "wire_line": 345
         }
       ],
       "alternate": [],
@@ -7518,7 +7853,7 @@
         "mac": [
           "cmd-l"
         ],
-        "line": 316
+        "line": 328
       },
       "studio_menu": [
         {
@@ -7532,9 +7867,9 @@
         {
           "method": "open_goto_line",
           "path": "src/workspace/find.rs",
-          "line": 772,
+          "line": 782,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 348
+          "wire_line": 354
         }
       ],
       "alternate": [],
@@ -7637,7 +7972,7 @@
         "mac": [
           "cmd-m"
         ],
-        "line": 319
+        "line": 331
       },
       "studio_menu": [
         {
@@ -7651,9 +7986,9 @@
         {
           "method": "open_mark",
           "path": "src/workspace/find.rs",
-          "line": 1984,
+          "line": 1994,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 427
+          "wire_line": 438
         }
       ],
       "alternate": [],
@@ -8230,7 +8565,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 321
+        "line": 333
       },
       "studio_menu": [
         {
@@ -8244,9 +8579,9 @@
         {
           "method": "mark_clear_all",
           "path": "src/workspace/find.rs",
-          "line": 2183,
+          "line": 2193,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 429
+          "wire_line": 440
         }
       ],
       "alternate": [],
@@ -8826,7 +9161,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 322
+        "line": 334
       },
       "studio_menu": [
         {
@@ -8840,9 +9175,9 @@
         {
           "method": "mark_copy",
           "path": "src/workspace/find.rs",
-          "line": 2205,
+          "line": 2215,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 430
+          "wire_line": 441
         }
       ],
       "alternate": [],
@@ -8886,7 +9221,7 @@
         "mac": [
           "cmd-f2"
         ],
-        "line": 418
+        "line": 430
       },
       "studio_menu": [
         {
@@ -8902,7 +9237,7 @@
           "path": "src/workspace/movement.rs",
           "line": 536,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 385
+          "wire_line": 391
         }
       ],
       "alternate": [],
@@ -8946,7 +9281,7 @@
         "mac": [
           "f2"
         ],
-        "line": 419
+        "line": 431
       },
       "studio_menu": [
         {
@@ -8962,7 +9297,7 @@
           "path": "src/workspace/movement.rs",
           "line": 551,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 386
+          "wire_line": 392
         }
       ],
       "alternate": [],
@@ -9006,7 +9341,7 @@
         "mac": [
           "shift-f2"
         ],
-        "line": 420
+        "line": 432
       },
       "studio_menu": [
         {
@@ -9022,7 +9357,7 @@
           "path": "src/workspace/movement.rs",
           "line": 578,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 387
+          "wire_line": 393
         }
       ],
       "alternate": [],
@@ -9064,7 +9399,7 @@
         "mac": [
           "cmd-shift-f2"
         ],
-        "line": 421
+        "line": 433
       },
       "studio_menu": [
         {
@@ -9080,7 +9415,7 @@
           "path": "src/workspace/movement.rs",
           "line": 598,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 388
+          "wire_line": 394
         }
       ],
       "alternate": [],
@@ -9108,14 +9443,40 @@
         4562
       ],
       "mapping": "catalog command ID",
-      "studio_action": null,
-      "studio_declaration": null,
-      "studio_catalog": null,
-      "studio_menu": [],
-      "studio_handlers": [],
+      "studio_action": "CutBookmarkedLines",
+      "studio_declaration": {
+        "path": "src/actions/bookmarks.rs",
+        "line": 13
+      },
+      "studio_catalog": {
+        "action": "CutBookmarkedLines",
+        "label": "Cut Bookmarked Lines",
+        "npp": "IDM_SEARCH_CUTMARKEDLINES",
+        "context": "W",
+        "windows": [],
+        "mac": [],
+        "line": 435
+      },
+      "studio_menu": [
+        {
+          "path": "src/app/menus/bookmarks.rs",
+          "line": 16,
+          "menu_path": "Search > Bookmark > Cut Bookmarked Lines",
+          "label": "Cut Bookmarked Lines"
+        }
+      ],
+      "studio_handlers": [
+        {
+          "method": "cut_bookmarked_lines",
+          "path": "src/edit_ops/bookmark_edits.rs",
+          "line": 162,
+          "wire_path": "src/workspace/render.rs",
+          "wire_line": 396
+        }
+      ],
       "alternate": [],
-      "status": "missing",
-      "note": "No mapped static main-menu/catalog action found; this does not prove the behavior is absent from every other UI."
+      "status": "routed",
+      "note": "Connected production route; full oracle behavior and native visuals are unverified by this static audit."
     },
     {
       "index": 192,
@@ -9150,12 +9511,12 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 422
+        "line": 434
       },
       "studio_menu": [
         {
           "path": "src/app/menus/bookmarks.rs",
-          "line": 16,
+          "line": 17,
           "menu_path": "Search > Bookmark > Copy Bookmarked Lines",
           "label": "Copy Bookmarked Lines"
         }
@@ -9164,9 +9525,9 @@
         {
           "method": "copy_bookmarked_lines",
           "path": "src/edit_ops/bookmark_clipboard.rs",
-          "line": 114,
+          "line": 122,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 389
+          "wire_line": 395
         }
       ],
       "alternate": [],
@@ -9194,14 +9555,40 @@
         4564
       ],
       "mapping": "catalog command ID",
-      "studio_action": null,
-      "studio_declaration": null,
-      "studio_catalog": null,
-      "studio_menu": [],
-      "studio_handlers": [],
+      "studio_action": "PasteToBookmarkedLines",
+      "studio_declaration": {
+        "path": "src/actions/bookmarks.rs",
+        "line": 14
+      },
+      "studio_catalog": {
+        "action": "PasteToBookmarkedLines",
+        "label": "Paste to (Replace) Bookmarked Lines",
+        "npp": "IDM_SEARCH_PASTEMARKEDLINES",
+        "context": "W",
+        "windows": [],
+        "mac": [],
+        "line": 436
+      },
+      "studio_menu": [
+        {
+          "path": "src/app/menus/bookmarks.rs",
+          "line": 18,
+          "menu_path": "Search > Bookmark > Paste to (Replace) Bookmarked Lines",
+          "label": "Paste to (Replace) Bookmarked Lines"
+        }
+      ],
+      "studio_handlers": [
+        {
+          "method": "paste_to_bookmarked_lines",
+          "path": "src/edit_ops/bookmark_edits.rs",
+          "line": 163,
+          "wire_path": "src/workspace/render.rs",
+          "wire_line": 397
+        }
+      ],
       "alternate": [],
-      "status": "missing",
-      "note": "No mapped static main-menu/catalog action found; this does not prove the behavior is absent from every other UI."
+      "status": "routed",
+      "note": "Connected production route; full oracle behavior and native visuals are unverified by this static audit."
     },
     {
       "index": 194,
@@ -9224,14 +9611,40 @@
         4565
       ],
       "mapping": "catalog command ID",
-      "studio_action": null,
-      "studio_declaration": null,
-      "studio_catalog": null,
-      "studio_menu": [],
-      "studio_handlers": [],
+      "studio_action": "RemoveBookmarkedLines",
+      "studio_declaration": {
+        "path": "src/actions/bookmarks.rs",
+        "line": 15
+      },
+      "studio_catalog": {
+        "action": "RemoveBookmarkedLines",
+        "label": "Remove Bookmarked Lines",
+        "npp": "IDM_SEARCH_DELETEMARKEDLINES",
+        "context": "W",
+        "windows": [],
+        "mac": [],
+        "line": 437
+      },
+      "studio_menu": [
+        {
+          "path": "src/app/menus/bookmarks.rs",
+          "line": 19,
+          "menu_path": "Search > Bookmark > Remove Bookmarked Lines",
+          "label": "Remove Bookmarked Lines"
+        }
+      ],
+      "studio_handlers": [
+        {
+          "method": "remove_bookmarked_lines",
+          "path": "src/edit_ops/bookmark_edits.rs",
+          "line": 164,
+          "wire_path": "src/workspace/render.rs",
+          "wire_line": 398
+        }
+      ],
       "alternate": [],
-      "status": "missing",
-      "note": "No mapped static main-menu/catalog action found; this does not prove the behavior is absent from every other UI."
+      "status": "routed",
+      "note": "Connected production route; full oracle behavior and native visuals are unverified by this static audit."
     },
     {
       "index": 195,
@@ -9254,14 +9667,40 @@
         4566
       ],
       "mapping": "catalog command ID",
-      "studio_action": null,
-      "studio_declaration": null,
-      "studio_catalog": null,
-      "studio_menu": [],
-      "studio_handlers": [],
+      "studio_action": "RemoveNonBookmarkedLines",
+      "studio_declaration": {
+        "path": "src/actions/bookmarks.rs",
+        "line": 16
+      },
+      "studio_catalog": {
+        "action": "RemoveNonBookmarkedLines",
+        "label": "Remove Non-Bookmarked Lines",
+        "npp": "IDM_SEARCH_DELETEUNMARKEDLINES",
+        "context": "W",
+        "windows": [],
+        "mac": [],
+        "line": 438
+      },
+      "studio_menu": [
+        {
+          "path": "src/app/menus/bookmarks.rs",
+          "line": 20,
+          "menu_path": "Search > Bookmark > Remove Non-Bookmarked Lines",
+          "label": "Remove Non-Bookmarked Lines"
+        }
+      ],
+      "studio_handlers": [
+        {
+          "method": "remove_non_bookmarked_lines",
+          "path": "src/edit_ops/bookmark_edits.rs",
+          "line": 165,
+          "wire_path": "src/workspace/render.rs",
+          "wire_line": 399
+        }
+      ],
       "alternate": [],
-      "status": "missing",
-      "note": "No mapped static main-menu/catalog action found; this does not prove the behavior is absent from every other UI."
+      "status": "routed",
+      "note": "Connected production route; full oracle behavior and native visuals are unverified by this static audit."
     },
     {
       "index": 196,
@@ -9284,14 +9723,40 @@
         4440
       ],
       "mapping": "catalog command ID",
-      "studio_action": null,
-      "studio_declaration": null,
-      "studio_catalog": null,
-      "studio_menu": [],
-      "studio_handlers": [],
+      "studio_action": "InverseBookmarks",
+      "studio_declaration": {
+        "path": "src/actions/bookmarks.rs",
+        "line": 17
+      },
+      "studio_catalog": {
+        "action": "InverseBookmarks",
+        "label": "Inverse Bookmarks",
+        "npp": "IDM_SEARCH_INVERSEMARKS",
+        "context": "W",
+        "windows": [],
+        "mac": [],
+        "line": 439
+      },
+      "studio_menu": [
+        {
+          "path": "src/app/menus/bookmarks.rs",
+          "line": 21,
+          "menu_path": "Search > Bookmark > Inverse Bookmarks",
+          "label": "Inverse Bookmarks"
+        }
+      ],
+      "studio_handlers": [
+        {
+          "method": "inverse_bookmarks",
+          "path": "src/edit_ops/bookmark_edits.rs",
+          "line": 166,
+          "wire_path": "src/workspace/render.rs",
+          "wire_line": 400
+        }
+      ],
       "alternate": [],
-      "status": "missing",
-      "note": "No mapped static main-menu/catalog action found; this does not prove the behavior is absent from every other UI."
+      "status": "routed",
+      "note": "Connected production route; full oracle behavior and native visuals are unverified by this static audit."
     },
     {
       "index": 197,
@@ -9389,7 +9854,7 @@
         "mac": [
           "f11"
         ],
-        "line": 360
+        "line": 372
       },
       "studio_menu": [
         {
@@ -9403,7 +9868,7 @@
         {
           "method": "toggle_full_screen",
           "path": "src/workspace/edits.rs",
-          "line": 1160,
+          "line": 1161,
           "wire_path": "src/workspace/render.rs",
           "wire_line": 213
         }
@@ -9622,7 +10087,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 363
+        "line": 375
       },
       "studio_menu": [
         {
@@ -9636,7 +10101,7 @@
         {
           "method": "toggle_show_whitespace",
           "path": "src/workspace/edits.rs",
-          "line": 1172,
+          "line": 1173,
           "wire_path": "src/workspace/render.rs",
           "wire_line": 214
         }
@@ -9857,7 +10322,7 @@
           "cmd-=",
           "cmd-+"
         ],
-        "line": 357
+        "line": 369
       },
       "studio_menu": [
         {
@@ -9873,14 +10338,14 @@
           "path": "src/ui/preferences/mod.rs",
           "line": 993,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 382
+          "wire_line": 388
         },
         {
           "method": "zoom_in",
           "path": "src/workspace/mod.rs",
-          "line": 1402,
+          "line": 1441,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 382
+          "wire_line": 388
         }
       ],
       "alternate": [],
@@ -9924,7 +10389,7 @@
         "mac": [
           "cmd--"
         ],
-        "line": 358
+        "line": 370
       },
       "studio_menu": [
         {
@@ -9940,14 +10405,14 @@
           "path": "src/ui/preferences/mod.rs",
           "line": 997,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 383
+          "wire_line": 389
         },
         {
           "method": "zoom_out",
           "path": "src/workspace/mod.rs",
-          "line": 1411,
+          "line": 1450,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 383
+          "wire_line": 389
         }
       ],
       "alternate": [],
@@ -9991,7 +10456,7 @@
         "mac": [
           "cmd-0"
         ],
-        "line": 359
+        "line": 371
       },
       "studio_menu": [
         {
@@ -10007,14 +10472,14 @@
           "path": "src/ui/preferences/mod.rs",
           "line": 1001,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 384
+          "wire_line": 390
         },
         {
           "method": "zoom_reset",
           "path": "src/workspace/mod.rs",
-          "line": 1420,
+          "line": 1459,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 384
+          "wire_line": 390
         }
       ],
       "alternate": [],
@@ -10213,7 +10678,7 @@
         "mac": [
           "cmd-1"
         ],
-        "line": 330
+        "line": 342
       },
       "studio_menu": [
         {
@@ -10229,7 +10694,7 @@
           "path": "src/workspace/tabs.rs",
           "line": 953,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 310
+          "wire_line": 316
         }
       ],
       "alternate": [],
@@ -10273,7 +10738,7 @@
         "mac": [
           "cmd-2"
         ],
-        "line": 331
+        "line": 343
       },
       "studio_menu": [
         {
@@ -10289,7 +10754,7 @@
           "path": "src/workspace/tabs.rs",
           "line": 956,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 311
+          "wire_line": 317
         }
       ],
       "alternate": [],
@@ -10333,7 +10798,7 @@
         "mac": [
           "cmd-3"
         ],
-        "line": 332
+        "line": 344
       },
       "studio_menu": [
         {
@@ -10349,7 +10814,7 @@
           "path": "src/workspace/tabs.rs",
           "line": 959,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 312
+          "wire_line": 318
         }
       ],
       "alternate": [],
@@ -10393,7 +10858,7 @@
         "mac": [
           "cmd-4"
         ],
-        "line": 333
+        "line": 345
       },
       "studio_menu": [
         {
@@ -10409,7 +10874,7 @@
           "path": "src/workspace/tabs.rs",
           "line": 962,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 313
+          "wire_line": 319
         }
       ],
       "alternate": [],
@@ -10453,7 +10918,7 @@
         "mac": [
           "cmd-5"
         ],
-        "line": 334
+        "line": 346
       },
       "studio_menu": [
         {
@@ -10469,7 +10934,7 @@
           "path": "src/workspace/tabs.rs",
           "line": 965,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 314
+          "wire_line": 320
         }
       ],
       "alternate": [],
@@ -10513,7 +10978,7 @@
         "mac": [
           "cmd-6"
         ],
-        "line": 335
+        "line": 347
       },
       "studio_menu": [
         {
@@ -10529,7 +10994,7 @@
           "path": "src/workspace/tabs.rs",
           "line": 968,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 315
+          "wire_line": 321
         }
       ],
       "alternate": [],
@@ -10573,7 +11038,7 @@
         "mac": [
           "cmd-7"
         ],
-        "line": 336
+        "line": 348
       },
       "studio_menu": [
         {
@@ -10589,7 +11054,7 @@
           "path": "src/workspace/tabs.rs",
           "line": 971,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 316
+          "wire_line": 322
         }
       ],
       "alternate": [],
@@ -10633,7 +11098,7 @@
         "mac": [
           "cmd-8"
         ],
-        "line": 337
+        "line": 349
       },
       "studio_menu": [
         {
@@ -10649,7 +11114,7 @@
           "path": "src/workspace/tabs.rs",
           "line": 974,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 317
+          "wire_line": 323
         }
       ],
       "alternate": [],
@@ -10693,7 +11158,7 @@
         "mac": [
           "cmd-9"
         ],
-        "line": 338
+        "line": 350
       },
       "studio_menu": [
         {
@@ -10709,7 +11174,7 @@
           "path": "src/workspace/tabs.rs",
           "line": 977,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 318
+          "wire_line": 324
         }
       ],
       "alternate": [],
@@ -10748,7 +11213,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 340
+        "line": 352
       },
       "studio_menu": [
         {
@@ -10764,7 +11229,7 @@
           "path": "src/workspace/tab_actions.rs",
           "line": 11,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 319
+          "wire_line": 325
         }
       ],
       "alternate": [],
@@ -10803,7 +11268,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 341
+        "line": 353
       },
       "studio_menu": [
         {
@@ -10819,7 +11284,7 @@
           "path": "src/workspace/tab_actions.rs",
           "line": 15,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 320
+          "wire_line": 326
         }
       ],
       "alternate": [],
@@ -10863,7 +11328,7 @@
         "mac": [
           "ctrl-pagedown"
         ],
-        "line": 328
+        "line": 340
       },
       "studio_menu": [
         {
@@ -10879,7 +11344,7 @@
           "path": "src/workspace/tabs.rs",
           "line": 926,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 308
+          "wire_line": 314
         }
       ],
       "alternate": [],
@@ -10923,7 +11388,7 @@
         "mac": [
           "ctrl-pageup"
         ],
-        "line": 329
+        "line": 341
       },
       "studio_menu": [
         {
@@ -10939,7 +11404,7 @@
           "path": "src/workspace/tabs.rs",
           "line": 935,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 309
+          "wire_line": 315
         }
       ],
       "alternate": [],
@@ -10979,7 +11444,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 342
+        "line": 354
       },
       "studio_menu": [
         {
@@ -10995,7 +11460,7 @@
           "path": "src/workspace/tab_actions.rs",
           "line": 21,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 321
+          "wire_line": 327
         }
       ],
       "alternate": [],
@@ -11035,7 +11500,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 343
+        "line": 355
       },
       "studio_menu": [
         {
@@ -11051,7 +11516,7 @@
           "path": "src/workspace/tab_actions.rs",
           "line": 25,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 322
+          "wire_line": 328
         }
       ],
       "alternate": [],
@@ -11095,7 +11560,7 @@
         "mac": [
           "cmd-shift-pagedown"
         ],
-        "line": 344
+        "line": 356
       },
       "studio_menu": [
         {
@@ -11111,7 +11576,7 @@
           "path": "src/workspace/tab_actions.rs",
           "line": 29,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 323
+          "wire_line": 329
         }
       ],
       "alternate": [],
@@ -11155,7 +11620,7 @@
         "mac": [
           "cmd-shift-pageup"
         ],
-        "line": 345
+        "line": 357
       },
       "studio_menu": [
         {
@@ -11171,7 +11636,7 @@
           "path": "src/workspace/tab_actions.rs",
           "line": 34,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 324
+          "wire_line": 330
         }
       ],
       "alternate": [],
@@ -11210,7 +11675,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 346
+        "line": 358
       },
       "studio_menu": [
         {
@@ -11226,7 +11691,7 @@
           "path": "src/workspace/tab_actions.rs",
           "line": 40,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 325
+          "wire_line": 331
         }
       ],
       "alternate": [],
@@ -11265,7 +11730,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 347
+        "line": 359
       },
       "studio_menu": [
         {
@@ -11281,7 +11746,7 @@
           "path": "src/workspace/tab_actions.rs",
           "line": 44,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 326
+          "wire_line": 332
         }
       ],
       "alternate": [],
@@ -11320,7 +11785,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 348
+        "line": 360
       },
       "studio_menu": [
         {
@@ -11336,7 +11801,7 @@
           "path": "src/workspace/tab_actions.rs",
           "line": 48,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 327
+          "wire_line": 333
         }
       ],
       "alternate": [],
@@ -11375,7 +11840,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 349
+        "line": 361
       },
       "studio_menu": [
         {
@@ -11391,7 +11856,7 @@
           "path": "src/workspace/tab_actions.rs",
           "line": 52,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 328
+          "wire_line": 334
         }
       ],
       "alternate": [],
@@ -11430,7 +11895,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 350
+        "line": 362
       },
       "studio_menu": [
         {
@@ -11446,7 +11911,7 @@
           "path": "src/workspace/tab_actions.rs",
           "line": 56,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 329
+          "wire_line": 335
         }
       ],
       "alternate": [],
@@ -11485,7 +11950,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 351
+        "line": 363
       },
       "studio_menu": [
         {
@@ -11501,7 +11966,7 @@
           "path": "src/workspace/tab_actions.rs",
           "line": 60,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 330
+          "wire_line": 336
         }
       ],
       "alternate": [],
@@ -11541,7 +12006,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 362
+        "line": 374
       },
       "studio_menu": [
         {
@@ -11555,7 +12020,7 @@
         {
           "method": "toggle_word_wrap",
           "path": "src/workspace/edits.rs",
-          "line": 3192,
+          "line": 3193,
           "wire_path": "src/workspace/render.rs",
           "wire_line": 215
         }
@@ -12370,7 +12835,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 364
+        "line": 376
       },
       "studio_menu": [
         {
@@ -12384,9 +12849,9 @@
         {
           "method": "toggle_folder_panel",
           "path": "src/workspace/edits.rs",
-          "line": 3181,
+          "line": 3182,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 295
+          "wire_line": 300
         }
       ],
       "alternate": [],
@@ -12661,7 +13126,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 374
+        "line": 386
       },
       "studio_menu": [
         {
@@ -12677,7 +13142,7 @@
           "path": "src/workspace/format.rs",
           "line": 121,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 369
+          "wire_line": 375
         }
       ],
       "alternate": [],
@@ -12717,7 +13182,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 370
+        "line": 382
       },
       "studio_menu": [
         {
@@ -12733,7 +13198,7 @@
           "path": "src/workspace/format.rs",
           "line": 85,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 365
+          "wire_line": 371
         }
       ],
       "alternate": [],
@@ -12773,7 +13238,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 371
+        "line": 383
       },
       "studio_menu": [
         {
@@ -12789,7 +13254,7 @@
           "path": "src/workspace/format.rs",
           "line": 94,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 366
+          "wire_line": 372
         }
       ],
       "alternate": [],
@@ -12829,7 +13294,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 373
+        "line": 385
       },
       "studio_menu": [
         {
@@ -12845,7 +13310,7 @@
           "path": "src/workspace/format.rs",
           "line": 112,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 368
+          "wire_line": 374
         }
       ],
       "alternate": [],
@@ -12885,7 +13350,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 372
+        "line": 384
       },
       "studio_menu": [
         {
@@ -12901,7 +13366,7 @@
           "path": "src/workspace/format.rs",
           "line": 103,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 367
+          "wire_line": 373
         }
       ],
       "alternate": [],
@@ -14412,7 +14877,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 377
+        "line": 389
       },
       "studio_menu": [
         {
@@ -14691,7 +15156,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 378
+        "line": 390
       },
       "studio_menu": [
         {
@@ -14740,7 +15205,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 379
+        "line": 391
       },
       "studio_menu": [
         {
@@ -14789,7 +15254,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 380
+        "line": 392
       },
       "studio_menu": [
         {
@@ -14953,7 +15418,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 381
+        "line": 393
       },
       "studio_menu": [
         {
@@ -15255,7 +15720,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 382
+        "line": 394
       },
       "studio_menu": [
         {
@@ -15373,7 +15838,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 383
+        "line": 395
       },
       "studio_menu": [
         {
@@ -15491,7 +15956,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 384
+        "line": 396
       },
       "studio_menu": [
         {
@@ -15540,7 +16005,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 385
+        "line": 397
       },
       "studio_menu": [
         {
@@ -15589,7 +16054,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 386
+        "line": 398
       },
       "studio_menu": [
         {
@@ -15753,7 +16218,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 387
+        "line": 399
       },
       "studio_menu": [
         {
@@ -16078,7 +16543,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 389
+        "line": 401
       },
       "studio_menu": [
         {
@@ -16150,7 +16615,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 390
+        "line": 402
       },
       "studio_menu": [
         {
@@ -16245,7 +16710,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 391
+        "line": 403
       },
       "studio_menu": [
         {
@@ -16409,7 +16874,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 392
+        "line": 404
       },
       "studio_menu": [
         {
@@ -16458,7 +16923,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 393
+        "line": 405
       },
       "studio_menu": [
         {
@@ -16530,7 +16995,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 395
+        "line": 407
       },
       "studio_menu": [
         {
@@ -16648,7 +17113,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 396
+        "line": 408
       },
       "studio_menu": [
         {
@@ -16720,7 +17185,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 397
+        "line": 409
       },
       "studio_menu": [
         {
@@ -16861,7 +17326,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 398
+        "line": 410
       },
       "studio_menu": [
         {
@@ -16933,7 +17398,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 400
+        "line": 412
       },
       "studio_menu": [
         {
@@ -17074,7 +17539,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 401
+        "line": 413
       },
       "studio_menu": [
         {
@@ -17123,7 +17588,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 402
+        "line": 414
       },
       "studio_menu": [
         {
@@ -17282,7 +17747,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 377
+        "line": 389
       },
       "studio_menu": [
         {
@@ -17561,7 +18026,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 378
+        "line": 390
       },
       "studio_menu": [
         {
@@ -17610,7 +18075,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 379
+        "line": 391
       },
       "studio_menu": [
         {
@@ -17659,7 +18124,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 380
+        "line": 392
       },
       "studio_menu": [
         {
@@ -17823,7 +18288,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 381
+        "line": 393
       },
       "studio_menu": [
         {
@@ -18125,7 +18590,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 382
+        "line": 394
       },
       "studio_menu": [
         {
@@ -18243,7 +18708,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 383
+        "line": 395
       },
       "studio_menu": [
         {
@@ -18361,7 +18826,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 384
+        "line": 396
       },
       "studio_menu": [
         {
@@ -18410,7 +18875,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 385
+        "line": 397
       },
       "studio_menu": [
         {
@@ -18459,7 +18924,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 386
+        "line": 398
       },
       "studio_menu": [
         {
@@ -18623,7 +19088,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 387
+        "line": 399
       },
       "studio_menu": [
         {
@@ -18948,7 +19413,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 389
+        "line": 401
       },
       "studio_menu": [
         {
@@ -19020,7 +19485,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 390
+        "line": 402
       },
       "studio_menu": [
         {
@@ -19115,7 +19580,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 391
+        "line": 403
       },
       "studio_menu": [
         {
@@ -19279,7 +19744,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 392
+        "line": 404
       },
       "studio_menu": [
         {
@@ -19328,7 +19793,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 393
+        "line": 405
       },
       "studio_menu": [
         {
@@ -19400,7 +19865,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 395
+        "line": 407
       },
       "studio_menu": [
         {
@@ -19518,7 +19983,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 396
+        "line": 408
       },
       "studio_menu": [
         {
@@ -19590,7 +20055,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 397
+        "line": 409
       },
       "studio_menu": [
         {
@@ -19731,7 +20196,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 398
+        "line": 410
       },
       "studio_menu": [
         {
@@ -19803,7 +20268,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 400
+        "line": 412
       },
       "studio_menu": [
         {
@@ -19944,7 +20409,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 401
+        "line": 413
       },
       "studio_menu": [
         {
@@ -19993,7 +20458,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 402
+        "line": 414
       },
       "studio_menu": [
         {
@@ -20160,7 +20625,7 @@
         "mac": [
           "cmd-,"
         ],
-        "line": 428
+        "line": 445
       },
       "studio_menu": [
         {
@@ -20217,7 +20682,7 @@
         "mac": [
           "cmd-shift-,"
         ],
-        "line": 429
+        "line": 446
       },
       "studio_menu": [
         {
@@ -20272,7 +20737,7 @@
         "context": "GLOBAL",
         "windows": [],
         "mac": [],
-        "line": 431
+        "line": 448
       },
       "studio_menu": [
         {
@@ -20692,9 +21157,9 @@
         {
           "method": "macro_start_recording",
           "path": "src/workspace/macros.rs",
-          "line": 294,
+          "line": 305,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 499
+          "wire_line": 516
         }
       ],
       "alternate": [],
@@ -20732,9 +21197,9 @@
         {
           "method": "macro_stop_recording",
           "path": "src/workspace/macros.rs",
-          "line": 311,
+          "line": 322,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 500
+          "wire_line": 517
         }
       ],
       "alternate": [],
@@ -20777,7 +21242,7 @@
         "mac": [
           "cmd-shift-p"
         ],
-        "line": 406
+        "line": 418
       },
       "studio_menu": [
         {
@@ -20791,9 +21256,9 @@
         {
           "method": "macro_playback",
           "path": "src/workspace/macros.rs",
-          "line": 327,
+          "line": 338,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 501
+          "wire_line": 518
         }
       ],
       "alternate": [],
@@ -20832,7 +21297,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 408
+        "line": 420
       },
       "studio_menu": [
         {
@@ -20846,9 +21311,9 @@
         {
           "method": "macro_save_current",
           "path": "src/workspace/macros.rs",
-          "line": 360,
+          "line": 371,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 503
+          "wire_line": 520
         }
       ],
       "alternate": [],
@@ -20889,7 +21354,7 @@
         "mac": [
           "cmd-shift-m"
         ],
-        "line": 407
+        "line": 419
       },
       "studio_menu": [
         {
@@ -20903,9 +21368,9 @@
         {
           "method": "macro_run_multiple_times",
           "path": "src/workspace/macros.rs",
-          "line": 345,
+          "line": 356,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 502
+          "wire_line": 519
         }
       ],
       "alternate": [],
@@ -20948,7 +21413,7 @@
         "mac": [
           "f5"
         ],
-        "line": 411
+        "line": 423
       },
       "studio_menu": [
         {
@@ -21003,7 +21468,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 412
+        "line": 424
       },
       "studio_menu": [
         {
@@ -21052,7 +21517,7 @@
         "context": "GLOBAL",
         "windows": [],
         "mac": [],
-        "line": 415
+        "line": 427
       },
       "studio_menu": [
         {
@@ -21675,7 +22140,7 @@
           "f1"
         ],
         "mac": [],
-        "line": 433
+        "line": 450
       },
       "studio_menu": [
         {
@@ -21755,7 +22220,7 @@
         {
           "method": "open_new_tab",
           "path": "src/io.rs",
-          "line": 38,
+          "line": 49,
           "wire_path": "src/workspace/render.rs",
           "wire_line": 289
         }
@@ -21809,7 +22274,7 @@
       "studio_action": "FileCloseTab",
       "studio_declaration": {
         "path": "src/actions/file.rs",
-        "line": 19
+        "line": 25
       },
       "studio_catalog": {
         "action": "FileCloseTab",
@@ -21822,12 +22287,12 @@
         "mac": [
           "cmd-w"
         ],
-        "line": 141
+        "line": 146
       },
       "studio_menu": [
         {
           "path": "src/app/menus/file.rs",
-          "line": 63,
+          "line": 71,
           "menu_path": "File > Close Tab",
           "label": "Close Tab"
         }
@@ -21838,7 +22303,7 @@
           "path": "src/workspace/tabs.rs",
           "line": 291,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 299
+          "wire_line": 305
         }
       ],
       "alternate": [],

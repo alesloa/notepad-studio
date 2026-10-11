@@ -42,6 +42,10 @@ mod clipboard_all_macro_tests;
 #[path = "edit_ops/bookmark_clipboard_macro_tests.rs"]
 mod bookmark_clipboard_macro_tests;
 
+#[cfg(test)]
+#[path = "edit_ops/bookmark_edits_macro_tests.rs"]
+mod bookmark_edits_macro_tests;
+
 /// Events captured during recording. Each variant maps onto a single
 /// keyboard-driven editor action. Replay dispatches these by calling the
 /// matching `Workspace` method directly (not via gpui action dispatch) so
@@ -61,6 +65,12 @@ pub(crate) enum MacroEvent {
     IncreaseLineIndent,
     DecreaseLineIndent,
     DuplicateCurrentLine,
+    SortLinesLexIgnoreCaseAsc,
+    SortLinesLexIgnoreCaseDesc,
+    SortLinesLocaleAsc,
+    SortLinesLocaleDesc,
+    SortLinesLengthAsc,
+    SortLinesLengthDesc,
     MoveLineUp,
     MoveLineDown,
     DeleteLine,
@@ -83,6 +93,11 @@ pub(crate) enum MacroEvent {
     CopyAllFilenames,
     CopyAllFilePaths,
     CopyBookmarkedLines,
+    CutBookmarkedLines,
+    PasteToBookmarkedLines,
+    RemoveBookmarkedLines,
+    RemoveNonBookmarkedLines,
+    InverseBookmarks,
     Paste,
     SelectAll,
     Undo,

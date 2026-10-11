@@ -14,6 +14,10 @@ mod line_command_tests;
 #[path = "edit_clipboard_all_tests.rs"]
 mod clipboard_all_tests;
 
+#[cfg(test)]
+#[path = "edit_line_sort_tests.rs"]
+mod line_sort_tests;
+
 pub(crate) fn build(_state: &MenuState) -> Menu {
     Menu {
         name: "&Edit".into(),
@@ -133,36 +137,26 @@ fn line_operations_menu() -> Menu {
                 "Remove Empty Lines (Containing Blank chars)",
                 EditRemoveEmptyLinesContainingBlank,
             ),
-            MenuItem::separator(),
-            MenuItem::action(
-                "Sort Lines Lexicographically Ascending",
-                EditSortLinesLexAsc,
-            ),
-            MenuItem::action(
-                "Sort Lines Lexicographically Descending",
-                EditSortLinesLexDesc,
-            ),
-            MenuItem::action("Sort Lines as Integers Ascending", EditSortLinesIntAsc),
-            MenuItem::action("Sort Lines as Integers Descending", EditSortLinesIntDesc),
-            MenuItem::action(
-                "Sort Lines as Decimals (Comma) Ascending",
-                EditSortLinesDecCommaAsc,
-            ),
-            MenuItem::action(
-                "Sort Lines as Decimals (Comma) Descending",
-                EditSortLinesDecCommaDesc,
-            ),
-            MenuItem::action(
-                "Sort Lines as Decimals (Dot) Ascending",
-                EditSortLinesDecDotAsc,
-            ),
-            MenuItem::action(
-                "Sort Lines as Decimals (Dot) Descending",
-                EditSortLinesDecDotDesc,
-            ),
-            MenuItem::separator(),
+            MenuItem::action("Insert Blank Line Above Current", EditInsertBlankLineAbove),
+            MenuItem::action("Insert Blank Line Below Current", EditInsertBlankLineBelow),
             MenuItem::action("Reverse Line Order", EditReverseLineOrder),
             MenuItem::action("Randomize Line Order", EditRandomizeLineOrder),
+            MenuItem::separator(),
+            MenuItem::action("Sort Lines Lexicographically Ascending", EditSortLinesLexAsc),
+            MenuItem::action("Sort Lines Lex. Ascending Ignoring Case", EditSortLinesLexIgnoreCaseAsc),
+            MenuItem::action("Sort Lines In Locale Order Ascending", EditSortLinesLocaleAsc),
+            MenuItem::action("Sort Lines As Integers Ascending", EditSortLinesIntAsc),
+            MenuItem::action("Sort Lines As Decimals (Comma) Ascending", EditSortLinesDecCommaAsc),
+            MenuItem::action("Sort Lines As Decimals (Dot) Ascending", EditSortLinesDecDotAsc),
+            MenuItem::action("Sort Lines By Length Ascending", EditSortLinesLengthAsc),
+            MenuItem::separator(),
+            MenuItem::action("Sort Lines Lexicographically Descending", EditSortLinesLexDesc),
+            MenuItem::action("Sort Lines Lex. Descending Ignoring Case", EditSortLinesLexIgnoreCaseDesc),
+            MenuItem::action("Sort Lines In Locale Order Descending", EditSortLinesLocaleDesc),
+            MenuItem::action("Sort Lines As Integers Descending", EditSortLinesIntDesc),
+            MenuItem::action("Sort Lines As Decimals (Comma) Descending", EditSortLinesDecCommaDesc),
+            MenuItem::action("Sort Lines As Decimals (Dot) Descending", EditSortLinesDecDotDesc),
+            MenuItem::action("Sort Lines By Length Descending", EditSortLinesLengthDesc),
         ],
     }
 }

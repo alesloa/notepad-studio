@@ -167,7 +167,7 @@ impl Render for Workspace {
         let loading_chip = buffer.loading.as_ref().map(|p| LoadingChip {
             progress_text: crate::io_stream::format_progress(p),
             cancel: p.cancel.clone(),
-        }).or_else(|| self.reload_chip());
+        }).or_else(|| self.reload_chip()).or_else(|| self.file_move_chip()).or_else(|| self.file_copy_chip());
 
         div()
             .key_context("Workspace")
@@ -290,11 +290,17 @@ impl Render for Workspace {
             .on_action(cx.listener(Self::open_dialog))
             .on_action(cx.listener(Self::open_folder_as_workspace))
             .on_action(cx.listener(Self::file_open_containing_folder))
+            .on_action(cx.listener(Self::file_open_containing_folder_cmd))
+            .on_action(cx.listener(Self::file_open_containing_folder_powershell))
+            .on_action(cx.listener(Self::file_containing_folder_as_workspace))
+            .on_action(cx.listener(Self::file_rename))
+            .on_action(cx.listener(Self::file_move_to_trash))
             .on_action(cx.listener(Self::file_open_default_viewer))
             .on_action(cx.listener(Self::file_reload_from_disk))
             .on_action(cx.listener(Self::toggle_folder_panel))
             .on_action(cx.listener(Self::save_active))
             .on_action(cx.listener(Self::save_active_as))
+            .on_action(cx.listener(Self::save_copy_as))
             .on_action(cx.listener(Self::save_all))
             .on_action(cx.listener(Self::close_active_tab))
             .on_action(cx.listener(Self::close_all_tabs))
@@ -387,6 +393,11 @@ impl Render for Workspace {
             .on_action(cx.listener(Self::goto_prev_bookmark))
             .on_action(cx.listener(Self::clear_all_bookmarks))
             .on_action(cx.listener(Self::copy_bookmarked_lines))
+            .on_action(cx.listener(Self::cut_bookmarked_lines))
+            .on_action(cx.listener(Self::paste_to_bookmarked_lines))
+            .on_action(cx.listener(Self::remove_bookmarked_lines))
+            .on_action(cx.listener(Self::remove_non_bookmarked_lines))
+            .on_action(cx.listener(Self::inverse_bookmarks))
             .on_action(cx.listener(Self::open_find_in_files))
             .on_action(cx.listener(Self::close_find_in_files))
             .on_action(cx.listener(Self::find_in_files_run_action))
@@ -463,6 +474,12 @@ impl Render for Workspace {
             .on_action(cx.listener(Self::remove_empty_lines_containing_blank))
             .on_action(cx.listener(Self::sort_lines_lex_asc))
             .on_action(cx.listener(Self::sort_lines_lex_desc))
+            .on_action(cx.listener(Self::sort_lines_lex_ignore_case_asc))
+            .on_action(cx.listener(Self::sort_lines_lex_ignore_case_desc))
+            .on_action(cx.listener(Self::sort_lines_locale_asc))
+            .on_action(cx.listener(Self::sort_lines_locale_desc))
+            .on_action(cx.listener(Self::sort_lines_length_asc))
+            .on_action(cx.listener(Self::sort_lines_length_desc))
             .on_action(cx.listener(Self::sort_lines_int_asc))
             .on_action(cx.listener(Self::sort_lines_int_desc))
             .on_action(cx.listener(Self::sort_lines_dec_comma_asc))

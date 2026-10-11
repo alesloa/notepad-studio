@@ -8,6 +8,10 @@ use std::sync::Arc;
 pub(super) fn needs_background(event: &MacroEvent) -> bool {
     matches!(event, MacroEvent::ReplaceCurrentWithOptions(search)
         | MacroEvent::ReplaceAllWithOptions(search) if search.regex)
+        || matches!(event, MacroEvent::CutBookmarkedLines | MacroEvent::PasteToBookmarkedLines
+            | MacroEvent::RemoveBookmarkedLines | MacroEvent::RemoveNonBookmarkedLines | MacroEvent::InverseBookmarks
+            | MacroEvent::CopyBookmarkedLines | MacroEvent::Undo | MacroEvent::Redo | MacroEvent::SortLinesLexIgnoreCaseAsc | MacroEvent::SortLinesLexIgnoreCaseDesc
+            | MacroEvent::SortLinesLocaleAsc | MacroEvent::SortLinesLocaleDesc | MacroEvent::SortLinesLengthAsc | MacroEvent::SortLinesLengthDesc)
 }
 
 pub(super) fn is_search(event: &MacroEvent) -> bool {
@@ -25,11 +29,12 @@ pub(in crate::workspace) struct Playback {
     tab: uuid::Uuid,
     instance: Arc<()>,
     input: gpui::InputContextToken,
-    undo_base: usize,
-    undo_len: usize,
-    redo_len: usize,
-    grouped: bool,
-    selection: Selection,
+    metadata_only: bool,
+    pub(in crate::workspace) undo_base: usize,
+    pub(in crate::workspace) undo_len: usize,
+    pub(in crate::workspace) redo_len: usize,
+    pub(in crate::workspace) grouped: bool,
+    pub(in crate::workspace) selection: Selection,
 }
 
 impl Playback {
@@ -41,7 +46,7 @@ impl Playback {
     pub(in crate::workspace) fn valid(&self, w: &Workspace, window: &Window) -> bool {
         w.tabs.get(w.active).is_some_and(|tab| {
             tab.session_id == self.tab && Arc::ptr_eq(&tab.instance, &self.instance)
-                && tab.view_mode == TabViewMode::Edit && !tab.buffer.read_only
+                && tab.view_mode == TabViewMode::Edit && (!tab.buffer.read_only || self.metadata_only)
                 && tab.buffer.loading.is_none() && tab.edit_transaction.is_none()
                 && tab.undo_stack.len() == self.undo_len && tab.redo_stack.len() == self.redo_len
         }) && !w.window_closed && window.is_window_active()
@@ -158,6 +163,7 @@ impl Workspace {
             id: uuid::Uuid::new_v4(), window: window.window_handle(), completed: 0,
             events: events.to_vec(), index: 0, remaining: times, tab: tab.session_id,
             instance: tab.instance.clone(), input: window.input_context_token(),
+            metadata_only: events.iter().all(|event| matches!(event, MacroEvent::InverseBookmarks)),
             undo_base: tab.undo_stack.len(), undo_len: tab.undo_stack.len(), redo_len: tab.redo_stack.len(),
             grouped: !events.iter().any(|ev| matches!(ev, MacroEvent::Undo | MacroEvent::Redo)),
             selection: tab.selection,
@@ -209,7 +215,7 @@ impl Workspace {
                 }
                 cx.notify(); return false;
             }
-            if self.regex_replacement.pending.is_some() {
+            if self.regex_replacement.pending.is_some() || self.pending_prepared_edit.is_some() || self.pending_bookmark_copy.is_some() {
                 if group_open { self.end_edit_group(cx); }
                 set_replaying(previous);
                 if let Some(mut playback) = self.regex_replacement.macro_playback.take() {
@@ -219,7 +225,7 @@ impl Workspace {
                     }
                     self.regex_replacement.macro_playback = Some(playback);
                 }
-                self.set_status("Preparing macro replacement; Escape cancels");
+                if self.regex_replacement.pending.is_some() { self.set_status("Preparing macro replacement; Escape cancels"); }
                 cx.notify(); return false;
             }
             if let Some(playback) = self.regex_replacement.macro_playback.as_mut() {
@@ -230,6 +236,12 @@ impl Workspace {
         if group_open { self.end_edit_group(cx); }
         set_replaying(previous);
         if let Some(playback) = self.regex_replacement.macro_playback.take() {
+            if playback.grouped && self.tabs.get(self.active).is_some_and(|tab| {
+                tab.undo_stack.len().saturating_sub(playback.undo_base) > 1
+                    && tab.undo_stack.iter().skip(playback.undo_base).any(|entry| matches!(entry, UndoEntry::Prepared(_)))
+            }) {
+                return self.start_prepared_macro_merge(playback, window, cx);
+            }
             self.merge_search_macro_undo(&playback);
             self.set_status(format!("Played macro ({} events)", playback.completed));
         }

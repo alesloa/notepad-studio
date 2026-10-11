@@ -29,6 +29,7 @@ thread_local! {
 pub(crate) struct PendingBookmarkCopy {
     id: Uuid,
     cancel: Arc<AtomicBool>,
+    playback: Option<Uuid>,
 }
 
 impl Drop for PendingBookmarkCopy {
@@ -60,7 +61,7 @@ impl CopySnapshot {
     }
 }
 
-fn bookmarked_text(
+pub(crate) fn bookmarked_text(
     rope: &Rope,
     bookmarks: &[usize],
     ending: LineEnding,
@@ -79,7 +80,7 @@ fn bookmarked_text(
         if previous.as_ref().is_some_and(|last| last.start == range.start) { continue; }
         previous = Some(range.clone());
         let mut body_end = range.end;
-        let suffix = if body_end > range.start && rope.get_byte(body_end - 1) == Some(b'\n') {
+        let mut suffix = if body_end > range.start && rope.get_byte(body_end - 1) == Some(b'\n') {
             body_end -= 1;
             if body_end > range.start && rope.get_byte(body_end - 1) == Some(b'\r') {
                 body_end -= 1;
@@ -89,6 +90,13 @@ fn bookmarked_text(
             body_end -= 1;
             "\r"
         } else { "" };
+        let body = rope.get_byte_slice(range.start..body_end).ok_or("A bookmarked line is no longer available")?;
+        let mut offset = range.start;
+        for chunk in body.chunks() {
+            if cancel.load(Ordering::Relaxed) { return Err("Copy Bookmarked Lines cancelled"); }
+            if let Some(nul) = chunk.find('\0') { body_end = offset.saturating_add(nul); suffix = ""; break; }
+            offset = offset.saturating_add(chunk.len());
+        }
         let required = output.len().checked_add(body_end.saturating_sub(range.start))
             .and_then(|length| length.checked_add(suffix.len()))
             .filter(|&length| length <= limit)
@@ -116,7 +124,10 @@ impl Workspace {
     }
 
     pub(crate) fn cancel_bookmark_copy(&mut self, cx: &mut Context<Self>) {
+        self.cancel_prepared_clipboard(cx);
+        let playback = self.pending_bookmark_copy.as_ref().and_then(|pending| pending.playback);
         self.pending_bookmark_copy = None;
+        if playback.is_some() && playback == self.active_macro_playback_id() { self.stop_prepared_macro("Copy Bookmarked Lines cancelled; clipboard unchanged"); }
         if self.status_message.as_deref() == Some(PREPARING) {
             self.status_message = None;
             cx.notify();
@@ -125,6 +136,8 @@ impl Workspace {
 
     pub(crate) fn run_copy_bookmarked_lines(&mut self, window: &mut Window, cx: &mut Context<Self>) -> bool {
         self.cancel_bookmark_copy(cx);
+        self.settle_source_input_edit_caret();
+        self.sync_source_input_caret();
         let Some(tab) = self.tabs.get(self.active) else { return false; };
         let refusal = if self.window_closed || tab.view_mode != TabViewMode::Edit {
             Some("Switch to Source or Raw View to copy bookmarked lines")
@@ -144,10 +157,6 @@ impl Workspace {
         }
         let background = !tab.buffer.bookmarks.is_empty()
             && (tab.buffer.rope.len_bytes() > FOREGROUND_BYTES || tab.buffer.bookmarks.len() > FOREGROUND_BOOKMARKS);
-        if background && macros::execution_active() {
-            self.set_status("Large Copy Bookmarked Lines is unavailable during macro recording or playback");
-            cx.notify(); return false;
-        }
         let mut bookmarks = Vec::new();
         if bookmarks.try_reserve_exact(tab.buffer.bookmarks.len()).is_err() {
             self.set_status("Not enough memory to copy bookmarked lines"); cx.notify(); return false;
@@ -174,6 +183,7 @@ impl Workspace {
         let worker_cancel = cancel.clone();
         let bookmarks = snapshot.bookmarks.clone();
         let ending = snapshot.ending;
+        let playback = self.active_macro_playback_id();
         #[cfg(test)]
         let gate = self.bookmark_copy_test_gate.take();
         let work = cx.background_spawn(async move {
@@ -186,30 +196,36 @@ impl Workspace {
             if rope.len_bytes() > 10 * 1024 * 1024 {
                 eprintln!("bookmark copy worker: source={} bytes, elapsed={:?}", rope.len_bytes(), started.elapsed());
             }
-            result
+            result.and_then(|text| crate::clipboard_history::prepare_copy(&text, &worker_cancel).map(|history| (text, history)))
         });
-        self.pending_bookmark_copy = Some(PendingBookmarkCopy { id, cancel });
+        self.pending_bookmark_copy = Some(PendingBookmarkCopy { id, cancel, playback });
+        macros::record(MacroEvent::CopyBookmarkedLines);
         self.set_status(PREPARING); cx.notify();
         cx.spawn_in(window, async move |this, cx| {
-            let result = work.await;
+            let mut result = Some(work.await);
             let updated = this.update_in(cx, |w, window, cx| {
                 if !w.pending_bookmark_copy.as_ref().is_some_and(|pending| pending.id == id) { return; }
                 let preparing = w.status_message.as_deref() == Some(PREPARING);
-                w.cancel_bookmark_copy(cx);
+                w.pending_bookmark_copy = None;
+                if preparing { w.status_message = None; }
                 if !snapshot.valid(w, window) {
+                    if playback.is_some() && playback == w.active_macro_playback_id() { w.stop_prepared_macro("the editor changed; clipboard unchanged"); }
                     if preparing {
                         w.set_status("Copy Bookmarked Lines cancelled because the editor changed; clipboard unchanged");
                         cx.notify();
                     }
                     return;
                 }
-                match result {
-                    Ok(text) => {
-                        crate::clipboard_history::record_copy(&text);
+                match result.take() {
+                    Some(Ok((text, history))) => {
+                        let evicted = crate::clipboard_history::record_copy_owned(history);
+                        cx.background_spawn(async move { drop(evicted); }).detach();
                         cx.write_to_clipboard(ClipboardItem::new_string(text));
                         w.set_status("Copied bookmarked lines");
+                        w.resume_prepared_macro(playback, window, cx);
                     }
-                    Err(message) => w.set_status(message),
+                    Some(Err(message)) => { w.set_status(message); w.stop_prepared_macro(message); }
+                    None => {},
                 }
                 cx.notify();
             });
@@ -218,6 +234,8 @@ impl Workspace {
                     if w.pending_bookmark_copy.as_ref().is_some_and(|pending| pending.id == id) { w.cancel_bookmark_copy(cx); }
                 });
             }
+            let bookmarks = snapshot.bookmarks;
+            cx.background_executor().spawn(async move { drop((result, bookmarks)); }).detach();
         }).detach();
         true
     }

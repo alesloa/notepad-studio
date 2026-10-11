@@ -51,6 +51,23 @@ fn begin_close_save(visual: &mut VisualTestContext) {
 }
 
 #[test]
+fn close_save_picker_suggests_current_untitled_label_and_cancel_keeps_dirty_tab() {
+    for label in ["new 1", "named café中😀.txt"] {
+        with_untitled(|entity, visual| {
+            visual.update(|_, cx| entity.update(cx, |w, _| w.tabs[0].buffer.new_label = Some(label.to_owned().into())));
+            let requests = crate::io::SaveDialogRequestCaptureForTest::new();
+            let (reply, selected) = futures::channel::oneshot::channel();
+            let _dialog = crate::io::SaveAsDialogOverrideForTest::new(selected);
+            begin_close_save(visual);
+            assert_eq!(requests.requests(), vec![("Save As", label.to_owned())]);
+            assert!(reply.send(None).is_ok()); visual.run_until_parked();
+            visual.update(|_, cx| { let tab = &entity.read(cx).tabs[0]; assert!(tab.buffer.file_path.is_none()); assert!(tab.buffer.dirty);
+                assert_eq!(tab.buffer.new_label.as_ref().map(|label| label.as_ref()), Some(label)); });
+        });
+    }
+}
+
+#[test]
 fn close_save_actual_two_close_restore_cannot_write_restored_incarnation() {
     let dir = crate::persist::TempDir::new("close-save-incarnation");
     let target = dir.join("existing-target.txt");

@@ -559,8 +559,15 @@ impl Workspace {
             && self.input_focus(window) == InputFocus::Editor
         {
             self.cancel_bookmark_copy(cx);
+            self.stop_prepared_macro("Copy Bookmarked Lines cancelled; clipboard unchanged");
             self.set_status("Copy Bookmarked Lines cancelled; clipboard unchanged");
             cx.notify();
+            return;
+        }
+        if window.is_window_active() && self.input_focus(window) == InputFocus::Editor && self.cancel_file_move(cx) {
+            return;
+        }
+        if window.is_window_active() && self.input_focus(window) == InputFocus::Editor && self.cancel_file_copy(cx) {
             return;
         }
         // Notepad++ column-mode block selection collapses on Esc, same
@@ -596,6 +603,8 @@ impl Workspace {
             return;
         }
         if self.regex_replacement.macro_playback.is_some() {
+            self.cancel_prepared_edit(cx);
+            self.cancel_bookmark_copy(cx);
             self.cancel_regex_replacement();
             cx.notify();
             return;
@@ -606,8 +615,9 @@ impl Workspace {
             && self.input_focus(window) == InputFocus::Editor
             && self.tabs.get(self.active).is_some_and(|tab| tab.view_mode == crate::tab::TabViewMode::Edit)
         {
+            let indentation = self.status_message.as_deref() == Some("Preparing line indentation; Escape cancels");
             self.cancel_prepared_edit(cx);
-            self.set_status("Line indentation cancelled; no changes applied");
+            self.set_status(if indentation { "Line indentation cancelled; no changes applied" } else { "Line edits cancelled; no changes applied" });
             cx.notify();
         }
     }

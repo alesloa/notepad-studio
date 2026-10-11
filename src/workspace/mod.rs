@@ -35,6 +35,8 @@ mod rich_replacement;
 #[cfg(test)]
 mod regex_replacement_tests;
 mod file_tab_actions;
+mod file_routes;
+mod file_move;
 mod find_in_files;
 mod directory_operations;
 mod project_file_visits;
@@ -122,6 +124,14 @@ pub(crate) struct Workspace {
     pub(crate) prepared_test_gate: Option<futures::channel::oneshot::Receiver<()>>,
     #[cfg(test)]
     pub(crate) prepared_test_publish_gate: Option<futures::channel::oneshot::Receiver<()>>,
+    #[cfg(test)]
+    pub(crate) macro_capture_test_gate: Option<futures::channel::oneshot::Receiver<()>>,
+    #[cfg(test)]
+    pub(crate) macro_capture_turns: Vec<(usize, usize)>,
+    #[cfg(test)]
+    pub(crate) macro_capture_timings: Vec<std::time::Duration>,
+    #[cfg(test)]
+    pub(crate) macro_capture_test_budget: Option<usize>,
     #[cfg(test)]
     pub(crate) prepared_fail_reserve: bool,
     #[cfg(test)]
@@ -339,6 +349,10 @@ pub(crate) struct Workspace {
     /// Inline rename bar state. `Some(state)` mounts the bar above the
     /// editor pane; `None` hides it.
     pub(crate) tab_rename: Option<TabRenameState>,
+    pub(crate) file_copy_request: Option<Uuid>,
+    pub(crate) file_copy: Option<std::sync::Arc<crate::io::CopyProgress>>,
+    file_rename_request: Option<Uuid>,
+    file_move: Option<std::sync::Arc<file_move::Progress>>,
     /// Focus held by the tab-rename input. Lazily created on first open.
     pub(crate) tab_rename_focus: Option<FocusHandle>,
     /// Inline rich-doc link-prompt bar state. `Some` while the user is
@@ -737,6 +751,14 @@ impl Workspace {
             #[cfg(test)]
             prepared_test_publish_gate: None,
             #[cfg(test)]
+            macro_capture_test_gate: None,
+            #[cfg(test)]
+            macro_capture_turns: Vec::new(),
+            #[cfg(test)]
+            macro_capture_timings: Vec::new(),
+            #[cfg(test)]
+            macro_capture_test_budget: None,
+            #[cfg(test)]
             prepared_fail_reserve: false,
             #[cfg(test)]
             prepared_timings: Vec::new(),
@@ -807,6 +829,10 @@ impl Workspace {
             last_window_title: None,
             tab_context_menu: None,
             tab_rename: None,
+            file_copy_request: None,
+            file_copy: None,
+            file_rename_request: None,
+            file_move: None,
             tab_rename_focus: None,
             rich_doc_link_bar: None,
             rich_doc_link_focus: None,
@@ -1144,19 +1170,21 @@ impl Workspace {
         idx: usize,
         cx: &mut Context<Self>,
     ) {
-        if idx >= self.tabs.len() {
+        if self.window_closed || idx >= self.tabs.len() {
             return;
         }
+        self.stop_file_move();
+        self.file_rename_request = None;
         let initial = self.tabs[idx]
             .buffer
             .file_path
             .as_ref()
             .and_then(|p| p.file_name())
             .map(|n| n.to_string_lossy().into_owned())
-            .unwrap_or_default();
+            .unwrap_or_else(|| self.tabs[idx].buffer.display_short_name().to_string());
         self.tab_rename_focus = Some(cx.focus_handle());
         self.tab_rename = Some(TabRenameState::new(
-            self.tabs[idx].session_id, self.tabs[idx].buffer.file_path.clone(), &initial,
+            self.tabs[idx].session_id, self.tabs[idx].instance.clone(), self.tabs[idx].buffer.file_path.clone(), &initial,
         ));
         cx.notify();
     }
@@ -1171,7 +1199,9 @@ impl Workspace {
         let Some(state) = self.tab_rename.take() else {
             return;
         };
-        let Some(idx) = self.tabs.iter().position(|tab| tab.session_id == state.target_tab_id) else {
+        if self.window_closed { return; }
+        let Some(idx) = self.tabs.iter().position(|tab| tab.session_id == state.target_tab_id
+            && std::sync::Arc::ptr_eq(&tab.instance, &state.target_instance)) else {
             self.set_status("Rename cancelled: original document is no longer open");
             cx.notify();
             return;
@@ -1182,7 +1212,14 @@ impl Workspace {
             return;
         }
         let new_name = state.text;
-        self.rename_tab_file(idx, new_name, cx);
+        if new_name.contains('\0') || state.original_path.as_ref().is_some_and(|path| path.to_string_lossy().contains('\0')) {
+            self.set_status("Rename failed — file path contains a null character"); cx.notify(); return;
+        }
+        if self.tabs.get(idx).and_then(|tab| tab.buffer.file_path.as_ref()).is_none_or(|path| !path.is_file()) {
+            self.rename_tab_label(idx, new_name, cx);
+        } else {
+            self.rename_tab_file(idx, new_name, cx);
+        }
     }
 
     pub(crate) fn show_context_menu(&mut self, position: Point<Pixels>, cx: &mut Context<Self>) {
@@ -1276,6 +1313,8 @@ impl Workspace {
         self.window_closed = true;
         self.cancel_directory_operations();
         self.cancel_regex_replacement();
+        self.stop_file_move();
+        self.stop_file_copy();
         self.syntax_refresh.close();
         self.proofreader.close();
         self.reload.close();

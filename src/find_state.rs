@@ -162,6 +162,7 @@ impl MacroPromptState {
 #[derive(Clone)]
 pub(crate) struct TabRenameState {
     pub(crate) target_tab_id: uuid::Uuid,
+    pub(crate) target_instance: std::sync::Arc<()>,
     pub(crate) prompt_id: uuid::Uuid,
     pub(crate) original_path: Option<std::path::PathBuf>,
     pub(crate) text: String,
@@ -170,10 +171,11 @@ pub(crate) struct TabRenameState {
 }
 
 impl TabRenameState {
-    pub(crate) fn new(target: uuid::Uuid, original_path: Option<std::path::PathBuf>, initial: &str) -> Self {
+    pub(crate) fn new(target: uuid::Uuid, target_instance: std::sync::Arc<()>, original_path: Option<std::path::PathBuf>, initial: &str) -> Self {
         let len = initial.len();
         Self {
             target_tab_id: target,
+            target_instance,
             prompt_id: uuid::Uuid::new_v4(),
             original_path,
             text: initial.to_string(),

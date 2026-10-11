@@ -24,7 +24,8 @@ pub(crate) fn with_sources(test: impl FnOnce(&Entity<Workspace>, &mut VisualTest
             tab
         }).collect();
         w.active = 0;
-        w.window_closed = true;
+        let (sink, _) = std::sync::mpsc::channel();
+        w.session_snapshot_sink = Some(sink);
         w.touch_mru();
         w
     });

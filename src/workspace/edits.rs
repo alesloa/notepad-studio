@@ -273,6 +273,7 @@ impl Workspace {
     }
 
     pub(crate) fn cut(&mut self, _: &EditCut, window: &mut Window, cx: &mut Context<Self>) {
+        self.cancel_bookmark_copy(cx);
         let focus = self.input_focus(window);
         if focus == InputFocus::RichDocBody {
             self.rich_doc_cut_selection(cx);

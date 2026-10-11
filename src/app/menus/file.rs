@@ -21,7 +21,13 @@ pub(super) fn build_with_recent(snap: &settings::Settings, paths: &[std::path::P
         MenuItem::action("Open…", FileOpen),
         MenuItem::submenu(Menu {
             name: "Open Containing &Folder".into(),
-            items: vec![MenuItem::action(file_manager_label(), FileOpenContainingFolder)],
+            items: vec![
+                MenuItem::action(file_manager_label(), FileOpenContainingFolder),
+                MenuItem::action(command_prompt_label(), FileOpenContainingFolderCmd),
+                MenuItem::action("PowerShell", FileOpenContainingFolderPowerShell),
+                MenuItem::separator(),
+                MenuItem::action("Folder as Workspace", FileContainingFolderAsWorkspace),
+            ],
         }),
         MenuItem::action("Open in &Default Viewer", FileOpenDefaultViewer),
         MenuItem::action("Open Folder as Workspace…", FileOpenFolderAsWorkspace),
@@ -57,8 +63,10 @@ pub(super) fn build_with_recent(snap: &settings::Settings, paths: &[std::path::P
         MenuItem::separator(),
         MenuItem::action("Save", FileSave),
         MenuItem::action("Save As…", FileSaveAs),
+        MenuItem::action("Save a Cop&y As…", FileSaveCopyAs),
         MenuItem::action("Save As .docx…", rich_doc::RichDocSaveAsDocx),
         MenuItem::action("Save All", FileSaveAll),
+        MenuItem::action("&Rename…", FileRename),
         MenuItem::separator(),
         MenuItem::action("Close Tab", FileCloseTab),
         MenuItem::action("Close All Tabs", FileCloseAllTabs),
@@ -71,6 +79,7 @@ pub(super) fn build_with_recent(snap: &settings::Settings, paths: &[std::path::P
                 MenuItem::action("Close All Unchanged", FileCloseAllUnchanged),
             ],
         }),
+        MenuItem::action(trash_label(), FileMoveToTrash),
         MenuItem::action("Restore Recent Closed Tab", FileRestoreClosedTab),
         MenuItem::separator(),
         MenuItem::action("Exit", Quit),
@@ -115,6 +124,14 @@ fn file_manager_label() -> &'static str {
     if cfg!(target_os = "windows") { "Explorer" }
     else if cfg!(target_os = "macos") { "Finder" }
     else { "File Manager" }
+}
+
+fn command_prompt_label() -> &'static str {
+    if cfg!(target_os = "windows") { "cmd" } else { "Terminal" }
+}
+
+fn trash_label() -> &'static str {
+    if cfg!(target_os = "windows") { "Move to Recycle &Bin" } else { "Move to &Trash" }
 }
 
 #[cfg(test)]

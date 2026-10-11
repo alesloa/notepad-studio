@@ -10,7 +10,26 @@ Notepad++, written in Rust on GPUI. Apache-2.0.
 
 v0.0.5 — current
 
+  Line Operations now includes ascending and descending sorts that ignore
+  ASCII case or compare UTF-16 line lengths, plus native Windows locale
+  ordering with numeric keys. Rectangular selections sort
+  whole lines by their selected columns. Preparation and Undo/Redo run in
+  background, Escape cancels, and mixed sort macros keep one Undo step.
+
   Recent additions:
+
+    File ▸ Save a Copy As preserves the original document's path, edits and
+    undo history, and can open the saved copy. Rename and Move to Trash /
+    Recycle Bin are now in the File menu. Open Containing Folder includes
+    cmd, PowerShell and Folder as Workspace. Rename rejects reopened tabs
+    and changed paths; Save a Copy As rejects changed document contents.
+    Copy preparation and cross-volume moves run in the background with
+    progress and Cancel. Failed writes retain and report their rescue copy
+    if the original destination cannot be restored.
+
+    - Search > Bookmark now includes Cut, Paste to (Replace), Remove, Remove
+      Non-Bookmarked Lines and Inverse Bookmarks. Large edits and their Undo/Redo
+      prepare in the background, and saved macros wait for completed operations.
 
     1. NPP-style tab right-click context menu — Close, Close Multiple Tabs
        (BUT This / Left / Right / Unchanged), Save, Save As, Open into ▶

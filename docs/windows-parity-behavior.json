@@ -1,0 +1,7819 @@
+{
+  "scope": "Windows Notepad++ behavior parity; Mac testing deferred by user",
+  "baseline_commit": "d01099f",
+  "baseline_source_sha256": "103a595416cfc74a02d01036d85a612c3f4bc572dab13307b8e8357de6d2b948",
+  "meaning": "A routed static menu item is not proof of matching behavior. Pending records remain open until actual caller tests and required native verification establish the oracle contract.",
+  "static_commands": [
+    {
+      "id": "IDM_FILE_NEW",
+      "menu_paths": [
+        "File > New",
+        "＋"
+      ],
+      "oracle_menu_lines": [
+        447,
+        1366
+      ],
+      "oracle_dispatch_lines": [
+        162,
+        4416
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_FILE_OPEN",
+      "menu_paths": [
+        "File > Open..."
+      ],
+      "oracle_menu_lines": [
+        448
+      ],
+      "oracle_dispatch_lines": [
+        222
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_FILE_OPEN_FOLDER",
+      "menu_paths": [
+        "File > Open Containing Folder > Explorer"
+      ],
+      "oracle_menu_lines": [
+        451
+      ],
+      "oracle_dispatch_lines": [
+        228
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_FILE_OPEN_CMD",
+      "menu_paths": [
+        "File > Open Containing Folder > cmd"
+      ],
+      "oracle_menu_lines": [
+        452
+      ],
+      "oracle_dispatch_lines": [
+        241
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": [
+        "docs/windows-file-routes-validation.md"
+      ],
+      "remaining": [
+        "Native Windows behavior inspection"
+      ],
+      "implementation": "integrated; automated leaf and combined Windows checks and scoped default-release controls passed; native verification pending"
+    },
+    {
+      "id": "IDM_FILE_OPEN_POWERSHELL",
+      "menu_paths": [
+        "File > Open Containing Folder > PowerShell"
+      ],
+      "oracle_menu_lines": [
+        453
+      ],
+      "oracle_dispatch_lines": [
+        248
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": [
+        "docs/windows-file-routes-validation.md"
+      ],
+      "remaining": [
+        "Native Windows behavior inspection"
+      ],
+      "implementation": "integrated; automated leaf and combined Windows checks and scoped default-release controls passed; native verification pending"
+    },
+    {
+      "id": "IDM_FILE_CONTAININGFOLDERASWORKSPACE",
+      "menu_paths": [
+        "File > Open Containing Folder > Folder as Workspace"
+      ],
+      "oracle_menu_lines": [
+        455
+      ],
+      "oracle_dispatch_lines": [
+        273
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": [
+        "docs/windows-file-routes-validation.md"
+      ],
+      "remaining": [
+        "Native Windows behavior inspection"
+      ],
+      "implementation": "integrated; automated leaf and combined Windows checks and scoped default-release controls passed; native verification pending"
+    },
+    {
+      "id": "IDM_FILE_OPEN_DEFAULT_VIEWER",
+      "menu_paths": [
+        "File > Open in Default Viewer"
+      ],
+      "oracle_menu_lines": [
+        457
+      ],
+      "oracle_dispatch_lines": [
+        297
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_FILE_OPENFOLDERASWORKSPACE",
+      "menu_paths": [
+        "File > Open Folder as Workspace..."
+      ],
+      "oracle_menu_lines": [
+        458
+      ],
+      "oracle_dispatch_lines": [
+        325
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_FILE_RELOAD",
+      "menu_paths": [
+        "File > Reload from Disk"
+      ],
+      "oracle_menu_lines": [
+        459
+      ],
+      "oracle_dispatch_lines": [
+        362,
+        4426
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_FILE_SAVE",
+      "menu_paths": [
+        "File > Save"
+      ],
+      "oracle_menu_lines": [
+        460
+      ],
+      "oracle_dispatch_lines": [
+        441,
+        4424
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_FILE_SAVEAS",
+      "menu_paths": [
+        "File > Save As..."
+      ],
+      "oracle_menu_lines": [
+        461
+      ],
+      "oracle_dispatch_lines": [
+        449
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_FILE_SAVECOPYAS",
+      "menu_paths": [
+        "File > Save a Copy As..."
+      ],
+      "oracle_menu_lines": [
+        462
+      ],
+      "oracle_dispatch_lines": [
+        453
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": [
+        "docs/windows-file-routes-validation.md"
+      ],
+      "remaining": [
+        "Native Windows behavior inspection"
+      ],
+      "implementation": "integrated; automated leaf and combined Windows checks and scoped default-release controls passed; native verification pending"
+    },
+    {
+      "id": "IDM_FILE_SAVEALL",
+      "menu_paths": [
+        "File > Save All"
+      ],
+      "oracle_menu_lines": [
+        463
+      ],
+      "oracle_dispatch_lines": [
+        445,
+        4425
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_FILE_RENAME",
+      "menu_paths": [
+        "File > Rename..."
+      ],
+      "oracle_menu_lines": [
+        464
+      ],
+      "oracle_dispatch_lines": [
+        404
+      ],
+      "route_at_baseline": "alternate-only",
+      "behavior": "pending",
+      "evidence": [
+        "docs/windows-file-routes-validation.md"
+      ],
+      "remaining": [
+        "Native Windows dialogs and terminal launch inspection",
+        "Explicit renamed-label precedence over the use-first-line title preference"
+      ],
+      "implementation": "integrated; automated leaf and combined Windows checks and scoped default-release controls passed; native verification pending"
+    },
+    {
+      "id": "IDM_FILE_CLOSE",
+      "menu_paths": [
+        "File > Close",
+        "✕"
+      ],
+      "oracle_menu_lines": [
+        465,
+        1371
+      ],
+      "oracle_dispatch_lines": [
+        394,
+        4417
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_FILE_CLOSEALL",
+      "menu_paths": [
+        "File > Close All"
+      ],
+      "oracle_menu_lines": [
+        466
+      ],
+      "oracle_dispatch_lines": [
+        408,
+        4418
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_FILE_CLOSEALL_BUT_CURRENT",
+      "menu_paths": [
+        "File > Close Multiple Documents > Close All but Active Document"
+      ],
+      "oracle_menu_lines": [
+        469
+      ],
+      "oracle_dispatch_lines": [
+        416,
+        4419
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_FILE_CLOSEALL_BUT_PINNED",
+      "menu_paths": [
+        "File > Close Multiple Documents > Close All but Pinned Documents"
+      ],
+      "oracle_menu_lines": [
+        470
+      ],
+      "oracle_dispatch_lines": [
+        421,
+        4420
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_FILE_CLOSEALL_TOLEFT",
+      "menu_paths": [
+        "File > Close Multiple Documents > Close All to the Left"
+      ],
+      "oracle_menu_lines": [
+        471
+      ],
+      "oracle_dispatch_lines": [
+        426,
+        4421
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_FILE_CLOSEALL_TORIGHT",
+      "menu_paths": [
+        "File > Close Multiple Documents > Close All to the Right"
+      ],
+      "oracle_menu_lines": [
+        472
+      ],
+      "oracle_dispatch_lines": [
+        431,
+        4422
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_FILE_CLOSEALL_UNCHANGED",
+      "menu_paths": [
+        "File > Close Multiple Documents > Close All Unchanged"
+      ],
+      "oracle_menu_lines": [
+        473
+      ],
+      "oracle_dispatch_lines": [
+        436,
+        4423
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_FILE_DELETE",
+      "menu_paths": [
+        "File > Move to Recycle Bin"
+      ],
+      "oracle_menu_lines": [
+        475
+      ],
+      "oracle_dispatch_lines": [
+        399
+      ],
+      "route_at_baseline": "alternate-only",
+      "behavior": "pending",
+      "evidence": [
+        "docs/windows-file-routes-validation.md"
+      ],
+      "remaining": [
+        "Native Windows behavior inspection"
+      ],
+      "implementation": "integrated; automated leaf and combined Windows checks and scoped default-release controls passed; native verification pending"
+    },
+    {
+      "id": "IDM_FILE_LOADSESSION",
+      "menu_paths": [
+        "File > Load Session..."
+      ],
+      "oracle_menu_lines": [
+        477
+      ],
+      "oracle_dispatch_lines": [
+        457
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_FILE_SAVESESSION",
+      "menu_paths": [
+        "File > Save Session..."
+      ],
+      "oracle_menu_lines": [
+        478
+      ],
+      "oracle_dispatch_lines": [
+        461
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_FILE_PRINT",
+      "menu_paths": [
+        "File > Print..."
+      ],
+      "oracle_menu_lines": [
+        480
+      ],
+      "oracle_dispatch_lines": [
+        469
+      ],
+      "route_at_baseline": "stub",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_FILE_PRINTNOW",
+      "menu_paths": [
+        "File > Print Now"
+      ],
+      "oracle_menu_lines": [
+        481
+      ],
+      "oracle_dispatch_lines": [
+        465
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_FILE_EXIT",
+      "menu_paths": [
+        "File > Exit"
+      ],
+      "oracle_menu_lines": [
+        483
+      ],
+      "oracle_dispatch_lines": [
+        473
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_EDIT_UNDO",
+      "menu_paths": [
+        "Edit > Undo"
+      ],
+      "oracle_menu_lines": [
+        488
+      ],
+      "oracle_dispatch_lines": [
+        477,
+        4427
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_EDIT_REDO",
+      "menu_paths": [
+        "Edit > Redo"
+      ],
+      "oracle_menu_lines": [
+        489
+      ],
+      "oracle_dispatch_lines": [
+        486,
+        4428
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_EDIT_CUT",
+      "menu_paths": [
+        "Edit > Cut"
+      ],
+      "oracle_menu_lines": [
+        491
+      ],
+      "oracle_dispatch_lines": [
+        495,
+        4611
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_EDIT_COPY",
+      "menu_paths": [
+        "Edit > Copy"
+      ],
+      "oracle_menu_lines": [
+        492
+      ],
+      "oracle_dispatch_lines": [
+        517,
+        4612
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_EDIT_PASTE",
+      "menu_paths": [
+        "Edit > Paste"
+      ],
+      "oracle_menu_lines": [
+        493
+      ],
+      "oracle_dispatch_lines": [
+        639,
+        4613
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_EDIT_DELETE",
+      "menu_paths": [
+        "Edit > Delete"
+      ],
+      "oracle_menu_lines": [
+        494
+      ],
+      "oracle_dispatch_lines": [
+        1437,
+        4429
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_EDIT_SELECTALL",
+      "menu_paths": [
+        "Edit > Select All"
+      ],
+      "oracle_menu_lines": [
+        495
+      ],
+      "oracle_dispatch_lines": [
+        2054,
+        4441
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_EDIT_BEGINENDSELECT",
+      "menu_paths": [
+        "Edit > Begin/End Select"
+      ],
+      "oracle_menu_lines": [
+        496
+      ],
+      "oracle_dispatch_lines": [
+        922,
+        4479
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_EDIT_BEGINENDSELECT_COLUMNMODE",
+      "menu_paths": [
+        "Edit > Begin/End Select in Column Mode"
+      ],
+      "oracle_menu_lines": [
+        497
+      ],
+      "oracle_dispatch_lines": [
+        923,
+        4480
+      ],
+      "route_at_baseline": "partial",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_EDIT_INSERT_DATETIME_SHORT",
+      "menu_paths": [
+        "Edit > Insert > Date Time (short)"
+      ],
+      "oracle_menu_lines": [
+        501
+      ],
+      "oracle_dispatch_lines": [
+        168,
+        4621
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_EDIT_INSERT_DATETIME_LONG",
+      "menu_paths": [
+        "Edit > Insert > Date Time (long)"
+      ],
+      "oracle_menu_lines": [
+        502
+      ],
+      "oracle_dispatch_lines": [
+        169,
+        4622
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_EDIT_INSERT_DATETIME_CUSTOMIZED",
+      "menu_paths": [
+        "Edit > Insert > Date Time (customized)"
+      ],
+      "oracle_menu_lines": [
+        503
+      ],
+      "oracle_dispatch_lines": [
+        205,
+        4623
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_EDIT_FULLPATHTOCLIP",
+      "menu_paths": [
+        "Edit > Copy to Clipboard > Copy Current Full File path"
+      ],
+      "oracle_menu_lines": [
+        507
+      ],
+      "oracle_dispatch_lines": [
+        1507,
+        4473
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_EDIT_FILENAMETOCLIP",
+      "menu_paths": [
+        "Edit > Copy to Clipboard > Copy Current Filename"
+      ],
+      "oracle_menu_lines": [
+        508
+      ],
+      "oracle_dispatch_lines": [
+        1509,
+        4474
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_EDIT_CURRENTDIRTOCLIP",
+      "menu_paths": [
+        "Edit > Copy to Clipboard > Copy Current Dir. Path"
+      ],
+      "oracle_menu_lines": [
+        509
+      ],
+      "oracle_dispatch_lines": [
+        1508,
+        4475
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_EDIT_COPY_ALL_NAMES",
+      "menu_paths": [
+        "Edit > Copy to Clipboard > Copy All Filenames"
+      ],
+      "oracle_menu_lines": [
+        511
+      ],
+      "oracle_dispatch_lines": [
+        1529,
+        4590
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_EDIT_COPY_ALL_PATHS",
+      "menu_paths": [
+        "Edit > Copy to Clipboard > Copy All File Paths"
+      ],
+      "oracle_menu_lines": [
+        512
+      ],
+      "oracle_dispatch_lines": [
+        1530,
+        4591
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_EDIT_INS_TAB",
+      "menu_paths": [
+        "Edit > Indent > Increase Line Indent"
+      ],
+      "oracle_menu_lines": [
+        516
+      ],
+      "oracle_dispatch_lines": [
+        2059,
+        4442
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_EDIT_RMV_TAB",
+      "menu_paths": [
+        "Edit > Indent > Decrease Line Indent"
+      ],
+      "oracle_menu_lines": [
+        517
+      ],
+      "oracle_dispatch_lines": [
+        2060,
+        4443
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_EDIT_UPPERCASE",
+      "menu_paths": [
+        "Edit > Convert Case to > UPPERCASE"
+      ],
+      "oracle_menu_lines": [
+        521
+      ],
+      "oracle_dispatch_lines": [
+        2166,
+        4452
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_EDIT_LOWERCASE",
+      "menu_paths": [
+        "Edit > Convert Case to > lowercase"
+      ],
+      "oracle_menu_lines": [
+        522
+      ],
+      "oracle_dispatch_lines": [
+        2170,
+        4453
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_EDIT_PROPERCASE_FORCE",
+      "menu_paths": [
+        "Edit > Convert Case to > Proper Case"
+      ],
+      "oracle_menu_lines": [
+        523
+      ],
+      "oracle_dispatch_lines": [
+        2174,
+        4454
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_EDIT_PROPERCASE_BLEND",
+      "menu_paths": [
+        "Edit > Convert Case to > Proper Case (blend)"
+      ],
+      "oracle_menu_lines": [
+        524
+      ],
+      "oracle_dispatch_lines": [
+        2178,
+        4455
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_EDIT_SENTENCECASE_FORCE",
+      "menu_paths": [
+        "Edit > Convert Case to > Sentence case"
+      ],
+      "oracle_menu_lines": [
+        525
+      ],
+      "oracle_dispatch_lines": [
+        2182,
+        4456
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_EDIT_SENTENCECASE_BLEND",
+      "menu_paths": [
+        "Edit > Convert Case to > Sentence case (blend)"
+      ],
+      "oracle_menu_lines": [
+        526
+      ],
+      "oracle_dispatch_lines": [
+        2186,
+        4457
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_EDIT_INVERTCASE",
+      "menu_paths": [
+        "Edit > Convert Case to > iNVERT cASE"
+      ],
+      "oracle_menu_lines": [
+        527
+      ],
+      "oracle_dispatch_lines": [
+        2190,
+        4458
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_EDIT_RANDOMCASE",
+      "menu_paths": [
+        "Edit > Convert Case to > ranDOm CasE"
+      ],
+      "oracle_menu_lines": [
+        528
+      ],
+      "oracle_dispatch_lines": [
+        2194,
+        4459
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_EDIT_DUP_LINE",
+      "menu_paths": [
+        "Edit > Line Operations > Duplicate Current Line"
+      ],
+      "oracle_menu_lines": [
+        532
+      ],
+      "oracle_dispatch_lines": [
+        2085,
+        4444
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_EDIT_REMOVE_ANY_DUP_LINES",
+      "menu_paths": [
+        "Edit > Line Operations > Remove Duplicate Lines"
+      ],
+      "oracle_menu_lines": [
+        533
+      ],
+      "oracle_dispatch_lines": [
+        2095,
+        4446
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_EDIT_REMOVE_CONSECUTIVE_DUP_LINES",
+      "menu_paths": [
+        "Edit > Line Operations > Remove Consecutive Duplicate Lines"
+      ],
+      "oracle_menu_lines": [
+        534
+      ],
+      "oracle_dispatch_lines": [
+        2089,
+        4445
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_EDIT_SPLIT_LINES",
+      "menu_paths": [
+        "Edit > Line Operations > Split Lines"
+      ],
+      "oracle_menu_lines": [
+        535
+      ],
+      "oracle_dispatch_lines": [
+        2101,
+        4448
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_EDIT_JOIN_LINES",
+      "menu_paths": [
+        "Edit > Line Operations > Join Lines"
+      ],
+      "oracle_menu_lines": [
+        536
+      ],
+      "oracle_dispatch_lines": [
+        2132,
+        4449
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_EDIT_LINE_UP",
+      "menu_paths": [
+        "Edit > Line Operations > Move Up Current Line"
+      ],
+      "oracle_menu_lines": [
+        537
+      ],
+      "oracle_dispatch_lines": [
+        2146,
+        4614
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_EDIT_LINE_DOWN",
+      "menu_paths": [
+        "Edit > Line Operations > Move Down Current Line"
+      ],
+      "oracle_menu_lines": [
+        538
+      ],
+      "oracle_dispatch_lines": [
+        2150,
+        4615
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_EDIT_REMOVEEMPTYLINES",
+      "menu_paths": [
+        "Edit > Line Operations > Remove Empty Lines"
+      ],
+      "oracle_menu_lines": [
+        539
+      ],
+      "oracle_dispatch_lines": [
+        2154,
+        4450
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_EDIT_REMOVEEMPTYLINESWITHBLANK",
+      "menu_paths": [
+        "Edit > Line Operations > Remove Empty Lines (Containing Blank characters)"
+      ],
+      "oracle_menu_lines": [
+        540
+      ],
+      "oracle_dispatch_lines": [
+        2160,
+        4451
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_EDIT_BLANKLINEABOVECURRENT",
+      "menu_paths": [
+        "Edit > Line Operations > Insert Blank Line Above Current"
+      ],
+      "oracle_menu_lines": [
+        541
+      ],
+      "oracle_dispatch_lines": [
+        1081,
+        4493
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_EDIT_BLANKLINEBELOWCURRENT",
+      "menu_paths": [
+        "Edit > Line Operations > Insert Blank Line Below Current"
+      ],
+      "oracle_menu_lines": [
+        542
+      ],
+      "oracle_dispatch_lines": [
+        1087,
+        4494
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_EDIT_SORTLINES_REVERSE_ORDER",
+      "menu_paths": [
+        "Edit > Line Operations > Reverse Line Order"
+      ],
+      "oracle_menu_lines": [
+        543
+      ],
+      "oracle_dispatch_lines": [
+        943,
+        4491
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_EDIT_SORTLINES_RANDOMLY",
+      "menu_paths": [
+        "Edit > Line Operations > Randomize Line Order"
+      ],
+      "oracle_menu_lines": [
+        544
+      ],
+      "oracle_dispatch_lines": [
+        944,
+        4492
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_EDIT_SORTLINES_LEXICOGRAPHIC_ASCENDING",
+      "menu_paths": [
+        "Edit > Line Operations > Sort Lines Lexicographically Ascending"
+      ],
+      "oracle_menu_lines": [
+        546
+      ],
+      "oracle_dispatch_lines": [
+        933,
+        4481
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_EDIT_SORTLINES_LEXICO_CASE_INSENS_ASCENDING",
+      "menu_paths": [
+        "Edit > Line Operations > Sort Lines Lex. Ascending Ignoring Case"
+      ],
+      "oracle_menu_lines": [
+        547
+      ],
+      "oracle_dispatch_lines": [
+        935,
+        4483
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": [
+        "docs/windows-line-sorts.md",
+        "docs/windows-nls-seam-proposal.md"
+      ],
+      "remaining": [
+        "Native Windows input/visual inspection",
+        "Documented physical mixed-EOL preservation differs from the configured-EOL oracle path",
+        "Macro grouping above the full 128 MiB history capture limit retains separate Undo steps"
+      ],
+      "implementation": "integrated; automated leaf and combined Windows checks and scoped default-release controls passed; native verification pending"
+    },
+    {
+      "id": "IDM_EDIT_SORTLINES_LOCALE_ASCENDING",
+      "menu_paths": [
+        "Edit > Line Operations > Sort Lines In Locale Order Ascending"
+      ],
+      "oracle_menu_lines": [
+        548
+      ],
+      "oracle_dispatch_lines": [
+        1066,
+        4600
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": [
+        "docs/windows-line-sorts.md",
+        "docs/windows-nls-seam-proposal.md"
+      ],
+      "remaining": [
+        "Native Windows input/visual inspection",
+        "Documented physical mixed-EOL preservation differs from the configured-EOL oracle path",
+        "Macro grouping above the full 128 MiB history capture limit retains separate Undo steps"
+      ],
+      "implementation": "integrated; automated leaf and combined Windows checks and scoped default-release controls passed; native verification pending"
+    },
+    {
+      "id": "IDM_EDIT_SORTLINES_INTEGER_ASCENDING",
+      "menu_paths": [
+        "Edit > Line Operations > Sort Lines As Integers Ascending"
+      ],
+      "oracle_menu_lines": [
+        549
+      ],
+      "oracle_dispatch_lines": [
+        937,
+        4485
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_EDIT_SORTLINES_DECIMALCOMMA_ASCENDING",
+      "menu_paths": [
+        "Edit > Line Operations > Sort Lines As Decimals (Comma) Ascending"
+      ],
+      "oracle_menu_lines": [
+        550
+      ],
+      "oracle_dispatch_lines": [
+        939,
+        4487
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_EDIT_SORTLINES_DECIMALDOT_ASCENDING",
+      "menu_paths": [
+        "Edit > Line Operations > Sort Lines As Decimals (Dot) Ascending"
+      ],
+      "oracle_menu_lines": [
+        551
+      ],
+      "oracle_dispatch_lines": [
+        941,
+        4489
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_EDIT_SORTLINES_LENGTH_ASCENDING",
+      "menu_paths": [
+        "Edit > Line Operations > Sort Lines By Length Ascending"
+      ],
+      "oracle_menu_lines": [
+        552
+      ],
+      "oracle_dispatch_lines": [
+        945,
+        4604
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": [
+        "docs/windows-line-sorts.md",
+        "docs/windows-nls-seam-proposal.md"
+      ],
+      "remaining": [
+        "Native Windows input/visual inspection",
+        "Documented physical mixed-EOL preservation differs from the configured-EOL oracle path",
+        "Macro grouping above the full 128 MiB history capture limit retains separate Undo steps"
+      ],
+      "implementation": "integrated; automated leaf and combined Windows checks and scoped default-release controls passed; native verification pending"
+    },
+    {
+      "id": "IDM_EDIT_SORTLINES_LEXICOGRAPHIC_DESCENDING",
+      "menu_paths": [
+        "Edit > Line Operations > Sort Lines Lexicographically Descending"
+      ],
+      "oracle_menu_lines": [
+        554
+      ],
+      "oracle_dispatch_lines": [
+        934,
+        4482
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_EDIT_SORTLINES_LEXICO_CASE_INSENS_DESCENDING",
+      "menu_paths": [
+        "Edit > Line Operations > Sort Lines Lex. Descending Ignoring Case"
+      ],
+      "oracle_menu_lines": [
+        555
+      ],
+      "oracle_dispatch_lines": [
+        936,
+        4484
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": [
+        "docs/windows-line-sorts.md",
+        "docs/windows-nls-seam-proposal.md"
+      ],
+      "remaining": [
+        "Native Windows input/visual inspection",
+        "Documented physical mixed-EOL preservation differs from the configured-EOL oracle path",
+        "Macro grouping above the full 128 MiB history capture limit retains separate Undo steps"
+      ],
+      "implementation": "integrated; automated leaf and combined Windows checks and scoped default-release controls passed; native verification pending"
+    },
+    {
+      "id": "IDM_EDIT_SORTLINES_LOCALE_DESCENDING",
+      "menu_paths": [
+        "Edit > Line Operations > Sort Lines In Locale Order Descending"
+      ],
+      "oracle_menu_lines": [
+        556
+      ],
+      "oracle_dispatch_lines": [
+        1067,
+        4601
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": [
+        "docs/windows-line-sorts.md",
+        "docs/windows-nls-seam-proposal.md"
+      ],
+      "remaining": [
+        "Native Windows input/visual inspection",
+        "Documented physical mixed-EOL preservation differs from the configured-EOL oracle path",
+        "Macro grouping above the full 128 MiB history capture limit retains separate Undo steps"
+      ],
+      "implementation": "integrated; automated leaf and combined Windows checks and scoped default-release controls passed; native verification pending"
+    },
+    {
+      "id": "IDM_EDIT_SORTLINES_INTEGER_DESCENDING",
+      "menu_paths": [
+        "Edit > Line Operations > Sort Lines As Integers Descending"
+      ],
+      "oracle_menu_lines": [
+        557
+      ],
+      "oracle_dispatch_lines": [
+        938,
+        4486
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_EDIT_SORTLINES_DECIMALCOMMA_DESCENDING",
+      "menu_paths": [
+        "Edit > Line Operations > Sort Lines As Decimals (Comma) Descending"
+      ],
+      "oracle_menu_lines": [
+        558
+      ],
+      "oracle_dispatch_lines": [
+        940,
+        4488
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_EDIT_SORTLINES_DECIMALDOT_DESCENDING",
+      "menu_paths": [
+        "Edit > Line Operations > Sort Lines As Decimals (Dot) Descending"
+      ],
+      "oracle_menu_lines": [
+        559
+      ],
+      "oracle_dispatch_lines": [
+        942,
+        4490
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_EDIT_SORTLINES_LENGTH_DESCENDING",
+      "menu_paths": [
+        "Edit > Line Operations > Sort Lines By Length Descending"
+      ],
+      "oracle_menu_lines": [
+        560
+      ],
+      "oracle_dispatch_lines": [
+        946,
+        4605
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": [
+        "docs/windows-line-sorts.md",
+        "docs/windows-nls-seam-proposal.md"
+      ],
+      "remaining": [
+        "Native Windows input/visual inspection",
+        "Documented physical mixed-EOL preservation differs from the configured-EOL oracle path",
+        "Macro grouping above the full 128 MiB history capture limit retains separate Undo steps"
+      ],
+      "implementation": "integrated; automated leaf and combined Windows checks and scoped default-release controls passed; native verification pending"
+    },
+    {
+      "id": "IDM_EDIT_BLOCK_COMMENT",
+      "menu_paths": [
+        "Edit > Comment/Uncomment > Toggle Single Line Comment"
+      ],
+      "oracle_menu_lines": [
+        564
+      ],
+      "oracle_dispatch_lines": [
+        2198,
+        4460
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_EDIT_BLOCK_COMMENT_SET",
+      "menu_paths": [
+        "Edit > Comment/Uncomment > Single Line Comment"
+      ],
+      "oracle_menu_lines": [
+        565
+      ],
+      "oracle_dispatch_lines": [
+        2202,
+        4461
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_EDIT_BLOCK_UNCOMMENT",
+      "menu_paths": [
+        "Edit > Comment/Uncomment > Single Line Uncomment"
+      ],
+      "oracle_menu_lines": [
+        566
+      ],
+      "oracle_dispatch_lines": [
+        2206,
+        4462
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_EDIT_STREAM_COMMENT",
+      "menu_paths": [
+        "Edit > Comment/Uncomment > Block Comment"
+      ],
+      "oracle_menu_lines": [
+        567
+      ],
+      "oracle_dispatch_lines": [
+        2210,
+        4463
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_EDIT_STREAM_UNCOMMENT",
+      "menu_paths": [
+        "Edit > Comment/Uncomment > Block Uncomment"
+      ],
+      "oracle_menu_lines": [
+        568
+      ],
+      "oracle_dispatch_lines": [
+        2214
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_EDIT_AUTOCOMPLETE",
+      "menu_paths": [
+        "Edit > Auto-Completion > Function Completion"
+      ],
+      "oracle_menu_lines": [
+        572
+      ],
+      "oracle_dispatch_lines": [
+        3871
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_EDIT_AUTOCOMPLETE_CURRENTFILE",
+      "menu_paths": [
+        "Edit > Auto-Completion > Word Completion"
+      ],
+      "oracle_menu_lines": [
+        573
+      ],
+      "oracle_dispatch_lines": [
+        3875
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_EDIT_FUNCCALLTIP",
+      "menu_paths": [
+        "Edit > Auto-Completion > Function Parameters Hint"
+      ],
+      "oracle_menu_lines": [
+        574
+      ],
+      "oracle_dispatch_lines": [
+        3883
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_EDIT_FUNCCALLTIP_PREVIOUS",
+      "menu_paths": [
+        "Edit > Auto-Completion > Function Parameters Previous Hint"
+      ],
+      "oracle_menu_lines": [
+        575
+      ],
+      "oracle_dispatch_lines": [
+        3887
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_EDIT_FUNCCALLTIP_NEXT",
+      "menu_paths": [
+        "Edit > Auto-Completion > Function Parameters Next Hint"
+      ],
+      "oracle_menu_lines": [
+        576
+      ],
+      "oracle_dispatch_lines": [
+        3891
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_EDIT_AUTOCOMPLETE_PATH",
+      "menu_paths": [
+        "Edit > Auto-Completion > Path Completion"
+      ],
+      "oracle_menu_lines": [
+        577
+      ],
+      "oracle_dispatch_lines": [
+        3879
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_FORMAT_TODOS",
+      "menu_paths": [
+        "Edit > EOL Conversion > Windows (CR LF)"
+      ],
+      "oracle_menu_lines": [
+        581
+      ],
+      "oracle_dispatch_lines": [
+        2971,
+        4583
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_FORMAT_TOUNIX",
+      "menu_paths": [
+        "Edit > EOL Conversion > Unix (LF)"
+      ],
+      "oracle_menu_lines": [
+        582
+      ],
+      "oracle_dispatch_lines": [
+        2972,
+        4584
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_FORMAT_TOMAC",
+      "menu_paths": [
+        "Edit > EOL Conversion > Macintosh (CR)"
+      ],
+      "oracle_menu_lines": [
+        583
+      ],
+      "oracle_dispatch_lines": [
+        2973,
+        4585
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_EDIT_TRIMTRAILING",
+      "menu_paths": [
+        "Edit > Blank Operations > Trim Trailing Space"
+      ],
+      "oracle_menu_lines": [
+        587
+      ],
+      "oracle_dispatch_lines": [
+        2218,
+        4464
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_EDIT_TRIMLINEHEAD",
+      "menu_paths": [
+        "Edit > Blank Operations > Trim Leading Space"
+      ],
+      "oracle_menu_lines": [
+        588
+      ],
+      "oracle_dispatch_lines": [
+        2228,
+        4465
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_EDIT_TRIM_BOTH",
+      "menu_paths": [
+        "Edit > Blank Operations > Trim Leading and Trailing Space"
+      ],
+      "oracle_menu_lines": [
+        589
+      ],
+      "oracle_dispatch_lines": [
+        2238,
+        4466
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_EDIT_EOL2WS",
+      "menu_paths": [
+        "Edit > Blank Operations > EOL to Space"
+      ],
+      "oracle_menu_lines": [
+        590
+      ],
+      "oracle_dispatch_lines": [
+        2248,
+        4467
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_EDIT_TRIMALL",
+      "menu_paths": [
+        "Edit > Blank Operations > Trim both and EOL to Space"
+      ],
+      "oracle_menu_lines": [
+        591
+      ],
+      "oracle_dispatch_lines": [
+        2254,
+        4468
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_EDIT_TAB2SW",
+      "menu_paths": [
+        "Edit > Blank Operations > TAB to Space"
+      ],
+      "oracle_menu_lines": [
+        593
+      ],
+      "oracle_dispatch_lines": [
+        2267,
+        4469
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_EDIT_SW2TAB_ALL",
+      "menu_paths": [
+        "Edit > Blank Operations > Space to TAB (All)"
+      ],
+      "oracle_menu_lines": [
+        594
+      ],
+      "oracle_dispatch_lines": [
+        2275,
+        4470
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_EDIT_SW2TAB_LEADING",
+      "menu_paths": [
+        "Edit > Blank Operations > Space to TAB (Leading)"
+      ],
+      "oracle_menu_lines": [
+        595
+      ],
+      "oracle_dispatch_lines": [
+        2271,
+        4471
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_EDIT_PASTE_AS_HTML",
+      "menu_paths": [
+        "Edit > Paste Special > Paste HTML Content"
+      ],
+      "oracle_menu_lines": [
+        599
+      ],
+      "oracle_dispatch_lines": [
+        893
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_EDIT_PASTE_AS_RTF",
+      "menu_paths": [
+        "Edit > Paste Special > Paste RTF Content"
+      ],
+      "oracle_menu_lines": [
+        600
+      ],
+      "oracle_dispatch_lines": [
+        892
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_EDIT_COPY_BINARY",
+      "menu_paths": [
+        "Edit > Paste Special > Copy Binary Content"
+      ],
+      "oracle_menu_lines": [
+        602
+      ],
+      "oracle_dispatch_lines": [
+        555
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_EDIT_CUT_BINARY",
+      "menu_paths": [
+        "Edit > Paste Special > Cut Binary Content"
+      ],
+      "oracle_menu_lines": [
+        603
+      ],
+      "oracle_dispatch_lines": [
+        556
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_EDIT_PASTE_BINARY",
+      "menu_paths": [
+        "Edit > Paste Special > Paste Binary Content"
+      ],
+      "oracle_menu_lines": [
+        604
+      ],
+      "oracle_dispatch_lines": [
+        665
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_EDIT_OPENSELECTEDFILETOEDIT",
+      "menu_paths": [
+        "Edit > On Selection > Open File"
+      ],
+      "oracle_menu_lines": [
+        608
+      ],
+      "oracle_dispatch_lines": [
+        759
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_EDIT_OPENSELECTEDFILEFOLDERINEXPLORER",
+      "menu_paths": [
+        "Edit > On Selection > Open Containing Folder in Explorer"
+      ],
+      "oracle_menu_lines": [
+        609
+      ],
+      "oracle_dispatch_lines": [
+        758
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_EDIT_REDACT_SELECTION",
+      "menu_paths": [
+        "Edit > On Selection > Redact Selection █ (Shift: ●)"
+      ],
+      "oracle_menu_lines": [
+        611
+      ],
+      "oracle_dispatch_lines": [
+        708,
+        4606
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_EDIT_SEARCHONINTERNET",
+      "menu_paths": [
+        "Edit > On Selection > Search on Internet"
+      ],
+      "oracle_menu_lines": [
+        613
+      ],
+      "oracle_dispatch_lines": [
+        842
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_EDIT_CHANGESEARCHENGINE",
+      "menu_paths": [
+        "Edit > On Selection > Change Search Engine..."
+      ],
+      "oracle_menu_lines": [
+        614
+      ],
+      "oracle_dispatch_lines": [
+        885
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_EDIT_MULTISELECTALL",
+      "menu_paths": [
+        "Edit > Multi-select All > Ignore Case & Whole Word"
+      ],
+      "oracle_menu_lines": [
+        619
+      ],
+      "oracle_dispatch_lines": [
+        2325
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_EDIT_MULTISELECTALLMATCHCASE",
+      "menu_paths": [
+        "Edit > Multi-select All > Match Case Only"
+      ],
+      "oracle_menu_lines": [
+        620
+      ],
+      "oracle_dispatch_lines": [
+        2326
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_EDIT_MULTISELECTALLWHOLEWORD",
+      "menu_paths": [
+        "Edit > Multi-select All > Match Whole Word Only"
+      ],
+      "oracle_menu_lines": [
+        621
+      ],
+      "oracle_dispatch_lines": [
+        2327,
+        4592
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_EDIT_MULTISELECTALLMATCHCASEWHOLEWORD",
+      "menu_paths": [
+        "Edit > Multi-select All > Match Case & Whole Word"
+      ],
+      "oracle_menu_lines": [
+        622
+      ],
+      "oracle_dispatch_lines": [
+        2328,
+        4593
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_EDIT_MULTISELECTNEXT",
+      "menu_paths": [
+        "Edit > Multi-select Next > Ignore Case & Whole Word"
+      ],
+      "oracle_menu_lines": [
+        626
+      ],
+      "oracle_dispatch_lines": [
+        2349,
+        4594
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_EDIT_MULTISELECTNEXTMATCHCASE",
+      "menu_paths": [
+        "Edit > Multi-select Next > Match Case Only"
+      ],
+      "oracle_menu_lines": [
+        627
+      ],
+      "oracle_dispatch_lines": [
+        2350,
+        4595
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_EDIT_MULTISELECTNEXTWHOLEWORD",
+      "menu_paths": [
+        "Edit > Multi-select Next > Match Whole Word Only"
+      ],
+      "oracle_menu_lines": [
+        628
+      ],
+      "oracle_dispatch_lines": [
+        2351,
+        4596
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_EDIT_MULTISELECTNEXTMATCHCASEWHOLEWORD",
+      "menu_paths": [
+        "Edit > Multi-select Next > Match Case & Whole Word"
+      ],
+      "oracle_menu_lines": [
+        629
+      ],
+      "oracle_dispatch_lines": [
+        2352,
+        4597
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_EDIT_MULTISELECTUNDO",
+      "menu_paths": [
+        "Edit > Undo the Latest Added Multi-Select"
+      ],
+      "oracle_menu_lines": [
+        631
+      ],
+      "oracle_dispatch_lines": [
+        2364,
+        4598
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_EDIT_MULTISELECTSSKIP",
+      "menu_paths": [
+        "Edit > Skip Current & Go to Next Multi-select"
+      ],
+      "oracle_menu_lines": [
+        632
+      ],
+      "oracle_dispatch_lines": [
+        2372,
+        4599
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_EDIT_COLUMNMODETIP",
+      "menu_paths": [
+        "Edit > Column Mode..."
+      ],
+      "oracle_menu_lines": [
+        634
+      ],
+      "oracle_dispatch_lines": [
+        1914
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_EDIT_COLUMNMODE",
+      "menu_paths": [
+        "Edit > Column Editor..."
+      ],
+      "oracle_menu_lines": [
+        635
+      ],
+      "oracle_dispatch_lines": [
+        1931
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_EDIT_CHAR_PANEL",
+      "menu_paths": [
+        "Edit > Character Panel"
+      ],
+      "oracle_menu_lines": [
+        636
+      ],
+      "oracle_dispatch_lines": [
+        1093
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_EDIT_CLIPBOARDHISTORY_PANEL",
+      "menu_paths": [
+        "Edit > Clipboard History"
+      ],
+      "oracle_menu_lines": [
+        637
+      ],
+      "oracle_dispatch_lines": [
+        1110
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_EDIT_TOGGLEREADONLY",
+      "menu_paths": [
+        "Edit > Read-Only in Notepad++ > Read-Only on Current Document"
+      ],
+      "oracle_menu_lines": [
+        641
+      ],
+      "oracle_dispatch_lines": [
+        2279,
+        4472
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_EDIT_SETREADONLYFORALLDOCS",
+      "menu_paths": [
+        "Edit > Read-Only in Notepad++ > Read-Only for All Documents"
+      ],
+      "oracle_menu_lines": [
+        642
+      ],
+      "oracle_dispatch_lines": [
+        2286,
+        4602
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_EDIT_CLEARREADONLYFORALLDOCS",
+      "menu_paths": [
+        "Edit > Read-Only in Notepad++ > Clear Read-Only for All Documents"
+      ],
+      "oracle_menu_lines": [
+        643
+      ],
+      "oracle_dispatch_lines": [
+        2292,
+        4603
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_EDIT_TOGGLESYSTEMREADONLY",
+      "menu_paths": [
+        "Edit > Read-Only Attribute in Windows"
+      ],
+      "oracle_menu_lines": [
+        645
+      ],
+      "oracle_dispatch_lines": [
+        2298,
+        4476
+      ],
+      "route_at_baseline": "partial",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_SEARCH_FIND",
+      "menu_paths": [
+        "Search > Find..."
+      ],
+      "oracle_menu_lines": [
+        650
+      ],
+      "oracle_dispatch_lines": [
+        1553
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_SEARCH_FINDINFILES",
+      "menu_paths": [
+        "Search > Find in Files..."
+      ],
+      "oracle_menu_lines": [
+        651
+      ],
+      "oracle_dispatch_lines": [
+        1575
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_SEARCH_FINDNEXT",
+      "menu_paths": [
+        "Search > Find Next"
+      ],
+      "oracle_menu_lines": [
+        652
+      ],
+      "oracle_dispatch_lines": [
+        1598,
+        4430
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_SEARCH_FINDPREV",
+      "menu_paths": [
+        "Search > Find Previous"
+      ],
+      "oracle_menu_lines": [
+        653
+      ],
+      "oracle_dispatch_lines": [
+        1599,
+        4431
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_SEARCH_SETANDFINDNEXT",
+      "menu_paths": [
+        "Search > Select and Find Next"
+      ],
+      "oracle_menu_lines": [
+        654
+      ],
+      "oracle_dispatch_lines": [
+        1633,
+        4432
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_SEARCH_SETANDFINDPREV",
+      "menu_paths": [
+        "Search > Select and Find Previous"
+      ],
+      "oracle_menu_lines": [
+        655
+      ],
+      "oracle_dispatch_lines": [
+        1634,
+        4433
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_SEARCH_VOLATILE_FINDNEXT",
+      "menu_paths": [
+        "Search > Find (Volatile) Next"
+      ],
+      "oracle_menu_lines": [
+        656
+      ],
+      "oracle_dispatch_lines": [
+        1690,
+        4560
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_SEARCH_VOLATILE_FINDPREV",
+      "menu_paths": [
+        "Search > Find (Volatile) Previous"
+      ],
+      "oracle_menu_lines": [
+        657
+      ],
+      "oracle_dispatch_lines": [
+        1691,
+        4561
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_SEARCH_REPLACE",
+      "menu_paths": [
+        "Search > Replace..."
+      ],
+      "oracle_menu_lines": [
+        658
+      ],
+      "oracle_dispatch_lines": [
+        1554
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_SEARCH_FINDINCREMENT",
+      "menu_paths": [
+        "Search > Incremental Search"
+      ],
+      "oracle_menu_lines": [
+        659
+      ],
+      "oracle_dispatch_lines": [
+        1581
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_FOCUS_ON_FOUND_RESULTS",
+      "menu_paths": [
+        "Search > Search Results Window"
+      ],
+      "oracle_menu_lines": [
+        660
+      ],
+      "oracle_dispatch_lines": [
+        1680
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_SEARCH_GOTONEXTFOUND",
+      "menu_paths": [
+        "Search > Next Search Result"
+      ],
+      "oracle_menu_lines": [
+        661
+      ],
+      "oracle_dispatch_lines": [
+        1668
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_SEARCH_GOTOPREVFOUND",
+      "menu_paths": [
+        "Search > Previous Search Result"
+      ],
+      "oracle_menu_lines": [
+        662
+      ],
+      "oracle_dispatch_lines": [
+        1674
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_SEARCH_GOTOLINE",
+      "menu_paths": [
+        "Search > Go to..."
+      ],
+      "oracle_menu_lines": [
+        663
+      ],
+      "oracle_dispatch_lines": [
+        1896
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_SEARCH_GOTOMATCHINGBRACE",
+      "menu_paths": [
+        "Search > Go to Matching Brace"
+      ],
+      "oracle_menu_lines": [
+        664
+      ],
+      "oracle_dispatch_lines": [
+        1940,
+        4434
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_SEARCH_SELECTMATCHINGBRACES",
+      "menu_paths": [
+        "Search > Select All In-between {} [] or ()"
+      ],
+      "oracle_menu_lines": [
+        665
+      ],
+      "oracle_dispatch_lines": [
+        1941,
+        4435
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_SEARCH_MARK",
+      "menu_paths": [
+        "Search > Mark..."
+      ],
+      "oracle_menu_lines": [
+        666
+      ],
+      "oracle_dispatch_lines": [
+        1555
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_SEARCH_CHANGED_NEXT",
+      "menu_paths": [
+        "Search > Change History > Go to Next Change"
+      ],
+      "oracle_menu_lines": [
+        670
+      ],
+      "oracle_dispatch_lines": [
+        1979
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_SEARCH_CHANGED_PREV",
+      "menu_paths": [
+        "Search > Change History > Go to Previous Change"
+      ],
+      "oracle_menu_lines": [
+        671
+      ],
+      "oracle_dispatch_lines": [
+        1978
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_SEARCH_CLEAR_CHANGE_HISTORY",
+      "menu_paths": [
+        "Search > Change History > Clear Change History"
+      ],
+      "oracle_menu_lines": [
+        672
+      ],
+      "oracle_dispatch_lines": [
+        1983
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_SEARCH_MARKALLEXT1",
+      "menu_paths": [
+        "Search > Style All Occurrences of Token > Using 1st Style"
+      ],
+      "oracle_menu_lines": [
+        677
+      ],
+      "oracle_dispatch_lines": [
+        1718,
+        4567
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_SEARCH_MARKALLEXT2",
+      "menu_paths": [
+        "Search > Style All Occurrences of Token > Using 2nd Style"
+      ],
+      "oracle_menu_lines": [
+        678
+      ],
+      "oracle_dispatch_lines": [
+        1719,
+        4568
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_SEARCH_MARKALLEXT3",
+      "menu_paths": [
+        "Search > Style All Occurrences of Token > Using 3rd Style"
+      ],
+      "oracle_menu_lines": [
+        679
+      ],
+      "oracle_dispatch_lines": [
+        1720,
+        4569
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_SEARCH_MARKALLEXT4",
+      "menu_paths": [
+        "Search > Style All Occurrences of Token > Using 4th Style"
+      ],
+      "oracle_menu_lines": [
+        680
+      ],
+      "oracle_dispatch_lines": [
+        1721,
+        4570
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_SEARCH_MARKALLEXT5",
+      "menu_paths": [
+        "Search > Style All Occurrences of Token > Using 5th Style"
+      ],
+      "oracle_menu_lines": [
+        681
+      ],
+      "oracle_dispatch_lines": [
+        1722,
+        4571
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_SEARCH_MARKONEEXT1",
+      "menu_paths": [
+        "Search > Style One Token > Using 1st Style"
+      ],
+      "oracle_menu_lines": [
+        685
+      ],
+      "oracle_dispatch_lines": [
+        1745,
+        4572
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_SEARCH_MARKONEEXT2",
+      "menu_paths": [
+        "Search > Style One Token > Using 2nd Style"
+      ],
+      "oracle_menu_lines": [
+        686
+      ],
+      "oracle_dispatch_lines": [
+        1746,
+        4573
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_SEARCH_MARKONEEXT3",
+      "menu_paths": [
+        "Search > Style One Token > Using 3rd Style"
+      ],
+      "oracle_menu_lines": [
+        687
+      ],
+      "oracle_dispatch_lines": [
+        1747,
+        4574
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_SEARCH_MARKONEEXT4",
+      "menu_paths": [
+        "Search > Style One Token > Using 4th Style"
+      ],
+      "oracle_menu_lines": [
+        688
+      ],
+      "oracle_dispatch_lines": [
+        1748,
+        4575
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_SEARCH_MARKONEEXT5",
+      "menu_paths": [
+        "Search > Style One Token > Using 5th Style"
+      ],
+      "oracle_menu_lines": [
+        689
+      ],
+      "oracle_dispatch_lines": [
+        1749,
+        4576
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_SEARCH_UNMARKALLEXT1",
+      "menu_paths": [
+        "Search > Clear Style > Clear 1st Style"
+      ],
+      "oracle_menu_lines": [
+        693
+      ],
+      "oracle_dispatch_lines": [
+        1778,
+        4577
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_SEARCH_UNMARKALLEXT2",
+      "menu_paths": [
+        "Search > Clear Style > Clear 2nd Style"
+      ],
+      "oracle_menu_lines": [
+        694
+      ],
+      "oracle_dispatch_lines": [
+        1779,
+        4578
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_SEARCH_UNMARKALLEXT3",
+      "menu_paths": [
+        "Search > Clear Style > Clear 3rd Style"
+      ],
+      "oracle_menu_lines": [
+        695
+      ],
+      "oracle_dispatch_lines": [
+        1780,
+        4579
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_SEARCH_UNMARKALLEXT4",
+      "menu_paths": [
+        "Search > Clear Style > Clear 4th Style"
+      ],
+      "oracle_menu_lines": [
+        696
+      ],
+      "oracle_dispatch_lines": [
+        1781,
+        4580
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_SEARCH_UNMARKALLEXT5",
+      "menu_paths": [
+        "Search > Clear Style > Clear 5th Style"
+      ],
+      "oracle_menu_lines": [
+        697
+      ],
+      "oracle_dispatch_lines": [
+        1782,
+        4581
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_SEARCH_CLEARALLMARKS",
+      "menu_paths": [
+        "Search > Clear Style > Clear all Styles"
+      ],
+      "oracle_menu_lines": [
+        698
+      ],
+      "oracle_dispatch_lines": [
+        1850,
+        4582
+      ],
+      "route_at_baseline": "partial",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_SEARCH_GOPREVMARKER1",
+      "menu_paths": [
+        "Search > Jump Up > 1st Style"
+      ],
+      "oracle_menu_lines": [
+        702
+      ],
+      "oracle_dispatch_lines": [
+        1825,
+        4541
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_SEARCH_GOPREVMARKER2",
+      "menu_paths": [
+        "Search > Jump Up > 2nd Style"
+      ],
+      "oracle_menu_lines": [
+        703
+      ],
+      "oracle_dispatch_lines": [
+        1826,
+        4542
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_SEARCH_GOPREVMARKER3",
+      "menu_paths": [
+        "Search > Jump Up > 3rd Style"
+      ],
+      "oracle_menu_lines": [
+        704
+      ],
+      "oracle_dispatch_lines": [
+        1827,
+        4543
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_SEARCH_GOPREVMARKER4",
+      "menu_paths": [
+        "Search > Jump Up > 4th Style"
+      ],
+      "oracle_menu_lines": [
+        705
+      ],
+      "oracle_dispatch_lines": [
+        1828,
+        4544
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_SEARCH_GOPREVMARKER5",
+      "menu_paths": [
+        "Search > Jump Up > 5th Style"
+      ],
+      "oracle_menu_lines": [
+        706
+      ],
+      "oracle_dispatch_lines": [
+        1829,
+        4545
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_SEARCH_GOPREVMARKER_DEF",
+      "menu_paths": [
+        "Search > Jump Up > Find Mark Style"
+      ],
+      "oracle_menu_lines": [
+        707
+      ],
+      "oracle_dispatch_lines": [
+        1830,
+        4546
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_SEARCH_GONEXTMARKER1",
+      "menu_paths": [
+        "Search > Jump Down > 1st Style"
+      ],
+      "oracle_menu_lines": [
+        711
+      ],
+      "oracle_dispatch_lines": [
+        1800,
+        4547
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_SEARCH_GONEXTMARKER2",
+      "menu_paths": [
+        "Search > Jump Down > 2nd Style"
+      ],
+      "oracle_menu_lines": [
+        712
+      ],
+      "oracle_dispatch_lines": [
+        1801,
+        4548
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_SEARCH_GONEXTMARKER3",
+      "menu_paths": [
+        "Search > Jump Down > 3rd Style"
+      ],
+      "oracle_menu_lines": [
+        713
+      ],
+      "oracle_dispatch_lines": [
+        1802,
+        4549
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_SEARCH_GONEXTMARKER4",
+      "menu_paths": [
+        "Search > Jump Down > 4th Style"
+      ],
+      "oracle_menu_lines": [
+        714
+      ],
+      "oracle_dispatch_lines": [
+        1803,
+        4550
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_SEARCH_GONEXTMARKER5",
+      "menu_paths": [
+        "Search > Jump Down > 5th Style"
+      ],
+      "oracle_menu_lines": [
+        715
+      ],
+      "oracle_dispatch_lines": [
+        1804,
+        4551
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_SEARCH_GONEXTMARKER_DEF",
+      "menu_paths": [
+        "Search > Jump Down > Find Mark Style"
+      ],
+      "oracle_menu_lines": [
+        716
+      ],
+      "oracle_dispatch_lines": [
+        1805,
+        4552
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_SEARCH_STYLE1TOCLIP",
+      "menu_paths": [
+        "Search > Copy Styled Text > 1st Style"
+      ],
+      "oracle_menu_lines": [
+        720
+      ],
+      "oracle_dispatch_lines": [
+        1860,
+        4553
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_SEARCH_STYLE2TOCLIP",
+      "menu_paths": [
+        "Search > Copy Styled Text > 2nd Style"
+      ],
+      "oracle_menu_lines": [
+        721
+      ],
+      "oracle_dispatch_lines": [
+        1865,
+        4554
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_SEARCH_STYLE3TOCLIP",
+      "menu_paths": [
+        "Search > Copy Styled Text > 3rd Style"
+      ],
+      "oracle_menu_lines": [
+        722
+      ],
+      "oracle_dispatch_lines": [
+        1870,
+        4555
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_SEARCH_STYLE4TOCLIP",
+      "menu_paths": [
+        "Search > Copy Styled Text > 4th Style"
+      ],
+      "oracle_menu_lines": [
+        723
+      ],
+      "oracle_dispatch_lines": [
+        1875,
+        4556
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_SEARCH_STYLE5TOCLIP",
+      "menu_paths": [
+        "Search > Copy Styled Text > 5th Style"
+      ],
+      "oracle_menu_lines": [
+        724
+      ],
+      "oracle_dispatch_lines": [
+        1880,
+        4557
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_SEARCH_ALLSTYLESTOCLIP",
+      "menu_paths": [
+        "Search > Copy Styled Text > All Styles"
+      ],
+      "oracle_menu_lines": [
+        725
+      ],
+      "oracle_dispatch_lines": [
+        1885,
+        4558
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_SEARCH_MARKEDTOCLIP",
+      "menu_paths": [
+        "Search > Copy Styled Text > Find Mark Style"
+      ],
+      "oracle_menu_lines": [
+        726
+      ],
+      "oracle_dispatch_lines": [
+        1890,
+        4559
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_SEARCH_TOGGLE_BOOKMARK",
+      "menu_paths": [
+        "Search > Bookmark > Toggle Bookmark"
+      ],
+      "oracle_menu_lines": [
+        731
+      ],
+      "oracle_dispatch_lines": [
+        1962,
+        4436
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_SEARCH_NEXT_BOOKMARK",
+      "menu_paths": [
+        "Search > Bookmark > Next Bookmark"
+      ],
+      "oracle_menu_lines": [
+        732
+      ],
+      "oracle_dispatch_lines": [
+        1966,
+        4437
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_SEARCH_PREV_BOOKMARK",
+      "menu_paths": [
+        "Search > Bookmark > Previous Bookmark"
+      ],
+      "oracle_menu_lines": [
+        733
+      ],
+      "oracle_dispatch_lines": [
+        1970,
+        4438
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_SEARCH_CLEAR_BOOKMARKS",
+      "menu_paths": [
+        "Search > Bookmark > Clear All Bookmarks"
+      ],
+      "oracle_menu_lines": [
+        734
+      ],
+      "oracle_dispatch_lines": [
+        1974,
+        4439
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_SEARCH_CUTMARKEDLINES",
+      "menu_paths": [
+        "Search > Bookmark > Cut Bookmarked Lines"
+      ],
+      "oracle_menu_lines": [
+        735
+      ],
+      "oracle_dispatch_lines": [
+        2385,
+        4562
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": [
+        "docs/bookmark-edits.md"
+      ],
+      "remaining": [
+        "Native Windows clipboard/input inspection",
+        "Text-editing commands currently refuse rectangle selections"
+      ],
+      "implementation": "integrated; automated leaf and combined Windows checks and scoped default-release controls passed; native verification pending"
+    },
+    {
+      "id": "IDM_SEARCH_COPYMARKEDLINES",
+      "menu_paths": [
+        "Search > Bookmark > Copy Bookmarked Lines"
+      ],
+      "oracle_menu_lines": [
+        736
+      ],
+      "oracle_dispatch_lines": [
+        2389,
+        4563
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_SEARCH_PASTEMARKEDLINES",
+      "menu_paths": [
+        "Search > Bookmark > Paste to (Replace) Bookmarked Lines"
+      ],
+      "oracle_menu_lines": [
+        737
+      ],
+      "oracle_dispatch_lines": [
+        2393,
+        4564
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": [
+        "docs/bookmark-edits.md"
+      ],
+      "remaining": [
+        "Native Windows clipboard/input inspection",
+        "Text-editing commands currently refuse rectangle selections"
+      ],
+      "implementation": "integrated; automated leaf and combined Windows checks and scoped default-release controls passed; native verification pending"
+    },
+    {
+      "id": "IDM_SEARCH_DELETEMARKEDLINES",
+      "menu_paths": [
+        "Search > Bookmark > Remove Bookmarked Lines"
+      ],
+      "oracle_menu_lines": [
+        738
+      ],
+      "oracle_dispatch_lines": [
+        2397,
+        4565
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": [
+        "docs/bookmark-edits.md"
+      ],
+      "remaining": [
+        "Native Windows clipboard/input inspection",
+        "Text-editing commands currently refuse rectangle selections"
+      ],
+      "implementation": "integrated; automated leaf and combined Windows checks and scoped default-release controls passed; native verification pending"
+    },
+    {
+      "id": "IDM_SEARCH_DELETEUNMARKEDLINES",
+      "menu_paths": [
+        "Search > Bookmark > Remove Non-Bookmarked Lines"
+      ],
+      "oracle_menu_lines": [
+        739
+      ],
+      "oracle_dispatch_lines": [
+        2401,
+        4566
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": [
+        "docs/bookmark-edits.md"
+      ],
+      "remaining": [
+        "Native Windows clipboard/input inspection",
+        "Text-editing commands currently refuse rectangle selections"
+      ],
+      "implementation": "integrated; automated leaf and combined Windows checks and scoped default-release controls passed; native verification pending"
+    },
+    {
+      "id": "IDM_SEARCH_INVERSEMARKS",
+      "menu_paths": [
+        "Search > Bookmark > Inverse Bookmarks"
+      ],
+      "oracle_menu_lines": [
+        740
+      ],
+      "oracle_dispatch_lines": [
+        2405,
+        4440
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": [
+        "docs/bookmark-edits.md"
+      ],
+      "remaining": [
+        "Native Windows clipboard/input inspection"
+      ],
+      "implementation": "integrated; automated leaf and combined Windows checks and scoped default-release controls passed; native verification pending"
+    },
+    {
+      "id": "IDM_SEARCH_FINDCHARINRANGE",
+      "menu_paths": [
+        "Search > Find characters in range..."
+      ],
+      "oracle_menu_lines": [
+        743
+      ],
+      "oracle_dispatch_lines": [
+        1905
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_VIEW_ALWAYSONTOP",
+      "menu_paths": [
+        "View > Always on Top"
+      ],
+      "oracle_menu_lines": [
+        748
+      ],
+      "oracle_dispatch_lines": [
+        2409,
+        4496
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_VIEW_FULLSCREENTOGGLE",
+      "menu_paths": [
+        "View > Toggle Full Screen Mode"
+      ],
+      "oracle_menu_lines": [
+        749
+      ],
+      "oracle_dispatch_lines": [
+        2474,
+        4495
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_VIEW_POSTIT",
+      "menu_paths": [
+        "View > Post-It"
+      ],
+      "oracle_menu_lines": [
+        750
+      ],
+      "oracle_dispatch_lines": [
+        2481
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_VIEW_DISTRACTIONFREE",
+      "menu_paths": [
+        "View > Distraction Free Mode"
+      ],
+      "oracle_menu_lines": [
+        751
+      ],
+      "oracle_dispatch_lines": [
+        2488
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_VIEW_IN_FIREFOX",
+      "menu_paths": [
+        "View > View Current File in > Firefox"
+      ],
+      "oracle_menu_lines": [
+        756
+      ],
+      "oracle_dispatch_lines": [
+        2496,
+        4586
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_VIEW_IN_CHROME",
+      "menu_paths": [
+        "View > View Current File in > Chrome"
+      ],
+      "oracle_menu_lines": [
+        757
+      ],
+      "oracle_dispatch_lines": [
+        2497,
+        4587
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_VIEW_IN_EDGE",
+      "menu_paths": [
+        "View > View Current File in > Edge"
+      ],
+      "oracle_menu_lines": [
+        758
+      ],
+      "oracle_dispatch_lines": [
+        2498,
+        4588
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_VIEW_IN_IE",
+      "menu_paths": [
+        "View > View Current File in > IE"
+      ],
+      "oracle_menu_lines": [
+        759
+      ],
+      "oracle_dispatch_lines": [
+        2499,
+        4589
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_VIEW_TAB_SPACE",
+      "menu_paths": [
+        "View > Show Symbol > Show Space and Tab"
+      ],
+      "oracle_menu_lines": [
+        764
+      ],
+      "oracle_dispatch_lines": [
+        2565
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_VIEW_EOL",
+      "menu_paths": [
+        "View > Show Symbol > Show End of Line"
+      ],
+      "oracle_menu_lines": [
+        765
+      ],
+      "oracle_dispatch_lines": [
+        2584
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_VIEW_NPC",
+      "menu_paths": [
+        "View > Show Symbol > Show Non-Printing Characters"
+      ],
+      "oracle_menu_lines": [
+        766
+      ],
+      "oracle_dispatch_lines": [
+        2603
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_VIEW_NPC_CCUNIEOL",
+      "menu_paths": [
+        "View > Show Symbol > Show Control Characters & Unicode EOL"
+      ],
+      "oracle_menu_lines": [
+        767
+      ],
+      "oracle_dispatch_lines": [
+        2625
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_VIEW_ALL_CHARACTERS",
+      "menu_paths": [
+        "View > Show Symbol > Show All Characters"
+      ],
+      "oracle_menu_lines": [
+        768
+      ],
+      "oracle_dispatch_lines": [
+        2663
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_VIEW_INDENT_GUIDE",
+      "menu_paths": [
+        "View > Show Symbol > Show Indent Guide"
+      ],
+      "oracle_menu_lines": [
+        770
+      ],
+      "oracle_dispatch_lines": [
+        2706
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_VIEW_WRAP_SYMBOL",
+      "menu_paths": [
+        "View > Show Symbol > Show Wrap Symbol"
+      ],
+      "oracle_menu_lines": [
+        771
+      ],
+      "oracle_dispatch_lines": [
+        2744
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_VIEW_ZOOMIN",
+      "menu_paths": [
+        "View > Zoom > Zoom In (Ctrl+Mouse Wheel Up)"
+      ],
+      "oracle_menu_lines": [
+        775
+      ],
+      "oracle_dispatch_lines": [
+        2761
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_VIEW_ZOOMOUT",
+      "menu_paths": [
+        "View > Zoom > Zoom Out (Ctrl+Mouse Wheel Down)"
+      ],
+      "oracle_menu_lines": [
+        776
+      ],
+      "oracle_dispatch_lines": [
+        2767
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_VIEW_ZOOMRESTORE",
+      "menu_paths": [
+        "View > Zoom > Restore Default Zoom"
+      ],
+      "oracle_menu_lines": [
+        777
+      ],
+      "oracle_dispatch_lines": [
+        2772
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_VIEW_ZOOM_SYNC",
+      "menu_paths": [
+        "View > Zoom > Synchronize Across Views"
+      ],
+      "oracle_menu_lines": [
+        779
+      ],
+      "oracle_dispatch_lines": [
+        2778
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_VIEW_GOTO_ANOTHER_VIEW",
+      "menu_paths": [
+        "View > Move/Clone Current Document > Move to Other View"
+      ],
+      "oracle_menu_lines": [
+        783
+      ],
+      "oracle_dispatch_lines": [
+        3540,
+        4520
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_VIEW_CLONE_TO_ANOTHER_VIEW",
+      "menu_paths": [
+        "View > Move/Clone Current Document > Clone to Other View"
+      ],
+      "oracle_menu_lines": [
+        784
+      ],
+      "oracle_dispatch_lines": [
+        3546,
+        4521
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_VIEW_GOTO_NEW_INSTANCE",
+      "menu_paths": [
+        "View > Move/Clone Current Document > Move to New Instance"
+      ],
+      "oracle_menu_lines": [
+        785
+      ],
+      "oracle_dispatch_lines": [
+        3552,
+        4522
+      ],
+      "route_at_baseline": "alternate-only",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_VIEW_LOAD_IN_NEW_INSTANCE",
+      "menu_paths": [
+        "View > Move/Clone Current Document > Open in New Instance"
+      ],
+      "oracle_menu_lines": [
+        786
+      ],
+      "oracle_dispatch_lines": [
+        3556,
+        4523
+      ],
+      "route_at_baseline": "alternate-only",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_VIEW_TAB1",
+      "menu_paths": [
+        "View > Tab > 1st Tab"
+      ],
+      "oracle_menu_lines": [
+        791
+      ],
+      "oracle_dispatch_lines": [
+        1324,
+        4526
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_VIEW_TAB2",
+      "menu_paths": [
+        "View > Tab > 2nd Tab"
+      ],
+      "oracle_menu_lines": [
+        792
+      ],
+      "oracle_dispatch_lines": [
+        1325,
+        4527
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_VIEW_TAB3",
+      "menu_paths": [
+        "View > Tab > 3rd Tab"
+      ],
+      "oracle_menu_lines": [
+        793
+      ],
+      "oracle_dispatch_lines": [
+        1326,
+        4528
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_VIEW_TAB4",
+      "menu_paths": [
+        "View > Tab > 4th Tab"
+      ],
+      "oracle_menu_lines": [
+        794
+      ],
+      "oracle_dispatch_lines": [
+        1327,
+        4529
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_VIEW_TAB5",
+      "menu_paths": [
+        "View > Tab > 5th Tab"
+      ],
+      "oracle_menu_lines": [
+        795
+      ],
+      "oracle_dispatch_lines": [
+        1328,
+        4530
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_VIEW_TAB6",
+      "menu_paths": [
+        "View > Tab > 6th Tab"
+      ],
+      "oracle_menu_lines": [
+        796
+      ],
+      "oracle_dispatch_lines": [
+        1329,
+        4531
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_VIEW_TAB7",
+      "menu_paths": [
+        "View > Tab > 7th Tab"
+      ],
+      "oracle_menu_lines": [
+        797
+      ],
+      "oracle_dispatch_lines": [
+        1330,
+        4532
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_VIEW_TAB8",
+      "menu_paths": [
+        "View > Tab > 8th Tab"
+      ],
+      "oracle_menu_lines": [
+        798
+      ],
+      "oracle_dispatch_lines": [
+        1331,
+        4533
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_VIEW_TAB9",
+      "menu_paths": [
+        "View > Tab > 9th Tab"
+      ],
+      "oracle_menu_lines": [
+        799
+      ],
+      "oracle_dispatch_lines": [
+        1332,
+        4534
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_VIEW_TAB_START",
+      "menu_paths": [
+        "View > Tab > First Tab"
+      ],
+      "oracle_menu_lines": [
+        801
+      ],
+      "oracle_dispatch_lines": [
+        1352
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_VIEW_TAB_END",
+      "menu_paths": [
+        "View > Tab > Last Tab"
+      ],
+      "oracle_menu_lines": [
+        802
+      ],
+      "oracle_dispatch_lines": [
+        1353
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_VIEW_TAB_NEXT",
+      "menu_paths": [
+        "View > Tab > Next Tab"
+      ],
+      "oracle_menu_lines": [
+        803
+      ],
+      "oracle_dispatch_lines": [
+        1360,
+        4535
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_VIEW_TAB_PREV",
+      "menu_paths": [
+        "View > Tab > Previous Tab"
+      ],
+      "oracle_menu_lines": [
+        804
+      ],
+      "oracle_dispatch_lines": [
+        1375,
+        4536
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_VIEW_GOTO_START",
+      "menu_paths": [
+        "View > Tab > Move to Start"
+      ],
+      "oracle_menu_lines": [
+        806
+      ],
+      "oracle_dispatch_lines": [
+        3532,
+        4518
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_VIEW_GOTO_END",
+      "menu_paths": [
+        "View > Tab > Move to End"
+      ],
+      "oracle_menu_lines": [
+        807
+      ],
+      "oracle_dispatch_lines": [
+        3536,
+        4519
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_VIEW_TAB_MOVEFORWARD",
+      "menu_paths": [
+        "View > Tab > Move Tab Forward"
+      ],
+      "oracle_menu_lines": [
+        808
+      ],
+      "oracle_dispatch_lines": [
+        1390,
+        4537
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_VIEW_TAB_MOVEBACKWARD",
+      "menu_paths": [
+        "View > Tab > Move Tab Backward"
+      ],
+      "oracle_menu_lines": [
+        809
+      ],
+      "oracle_dispatch_lines": [
+        1391,
+        4538
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_VIEW_TAB_COLOUR_1",
+      "menu_paths": [
+        "View > Tab > Apply Color 1"
+      ],
+      "oracle_menu_lines": [
+        811
+      ],
+      "oracle_dispatch_lines": [
+        1305
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_VIEW_TAB_COLOUR_2",
+      "menu_paths": [
+        "View > Tab > Apply Color 2"
+      ],
+      "oracle_menu_lines": [
+        812
+      ],
+      "oracle_dispatch_lines": [
+        1306
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_VIEW_TAB_COLOUR_3",
+      "menu_paths": [
+        "View > Tab > Apply Color 3"
+      ],
+      "oracle_menu_lines": [
+        813
+      ],
+      "oracle_dispatch_lines": [
+        1307
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_VIEW_TAB_COLOUR_4",
+      "menu_paths": [
+        "View > Tab > Apply Color 4"
+      ],
+      "oracle_menu_lines": [
+        814
+      ],
+      "oracle_dispatch_lines": [
+        1308
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_VIEW_TAB_COLOUR_5",
+      "menu_paths": [
+        "View > Tab > Apply Color 5"
+      ],
+      "oracle_menu_lines": [
+        815
+      ],
+      "oracle_dispatch_lines": [
+        1309
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_VIEW_TAB_COLOUR_NONE",
+      "menu_paths": [
+        "View > Tab > Remove Color"
+      ],
+      "oracle_menu_lines": [
+        816
+      ],
+      "oracle_dispatch_lines": [
+        1304
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_VIEW_WRAP",
+      "menu_paths": [
+        "View > Word wrap"
+      ],
+      "oracle_menu_lines": [
+        818
+      ],
+      "oracle_dispatch_lines": [
+        2718,
+        4497
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_VIEW_SWITCHTO_OTHER_VIEW",
+      "menu_paths": [
+        "View > Focus on Another View"
+      ],
+      "oracle_menu_lines": [
+        819
+      ],
+      "oracle_dispatch_lines": [
+        3560
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_VIEW_HIDELINES",
+      "menu_paths": [
+        "View > Hide Lines"
+      ],
+      "oracle_menu_lines": [
+        820
+      ],
+      "oracle_dispatch_lines": [
+        2755
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_VIEW_FOLDALL",
+      "menu_paths": [
+        "View > Fold All"
+      ],
+      "oracle_menu_lines": [
+        822
+      ],
+      "oracle_dispatch_lines": [
+        2434,
+        4500
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_VIEW_UNFOLDALL",
+      "menu_paths": [
+        "View > Unfold All"
+      ],
+      "oracle_menu_lines": [
+        823
+      ],
+      "oracle_dispatch_lines": [
+        2435,
+        4501
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_VIEW_FOLD_CURRENT",
+      "menu_paths": [
+        "View > Fold Current Level"
+      ],
+      "oracle_menu_lines": [
+        824
+      ],
+      "oracle_dispatch_lines": [
+        2418,
+        4498
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_VIEW_UNFOLD_CURRENT",
+      "menu_paths": [
+        "View > Unfold Current Level"
+      ],
+      "oracle_menu_lines": [
+        825
+      ],
+      "oracle_dispatch_lines": [
+        2419,
+        4499
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_VIEW_FOLD_1",
+      "menu_paths": [
+        "View > Fold Level > 1"
+      ],
+      "oracle_menu_lines": [
+        828
+      ],
+      "oracle_dispatch_lines": [
+        2448,
+        4502
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_VIEW_FOLD_2",
+      "menu_paths": [
+        "View > Fold Level > 2"
+      ],
+      "oracle_menu_lines": [
+        829
+      ],
+      "oracle_dispatch_lines": [
+        2449,
+        4503
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_VIEW_FOLD_3",
+      "menu_paths": [
+        "View > Fold Level > 3"
+      ],
+      "oracle_menu_lines": [
+        830
+      ],
+      "oracle_dispatch_lines": [
+        2450,
+        4504
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_VIEW_FOLD_4",
+      "menu_paths": [
+        "View > Fold Level > 4"
+      ],
+      "oracle_menu_lines": [
+        831
+      ],
+      "oracle_dispatch_lines": [
+        2451,
+        4505
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_VIEW_FOLD_5",
+      "menu_paths": [
+        "View > Fold Level > 5"
+      ],
+      "oracle_menu_lines": [
+        832
+      ],
+      "oracle_dispatch_lines": [
+        2452,
+        4506
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_VIEW_FOLD_6",
+      "menu_paths": [
+        "View > Fold Level > 6"
+      ],
+      "oracle_menu_lines": [
+        833
+      ],
+      "oracle_dispatch_lines": [
+        2453,
+        4507
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_VIEW_FOLD_7",
+      "menu_paths": [
+        "View > Fold Level > 7"
+      ],
+      "oracle_menu_lines": [
+        834
+      ],
+      "oracle_dispatch_lines": [
+        2454,
+        4508
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_VIEW_FOLD_8",
+      "menu_paths": [
+        "View > Fold Level > 8"
+      ],
+      "oracle_menu_lines": [
+        835
+      ],
+      "oracle_dispatch_lines": [
+        2455,
+        4509
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_VIEW_UNFOLD_1",
+      "menu_paths": [
+        "View > Unfold Level > 1"
+      ],
+      "oracle_menu_lines": [
+        839
+      ],
+      "oracle_dispatch_lines": [
+        2461,
+        4510
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_VIEW_UNFOLD_2",
+      "menu_paths": [
+        "View > Unfold Level > 2"
+      ],
+      "oracle_menu_lines": [
+        840
+      ],
+      "oracle_dispatch_lines": [
+        2462,
+        4511
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_VIEW_UNFOLD_3",
+      "menu_paths": [
+        "View > Unfold Level > 3"
+      ],
+      "oracle_menu_lines": [
+        841
+      ],
+      "oracle_dispatch_lines": [
+        2463,
+        4512
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_VIEW_UNFOLD_4",
+      "menu_paths": [
+        "View > Unfold Level > 4"
+      ],
+      "oracle_menu_lines": [
+        842
+      ],
+      "oracle_dispatch_lines": [
+        2464,
+        4513
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_VIEW_UNFOLD_5",
+      "menu_paths": [
+        "View > Unfold Level > 5"
+      ],
+      "oracle_menu_lines": [
+        843
+      ],
+      "oracle_dispatch_lines": [
+        2465,
+        4514
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_VIEW_UNFOLD_6",
+      "menu_paths": [
+        "View > Unfold Level > 6"
+      ],
+      "oracle_menu_lines": [
+        844
+      ],
+      "oracle_dispatch_lines": [
+        2466,
+        4515
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_VIEW_UNFOLD_7",
+      "menu_paths": [
+        "View > Unfold Level > 7"
+      ],
+      "oracle_menu_lines": [
+        845
+      ],
+      "oracle_dispatch_lines": [
+        2467,
+        4516
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_VIEW_UNFOLD_8",
+      "menu_paths": [
+        "View > Unfold Level > 8"
+      ],
+      "oracle_menu_lines": [
+        846
+      ],
+      "oracle_dispatch_lines": [
+        2468,
+        4517
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_VIEW_SUMMARY",
+      "menu_paths": [
+        "View > Summary..."
+      ],
+      "oracle_menu_lines": [
+        850
+      ],
+      "oracle_dispatch_lines": [
+        2828
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_VIEW_PROJECT_PANEL_1",
+      "menu_paths": [
+        "View > Project Panels > Project Panel 1"
+      ],
+      "oracle_menu_lines": [
+        854
+      ],
+      "oracle_dispatch_lines": [
+        1165
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_VIEW_PROJECT_PANEL_2",
+      "menu_paths": [
+        "View > Project Panels > Project Panel 2"
+      ],
+      "oracle_menu_lines": [
+        855
+      ],
+      "oracle_dispatch_lines": [
+        1166
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_VIEW_PROJECT_PANEL_3",
+      "menu_paths": [
+        "View > Project Panels > Project Panel 3"
+      ],
+      "oracle_menu_lines": [
+        856
+      ],
+      "oracle_dispatch_lines": [
+        1167
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_VIEW_FILEBROWSER",
+      "menu_paths": [
+        "View > Folder as Workspace"
+      ],
+      "oracle_menu_lines": [
+        858
+      ],
+      "oracle_dispatch_lines": [
+        1208
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_VIEW_DOC_MAP",
+      "menu_paths": [
+        "View > Document Map"
+      ],
+      "oracle_menu_lines": [
+        859
+      ],
+      "oracle_dispatch_lines": [
+        1246
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_VIEW_DOCLIST",
+      "menu_paths": [
+        "View > Document List"
+      ],
+      "oracle_menu_lines": [
+        860
+      ],
+      "oracle_dispatch_lines": [
+        1143
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_VIEW_FUNC_LIST",
+      "menu_paths": [
+        "View > Function List"
+      ],
+      "oracle_menu_lines": [
+        861
+      ],
+      "oracle_dispatch_lines": [
+        1285
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_VIEW_SYNSCROLLV",
+      "menu_paths": [
+        "View > Synchronize Vertical Scrolling"
+      ],
+      "oracle_menu_lines": [
+        863
+      ],
+      "oracle_dispatch_lines": [
+        2789,
+        4524
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_VIEW_SYNSCROLLH",
+      "menu_paths": [
+        "View > Synchronize Horizontal Scrolling"
+      ],
+      "oracle_menu_lines": [
+        864
+      ],
+      "oracle_dispatch_lines": [
+        2807,
+        4525
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_EDIT_RTL",
+      "menu_paths": [
+        "View > Text Direction RTL"
+      ],
+      "oracle_menu_lines": [
+        866
+      ],
+      "oracle_dispatch_lines": [
+        4088,
+        4477
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_EDIT_LTR",
+      "menu_paths": [
+        "View > Text Direction LTR"
+      ],
+      "oracle_menu_lines": [
+        867
+      ],
+      "oracle_dispatch_lines": [
+        4089,
+        4478
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_VIEW_MONITORING",
+      "menu_paths": [
+        "View > Monitoring (tail -f)"
+      ],
+      "oracle_menu_lines": [
+        869
+      ],
+      "oracle_dispatch_lines": [
+        2905
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_FORMAT_ANSI",
+      "menu_paths": [
+        "Encoding > ANSI"
+      ],
+      "oracle_menu_lines": [
+        874
+      ],
+      "oracle_dispatch_lines": [
+        2991
+      ],
+      "route_at_baseline": "partial",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_FORMAT_AS_UTF_8",
+      "menu_paths": [
+        "Encoding > UTF-8"
+      ],
+      "oracle_menu_lines": [
+        875
+      ],
+      "oracle_dispatch_lines": [
+        2995,
+        3013
+      ],
+      "route_at_baseline": "partial",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_FORMAT_UTF_8",
+      "menu_paths": [
+        "Encoding > UTF-8-BOM"
+      ],
+      "oracle_menu_lines": [
+        876
+      ],
+      "oracle_dispatch_lines": [
+        2992,
+        3018
+      ],
+      "route_at_baseline": "partial",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_FORMAT_UTF_16BE",
+      "menu_paths": [
+        "Encoding > UTF-16 BE BOM"
+      ],
+      "oracle_menu_lines": [
+        877
+      ],
+      "oracle_dispatch_lines": [
+        2993,
+        3022
+      ],
+      "route_at_baseline": "partial",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_FORMAT_UTF_16LE",
+      "menu_paths": [
+        "Encoding > UTF-16 LE BOM"
+      ],
+      "oracle_menu_lines": [
+        878
+      ],
+      "oracle_dispatch_lines": [
+        2994,
+        3026
+      ],
+      "route_at_baseline": "partial",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_FORMAT_ISO_8859_6",
+      "menu_paths": [
+        "Encoding > Character sets > Arabic > ISO 8859-6"
+      ],
+      "oracle_menu_lines": [
+        883
+      ],
+      "oracle_dispatch_lines": [
+        3114
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_FORMAT_DOS_720",
+      "menu_paths": [
+        "Encoding > Character sets > Arabic > OEM 720"
+      ],
+      "oracle_menu_lines": [
+        884
+      ],
+      "oracle_dispatch_lines": [
+        3122
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_FORMAT_WIN_1256",
+      "menu_paths": [
+        "Encoding > Character sets > Arabic > Windows-1256"
+      ],
+      "oracle_menu_lines": [
+        885
+      ],
+      "oracle_dispatch_lines": [
+        3106
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_FORMAT_ISO_8859_4",
+      "menu_paths": [
+        "Encoding > Character sets > Baltic > ISO 8859-4"
+      ],
+      "oracle_menu_lines": [
+        890
+      ],
+      "oracle_dispatch_lines": [
+        3112
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_FORMAT_ISO_8859_13",
+      "menu_paths": [
+        "Encoding > Character sets > Baltic > ISO 8859-13"
+      ],
+      "oracle_menu_lines": [
+        891
+      ],
+      "oracle_dispatch_lines": [
+        3118
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_FORMAT_DOS_775",
+      "menu_paths": [
+        "Encoding > Character sets > Baltic > OEM 775"
+      ],
+      "oracle_menu_lines": [
+        892
+      ],
+      "oracle_dispatch_lines": [
+        3124
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_FORMAT_WIN_1257",
+      "menu_paths": [
+        "Encoding > Character sets > Baltic > Windows-1257"
+      ],
+      "oracle_menu_lines": [
+        893
+      ],
+      "oracle_dispatch_lines": [
+        3107
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_FORMAT_ISO_8859_14",
+      "menu_paths": [
+        "Encoding > Character sets > Celtic > ISO 8859-14"
+      ],
+      "oracle_menu_lines": [
+        897
+      ],
+      "oracle_dispatch_lines": [
+        3119
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_FORMAT_ISO_8859_5",
+      "menu_paths": [
+        "Encoding > Character sets > Cyrillic > ISO 8859-5"
+      ],
+      "oracle_menu_lines": [
+        901
+      ],
+      "oracle_dispatch_lines": [
+        3113
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_FORMAT_KOI8R_CYRILLIC",
+      "menu_paths": [
+        "Encoding > Character sets > Cyrillic > KOI8-R"
+      ],
+      "oracle_menu_lines": [
+        902
+      ],
+      "oracle_dispatch_lines": [
+        3145
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_FORMAT_KOI8U_CYRILLIC",
+      "menu_paths": [
+        "Encoding > Character sets > Cyrillic > KOI8-U"
+      ],
+      "oracle_menu_lines": [
+        903
+      ],
+      "oracle_dispatch_lines": [
+        3144
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_FORMAT_MAC_CYRILLIC",
+      "menu_paths": [
+        "Encoding > Character sets > Cyrillic > Macintosh"
+      ],
+      "oracle_menu_lines": [
+        904
+      ],
+      "oracle_dispatch_lines": [
+        3143
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_FORMAT_DOS_855",
+      "menu_paths": [
+        "Encoding > Character sets > Cyrillic > OEM 855"
+      ],
+      "oracle_menu_lines": [
+        905
+      ],
+      "oracle_dispatch_lines": [
+        3127
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_FORMAT_DOS_866",
+      "menu_paths": [
+        "Encoding > Character sets > Cyrillic > OEM 866"
+      ],
+      "oracle_menu_lines": [
+        906
+      ],
+      "oracle_dispatch_lines": [
+        3135
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_FORMAT_WIN_1251",
+      "menu_paths": [
+        "Encoding > Character sets > Cyrillic > Windows-1251"
+      ],
+      "oracle_menu_lines": [
+        907
+      ],
+      "oracle_dispatch_lines": [
+        3101
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_FORMAT_DOS_852",
+      "menu_paths": [
+        "Encoding > Character sets > Central European > OEM 852"
+      ],
+      "oracle_menu_lines": [
+        912
+      ],
+      "oracle_dispatch_lines": [
+        3126
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_FORMAT_WIN_1250",
+      "menu_paths": [
+        "Encoding > Character sets > Central European > Windows-1250"
+      ],
+      "oracle_menu_lines": [
+        913
+      ],
+      "oracle_dispatch_lines": [
+        3100
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_FORMAT_BIG5",
+      "menu_paths": [
+        "Encoding > Character sets > Chinese > Big5 (Traditional)"
+      ],
+      "oracle_menu_lines": [
+        918
+      ],
+      "oracle_dispatch_lines": [
+        3137
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_FORMAT_GB2312",
+      "menu_paths": [
+        "Encoding > Character sets > Chinese > GB2312 (Simplified)"
+      ],
+      "oracle_menu_lines": [
+        919
+      ],
+      "oracle_dispatch_lines": [
+        3138
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_FORMAT_ISO_8859_2",
+      "menu_paths": [
+        "Encoding > Character sets > Eastern European > ISO 8859-2"
+      ],
+      "oracle_menu_lines": [
+        924
+      ],
+      "oracle_dispatch_lines": [
+        3110
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_FORMAT_ISO_8859_7",
+      "menu_paths": [
+        "Encoding > Character sets > Greek > ISO 8859-7"
+      ],
+      "oracle_menu_lines": [
+        929
+      ],
+      "oracle_dispatch_lines": [
+        3115
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_FORMAT_DOS_737",
+      "menu_paths": [
+        "Encoding > Character sets > Greek > OEM 737"
+      ],
+      "oracle_menu_lines": [
+        930
+      ],
+      "oracle_dispatch_lines": [
+        3123
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_FORMAT_DOS_869",
+      "menu_paths": [
+        "Encoding > Character sets > Greek > OEM 869"
+      ],
+      "oracle_menu_lines": [
+        931
+      ],
+      "oracle_dispatch_lines": [
+        3136
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_FORMAT_WIN_1253",
+      "menu_paths": [
+        "Encoding > Character sets > Greek > Windows-1253"
+      ],
+      "oracle_menu_lines": [
+        932
+      ],
+      "oracle_dispatch_lines": [
+        3103
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_FORMAT_ISO_8859_8",
+      "menu_paths": [
+        "Encoding > Character sets > Hebrew > ISO 8859-8"
+      ],
+      "oracle_menu_lines": [
+        937
+      ],
+      "oracle_dispatch_lines": [
+        3116
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_FORMAT_DOS_862",
+      "menu_paths": [
+        "Encoding > Character sets > Hebrew > OEM 862"
+      ],
+      "oracle_menu_lines": [
+        938
+      ],
+      "oracle_dispatch_lines": [
+        3132
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_FORMAT_WIN_1255",
+      "menu_paths": [
+        "Encoding > Character sets > Hebrew > Windows-1255"
+      ],
+      "oracle_menu_lines": [
+        939
+      ],
+      "oracle_dispatch_lines": [
+        3105
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_FORMAT_SHIFT_JIS",
+      "menu_paths": [
+        "Encoding > Character sets > Japanese > Shift-JIS"
+      ],
+      "oracle_menu_lines": [
+        944
+      ],
+      "oracle_dispatch_lines": [
+        3139
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_FORMAT_KOREAN_WIN",
+      "menu_paths": [
+        "Encoding > Character sets > Korean > Windows 949"
+      ],
+      "oracle_menu_lines": [
+        949
+      ],
+      "oracle_dispatch_lines": [
+        3140
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_FORMAT_EUC_KR",
+      "menu_paths": [
+        "Encoding > Character sets > Korean > EUC-KR"
+      ],
+      "oracle_menu_lines": [
+        950
+      ],
+      "oracle_dispatch_lines": [
+        3141
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_FORMAT_DOS_861",
+      "menu_paths": [
+        "Encoding > Character sets > North European > OEM 861 : Icelandic"
+      ],
+      "oracle_menu_lines": [
+        955
+      ],
+      "oracle_dispatch_lines": [
+        3131
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_FORMAT_DOS_865",
+      "menu_paths": [
+        "Encoding > Character sets > North European > OEM 865 : Nordic"
+      ],
+      "oracle_menu_lines": [
+        956
+      ],
+      "oracle_dispatch_lines": [
+        3134
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_FORMAT_TIS_620",
+      "menu_paths": [
+        "Encoding > Character sets > Thai > TIS-620"
+      ],
+      "oracle_menu_lines": [
+        961
+      ],
+      "oracle_dispatch_lines": [
+        3142
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_FORMAT_ISO_8859_3",
+      "menu_paths": [
+        "Encoding > Character sets > Turkish > ISO 8859-3"
+      ],
+      "oracle_menu_lines": [
+        966
+      ],
+      "oracle_dispatch_lines": [
+        3111
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_FORMAT_ISO_8859_9",
+      "menu_paths": [
+        "Encoding > Character sets > Turkish > ISO 8859-9"
+      ],
+      "oracle_menu_lines": [
+        967
+      ],
+      "oracle_dispatch_lines": [
+        3117
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_FORMAT_DOS_857",
+      "menu_paths": [
+        "Encoding > Character sets > Turkish > OEM 857"
+      ],
+      "oracle_menu_lines": [
+        968
+      ],
+      "oracle_dispatch_lines": [
+        3128
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_FORMAT_WIN_1254",
+      "menu_paths": [
+        "Encoding > Character sets > Turkish > Windows-1254"
+      ],
+      "oracle_menu_lines": [
+        969
+      ],
+      "oracle_dispatch_lines": [
+        3104
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_FORMAT_ISO_8859_1",
+      "menu_paths": [
+        "Encoding > Character sets > Western European > ISO 8859-1"
+      ],
+      "oracle_menu_lines": [
+        974
+      ],
+      "oracle_dispatch_lines": [
+        3109
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_FORMAT_ISO_8859_15",
+      "menu_paths": [
+        "Encoding > Character sets > Western European > ISO 8859-15"
+      ],
+      "oracle_menu_lines": [
+        976
+      ],
+      "oracle_dispatch_lines": [
+        3120
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_FORMAT_DOS_850",
+      "menu_paths": [
+        "Encoding > Character sets > Western European > OEM 850"
+      ],
+      "oracle_menu_lines": [
+        977
+      ],
+      "oracle_dispatch_lines": [
+        3125
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_FORMAT_DOS_858",
+      "menu_paths": [
+        "Encoding > Character sets > Western European > OEM 858"
+      ],
+      "oracle_menu_lines": [
+        978
+      ],
+      "oracle_dispatch_lines": [
+        3129
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_FORMAT_DOS_860",
+      "menu_paths": [
+        "Encoding > Character sets > Western European > OEM 860 : Portuguese"
+      ],
+      "oracle_menu_lines": [
+        979
+      ],
+      "oracle_dispatch_lines": [
+        3130
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_FORMAT_DOS_863",
+      "menu_paths": [
+        "Encoding > Character sets > Western European > OEM 863 : French"
+      ],
+      "oracle_menu_lines": [
+        980
+      ],
+      "oracle_dispatch_lines": [
+        3133
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_FORMAT_DOS_437",
+      "menu_paths": [
+        "Encoding > Character sets > Western European > OEM-US : CP437"
+      ],
+      "oracle_menu_lines": [
+        981
+      ],
+      "oracle_dispatch_lines": [
+        3121
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_FORMAT_WIN_1252",
+      "menu_paths": [
+        "Encoding > Character sets > Western European > Windows-1252"
+      ],
+      "oracle_menu_lines": [
+        982
+      ],
+      "oracle_dispatch_lines": [
+        3102
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_FORMAT_WIN_1258",
+      "menu_paths": [
+        "Encoding > Character sets > Vietnamese > Windows-1258"
+      ],
+      "oracle_menu_lines": [
+        987
+      ],
+      "oracle_dispatch_lines": [
+        3108
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_FORMAT_CONV2_ANSI",
+      "menu_paths": [
+        "Encoding > Convert to ANSI"
+      ],
+      "oracle_menu_lines": [
+        991
+      ],
+      "oracle_dispatch_lines": [
+        3200,
+        3213
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_FORMAT_CONV2_AS_UTF_8",
+      "menu_paths": [
+        "Encoding > Convert to UTF-8"
+      ],
+      "oracle_menu_lines": [
+        992
+      ],
+      "oracle_dispatch_lines": [
+        3201,
+        3230
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_FORMAT_CONV2_UTF_8",
+      "menu_paths": [
+        "Encoding > Convert to UTF-8-BOM"
+      ],
+      "oracle_menu_lines": [
+        993
+      ],
+      "oracle_dispatch_lines": [
+        3202,
+        3253
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_FORMAT_CONV2_UTF_16BE",
+      "menu_paths": [
+        "Encoding > Convert to UTF-16 BE BOM"
+      ],
+      "oracle_menu_lines": [
+        994
+      ],
+      "oracle_dispatch_lines": [
+        3203,
+        3276
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_FORMAT_CONV2_UTF_16LE",
+      "menu_paths": [
+        "Encoding > Convert to UTF-16 LE BOM"
+      ],
+      "oracle_menu_lines": [
+        995
+      ],
+      "oracle_dispatch_lines": [
+        3204,
+        3299
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_LANG_TEXT",
+      "menu_paths": [
+        "Language (flat) > None (Normal Text)",
+        "Language (compact) > None (Normal Text)"
+      ],
+      "oracle_menu_lines": [
+        1000,
+        1104
+      ],
+      "oracle_dispatch_lines": [
+        3933
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_LANG_FLASH",
+      "menu_paths": [
+        "Language (flat) > ActionScript",
+        "Language (compact) > A > ActionScript"
+      ],
+      "oracle_menu_lines": [
+        1002,
+        1108
+      ],
+      "oracle_dispatch_lines": [
+        3941
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_LANG_ADA",
+      "menu_paths": [
+        "Language (flat) > Ada",
+        "Language (compact) > A > Ada"
+      ],
+      "oracle_menu_lines": [
+        1003,
+        1109
+      ],
+      "oracle_dispatch_lines": [
+        3955
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_LANG_ASN1",
+      "menu_paths": [
+        "Language (flat) > ASN.1",
+        "Language (compact) > A > ASN.1"
+      ],
+      "oracle_menu_lines": [
+        1004,
+        1110
+      ],
+      "oracle_dispatch_lines": [
+        3975
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_LANG_ASP",
+      "menu_paths": [
+        "Language (flat) > ASP",
+        "Language (compact) > A > ASP"
+      ],
+      "oracle_menu_lines": [
+        1005,
+        1111
+      ],
+      "oracle_dispatch_lines": [
+        3921
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_LANG_ASM",
+      "menu_paths": [
+        "Language (flat) > Assembly",
+        "Language (compact) > A > Assembly"
+      ],
+      "oracle_menu_lines": [
+        1006,
+        1112
+      ],
+      "oracle_dispatch_lines": [
+        3946
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_LANG_AU3",
+      "menu_paths": [
+        "Language (flat) > AutoIt",
+        "Language (compact) > A > AutoIt"
+      ],
+      "oracle_menu_lines": [
+        1007,
+        1113
+      ],
+      "oracle_dispatch_lines": [
+        3959
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_LANG_AVS",
+      "menu_paths": [
+        "Language (flat) > AviSynth",
+        "Language (compact) > A > AviSynth"
+      ],
+      "oracle_menu_lines": [
+        1008,
+        1114
+      ],
+      "oracle_dispatch_lines": [
+        3976
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_LANG_BAANC",
+      "menu_paths": [
+        "Language (flat) > BaanC",
+        "Language (compact) > B > BaanC"
+      ],
+      "oracle_menu_lines": [
+        1009,
+        1118
+      ],
+      "oracle_dispatch_lines": [
+        3970
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_LANG_BATCH",
+      "menu_paths": [
+        "Language (flat) > Batch",
+        "Language (compact) > B > Batch"
+      ],
+      "oracle_menu_lines": [
+        1010,
+        1119
+      ],
+      "oracle_dispatch_lines": [
+        3927
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_LANG_BLITZBASIC",
+      "menu_paths": [
+        "Language (flat) > Blitzbasic",
+        "Language (compact) > B > Blitzbasic"
+      ],
+      "oracle_menu_lines": [
+        1011,
+        1120
+      ],
+      "oracle_dispatch_lines": [
+        3977
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_LANG_C",
+      "menu_paths": [
+        "Language (flat) > C",
+        "Language (compact) > C > C"
+      ],
+      "oracle_menu_lines": [
+        1012,
+        1124
+      ],
+      "oracle_dispatch_lines": [
+        3911
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_LANG_CS",
+      "menu_paths": [
+        "Language (flat) > C#",
+        "Language (compact) > C > C#"
+      ],
+      "oracle_menu_lines": [
+        1013,
+        1125
+      ],
+      "oracle_dispatch_lines": [
+        3914
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_LANG_CPP",
+      "menu_paths": [
+        "Language (flat) > C++",
+        "Language (compact) > C > C++"
+      ],
+      "oracle_menu_lines": [
+        1014,
+        1126
+      ],
+      "oracle_dispatch_lines": [
+        3912
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_LANG_CAML",
+      "menu_paths": [
+        "Language (flat) > Caml",
+        "Language (compact) > C > Caml"
+      ],
+      "oracle_menu_lines": [
+        1015,
+        1127
+      ],
+      "oracle_dispatch_lines": [
+        3954
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_LANG_CMAKE",
+      "menu_paths": [
+        "Language (flat) > CMake",
+        "Language (compact) > C > CMake"
+      ],
+      "oracle_menu_lines": [
+        1016,
+        1128
+      ],
+      "oracle_dispatch_lines": [
+        3961
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_LANG_COBOL",
+      "menu_paths": [
+        "Language (flat) > COBOL",
+        "Language (compact) > C > COBOL"
+      ],
+      "oracle_menu_lines": [
+        1017,
+        1129
+      ],
+      "oracle_dispatch_lines": [
+        3963
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_LANG_CSOUND",
+      "menu_paths": [
+        "Language (flat) > CSound",
+        "Language (compact) > C > CSound"
+      ],
+      "oracle_menu_lines": [
+        1018,
+        1130
+      ],
+      "oracle_dispatch_lines": [
+        3980
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_LANG_COFFEESCRIPT",
+      "menu_paths": [
+        "Language (flat) > CoffeeScript",
+        "Language (compact) > C > CoffeeScript"
+      ],
+      "oracle_menu_lines": [
+        1019,
+        1131
+      ],
+      "oracle_dispatch_lines": [
+        3969
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_LANG_CSS",
+      "menu_paths": [
+        "Language (flat) > CSS",
+        "Language (compact) > C > CSS"
+      ],
+      "oracle_menu_lines": [
+        1020,
+        1132
+      ],
+      "oracle_dispatch_lines": [
+        3922
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_LANG_D",
+      "menu_paths": [
+        "Language (flat) > D",
+        "Language (compact) > D > D"
+      ],
+      "oracle_menu_lines": [
+        1021,
+        1136
+      ],
+      "oracle_dispatch_lines": [
+        3964
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_LANG_DIFF",
+      "menu_paths": [
+        "Language (flat) > Diff",
+        "Language (compact) > D > Diff"
+      ],
+      "oracle_menu_lines": [
+        1022,
+        1137
+      ],
+      "oracle_dispatch_lines": [
+        3947
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_LANG_ERLANG",
+      "menu_paths": [
+        "Language (flat) > Erlang",
+        "Language (compact) > E > Erlang"
+      ],
+      "oracle_menu_lines": [
+        1023,
+        1141
+      ],
+      "oracle_dispatch_lines": [
+        3981
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_LANG_ERRORLIST",
+      "menu_paths": [
+        "Language (flat) > ErrorList",
+        "Language (compact) > E > ErrorList"
+      ],
+      "oracle_menu_lines": [
+        1024,
+        1142
+      ],
+      "oracle_dispatch_lines": [
+        4002
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_LANG_ESCSEQ",
+      "menu_paths": [
+        "Language (flat) > Escape Sequence (ANSI)",
+        "Language (compact) > E > Escape Sequence (ANSI)"
+      ],
+      "oracle_menu_lines": [
+        1025,
+        1143
+      ],
+      "oracle_dispatch_lines": [
+        4003
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_LANG_ESCRIPT",
+      "menu_paths": [
+        "Language (flat) > ESCRIPT",
+        "Language (compact) > E > ESCRIPT"
+      ],
+      "oracle_menu_lines": [
+        1026,
+        1144
+      ],
+      "oracle_dispatch_lines": [
+        3982
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_LANG_FORTH",
+      "menu_paths": [
+        "Language (flat) > Forth",
+        "Language (compact) > F > Forth"
+      ],
+      "oracle_menu_lines": [
+        1027,
+        1148
+      ],
+      "oracle_dispatch_lines": [
+        3983
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_LANG_FORTRAN",
+      "menu_paths": [
+        "Language (flat) > Fortran (free form)",
+        "Language (compact) > F > Fortran (free form)"
+      ],
+      "oracle_menu_lines": [
+        1028,
+        1149
+      ],
+      "oracle_dispatch_lines": [
+        3938
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_LANG_FORTRAN_77",
+      "menu_paths": [
+        "Language (flat) > Fortran (fixed form)",
+        "Language (compact) > F > Fortran (fixed form)"
+      ],
+      "oracle_menu_lines": [
+        1029,
+        1150
+      ],
+      "oracle_dispatch_lines": [
+        3939
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_LANG_FREEBASIC",
+      "menu_paths": [
+        "Language (flat) > Freebasic",
+        "Language (compact) > F > Freebasic"
+      ],
+      "oracle_menu_lines": [
+        1030,
+        1151
+      ],
+      "oracle_dispatch_lines": [
+        3979
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_LANG_GDSCRIPT",
+      "menu_paths": [
+        "Language (flat) > GDScript",
+        "Language (compact) > G > GDScript"
+      ],
+      "oracle_menu_lines": [
+        1031,
+        1155
+      ],
+      "oracle_dispatch_lines": [
+        3996
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_LANG_GOLANG",
+      "menu_paths": [
+        "Language (flat) > Go",
+        "Language (compact) > G > Go"
+      ],
+      "oracle_menu_lines": [
+        1032,
+        1156
+      ],
+      "oracle_dispatch_lines": [
+        3998
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_LANG_GUI4CLI",
+      "menu_paths": [
+        "Language (flat) > Gui4Cli",
+        "Language (compact) > G > Gui4Cli"
+      ],
+      "oracle_menu_lines": [
+        1033,
+        1157
+      ],
+      "oracle_dispatch_lines": [
+        3965
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_LANG_HASKELL",
+      "menu_paths": [
+        "Language (flat) > Haskell",
+        "Language (compact) > H > Haskell"
+      ],
+      "oracle_menu_lines": [
+        1034,
+        1161
+      ],
+      "oracle_dispatch_lines": [
+        3958
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_LANG_HOLLYWOOD",
+      "menu_paths": [
+        "Language (flat) > Hollywood",
+        "Language (compact) > H > Hollywood"
+      ],
+      "oracle_menu_lines": [
+        1035,
+        1162
+      ],
+      "oracle_dispatch_lines": [
+        3997
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_LANG_HTML",
+      "menu_paths": [
+        "Language (flat) > HTML",
+        "Language (compact) > H > HTML"
+      ],
+      "oracle_menu_lines": [
+        1036,
+        1163
+      ],
+      "oracle_dispatch_lines": [
+        3915
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_LANG_INI",
+      "menu_paths": [
+        "Language (flat) > INI file",
+        "Language (compact) > I > INI file"
+      ],
+      "oracle_menu_lines": [
+        1037,
+        1167
+      ],
+      "oracle_dispatch_lines": [
+        3936
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_LANG_INNO",
+      "menu_paths": [
+        "Language (flat) > Inno Setup",
+        "Language (compact) > I > Inno Setup"
+      ],
+      "oracle_menu_lines": [
+        1038,
+        1168
+      ],
+      "oracle_dispatch_lines": [
+        3960
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_LANG_IHEX",
+      "menu_paths": [
+        "Language (flat) > Intel HEX",
+        "Language (compact) > I > Intel HEX"
+      ],
+      "oracle_menu_lines": [
+        1039,
+        1169
+      ],
+      "oracle_dispatch_lines": [
+        3972
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_LANG_JAVA",
+      "menu_paths": [
+        "Language (flat) > Java",
+        "Language (compact) > J > Java"
+      ],
+      "oracle_menu_lines": [
+        1040,
+        1173
+      ],
+      "oracle_dispatch_lines": [
+        3913
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_LANG_JS",
+      "menu_paths": [
+        "Language (flat) > JavaScript",
+        "Language (compact) > J > JavaScript"
+      ],
+      "oracle_menu_lines": [
+        1041,
+        1174
+      ],
+      "oracle_dispatch_lines": [
+        3917
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_LANG_JSON",
+      "menu_paths": [
+        "Language (flat) > JSON",
+        "Language (compact) > J > JSON"
+      ],
+      "oracle_menu_lines": [
+        1042,
+        1175
+      ],
+      "oracle_dispatch_lines": [
+        3918
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_LANG_JSON5",
+      "menu_paths": [
+        "Language (flat) > JSON5",
+        "Language (compact) > J > JSON5"
+      ],
+      "oracle_menu_lines": [
+        1043,
+        1176
+      ],
+      "oracle_dispatch_lines": [
+        3919
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_LANG_JSP",
+      "menu_paths": [
+        "Language (flat) > JSP",
+        "Language (compact) > J > JSP"
+      ],
+      "oracle_menu_lines": [
+        1044,
+        1177
+      ],
+      "oracle_dispatch_lines": [
+        3968
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_LANG_KIX",
+      "menu_paths": [
+        "Language (flat) > KIXtart",
+        "Language (compact) > KIXtart"
+      ],
+      "oracle_menu_lines": [
+        1045,
+        1179
+      ],
+      "oracle_dispatch_lines": [
+        3953
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_LANG_LISP",
+      "menu_paths": [
+        "Language (flat) > LISP",
+        "Language (compact) > L > LISP"
+      ],
+      "oracle_menu_lines": [
+        1046,
+        1183
+      ],
+      "oracle_dispatch_lines": [
+        3944
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_LANG_LATEX",
+      "menu_paths": [
+        "Language (flat) > LaTeX",
+        "Language (compact) > L > LaTeX"
+      ],
+      "oracle_menu_lines": [
+        1047,
+        1182
+      ],
+      "oracle_dispatch_lines": [
+        3984
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_LANG_LUA",
+      "menu_paths": [
+        "Language (flat) > Lua",
+        "Language (compact) > L > Lua"
+      ],
+      "oracle_menu_lines": [
+        1048,
+        1184
+      ],
+      "oracle_dispatch_lines": [
+        3923
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_LANG_MAKEFILE",
+      "menu_paths": [
+        "Language (flat) > Makefile",
+        "Language (compact) > M > Makefile"
+      ],
+      "oracle_menu_lines": [
+        1049,
+        1188
+      ],
+      "oracle_dispatch_lines": [
+        3935
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_LANG_MATLAB",
+      "menu_paths": [
+        "Language (flat) > Matlab",
+        "Language (compact) > M > Matlab"
+      ],
+      "oracle_menu_lines": [
+        1050,
+        1189
+      ],
+      "oracle_dispatch_lines": [
+        3957
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_LANG_MSSQL",
+      "menu_paths": [
+        "Language (flat) > Microsoft Transact-SQL",
+        "Language (compact) > M > Microsoft Transact-SQL"
+      ],
+      "oracle_menu_lines": [
+        1051,
+        1190
+      ],
+      "oracle_dispatch_lines": [
+        3931
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_LANG_MMIXAL",
+      "menu_paths": [
+        "Language (flat) > MMIXAL",
+        "Language (compact) > M > MMIXAL"
+      ],
+      "oracle_menu_lines": [
+        1052,
+        1191
+      ],
+      "oracle_dispatch_lines": [
+        3985
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_LANG_ASCII",
+      "menu_paths": [
+        "Language (flat) > MS-DOS Style",
+        "Language (compact) > M > MS-DOS Style"
+      ],
+      "oracle_menu_lines": [
+        1053,
+        1192
+      ],
+      "oracle_dispatch_lines": [
+        3932
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_LANG_NIM",
+      "menu_paths": [
+        "Language (flat) > Nim",
+        "Language (compact) > N > Nim"
+      ],
+      "oracle_menu_lines": [
+        1054,
+        1196
+      ],
+      "oracle_dispatch_lines": [
+        3986
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_LANG_NNCRONTAB",
+      "menu_paths": [
+        "Language (flat) > Nncrontab",
+        "Language (compact) > N > Nncrontab"
+      ],
+      "oracle_menu_lines": [
+        1055,
+        1197
+      ],
+      "oracle_dispatch_lines": [
+        3987
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_LANG_NSIS",
+      "menu_paths": [
+        "Language (flat) > NSIS",
+        "Language (compact) > N > NSIS"
+      ],
+      "oracle_menu_lines": [
+        1056,
+        1198
+      ],
+      "oracle_dispatch_lines": [
+        3942
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_LANG_OBJC",
+      "menu_paths": [
+        "Language (flat) > Objective-C",
+        "Language (compact) > O > Objective-C"
+      ],
+      "oracle_menu_lines": [
+        1057,
+        1202
+      ],
+      "oracle_dispatch_lines": [
+        3928
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_LANG_OSCRIPT",
+      "menu_paths": [
+        "Language (flat) > OScript",
+        "Language (compact) > O > OScript"
+      ],
+      "oracle_menu_lines": [
+        1058,
+        1203
+      ],
+      "oracle_dispatch_lines": [
+        3988
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_LANG_PASCAL",
+      "menu_paths": [
+        "Language (flat) > Pascal",
+        "Language (compact) > P > Pascal"
+      ],
+      "oracle_menu_lines": [
+        1059,
+        1207
+      ],
+      "oracle_dispatch_lines": [
+        3926
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_LANG_PERL",
+      "menu_paths": [
+        "Language (flat) > Perl",
+        "Language (compact) > P > Perl"
+      ],
+      "oracle_menu_lines": [
+        1060,
+        1208
+      ],
+      "oracle_dispatch_lines": [
+        3924
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_LANG_PHP",
+      "menu_paths": [
+        "Language (flat) > PHP",
+        "Language (compact) > P > PHP"
+      ],
+      "oracle_menu_lines": [
+        1061,
+        1209
+      ],
+      "oracle_dispatch_lines": [
+        3920
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_LANG_PS",
+      "menu_paths": [
+        "Language (flat) > PostScript",
+        "Language (compact) > P > PostScript"
+      ],
+      "oracle_menu_lines": [
+        1062,
+        1210
+      ],
+      "oracle_dispatch_lines": [
+        3949
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_LANG_POWERSHELL",
+      "menu_paths": [
+        "Language (flat) > PowerShell",
+        "Language (compact) > P > PowerShell"
+      ],
+      "oracle_menu_lines": [
+        1063,
+        1211
+      ],
+      "oracle_dispatch_lines": [
+        3966
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_LANG_PROPS",
+      "menu_paths": [
+        "Language (flat) > Properties",
+        "Language (compact) > P > Properties"
+      ],
+      "oracle_menu_lines": [
+        1064,
+        1212
+      ],
+      "oracle_dispatch_lines": [
+        3948
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_LANG_PUREBASIC",
+      "menu_paths": [
+        "Language (flat) > Purebasic",
+        "Language (compact) > P > Purebasic"
+      ],
+      "oracle_menu_lines": [
+        1065,
+        1213
+      ],
+      "oracle_dispatch_lines": [
+        3978
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_LANG_PYTHON",
+      "menu_paths": [
+        "Language (flat) > Python",
+        "Language (compact) > P > Python"
+      ],
+      "oracle_menu_lines": [
+        1066,
+        1214
+      ],
+      "oracle_dispatch_lines": [
+        3925
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_LANG_R",
+      "menu_paths": [
+        "Language (flat) > R",
+        "Language (compact) > R > R"
+      ],
+      "oracle_menu_lines": [
+        1067,
+        1218
+      ],
+      "oracle_dispatch_lines": [
+        3967
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_LANG_RAKU",
+      "menu_paths": [
+        "Language (flat) > Raku",
+        "Language (compact) > R > Raku"
+      ],
+      "oracle_menu_lines": [
+        1068,
+        1219
+      ],
+      "oracle_dispatch_lines": [
+        3999
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_LANG_REBOL",
+      "menu_paths": [
+        "Language (flat) > REBOL",
+        "Language (compact) > R > REBOL"
+      ],
+      "oracle_menu_lines": [
+        1069,
+        1220
+      ],
+      "oracle_dispatch_lines": [
+        3989
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_LANG_REGISTRY",
+      "menu_paths": [
+        "Language (flat) > Registry",
+        "Language (compact) > R > Registry"
+      ],
+      "oracle_menu_lines": [
+        1070,
+        1221
+      ],
+      "oracle_dispatch_lines": [
+        3990
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_LANG_RC",
+      "menu_paths": [
+        "Language (flat) > Resource file",
+        "Language (compact) > R > Resource file"
+      ],
+      "oracle_menu_lines": [
+        1071,
+        1222
+      ],
+      "oracle_dispatch_lines": [
+        3934
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_LANG_RUBY",
+      "menu_paths": [
+        "Language (flat) > Ruby",
+        "Language (compact) > R > Ruby"
+      ],
+      "oracle_menu_lines": [
+        1072,
+        1223
+      ],
+      "oracle_dispatch_lines": [
+        3950
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_LANG_RUST",
+      "menu_paths": [
+        "Language (flat) > Rust",
+        "Language (compact) > R > Rust"
+      ],
+      "oracle_menu_lines": [
+        1073,
+        1224
+      ],
+      "oracle_dispatch_lines": [
+        3991
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_LANG_SAS",
+      "menu_paths": [
+        "Language (flat) > SAS",
+        "Language (compact) > S > SAS"
+      ],
+      "oracle_menu_lines": [
+        1074,
+        1228
+      ],
+      "oracle_dispatch_lines": [
+        4001
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_LANG_BASH",
+      "menu_paths": [
+        "Language (flat) > Shell",
+        "Language (compact) > S > Shell"
+      ],
+      "oracle_menu_lines": [
+        1075,
+        1229
+      ],
+      "oracle_dispatch_lines": [
+        3940
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_LANG_SCHEME",
+      "menu_paths": [
+        "Language (flat) > Scheme",
+        "Language (compact) > S > Scheme"
+      ],
+      "oracle_menu_lines": [
+        1076,
+        1230
+      ],
+      "oracle_dispatch_lines": [
+        3945
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_LANG_SMALLTALK",
+      "menu_paths": [
+        "Language (flat) > Smalltalk",
+        "Language (compact) > S > Smalltalk"
+      ],
+      "oracle_menu_lines": [
+        1077,
+        1231
+      ],
+      "oracle_dispatch_lines": [
+        3951
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_LANG_SPICE",
+      "menu_paths": [
+        "Language (flat) > Spice",
+        "Language (compact) > S > Spice"
+      ],
+      "oracle_menu_lines": [
+        1078,
+        1232
+      ],
+      "oracle_dispatch_lines": [
+        3992
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_LANG_SQL",
+      "menu_paths": [
+        "Language (flat) > SQL",
+        "Language (compact) > S > SQL"
+      ],
+      "oracle_menu_lines": [
+        1079,
+        1233
+      ],
+      "oracle_dispatch_lines": [
+        3930
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_LANG_STTXT",
+      "menu_paths": [
+        "Language (flat) > Structured Text",
+        "Language (compact) > S > Structured Text"
+      ],
+      "oracle_menu_lines": [
+        1080,
+        1234
+      ],
+      "oracle_dispatch_lines": [
+        4004
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_LANG_SWIFT",
+      "menu_paths": [
+        "Language (flat) > Swift",
+        "Language (compact) > S > Swift"
+      ],
+      "oracle_menu_lines": [
+        1081,
+        1235
+      ],
+      "oracle_dispatch_lines": [
+        3974
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_LANG_SREC",
+      "menu_paths": [
+        "Language (flat) > S-Record",
+        "Language (compact) > S > S-Record"
+      ],
+      "oracle_menu_lines": [
+        1082,
+        1236
+      ],
+      "oracle_dispatch_lines": [
+        3971
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_LANG_TCL",
+      "menu_paths": [
+        "Language (flat) > TCL",
+        "Language (compact) > T > TCL"
+      ],
+      "oracle_menu_lines": [
+        1083,
+        1240
+      ],
+      "oracle_dispatch_lines": [
+        3943
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_LANG_TEHEX",
+      "menu_paths": [
+        "Language (flat) > Tektronix extended HEX",
+        "Language (compact) > T > Tektronix extended HEX"
+      ],
+      "oracle_menu_lines": [
+        1084,
+        1241
+      ],
+      "oracle_dispatch_lines": [
+        3973
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_LANG_TEX",
+      "menu_paths": [
+        "Language (flat) > TeX",
+        "Language (compact) > T > TeX"
+      ],
+      "oracle_menu_lines": [
+        1085,
+        1242
+      ],
+      "oracle_dispatch_lines": [
+        3937
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_LANG_TOML",
+      "menu_paths": [
+        "Language (flat) > TOML",
+        "Language (compact) > T > TOML"
+      ],
+      "oracle_menu_lines": [
+        1086,
+        1243
+      ],
+      "oracle_dispatch_lines": [
+        4000
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_LANG_TXT2TAGS",
+      "menu_paths": [
+        "Language (flat) > txt2tags",
+        "Language (compact) > T > txt2tags"
+      ],
+      "oracle_menu_lines": [
+        1087,
+        1244
+      ],
+      "oracle_dispatch_lines": [
+        3993
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_LANG_TYPESCRIPT",
+      "menu_paths": [
+        "Language (flat) > TypeScript",
+        "Language (compact) > T > TypeScript"
+      ],
+      "oracle_menu_lines": [
+        1088,
+        1245
+      ],
+      "oracle_dispatch_lines": [
+        3995
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_LANG_VERILOG",
+      "menu_paths": [
+        "Language (flat) > Verilog",
+        "Language (compact) > V > Verilog"
+      ],
+      "oracle_menu_lines": [
+        1089,
+        1252
+      ],
+      "oracle_dispatch_lines": [
+        3956
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_LANG_VHDL",
+      "menu_paths": [
+        "Language (flat) > VHDL",
+        "Language (compact) > V > VHDL"
+      ],
+      "oracle_menu_lines": [
+        1090,
+        1251
+      ],
+      "oracle_dispatch_lines": [
+        3952
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_LANG_VB",
+      "menu_paths": [
+        "Language (flat) > Visual Basic",
+        "Language (compact) > V > Visual Basic"
+      ],
+      "oracle_menu_lines": [
+        1091,
+        1249
+      ],
+      "oracle_dispatch_lines": [
+        3929
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_LANG_VISUALPROLOG",
+      "menu_paths": [
+        "Language (flat) > Visual Prolog",
+        "Language (compact) > V > Visual Prolog"
+      ],
+      "oracle_menu_lines": [
+        1092,
+        1250
+      ],
+      "oracle_dispatch_lines": [
+        3994
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_LANG_XML",
+      "menu_paths": [
+        "Language (flat) > XML",
+        "Language (compact) > XML"
+      ],
+      "oracle_menu_lines": [
+        1093,
+        1254
+      ],
+      "oracle_dispatch_lines": [
+        3916
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_LANG_YAML",
+      "menu_paths": [
+        "Language (flat) > YAML",
+        "Language (compact) > YAML"
+      ],
+      "oracle_menu_lines": [
+        1094,
+        1255
+      ],
+      "oracle_dispatch_lines": [
+        3962
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_LANG_USER_DLG",
+      "menu_paths": [
+        "Language (flat) > Define your language...",
+        "Language (compact) > User Defined Language > Define your language..."
+      ],
+      "oracle_menu_lines": [
+        1096,
+        1259
+      ],
+      "oracle_dispatch_lines": [
+        1987
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_LANG_OPENUDLDIR",
+      "menu_paths": [
+        "Language (flat) > Open User Defined Language folder...",
+        "Language (compact) > User Defined Language > Open User Defined Language folder..."
+      ],
+      "oracle_menu_lines": [
+        1097,
+        1260
+      ],
+      "oracle_dispatch_lines": [
+        4021
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_LANG_UDLCOLLECTION_PROJECT_SITE",
+      "menu_paths": [
+        "Language (flat) > Notepad++ User Defined Languages Collection",
+        "Language (compact) > User Defined Language > Notepad++ User Defined Languages Collection"
+      ],
+      "oracle_menu_lines": [
+        1098,
+        1261
+      ],
+      "oracle_dispatch_lines": [
+        4028
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_LANG_USER",
+      "menu_paths": [
+        "Language (flat) > User-Defined",
+        "Language (compact) > User-Defined"
+      ],
+      "oracle_menu_lines": [
+        1099,
+        1263
+      ],
+      "oracle_dispatch_lines": [
+        4005
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_SETTING_PREFERENCE",
+      "menu_paths": [
+        "Settings > Preferences..."
+      ],
+      "oracle_menu_lines": [
+        1268
+      ],
+      "oracle_dispatch_lines": [
+        3506
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_LANGSTYLE_CONFIG_DLG",
+      "menu_paths": [
+        "Settings > Style Configurator..."
+      ],
+      "oracle_menu_lines": [
+        1269
+      ],
+      "oracle_dispatch_lines": [
+        3895
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_SETTING_SHORTCUT_MAPPER",
+      "menu_paths": [
+        "Settings > Shortcut Mapper..."
+      ],
+      "oracle_menu_lines": [
+        1270
+      ],
+      "oracle_dispatch_lines": [
+        3495
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_SETTING_IMPORTPLUGIN",
+      "menu_paths": [
+        "Settings > Import > Import plugin(s)..."
+      ],
+      "oracle_menu_lines": [
+        1274
+      ],
+      "oracle_dispatch_lines": [
+        3426
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_SETTING_IMPORTSTYLETHEMES",
+      "menu_paths": [
+        "Settings > Import > Import style theme(s)..."
+      ],
+      "oracle_menu_lines": [
+        1275
+      ],
+      "oracle_dispatch_lines": [
+        3446
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_SETTING_EDITCONTEXTMENU",
+      "menu_paths": [
+        "Settings > Edit Popup ContextMenu"
+      ],
+      "oracle_menu_lines": [
+        1278
+      ],
+      "oracle_dispatch_lines": [
+        3518
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_TOOL_MD5_GENERATE",
+      "menu_paths": [
+        "Tools > MD5 > Generate..."
+      ],
+      "oracle_menu_lines": [
+        1285
+      ],
+      "oracle_dispatch_lines": [
+        3577
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_TOOL_MD5_GENERATEFROMFILE",
+      "menu_paths": [
+        "Tools > MD5 > Generate from files..."
+      ],
+      "oracle_menu_lines": [
+        1286
+      ],
+      "oracle_dispatch_lines": [
+        3586
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_TOOL_MD5_GENERATEINTOCLIPBOARD",
+      "menu_paths": [
+        "Tools > MD5 > Generate from selection into clipboard"
+      ],
+      "oracle_menu_lines": [
+        1287
+      ],
+      "oracle_dispatch_lines": [
+        3595
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_TOOL_SHA1_GENERATE",
+      "menu_paths": [
+        "Tools > SHA-1 > Generate..."
+      ],
+      "oracle_menu_lines": [
+        1291
+      ],
+      "oracle_dispatch_lines": [
+        3620
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_TOOL_SHA1_GENERATEFROMFILE",
+      "menu_paths": [
+        "Tools > SHA-1 > Generate from files..."
+      ],
+      "oracle_menu_lines": [
+        1292
+      ],
+      "oracle_dispatch_lines": [
+        3629
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_TOOL_SHA1_GENERATEINTOCLIPBOARD",
+      "menu_paths": [
+        "Tools > SHA-1 > Generate from selection into clipboard"
+      ],
+      "oracle_menu_lines": [
+        1293
+      ],
+      "oracle_dispatch_lines": [
+        3674,
+        3696
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_TOOL_SHA256_GENERATE",
+      "menu_paths": [
+        "Tools > SHA-256 > Generate..."
+      ],
+      "oracle_menu_lines": [
+        1297
+      ],
+      "oracle_dispatch_lines": [
+        3638
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_TOOL_SHA256_GENERATEFROMFILE",
+      "menu_paths": [
+        "Tools > SHA-256 > Generate from files..."
+      ],
+      "oracle_menu_lines": [
+        1298
+      ],
+      "oracle_dispatch_lines": [
+        3647
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_TOOL_SHA256_GENERATEINTOCLIPBOARD",
+      "menu_paths": [
+        "Tools > SHA-256 > Generate from selection into clipboard"
+      ],
+      "oracle_menu_lines": [
+        1299
+      ],
+      "oracle_dispatch_lines": [
+        3675,
+        3703
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_TOOL_SHA512_GENERATE",
+      "menu_paths": [
+        "Tools > SHA-512 > Generate..."
+      ],
+      "oracle_menu_lines": [
+        1303
+      ],
+      "oracle_dispatch_lines": [
+        3656
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_TOOL_SHA512_GENERATEFROMFILE",
+      "menu_paths": [
+        "Tools > SHA-512 > Generate from files..."
+      ],
+      "oracle_menu_lines": [
+        1304
+      ],
+      "oracle_dispatch_lines": [
+        3665
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_TOOL_SHA512_GENERATEINTOCLIPBOARD",
+      "menu_paths": [
+        "Tools > SHA-512 > Generate from selection into clipboard"
+      ],
+      "oracle_menu_lines": [
+        1305
+      ],
+      "oracle_dispatch_lines": [
+        3676,
+        3710
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_MACRO_STARTRECORDINGMACRO",
+      "menu_paths": [
+        "Macro > Start Recording"
+      ],
+      "oracle_menu_lines": [
+        1311
+      ],
+      "oracle_dispatch_lines": [
+        1441
+      ],
+      "route_at_baseline": "action-only",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_MACRO_STOPRECORDINGMACRO",
+      "menu_paths": [
+        "Macro > Stop Recording"
+      ],
+      "oracle_menu_lines": [
+        1312
+      ],
+      "oracle_dispatch_lines": [
+        1442
+      ],
+      "route_at_baseline": "action-only",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_MACRO_PLAYBACKRECORDEDMACRO",
+      "menu_paths": [
+        "Macro > Playback"
+      ],
+      "oracle_menu_lines": [
+        1313
+      ],
+      "oracle_dispatch_lines": [
+        1473
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_MACRO_SAVECURRENTMACRO",
+      "menu_paths": [
+        "Macro > Save Current Recorded Macro..."
+      ],
+      "oracle_menu_lines": [
+        1314
+      ],
+      "oracle_dispatch_lines": [
+        1497
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_MACRO_RUNMULTIMACRODLG",
+      "menu_paths": [
+        "Macro > Run a Macro Multiple Times..."
+      ],
+      "oracle_menu_lines": [
+        1315
+      ],
+      "oracle_dispatch_lines": [
+        1480
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_EXECUTE",
+      "menu_paths": [
+        "Run > Run..."
+      ],
+      "oracle_menu_lines": [
+        1320
+      ],
+      "oracle_dispatch_lines": [
+        2945
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_EXECUTE_VALIDATE_SHORTCUTSXML",
+      "menu_paths": [
+        "Run > Validate shortcuts.xml"
+      ],
+      "oracle_menu_lines": [
+        1322
+      ],
+      "oracle_dispatch_lines": [
+        2955
+      ],
+      "route_at_baseline": "status-only",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_SETTING_OPENPLUGINSDIR",
+      "menu_paths": [
+        "Plugins > Open Plugins Folder..."
+      ],
+      "oracle_menu_lines": [
+        1327
+      ],
+      "oracle_dispatch_lines": [
+        3485
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_WINDOW_SORT_FN_ASC",
+      "menu_paths": [
+        "Window > Sort By > Name A to Z"
+      ],
+      "oracle_menu_lines": [
+        1334
+      ],
+      "oracle_dispatch_lines": [
+        4125
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_WINDOW_SORT_FN_DSC",
+      "menu_paths": [
+        "Window > Sort By > Name Z to A"
+      ],
+      "oracle_menu_lines": [
+        1335
+      ],
+      "oracle_dispatch_lines": [
+        4134
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_WINDOW_SORT_FP_ASC",
+      "menu_paths": [
+        "Window > Sort By > Path A to Z"
+      ],
+      "oracle_menu_lines": [
+        1336
+      ],
+      "oracle_dispatch_lines": [
+        4143
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_WINDOW_SORT_FP_DSC",
+      "menu_paths": [
+        "Window > Sort By > Path Z to A"
+      ],
+      "oracle_menu_lines": [
+        1337
+      ],
+      "oracle_dispatch_lines": [
+        4152
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_WINDOW_SORT_FT_ASC",
+      "menu_paths": [
+        "Window > Sort By > Type A to Z"
+      ],
+      "oracle_menu_lines": [
+        1338
+      ],
+      "oracle_dispatch_lines": [
+        4161
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_WINDOW_SORT_FT_DSC",
+      "menu_paths": [
+        "Window > Sort By > Type Z to A"
+      ],
+      "oracle_menu_lines": [
+        1339
+      ],
+      "oracle_dispatch_lines": [
+        4170
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_WINDOW_SORT_FS_ASC",
+      "menu_paths": [
+        "Window > Sort By > Content Length Ascending"
+      ],
+      "oracle_menu_lines": [
+        1340
+      ],
+      "oracle_dispatch_lines": [
+        4179
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_WINDOW_SORT_FS_DSC",
+      "menu_paths": [
+        "Window > Sort By > Content Length Descending"
+      ],
+      "oracle_menu_lines": [
+        1341
+      ],
+      "oracle_dispatch_lines": [
+        4188
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_WINDOW_SORT_FD_ASC",
+      "menu_paths": [
+        "Window > Sort By > Modified Time Ascending"
+      ],
+      "oracle_menu_lines": [
+        1342
+      ],
+      "oracle_dispatch_lines": [
+        4197
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_WINDOW_SORT_FD_DSC",
+      "menu_paths": [
+        "Window > Sort By > Modified Time Descending"
+      ],
+      "oracle_menu_lines": [
+        1343
+      ],
+      "oracle_dispatch_lines": [
+        4206
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_WINDOW_WINDOWS",
+      "menu_paths": [
+        "Window > Windows..."
+      ],
+      "oracle_menu_lines": [
+        1345
+      ],
+      "oracle_dispatch_lines": [
+        4117
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_WINDOW_MRU_FIRST",
+      "menu_paths": [
+        "Window > Recent Window"
+      ],
+      "oracle_menu_lines": [
+        1347
+      ],
+      "oracle_dispatch_lines": [],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_CMDLINEARGUMENTS",
+      "menu_paths": [
+        "? > Command Line Arguments..."
+      ],
+      "oracle_menu_lines": [
+        1352
+      ],
+      "oracle_dispatch_lines": [
+        3801
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_HOMESWEETHOME",
+      "menu_paths": [
+        "? > Notepad++ Home"
+      ],
+      "oracle_menu_lines": [
+        1354
+      ],
+      "oracle_dispatch_lines": [
+        3784
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_PROJECTPAGE",
+      "menu_paths": [
+        "? > Notepad++ Project Page"
+      ],
+      "oracle_menu_lines": [
+        1355
+      ],
+      "oracle_dispatch_lines": [
+        3789
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_ONLINEDOCUMENT",
+      "menu_paths": [
+        "? > Notepad++ Online User Manual"
+      ],
+      "oracle_menu_lines": [
+        1356
+      ],
+      "oracle_dispatch_lines": [
+        3795
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_FORUM",
+      "menu_paths": [
+        "? > Notepad++ Community (Forum)"
+      ],
+      "oracle_menu_lines": [
+        1357
+      ],
+      "oracle_dispatch_lines": [
+        3807
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_UPDATE_NPP",
+      "menu_paths": [
+        "? > Update Notepad++"
+      ],
+      "oracle_menu_lines": [
+        1359
+      ],
+      "oracle_dispatch_lines": [
+        3813
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_CONFUPDATERPROXY",
+      "menu_paths": [
+        "? > Set Updater Proxy..."
+      ],
+      "oracle_menu_lines": [
+        1360
+      ],
+      "oracle_dispatch_lines": [
+        3814
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_DEBUGINFO",
+      "menu_paths": [
+        "? > Debug Info..."
+      ],
+      "oracle_menu_lines": [
+        1362
+      ],
+      "oracle_dispatch_lines": [
+        3732
+      ],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_ABOUT",
+      "menu_paths": [
+        "? > About Notepad++"
+      ],
+      "oracle_menu_lines": [
+        1363
+      ],
+      "oracle_dispatch_lines": [
+        3741
+      ],
+      "route_at_baseline": "routed",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "id": "IDM_DROPLIST_LIST",
+      "menu_paths": [
+        "▼ > Recent Window"
+      ],
+      "oracle_menu_lines": [
+        1369
+      ],
+      "oracle_dispatch_lines": [],
+      "route_at_baseline": "missing",
+      "behavior": "pending",
+      "evidence": []
+    }
+  ],
+  "dynamic_features": [
+    {
+      "feature": "Recent files and sessions",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "feature": "User defined languages and external lexer registration",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "feature": "User macros and run commands",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "feature": "Plugin loading, commands and host API",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "feature": "Preferences controls and persisted upgrades",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "feature": "Style Configurator and theme fidelity",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "feature": "Shortcut Mapper and conflicts",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "feature": "Editor context menus, tab context menus and toolbar",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "feature": "Find/Replace dialog modes and results interaction",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "feature": "Split views, tab state and document panels",
+      "behavior": "pending",
+      "evidence": []
+    },
+    {
+      "feature": "Startup, recovery, single instance, external changes and large files",
+      "behavior": "pending",
+      "evidence": []
+    }
+  ],
+  "current_source_sha256": "0b28fcc1c0ac5f2c2b5d4c6f005aa3857ffe8cf656c7cdc3b597b9d6d0dfd7d3",
+  "current_route_counts": {
+    "action-only": 2,
+    "alternate-only": 2,
+    "missing": 285,
+    "partial": 8,
+    "routed": 182,
+    "status-only": 1,
+    "stub": 1
+  }
+}

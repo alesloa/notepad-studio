@@ -1,7 +1,18 @@
 mod save_as_dialog;
+mod save_copy;
+mod copy_writer;
+mod copy_stage;
+mod copy_snapshot;
+mod background_drop;
+pub(crate) use background_drop::BackgroundDrop;
+pub(crate) use copy_stage::Progress as CopyProgress;
+pub(crate) use save_as_dialog::pick_rename as pick_rename_path;
+
 mod save_all;
 #[cfg(test)]
 pub(crate) use save_as_dialog::Override as SaveAsDialogOverrideForTest;
+#[cfg(test)]
+pub(crate) use save_as_dialog::RequestCapture as SaveDialogRequestCaptureForTest;
 #[cfg(test)]
 mod save_as_identity_tests;
 #[cfg(test)]
@@ -393,41 +404,7 @@ impl Workspace {
                 path.display()
             ));
         }
-        // Rich-doc buffers go through their native save path (e.g. zip
-        // container preservation for DOCX). Falling through to the rope
-        // serializer would write `word/document.xml` (the raw-view text)
-        // back to disk as the entire file and destroy the container.
-        if let Some(payload) = tab.buffer.rich_doc.as_ref() {
-            // Pass every dirty raw view through validation so Save cannot
-            // silently discard source edits while clearing the dirty flag.
-            let raw_override = tab.buffer.dirty.then(|| tab.buffer.rope.to_string());
-            crate::rich_doc::validate_raw_view(payload, raw_override.as_deref())
-                .map_err(|err| format!("rich-doc save failed: {err}"))?;
-            if path.is_file() {
-                run_save_backup(&path);
-            }
-            match crate::rich_doc::save(payload, &path, raw_override.as_deref()) {
-                Ok(()) => {
-                    tab.buffer.mark_saved();
-                    return Ok(());
-                }
-                Err(err) => return Err(format!("rich-doc save failed: {err}")),
-            }
-        }
-        // Two-stage serialization: rope (LF-internal UTF-8) → EOL-applied
-        // UTF-8 bytes → encoded bytes per the buffer's chosen encoding (with
-        // BOM where applicable).
-        let eol_bytes = rope_to_bytes(&tab.buffer.rope, tab.buffer.line_ending);
-        let bytes = if tab.buffer.encoding == Encoding::Utf8 {
-            eol_bytes
-        } else {
-            let utf8 = match std::str::from_utf8(&eol_bytes) {
-                Ok(s) => s,
-                Err(err) => return Err(format!("internal: rope was not valid UTF-8: {err}")),
-            };
-            encoding::encode_checked(utf8, tab.buffer.encoding).map_err(|e| e.to_string())?
-        };
-        save_bytes_with_backup(&path, &bytes, run_save_backup).map_err(|e| e.to_string())?;
+        copy_writer::write_buffer(&tab.buffer, &path)?;
         tab.buffer.mark_saved();
         Ok(())
     }
@@ -698,7 +675,22 @@ fn write_file_safely_with(
     bytes: &[u8],
     write: impl Fn(&mut std::fs::File, &[u8]) -> std::io::Result<()>,
 ) -> Result<(), SaveError> {
-    use std::io::{Seek, SeekFrom, Write};
+    write_file_safely_with_restore(path, bytes, write, |file, original| {
+        use std::io::{Seek, SeekFrom, Write};
+        let length = u64::try_from(original.len()).map_err(|_| std::io::Error::new(std::io::ErrorKind::InvalidData, "original too large"))?;
+        file.seek(SeekFrom::Start(0))?;
+        file.write_all(original)?;
+        file.set_len(length)?;
+        file.sync_all()
+    })
+}
+
+fn write_file_safely_with_restore(
+    path: &Path,
+    bytes: &[u8],
+    write: impl Fn(&mut std::fs::File, &[u8]) -> std::io::Result<()>,
+    restore: impl Fn(&mut std::fs::File, &[u8]) -> std::io::Result<()>,
+) -> Result<(), SaveError> {
 
     let io_err = |source: std::io::Error| SaveError::Io {
         path: path.to_path_buf(),
@@ -791,15 +783,7 @@ fn write_file_safely_with(
             "no copy of the original",
         )),
     };
-    let restored = original.and_then(|orig| {
-        let len = u64::try_from(orig.len()).map_err(|_| {
-            std::io::Error::new(std::io::ErrorKind::InvalidData, "original too large")
-        })?;
-        file.seek(SeekFrom::Start(0))?;
-        file.write_all(&orig)?;
-        file.set_len(len)?;
-        file.sync_all()
-    });
+    let restored = original.and_then(|original| restore(&mut file, &original));
     drop(file);
     match restored {
         Ok(()) => {
@@ -903,6 +887,12 @@ fn suggested_save_name(buffer: &Buffer) -> String {
         Some(crate::rich_doc::DocFormat::Rtf) => "rtf",
         None => "txt",
     };
+    // NppIO.cpp:2013 suggests the current name, including renamed untitled tabs.
+    if let Some(label) = buffer.new_label.as_ref().filter(|label| !label.is_empty()) {
+        if buffer.rich_doc.is_none() { return label.to_string(); }
+        let mut name = PathBuf::from(label.as_ref()); name.set_extension(extension);
+        return name.to_string_lossy().into_owned();
+    }
     format!("Untitled.{extension}")
 }
 
@@ -1429,6 +1419,26 @@ mod tests {
         }
         buffer.file_path = Some(std::path::PathBuf::from("source.odt"));
         assert_eq!(super::suggested_save_name(&buffer), "source.odt");
+    }
+
+    #[test]
+    fn save_names_follow_untitled_labels_and_preserve_native_extensions() {
+        let mut buffer = crate::buffer::Buffer::empty();
+        for label in ["new 1", "named café中😀", "custom.txt"] {
+            buffer.new_label = Some(label.to_owned().into());
+            assert_eq!(super::suggested_save_name(&buffer), label);
+        }
+        buffer.rich_doc = Some(crate::rich_doc::rtf::open_bytes(br"{\rtf1\ansi test}".to_vec()).expect("rtf"));
+        for (format, extension) in [(crate::rich_doc::DocFormat::Rtf, "rtf"), (crate::rich_doc::DocFormat::Docx, "docx"),
+            (crate::rich_doc::DocFormat::Doc, "docx"), (crate::rich_doc::DocFormat::Odt, "odt")] {
+            buffer.rich_doc.as_mut().expect("payload").format = format;
+            assert_eq!(super::suggested_save_name(&buffer), format!("custom.{extension}"));
+            buffer.new_label = Some("named café中😀".into());
+            assert_eq!(super::suggested_save_name(&buffer), format!("named café中😀.{extension}"));
+            buffer.new_label = Some("custom.txt".into());
+        }
+        buffer.file_path = Some("source.original.rtf".into());
+        assert_eq!(super::suggested_save_name(&buffer), "source.original.rtf");
     }
 
     use super::*;

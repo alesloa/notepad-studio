@@ -10,5 +10,10 @@ gpui::actions!(
         BookmarkPrev,
         BookmarkClearAll,
         CopyBookmarkedLines,
+        CutBookmarkedLines,
+        PasteToBookmarkedLines,
+        RemoveBookmarkedLines,
+        RemoveNonBookmarkedLines,
+        InverseBookmarks,
     ]
 );

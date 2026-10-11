@@ -44,30 +44,30 @@ use crate::workspace::Workspace;
 /// frame those lines. `whole_buffer` is `true` when the user had no
 /// selection — NPP uses this to gate single-line-only sort early-outs.
 #[derive(Debug, Clone, PartialEq, Eq)]
-struct LineSpan {
+pub(super) struct LineSpan {
     /// Inclusive line index of the first selected line.
-    first_line: usize,
+    pub(super) first_line: usize,
     /// Inclusive line index of the last selected line.
-    last_line: usize,
+    pub(super) last_line: usize,
     /// Byte offset of the start of `first_line`.
-    block_start: usize,
+    pub(super) block_start: usize,
     /// Byte offset just past `last_line`'s terminator (or buffer end if none).
-    block_end: usize,
+    pub(super) block_end: usize,
     /// True when the user had no selection — op covers the whole buffer.
-    whole_buffer: bool,
+    pub(super) whole_buffer: bool,
     /// True when `last_line` is the document's last line (NPP
     /// `sortEntireDocument`): the block's final line stays in the set even
     /// when it is the empty line after a trailing line end.
-    reaches_doc_end: bool,
+    pub(super) reaches_doc_end: bool,
     /// True when the byte before `block_start` is a lone CR, so a result that
     /// starts with LF would fuse with it into one CRLF.
-    after_cr: bool,
+    pub(super) after_cr: bool,
 }
 
 /// Compute the line span for `selection` (`None` = no selection). Selection
 /// ends past the end of the rope are clamped, so a stale selection can't
 /// panic `byte_to_line`. Returns `None` for an empty block.
-fn line_span_in(rope: &Rope, selection: Option<Range<usize>>) -> Option<LineSpan> {
+pub(super) fn line_span_in(rope: &Rope, selection: Option<Range<usize>>) -> Option<LineSpan> {
     let total_lines = rope.len_lines();
     if total_lines == 0 {
         return None;

@@ -1,6 +1,16 @@
 Notepad Studio
 Copyright 2026 Notepad Studio contributors
 
+Windows containing-folder PowerShell launch reads its registered executable with
+winreg 0.55.0 (MIT), Copyright (c) 2015 Igor Shaula.
+    Source: https://github.com/gentoo90/winreg-rs
+    Original licence: licenses/winreg-0.55.0/LICENSE
+
+Windows text sorting calls the native comparator through windows 0.61.3
+(MIT OR Apache-2.0), Copyright (c) Microsoft Corporation.
+    Source: https://github.com/microsoft/windows-rs
+    Original MIT licence: licenses/windows-0.61.3/license-mit
+
 This product bundles a vendored copy of GPUI and several supporting crates from
 the Zed project, located under `vendor/gpui/`. These crates are licensed under
 the Apache License, Version 2.0. Each retains its original `LICENSE-APACHE`

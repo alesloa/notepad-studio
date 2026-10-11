@@ -153,3 +153,55 @@ fn prepared_budget_rejects_hostile_counts_and_caps_growing_plan_storage() {
     assert!(group.matches_rope(group.expected_rope(true), true, &AtomicBool::new(true)).is_err());
     assert!(group.matches_rope(&Rope::from_str(&group.body.after.to_string()), true, &AtomicBool::new(false)).unwrap());
 }
+
+#[test]
+fn arbitrary_single_mapper_keeps_existing_annotation_affinities() {
+    for changes in [vec![(0..0, "x\ny\r\n")], vec![(8..8, "\nz")], vec![(0..2, "q\n")], vec![(8..9, "")]] {
+        let group = PreparedGroup::build_line_edits(Rope::from_str("é😀\r\nb\nc"), ContentRevision::default(), Selection::default(),
+            changes.into_iter().map(|(range, text)| PrefixEdit { range, text: text.into() }).collect(), false, &AtomicBool::new(false)).unwrap();
+        for undo in [false, true] {
+            let source = group.expected_rope(undo); let total = source.len_bytes();
+            let bookmarks: BTreeSet<_> = (0..=total).chain([usize::MAX]).collect();
+            for marker in 0..=total {
+                if crate::buffer::floor_char_boundary(source, marker) != marker { continue; }
+                let mut marks = Vec::new();
+                for start in 0..total { for end in start+1..=total {
+                    if crate::buffer::char_boundary_range(source, start..end) == (start..end) { marks.push(start..end); }
+                } }
+                let metadata = Metadata { bookmarks: bookmarks.clone(), marks, marker: Some(marker) };
+                let got = group.remap(&metadata, undo, &AtomicBool::new(false)).unwrap();
+                let want = legacy(&group, metadata, undo);
+                assert_eq!(got.bookmarks, want.bookmarks, "undo={undo} marker={marker}");
+                assert_eq!(got.marks, want.marks, "undo={undo} marker={marker}");
+                assert_eq!(got.marker, want.marker, "undo={undo} marker={marker}");
+            }
+        }
+    }
+}
+
+#[test]
+fn combined_history_matches_legacy_multiline_stages_and_refuses_a_broken_chain() {
+    let cancel = AtomicBool::new(false);
+    let first = PreparedGroup::build_line_edits(Rope::from_str("a\nb\nc"), ContentRevision::default(), Selection::default(),
+        vec![PrefixEdit { range: 0..0, text: "Q\n".into() }], false, &cancel).unwrap();
+    let second = PreparedGroup::build_line_edits(first.body.after.clone(), first.expected(true).clone(), Selection::default(),
+        vec![PrefixEdit { range: 4..5, text: "P\nR".into() }], false, &cancel).unwrap();
+    let third = Arc::new(PreparedGroup::build_line_edits(second.body.after.clone(), second.expected(true).clone(), Selection::default(),
+        vec![PrefixEdit { range: 0..1, text: "中".into() }], false, &cancel).unwrap());
+    let entries = vec![UndoEntry::Group { ops: first.ops().iter().chain(second.ops()).cloned().collect(), sel_before_anchor: 0, sel_before_head: 0 },
+        UndoEntry::Prepared(third.clone())];
+    let combined = PreparedGroup::combine_history(&entries, third.body.after.clone(), third.expected(true).clone(),
+        Selection::default(), Selection::default(), &cancel).unwrap();
+    assert_eq!(combined.body.before, first.body.before);
+    for undo in [false, true] {
+        let source = combined.expected_rope(undo);
+        let metadata = Metadata { bookmarks: (0..=source.len_bytes()).collect(), marks: vec![0..1, 2..3], marker: Some(0) };
+        let want = legacy(&combined, metadata.clone(), undo);
+        let got = combined.remap(&metadata, undo, &cancel).unwrap();
+        assert_eq!(got.bookmarks, want.bookmarks); assert_eq!(got.marks, want.marks); assert_eq!(got.marker, want.marker);
+    }
+    assert!(PreparedGroup::combine_history(&entries, third.body.after.clone(), ContentRevision::default(),
+        Selection::default(), Selection::default(), &cancel).is_err());
+    assert!(matches!(&entries[0], UndoEntry::Group { ops, .. } if ops.len() == 2));
+    assert!(Arc::ptr_eq(&third, match &entries[1] { UndoEntry::Prepared(group) => group, _ => panic!("sealed history required") }));
+}

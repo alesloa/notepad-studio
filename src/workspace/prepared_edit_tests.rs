@@ -18,7 +18,8 @@ fn with_source(text: &str, test: impl FnOnce(&Entity<Workspace>, &mut VisualTest
         tab.selection.head = text.len();
         w.tabs = vec![tab];
         w.active = 0;
-        w.window_closed = true;
+        let (sink, _) = std::sync::mpsc::channel();
+        w.session_snapshot_sink = Some(sink);
         w
     });
     visual.update(|window, cx| {

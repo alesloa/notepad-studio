@@ -153,6 +153,15 @@ class InventoryTests(unittest.TestCase):
                     self.assertNotIn("/keymap/", handler["path"])
                     self.assertIn(handler["wire_path"], ("src/workspace/render.rs", "src/app/menus.rs"))
 
+    def test_rename_and_delete_main_routes_replace_the_old_popup_only_classification(self):
+        for command in ["IDM_FILE_RENAME", "IDM_FILE_DELETE"]:
+            with self.subTest(command=command):
+                entry = next(x for x in self.inventory["entries"] if x["id"] == command)
+                self.assertTrue(entry["studio_declaration"] and entry["studio_catalog"])
+                self.assertTrue(entry["studio_menu"] and entry["studio_handlers"])
+                self.assertTrue(entry["alternate"])
+                self.assertEqual(entry["status"], "routed")
+
 
 if __name__ == "__main__":
     unittest.main()

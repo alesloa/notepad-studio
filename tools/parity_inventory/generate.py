@@ -376,7 +376,9 @@ def build_inventory(root, oracle):
             entry["status"] = "missing"
             entry["note"] = "No mapped static main-menu/catalog action found; this does not prove the behavior is absent from every other UI."
         if command in REVIEWED:
-            entry["status"], entry["note"] = REVIEWED[command]
+            status, note = REVIEWED[command]
+            if status != "alternate-only" or entry["status"] != "routed":
+                entry["status"], entry["note"] = status, note
     counts = Counter(entry["id"] for entry in entries)
     unique = list({entry["id"]: entry for entry in entries}.values())
     result = {

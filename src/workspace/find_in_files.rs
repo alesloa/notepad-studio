@@ -601,7 +601,7 @@ pub(crate) fn describe_search_mode(regex: bool, extended: bool) -> String {
 /// Absolute byte range in `rope` of a result at `line`, `span` being its
 /// offsets within that line. The file may have changed since the search,
 /// so the line is clamped to the rope, the span to the line's content (any
-/// ropey line break excluded, not only CR/LF), and both ends floored to a
+/// CR/LF terminator excluded), and both ends floored to a
 /// char boundary: a mid-char selection panics the next `byte_slice`.
 fn result_range_in_rope(
     rope: &ropey::Rope,
@@ -616,9 +616,7 @@ fn result_range_in_rope(
     let before_last = chars.checked_sub(2).and_then(|i| slice.get_char(i));
     let break_len = match (before_last, last) {
         (Some('\r'), Some('\n')) => 2,
-        (_, Some(c @ ('\n' | '\r' | '\u{0B}' | '\u{0C}' | '\u{85}' | '\u{2028}' | '\u{2029}'))) => {
-            c.len_utf8()
-        }
+        (_, Some('\n' | '\r')) => 1,
         _ => 0,
     };
     let content_len = slice.len_bytes().saturating_sub(break_len);
@@ -1059,7 +1057,7 @@ mod tests {
     #[test]
     fn stale_result_never_selects_mid_char() {
         // The file changed after the search: the stored span now cuts
-        // through "中", or through a U+2028 line separator ending the line.
+        // through "中", or through a U+2028 character inside the row.
         let cases: [(&str, usize, std::ops::Range<usize>); 4] = [
             ("中\n", 0, 1..2),
             ("ab\u{2028}cd", 0, 3..4),
@@ -1077,12 +1075,12 @@ mod tests {
     #[test]
     fn result_range_lands_on_the_match() {
         let rope = ropey::Rope::from_str("one\r\ntwo é three\u{2028}four");
-        // Line 1 is "two é three", the match "three" sits at 7..12 in it.
+        // Physical row 1 includes U+2028; "three" still sits at 7..12.
         let r = result_range_in_rope(&rope, 1, &(7..12));
         assert_eq!(rope.byte_slice(r).to_string(), "three");
-        // A span past the line end is clipped to the content, before the LS.
+        // A span past EOF is clipped after the complete Unicode body.
         let r = result_range_in_rope(&rope, 1, &(7..40));
-        assert_eq!(rope.byte_slice(r).to_string(), "three");
+        assert_eq!(rope.byte_slice(r).to_string(), "three\u{2028}four");
     }
 
     #[test]

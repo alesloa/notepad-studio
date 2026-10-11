@@ -111,14 +111,7 @@ pub(crate) fn trim_selected_line_range(rope: &ropey::Rope, range: std::ops::Rang
 /// before its line end; a line past the end of the rope maps to the rope's
 /// end. Same mapping as `Workspace::byte_at_line_col`, over a plain rope.
 pub(crate) fn byte_at_line_col(rope: &Rope, line: usize, col: usize) -> usize {
-    if line >= rope.len_lines() {
-        return rope.len_bytes();
-    }
-    let start = rope.line_to_byte(line);
-    let text = rope.line(line).to_string();
-    let body = text.trim_end_matches(['\n', '\r']);
-    let in_line = body.char_indices().nth(col).map_or(body.len(), |(b, _)| b);
-    start + in_line
+    crate::workspace::column_plan::row(rope, line).and_then(|row| row.byte(col)).unwrap_or(rope.len_bytes())
 }
 
 /// Clamp `byte` to `s` and move it back to the start of the char it falls in.

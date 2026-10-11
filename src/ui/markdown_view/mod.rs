@@ -3780,6 +3780,24 @@ impl gpui::Element for CaretOverlay {
 mod hostile_input_tests {
     use super::*;
 
+    #[test]
+    fn physical_line_policy_preserves_reader_paragraphs_and_source_ranges() {
+        for separator in ['\u{b}', '\u{c}', '\u{85}', '\u{2028}', '\u{2029}'] {
+            let first = format!("left{separator}right");
+            let source = format!("{first}\n\nlast");
+            let blocks = parse(&source);
+            assert_eq!(blocks.len(), 2);
+            assert!(matches!(blocks[0], Block::Paragraph { .. }));
+            let mut lines = Vec::new(); collect_lines(&blocks, &mut lines);
+            assert_eq!(lines.len(), 2);
+            assert_eq!(lines[0].0.iter().map(|r| r.text.as_str()).collect::<String>(), first);
+            assert_eq!(lines[1].0.iter().map(|r| r.text.as_str()).collect::<String>(), "last");
+            for (runs, _) in lines {
+                for run in runs { assert_eq!(source.get(run.source_range.clone()), Some(run.text.as_str())); }
+            }
+        }
+    }
+
     /// Every selectable line the renderer would build, depth-first.
     fn collect_lines<'a>(blocks: &'a [Block], out: &mut Vec<(&'a [InlineRun], &'a [EmphasisTag])>) {
         for b in blocks {

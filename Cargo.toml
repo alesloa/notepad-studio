@@ -68,7 +68,7 @@ futures = { workspace = true }
 tempfile = { workspace = true }
 sha2 = { workspace = true }
 gpui = { path = "vendor/gpui/crates/gpui" }
-ropey = "1.6"
+ropey = { version = "1.6", default-features = false, features = ["cr_lines", "simd"] }
 harper-core = { version = "=0.33.0", default-features = false, features = ["concurrent"] }
 rfd = { version = "0.14", features = ["common-controls-v6"] }
 anyhow = "1"

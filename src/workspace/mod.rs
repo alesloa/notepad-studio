@@ -10,6 +10,9 @@ mod completion_api;
 mod call_hint;
 pub(crate) use call_hint::HintSnapshot;
 mod block;
+pub(crate) mod column_plan;
+#[cfg(test)]
+pub(crate) use block::safety_tests::with_editor as with_column_editor;
 mod close_tag;
 mod cursor;
 mod tag_match;
@@ -1994,3 +1997,6 @@ mod source_caret_tests;
 
 #[cfg(test)]
 mod replace_lifecycle_audit_tests;
+
+#[cfg(test)]
+mod physical_line_tests;

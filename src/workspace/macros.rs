@@ -162,6 +162,9 @@ impl Workspace {
         }
         match event {
             MacroEvent::InsertText(text) => {
+                if let Some(block) = self.block_selection().filter(|block| !block.is_empty()) {
+                    return self.block_replace_geometry(block, text, 0, cx);
+                }
                 let r = self.selection().ordered();
                 self.replace_byte_range(r, text, cx);
             }
@@ -171,8 +174,14 @@ impl Workspace {
             MacroEvent::CorrectText { original, replacement } => {
                 return self.replay_proofreading_correction(original, replacement, cx);
             }
-            MacroEvent::Backspace => self.backspace(&EditBackspace, window, cx),
-            MacroEvent::Delete => self.delete(&EditDelete, window, cx),
+            MacroEvent::Backspace => {
+                if self.has_block_selection() { return self.block_delete(true, cx); }
+                self.backspace(&EditBackspace, window, cx);
+            },
+            MacroEvent::Delete => {
+                if self.has_block_selection() { return self.block_delete(false, cx); }
+                self.delete(&EditDelete, window, cx);
+            },
             MacroEvent::InsertNewline => self.insert_newline(&EditInsertNewline, window, cx),
             MacroEvent::InsertTab => self.insert_tab(&EditInsertTab, window, cx),
             MacroEvent::IncreaseLineIndent => return self.run_menu_line_command(crate::edit_ops::menu_line_commands::MenuLineCommand::Increase, window, cx),
@@ -188,8 +197,18 @@ impl Workspace {
             MacroEvent::MoveLineUp => self.move_line_up(&EditMoveLineUp, window, cx),
             MacroEvent::MoveLineDown => self.move_line_down(&EditMoveLineDown, window, cx),
             MacroEvent::DeleteLine => self.delete_line(&EditDeleteLine, window, cx),
-            MacroEvent::Uppercase => self.uppercase_selection(&EditUppercase, window, cx),
-            MacroEvent::Lowercase => self.lowercase_selection(&EditLowercase, window, cx),
+            MacroEvent::Uppercase => {
+                if let Some(block) = self.block_selection().filter(|block| !block.is_empty()) {
+                    return self.block_case(block, &|text: &str| text.to_uppercase(), cx);
+                }
+                self.uppercase_selection(&EditUppercase, window, cx);
+            },
+            MacroEvent::Lowercase => {
+                if let Some(block) = self.block_selection().filter(|block| !block.is_empty()) {
+                    return self.block_case(block, &|text: &str| text.to_lowercase(), cx);
+                }
+                self.lowercase_selection(&EditLowercase, window, cx);
+            },
             MacroEvent::BlockComment => self.block_comment(&EditBlockComment, window, cx),
             MacroEvent::StreamComment => self.stream_comment(&EditStreamComment, window, cx),
             MacroEvent::InsertBlankLineAbove => {
@@ -210,8 +229,14 @@ impl Workspace {
             MacroEvent::TabToSpace => self.tab_to_space(&EditTabToSpace, window, cx),
             MacroEvent::SpaceToTabAll => self.space_to_tab_all(&EditSpaceToTabAll, window, cx),
             MacroEvent::SpaceToTabLeading => self.space_to_tab_leading(&EditSpaceToTabLeading, window, cx),
-            MacroEvent::Cut => self.cut(&EditCut, window, cx),
-            MacroEvent::Copy => self.copy(&EditCopy, window, cx),
+            MacroEvent::Cut => {
+                if self.has_block_selection() { self.cancel_bookmark_copy(cx); return self.block_cut(cx); }
+                self.cut(&EditCut, window, cx);
+            },
+            MacroEvent::Copy => {
+                if self.has_block_selection() { self.cancel_bookmark_copy(cx); return self.block_copy(cx); }
+                self.copy(&EditCopy, window, cx);
+            },
             MacroEvent::CopyAllFilenames => return self.copy_all_tab_labels(false, cx),
             MacroEvent::CopyAllFilePaths => return self.copy_all_tab_labels(true, cx),
             MacroEvent::CopyBookmarkedLines => return self.run_copy_bookmarked_lines(window, cx),
@@ -220,7 +245,13 @@ impl Workspace {
             MacroEvent::RemoveBookmarkedLines => return self.run_bookmark_command(crate::edit_ops::bookmark_edits::BookmarkCommand::Remove, window, cx),
             MacroEvent::RemoveNonBookmarkedLines => return self.run_bookmark_command(crate::edit_ops::bookmark_edits::BookmarkCommand::RemoveNon, window, cx),
             MacroEvent::InverseBookmarks => return self.run_bookmark_command(crate::edit_ops::bookmark_edits::BookmarkCommand::Inverse, window, cx),
-            MacroEvent::Paste => self.paste(&EditPaste, window, cx),
+            MacroEvent::Paste => {
+                if self.input_focus(window) == InputFocus::Editor {
+                    let Some(text) = cx.read_from_clipboard().and_then(|item| item.text()) else { return true; };
+                    return self.paste_editor_text(&text, cx);
+                }
+                self.paste(&EditPaste, window, cx);
+            },
             MacroEvent::SelectAll => self.select_all(&EditSelectAll, window, cx),
             MacroEvent::Undo => self.undo(&EditUndo, window, cx),
             MacroEvent::Redo => self.redo(&EditRedo, window, cx),
@@ -270,10 +301,22 @@ impl Workspace {
             MacroEvent::InsertDateTimeCustomized => {
                 self.insert_datetime_customized(&EditInsertDateTimeCustomized, window, cx)
             }
-            MacroEvent::DeleteWordLeft => self.delete_word_left(&EditDeleteWordLeft, window, cx),
-            MacroEvent::DeleteWordRight => self.delete_word_right(&EditDeleteWordRight, window, cx),
-            MacroEvent::DeleteLineLeft => self.delete_line_left(&EditDeleteLineLeft, window, cx),
-            MacroEvent::DeleteLineRight => self.delete_line_right(&EditDeleteLineRight, window, cx),
+            MacroEvent::DeleteWordLeft => {
+                if self.has_block_selection() { return self.delete_caret_part(crate::edit_ops::editor_keys::CaretPart::WordLeft, window, cx); }
+                self.delete_word_left(&EditDeleteWordLeft, window, cx);
+            },
+            MacroEvent::DeleteWordRight => {
+                if self.has_block_selection() { return self.delete_caret_part(crate::edit_ops::editor_keys::CaretPart::WordRight, window, cx); }
+                self.delete_word_right(&EditDeleteWordRight, window, cx);
+            },
+            MacroEvent::DeleteLineLeft => {
+                if self.has_block_selection() { return self.block_delete_line_part(crate::edit_ops::editor_keys::CaretPart::LineLeft, cx); }
+                self.delete_line_left(&EditDeleteLineLeft, window, cx);
+            },
+            MacroEvent::DeleteLineRight => {
+                if self.has_block_selection() { return self.block_delete_line_part(crate::edit_ops::editor_keys::CaretPart::LineRight, cx); }
+                self.delete_line_right(&EditDeleteLineRight, window, cx);
+            },
             MacroEvent::ScrollLineUp => self.scroll_line_up(&EditScrollLineUp, window, cx),
             MacroEvent::ScrollLineDown => self.scroll_line_down(&EditScrollLineDown, window, cx),
             MacroEvent::ToggleOvertype => self.toggle_overtype(&EditToggleOvertype, window, cx),

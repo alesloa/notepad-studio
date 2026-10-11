@@ -20,6 +20,8 @@ pub(super) fn with_workspace(
     test: impl FnOnce(&mut Workspace, &mut Window, &mut Context<Workspace>),
 ) {
     let _settings = override_for_test(Settings::default());
+    let _execution = crate::macros::override_execution_for_test(false);
+    let _recent = crate::recent::override_snapshot_for_test(Vec::new());
     let events = vec![MacroEvent::InsertText("é".into())];
     let _macro = override_playback_for_test(
         events.clone(),
@@ -42,7 +44,7 @@ pub(super) fn with_workspace(
         tab.selection.collapse_to(TEXT.len());
         w.tabs = vec![tab];
         w.active = 0;
-        w.window_closed = true;
+        let (sink, _) = std::sync::mpsc::channel(); w.session_snapshot_sink = Some(sink);
         w
     });
     {

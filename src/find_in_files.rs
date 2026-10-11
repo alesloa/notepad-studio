@@ -442,13 +442,11 @@ fn collect_results_from_ranges(
 }
 
 /// Length of the line break starting at `bytes[i]`, or 0. The breaks are
-/// the ones ropey counts: LF, VT, FF, CR, CRLF (one break), NEL, LS, PS.
+/// physical CR/LF endings used by the editor: CRLF counts as one break.
 fn line_break_len(bytes: &[u8], i: usize) -> usize {
     match bytes.get(i..).unwrap_or_default() {
         [b'\r', b'\n', ..] => 2,
-        [b'\n' | 0x0B | 0x0C | b'\r', ..] => 1,
-        [0xC2, 0x85, ..] => 2,
-        [0xE2, 0x80, 0xA8 | 0xA9, ..] => 3,
+        [b'\n' | b'\r', ..] => 1,
         _ => 0,
     }
 }
@@ -809,16 +807,19 @@ mod tests {
 
     #[test]
     fn result_lines_follow_rope_line_breaks() {
-        // Every break ropey counts: LF, VT, FF, CR, CRLF, NEL, LS, PS.
+        // Unicode separators remain body text; LF, CR and CRLF end rows.
         let text = "x0\nx1\u{0B}x2\u{0C}x3\rx4\r\nx5\u{85}x6\u{2028}x7\u{2029}x8 中x9";
         let rope = ropey::Rope::from_str(text);
         let results = results_for(text, "x[0-9]");
         assert_eq!(results.len(), 10);
+        assert_eq!(results.iter().map(|r| r.line).collect::<Vec<_>>(), vec![0, 1, 1, 1, 2, 3, 3, 3, 3, 3]);
+        assert_eq!(results[1].line_text, "x1\u{0B}x2\u{0C}x3");
+        assert_eq!(results[5].line_text, "x5\u{85}x6\u{2028}x7\u{2029}x8 中x9");
         for (r, m) in results.iter().zip(Regex::new("x[0-9]").unwrap().find_iter(text)) {
             let line = rope.byte_to_line(m.start());
             assert_eq!(r.line, line, "match {:?}", m.as_str());
             assert_eq!(rope.line_to_byte(line) + r.match_in_line.start, m.start());
-            assert!(!r.line_text.contains(['\r', '\n', '\u{0B}', '\u{0C}', '\u{85}', '\u{2028}', '\u{2029}']));
+            assert!(!r.line_text.contains(['\r', '\n']));
         }
     }
 
@@ -844,7 +845,7 @@ mod tests {
                 let content = slice.to_string();
                 let trimmed = content
                     .strip_suffix("\r\n")
-                    .or_else(|| content.strip_suffix(['\n', '\r', '\u{0B}', '\u{0C}', '\u{85}', '\u{2028}', '\u{2029}']))
+                    .or_else(|| content.strip_suffix(['\n', '\r']))
                     .unwrap_or(&content);
                 assert_eq!(walker.content_end(), start + trimmed.len(), "{text:?} @ {b}");
             }

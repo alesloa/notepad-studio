@@ -1,5 +1,5 @@
 {
-  "studio_source_sha256": "8781129422befa76ef7db9f6cca68a4709693d6b4aace91a0b84d89ef30b23a8",
+  "studio_source_sha256": "c71335ee3eaa3d371bef0f956e95ea302ca23a719329a7c54e15832b3c26c339",
   "studio_sources": {
     "src/actions/bookmarks.rs": "eeaf95badc144e0fa7f8c2445495e706f1209291c1285ddd3578fef0c84eb5fc",
     "src/actions/edit.rs": "90200c45bc846149a2a05b8ce0b1ab98118b185094686abacccc0ddc882969b4",
@@ -56,12 +56,12 @@
     "src/edit_ops/blank_ops.rs": "095023726fa1732362b1385b17b2466c18ac2344675724c6b0625a89d0571d2b",
     "src/edit_ops/bookmark_clipboard.rs": "706caea8990e6c67a8d54e4b2142e92300a738d8254fb2fbf6db456a6367eb84",
     "src/edit_ops/bookmark_edits.rs": "be80375239bb51fceb1574c00688622dd023989c52bdc87b41803069b6a539a5",
-    "src/edit_ops/case_ops.rs": "32829a74636747210a7855cb81522af83cc87e617b0c2575862afe43fa609446",
+    "src/edit_ops/case_ops.rs": "8bd76a20b9aacec59ea83758fc558df50cfcfe1a22a691273a3a7e5edd2c9454",
     "src/edit_ops/clipboard_all.rs": "c988507c1c3b03d9a4d0c49bcfae2aca196fc17e4664c9bf22de567e8611b17d",
     "src/edit_ops/clipboard_ops.rs": "020534cb8aa4cef4e57e673861e7e6b1b4bd87542f909e87ab0c82d8abb8bde6",
     "src/edit_ops/comment_ops.rs": "3bb9562940ef7ca84a5654c611185aeb9796988b3dfcadc4e31740d8573e21f0",
     "src/edit_ops/delimiter_select.rs": "6fb029a50d78e94fe45dbed361c404cd8e4bac5283432533cd94efe98282489b",
-    "src/edit_ops/editor_keys.rs": "e781c24a9a2170592b0c0c17af01bf81d6f06682358e1c0a1ad2b495a2973c84",
+    "src/edit_ops/editor_keys.rs": "714dbbf52dc4893f93916fce5996cf21ca8529c46c2e8e3d273236044e3311c4",
     "src/edit_ops/indent_ops.rs": "2380542c41bee8963729042c65b5f2d4af905092a9f74d90c0a966e205e789e2",
     "src/edit_ops/insert.rs": "6b131b2ed7c21b4d2b08942d3f6f19f8559fc96efc1ea917c5016befcc79af01",
     "src/edit_ops/line_ops.rs": "9d18a8e19482116b1df0feba9ade37e4a50560a47b9d9e547d35ecc106ddf086",
@@ -72,11 +72,11 @@
     "src/edit_ops/readonly.rs": "a0b71fa924e537a091c95a561c188cb7ed3d0bb92126e615095d103646fe051f",
     "src/edit_ops/trim_both_scope.rs": "e69a6c4becb48689fc73e7f157d482869f17f5cf7a1384324a3c49ac6767b8f4",
     "src/edit_ops/trim_trailing_scope.rs": "f4ff4bb61b6ad02f0d39f42261fbdcda7ffc67c3c72eaaf2c86738a405355f0a",
-    "src/edit_ops/util.rs": "63936a91e5a46fdf3bfad175303eba288ef9cc1c7928f0d34b3175d73b566a41",
+    "src/edit_ops/util.rs": "1c773958e7c80acdefeb814cf3988caa9b4970f6593d88ee4688ec80239c6fc1",
     "src/editor_element.rs": "c1ccbeb4a0e868b83ed3910fa248f9cf7c72ba38aaac3497d647185826327213",
     "src/editor_proofreading.rs": "b3b5362455509e74cd35a95ecea58d5e5c1b8af505862dc00d094aaded290c7f",
     "src/find_block_map.rs": "c7a1eb06a3e2c74557328b59b1776b2f14817cfb9a817aa63508daf83aa4c436",
-    "src/find_in_files.rs": "97fcdb31ad7c7ebaf55d653e46b11dc5789d84f7d8fe1a88db301d6f698d07c1",
+    "src/find_in_files.rs": "0b289c528aad6f4bc11ed10f4fd300e8de9e74d9719ff8acc4fe19b4e1598186",
     "src/find_state.rs": "6b2d159b9c588d70029d3f663681c64680cc5938d4daf855a4ecd49ac98ae334",
     "src/fonts.rs": "6e26e40847e3f3b15f32410d0a8804d2e787d1d2c633ebd76938b3c389ea5201",
     "src/gutter.rs": "dfe87247f9532c628183d3ef82c54f610a2df83c005a4b284f29801cc305e44b",
@@ -96,8 +96,8 @@
     "src/io_stream.rs": "450a533562310b8c50d18cb4b2a425be85bd830eac2ce321537ef20ed1126f61",
     "src/locale_date.rs": "b7c0a84062bcd5a8142bf9ff3c3c62dcce03f40fa5fc3ff7824b858f52b1f7c8",
     "src/locale_sort_windows.rs": "456d5f41ceaa63ec1c0acf33a082a01a0814b779097f2aed8cfd662a9ca5dfcd",
-    "src/macros.rs": "8f6b17d428aec351820987d7eee9177a8affa40794cf08fb4ef6809e1ecccff8",
-    "src/macros_playback_fixture.rs": "8ccc6740548146836bc0f0cbe7dc7d73b64560c268b37704790185ccdd59656a",
+    "src/macros.rs": "4fa244f0b6d1383bec908fc6a8a69a11982f9fa4180ea64e413c1bec9462aaf7",
+    "src/macros_playback_fixture.rs": "19ba5fe472e4801e0ac90f0618e1e9eb787e022aab8ee26dbe023742f8f441e2",
     "src/main.rs": "c4e677bd9dbddd531fb39e99bfab56de13b68c492d22b7d93f3e584f6389d30f",
     "src/panic_log.rs": "f3b24ecf846e2b7a6b218ba1a732efad70da2113cba2746175dbd33e96290c6f",
     "src/persist.rs": "7995c33c733153eaffa48f17512b7ea0fd52884cf389c1311259397889176fe2",
@@ -200,7 +200,7 @@
     "src/ui/goto_bar.rs": "1c6fd60e9fdd5dcdea8806f947f2d76d00daa9f07bf00b14e4657a05207b3de8",
     "src/ui/macro_prompt_bar.rs": "770f0f93adb0ead0461795b5c55ac9657b997a70a34223a7110f173c2739c726",
     "src/ui/markdown_view/input.rs": "b668c64651bce89901911fc635fe058e730b3ea5f7b7391926bad0a14379dc5b",
-    "src/ui/markdown_view/mod.rs": "228a5665c83e8d1b02525837044c5abff9b8584720941548bfd39149964c00ce",
+    "src/ui/markdown_view/mod.rs": "675fa1682a1e592706b70800734304956b18bc6e6c839688e7c309ffff305c91",
     "src/ui/markdown_view/scrollbar.rs": "18695bdaad45cf1de6e10cde77982f43cb778a31092bc36ca29462783d5618cb",
     "src/ui/menu_bar/keys.rs": "571cfa619b8da968a1dd64ef1d3df6a82c2d103ad0dc7849852eff08717b5678",
     "src/ui/menu_bar/mnemonic.rs": "c84a488548db6c6bcd29ff3b86d03056e7b5ef7748edbfc8959397f74c1a7f69",
@@ -277,14 +277,15 @@
     "src/ui/toolbar.rs": "c88abc2d1fd98f24945f2e3d0631f600dc99fba36ea4a8d7fe9d36b2179d140b",
     "src/workspace/autocomplete.rs": "b320df6a6512035509a7e598830ef5ce51796dfb775a25e3c9f6959216e9b9b3",
     "src/workspace/autocomplete_candidates.rs": "935f0390779a8016cb0d6208a85d26a157627a6d2199e1c3f30170707b094d84",
-    "src/workspace/block.rs": "1e05819d1ea399a61d3e4a9b9a11cc011bd886d891d9b8ef81e950bb058b4ded",
+    "src/workspace/block.rs": "e277867482c3a3969be019a397547bbe5e4c67102bfa7e0cc18ada7148517c40",
     "src/workspace/call_hint.rs": "43dfa02ef1fbc393e80b891b9e7bf31004af627f83202aa6f7b1988b713f2b01",
     "src/workspace/close_tag.rs": "a7954fe5acd2550f9d863b2b25b5b77b36c85902510ded5907ef17371555661d",
+    "src/workspace/column_plan.rs": "7d766f2f489f624228a6461eed027f641623b7659da4c60141e5fd0772084a4f",
     "src/workspace/completion_api.rs": "95bc8727ff8d2e8557597bf10a5ea62e6ff064e65ba9495f573d5b55a19b69db",
     "src/workspace/completion_macro.rs": "b75aedfd58b6dbbbbd4f96bf1d27d59406d04e527beead4b8371fb11132b1e52",
     "src/workspace/cursor.rs": "959f5aba0a3d9cb07a49c33f27fbbf13a0486c0832948b2a64f6dac2c9356cf7",
     "src/workspace/directory_operations.rs": "e99b779cb52f093598a39d612a274e7808ed522fc74c1a907de7aa1574f04024",
-    "src/workspace/edits.rs": "da954f9eba87b8c3fb3e9f7aed00e74f3c040713911211ba59bf25b5c9f101f3",
+    "src/workspace/edits.rs": "fa3d69b6701d9a98c48cc1089fc14bbe43f711d9fd6ac11d35a4de260500ae0a",
     "src/workspace/file_move.rs": "4b2b28d4a2b831b6e59f56b105a0ad3d8ec32a933c066d8d1e17d42155673e49",
     "src/workspace/file_routes.rs": "43ec082625774a477985e81926a84c547a2f5e7c817ad7d5b73d3b1253ccacb2",
     "src/workspace/file_tab_actions.rs": "da125d264a4d080a47a81ac213db73c5199eae9e5fd7ae42d9ecca458b0a108f",
@@ -297,20 +298,20 @@
     "src/workspace/find_current_projection.rs": "ae90919f18378c5613ad947bbc51a114e1355145075e5d906e42c88d7818fa08",
     "src/workspace/find_current_rich.rs": "b7574e3ad2361a34dc11f0677bc1f8ba904eb3f56fcaca938dd2fbcccbdb79bf",
     "src/workspace/find_current_worker.rs": "870e06dfba024a797cbeb84d621a2c696c1abce1f2c8cddb8bfbbe16d7483471",
-    "src/workspace/find_in_files.rs": "0853937e58dcc8d9e1989e7be930c0e51139de0a99b5f77679bbcf3b12b88ab1",
+    "src/workspace/find_in_files.rs": "18d3326cd3de3259f76fc1c30bf31a34ee3116dedc2f84edbbd4df154222f06c",
     "src/workspace/find_replacement.rs": "4fa973ab462f1033bc0235b7fa0ababbe14459c1663e1734f527807fa30727f6",
     "src/workspace/find_view.rs": "c033d42856bee13be14b23b25ae023e46ff0be4b7503fa2b93d8292e289ab2d3",
     "src/workspace/folder_panel.rs": "a568828f3f8982a135b15e9372c8fa7d743c75479a8fe40d31ba7a2f616028b6",
     "src/workspace/format.rs": "514dd0c98f07fd04f1dc25404474788d0bd574404929bb0751303e38b5337ad4",
     "src/workspace/history.rs": "e81e204f82315aab37b044596a219297028ced18a3c897844d62219648651492",
     "src/workspace/ime.rs": "761420f3a3a2a82a86609f909df4809d44372b2e61d4d68855146db100fa088b",
-    "src/workspace/input_handler.rs": "a3b40903d21edbd5028970aed6d81c577e059210f3e50bcce48aa8958fbb7798",
+    "src/workspace/input_handler.rs": "ef1a987ad7c26cfb1d7574da1a1317e57f533df85109297224a3cca498d9f9c6",
     "src/workspace/language.rs": "2354cd797e6775c07bfcc6e1c7a24dbf76f8d59704fa737c6886ed9abcd2d204",
-    "src/workspace/macros.rs": "58cda38a02c7a713039b85ac5d27d4a0389c2339d77e3a7db173d53d455714f4",
+    "src/workspace/macros.rs": "2c46d74b12dd23bd4e35ddce6162b207b3358fc32f408e8fc2860b25bb839993",
     "src/workspace/markdown_format.rs": "1e8c6fa671dfb4f0304f9c885628d0ce8c537f0cdaf5d9d044bb3929694201f0",
     "src/workspace/menu_bar.rs": "eb33b9884b6e0574c700fa5c6a7460139c23bc09dfb4c5dff3ea4cfd936b8795",
     "src/workspace/menu_state.rs": "c08c5730ca88b4773ff7e69c8375574d6b9946653ff0b8eb9c4245dec4707989",
-    "src/workspace/mod.rs": "031e022262081f50db631cd1da05d2371257c1b2e53eac41830d7f68ee3613a6",
+    "src/workspace/mod.rs": "edd5d29f3a93e36230d25955fb894a7a9a252548641e33955e93f0358ef64c4a",
     "src/workspace/mouse.rs": "d33004f7e533a7290340fdcd47b18bbbb0f30c0650d05ff77cc5d671f65a32ad",
     "src/workspace/movement.rs": "842121092e1c8537d4a9eb47c890fea8fcd08ce6eb427e5d067e89c5d544af9e",
     "src/workspace/open_existing.rs": "2f0688288f495fb8717aa9e7338e47be14c405af2e33491a70a7f2e57b06ccbd",
@@ -1286,7 +1287,7 @@
       "alternate": [
         {
           "path": "src/workspace/mod.rs",
-          "line": 1168,
+          "line": 1171,
           "method": "open_tab_rename"
         }
       ],
@@ -1966,7 +1967,7 @@
         {
           "method": "undo",
           "path": "src/workspace/edits.rs",
-          "line": 431,
+          "line": 433,
           "wire_path": "src/workspace/render.rs",
           "wire_line": 179
         }
@@ -2032,7 +2033,7 @@
         {
           "method": "redo",
           "path": "src/workspace/edits.rs",
-          "line": 465,
+          "line": 467,
           "wire_path": "src/workspace/render.rs",
           "wire_line": 180
         }
@@ -2290,7 +2291,7 @@
         {
           "method": "delete",
           "path": "src/workspace/edits.rs",
-          "line": 592,
+          "line": 579,
           "wire_path": "src/workspace/render.rs",
           "wire_line": 248
         }
@@ -3088,7 +3089,7 @@
         {
           "method": "uppercase_selection",
           "path": "src/workspace/edits.rs",
-          "line": 3556,
+          "line": 3529,
           "wire_path": "src/workspace/render.rs",
           "wire_line": 362
         }
@@ -3148,7 +3149,7 @@
         {
           "method": "lowercase_selection",
           "path": "src/workspace/edits.rs",
-          "line": 3569,
+          "line": 3548,
           "wire_path": "src/workspace/render.rs",
           "wire_line": 363
         }
@@ -3844,7 +3845,7 @@
         {
           "method": "move_line_up",
           "path": "src/workspace/edits.rs",
-          "line": 3404,
+          "line": 3377,
           "wire_path": "src/workspace/render.rs",
           "wire_line": 359
         }
@@ -3904,7 +3905,7 @@
         {
           "method": "move_line_down",
           "path": "src/workspace/edits.rs",
-          "line": 3417,
+          "line": 3390,
           "wire_path": "src/workspace/render.rs",
           "wire_line": 360
         }
@@ -4082,7 +4083,7 @@
         {
           "method": "insert_blank_line_above",
           "path": "src/workspace/edits.rs",
-          "line": 3967,
+          "line": 3952,
           "wire_path": "src/workspace/render.rs",
           "wire_line": 377
         }
@@ -4148,7 +4149,7 @@
         {
           "method": "insert_blank_line_below",
           "path": "src/workspace/edits.rs",
-          "line": 3989,
+          "line": 3974,
           "wire_path": "src/workspace/render.rs",
           "wire_line": 378
         }
@@ -5104,7 +5105,7 @@
         {
           "method": "block_comment",
           "path": "src/workspace/edits.rs",
-          "line": 3627,
+          "line": 3612,
           "wire_path": "src/workspace/render.rs",
           "wire_line": 364
         }
@@ -5284,7 +5285,7 @@
         {
           "method": "stream_comment",
           "path": "src/workspace/edits.rs",
-          "line": 3881,
+          "line": 3866,
           "wire_path": "src/workspace/render.rs",
           "wire_line": 365
         }
@@ -5887,7 +5888,7 @@
         {
           "method": "trim_trailing_ws",
           "path": "src/workspace/edits.rs",
-          "line": 3957,
+          "line": 3942,
           "wire_path": "src/workspace/render.rs",
           "wire_line": 366
         }
@@ -9869,7 +9870,7 @@
         {
           "method": "toggle_full_screen",
           "path": "src/workspace/edits.rs",
-          "line": 1161,
+          "line": 1134,
           "wire_path": "src/workspace/render.rs",
           "wire_line": 213
         }
@@ -10102,7 +10103,7 @@
         {
           "method": "toggle_show_whitespace",
           "path": "src/workspace/edits.rs",
-          "line": 1173,
+          "line": 1146,
           "wire_path": "src/workspace/render.rs",
           "wire_line": 214
         }
@@ -10344,7 +10345,7 @@
         {
           "method": "zoom_in",
           "path": "src/workspace/mod.rs",
-          "line": 1441,
+          "line": 1444,
           "wire_path": "src/workspace/render.rs",
           "wire_line": 388
         }
@@ -10411,7 +10412,7 @@
         {
           "method": "zoom_out",
           "path": "src/workspace/mod.rs",
-          "line": 1450,
+          "line": 1453,
           "wire_path": "src/workspace/render.rs",
           "wire_line": 389
         }
@@ -10478,7 +10479,7 @@
         {
           "method": "zoom_reset",
           "path": "src/workspace/mod.rs",
-          "line": 1459,
+          "line": 1462,
           "wire_path": "src/workspace/render.rs",
           "wire_line": 390
         }
@@ -12021,7 +12022,7 @@
         {
           "method": "toggle_word_wrap",
           "path": "src/workspace/edits.rs",
-          "line": 3193,
+          "line": 3166,
           "wire_path": "src/workspace/render.rs",
           "wire_line": 215
         }
@@ -12850,7 +12851,7 @@
         {
           "method": "toggle_folder_panel",
           "path": "src/workspace/edits.rs",
-          "line": 3182,
+          "line": 3155,
           "wire_path": "src/workspace/render.rs",
           "wire_line": 300
         }
@@ -21158,7 +21159,7 @@
         {
           "method": "macro_start_recording",
           "path": "src/workspace/macros.rs",
-          "line": 305,
+          "line": 348,
           "wire_path": "src/workspace/render.rs",
           "wire_line": 516
         }
@@ -21198,7 +21199,7 @@
         {
           "method": "macro_stop_recording",
           "path": "src/workspace/macros.rs",
-          "line": 322,
+          "line": 365,
           "wire_path": "src/workspace/render.rs",
           "wire_line": 517
         }
@@ -21257,7 +21258,7 @@
         {
           "method": "macro_playback",
           "path": "src/workspace/macros.rs",
-          "line": 338,
+          "line": 381,
           "wire_path": "src/workspace/render.rs",
           "wire_line": 518
         }
@@ -21312,7 +21313,7 @@
         {
           "method": "macro_save_current",
           "path": "src/workspace/macros.rs",
-          "line": 371,
+          "line": 414,
           "wire_path": "src/workspace/render.rs",
           "wire_line": 520
         }
@@ -21369,7 +21370,7 @@
         {
           "method": "macro_run_multiple_times",
           "path": "src/workspace/macros.rs",
-          "line": 356,
+          "line": 399,
           "wire_path": "src/workspace/render.rs",
           "wire_line": 519
         }

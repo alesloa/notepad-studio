@@ -29,6 +29,8 @@ mod playback_fixture;
 pub(crate) use playback_fixture::override_for_test as override_playback_for_test;
 #[cfg(test)]
 pub(crate) use playback_fixture::override_execution_for_test;
+#[cfg(test)]
+pub(crate) use playback_fixture::execution_current as recorded_events_for_test;
 
 #[cfg(test)]
 #[path = "blank_ops_macro_tests.rs"]
@@ -45,6 +47,10 @@ mod bookmark_clipboard_macro_tests;
 #[cfg(test)]
 #[path = "edit_ops/bookmark_edits_macro_tests.rs"]
 mod bookmark_edits_macro_tests;
+
+#[cfg(test)]
+#[path = "workspace/column_macro_tests.rs"]
+mod column_safety_macro_tests;
 
 /// Events captured during recording. Each variant maps onto a single
 /// keyboard-driven editor action. Replay dispatches these by calling the

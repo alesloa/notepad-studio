@@ -521,7 +521,11 @@
       ],
       "route_at_baseline": "routed",
       "behavior": "pending",
-      "evidence": []
+      "evidence": [
+        "docs/column-safety.md",
+        "docs/column-safety-validation.md",
+        "docs/windows-safety-validation-20261011.md"
+      ]
     },
     {
       "id": "IDM_EDIT_COPY",
@@ -537,7 +541,11 @@
       ],
       "route_at_baseline": "routed",
       "behavior": "pending",
-      "evidence": []
+      "evidence": [
+        "docs/column-safety.md",
+        "docs/column-safety-validation.md",
+        "docs/windows-safety-validation-20261011.md"
+      ]
     },
     {
       "id": "IDM_EDIT_PASTE",
@@ -553,7 +561,11 @@
       ],
       "route_at_baseline": "routed",
       "behavior": "pending",
-      "evidence": []
+      "evidence": [
+        "docs/column-safety.md",
+        "docs/column-safety-validation.md",
+        "docs/windows-safety-validation-20261011.md"
+      ]
     },
     {
       "id": "IDM_EDIT_DELETE",
@@ -793,7 +805,11 @@
       ],
       "route_at_baseline": "routed",
       "behavior": "pending",
-      "evidence": []
+      "evidence": [
+        "docs/column-safety.md",
+        "docs/column-safety-validation.md",
+        "docs/windows-safety-validation-20261011.md"
+      ]
     },
     {
       "id": "IDM_EDIT_LOWERCASE",
@@ -809,7 +825,11 @@
       ],
       "route_at_baseline": "routed",
       "behavior": "pending",
-      "evidence": []
+      "evidence": [
+        "docs/column-safety.md",
+        "docs/column-safety-validation.md",
+        "docs/windows-safety-validation-20261011.md"
+      ]
     },
     {
       "id": "IDM_EDIT_PROPERCASE_FORCE",
@@ -1147,7 +1167,9 @@
       "behavior": "pending",
       "evidence": [
         "docs/windows-line-sorts.md",
-        "docs/windows-nls-seam-proposal.md"
+        "docs/windows-nls-seam-proposal.md",
+        "docs/physical-line-boundaries.md",
+        "docs/windows-safety-validation-20261011.md"
       ],
       "remaining": [
         "Native Windows input/visual inspection",
@@ -1172,7 +1194,9 @@
       "behavior": "pending",
       "evidence": [
         "docs/windows-line-sorts.md",
-        "docs/windows-nls-seam-proposal.md"
+        "docs/windows-nls-seam-proposal.md",
+        "docs/physical-line-boundaries.md",
+        "docs/windows-safety-validation-20261011.md"
       ],
       "remaining": [
         "Native Windows input/visual inspection",
@@ -1245,7 +1269,9 @@
       "behavior": "pending",
       "evidence": [
         "docs/windows-line-sorts.md",
-        "docs/windows-nls-seam-proposal.md"
+        "docs/windows-nls-seam-proposal.md",
+        "docs/physical-line-boundaries.md",
+        "docs/windows-safety-validation-20261011.md"
       ],
       "remaining": [
         "Native Windows input/visual inspection",
@@ -1286,7 +1312,9 @@
       "behavior": "pending",
       "evidence": [
         "docs/windows-line-sorts.md",
-        "docs/windows-nls-seam-proposal.md"
+        "docs/windows-nls-seam-proposal.md",
+        "docs/physical-line-boundaries.md",
+        "docs/windows-safety-validation-20261011.md"
       ],
       "remaining": [
         "Native Windows input/visual inspection",
@@ -1311,7 +1339,9 @@
       "behavior": "pending",
       "evidence": [
         "docs/windows-line-sorts.md",
-        "docs/windows-nls-seam-proposal.md"
+        "docs/windows-nls-seam-proposal.md",
+        "docs/physical-line-boundaries.md",
+        "docs/windows-safety-validation-20261011.md"
       ],
       "remaining": [
         "Native Windows input/visual inspection",
@@ -1384,7 +1414,9 @@
       "behavior": "pending",
       "evidence": [
         "docs/windows-line-sorts.md",
-        "docs/windows-nls-seam-proposal.md"
+        "docs/windows-nls-seam-proposal.md",
+        "docs/physical-line-boundaries.md",
+        "docs/windows-safety-validation-20261011.md"
       ],
       "remaining": [
         "Native Windows input/visual inspection",
@@ -2199,7 +2231,10 @@
       ],
       "route_at_baseline": "routed",
       "behavior": "pending",
-      "evidence": []
+      "evidence": [
+        "docs/physical-line-boundaries.md",
+        "docs/windows-safety-validation-20261011.md"
+      ]
     },
     {
       "id": "IDM_SEARCH_FINDNEXT",
@@ -3053,7 +3088,10 @@
       ],
       "route_at_baseline": "routed",
       "behavior": "pending",
-      "evidence": []
+      "evidence": [
+        "docs/physical-line-boundaries.md",
+        "docs/windows-safety-validation-20261011.md"
+      ]
     },
     {
       "id": "IDM_SEARCH_NEXT_BOOKMARK",
@@ -7820,7 +7858,7 @@
       "evidence": []
     }
   ],
-  "current_source_sha256": "8781129422befa76ef7db9f6cca68a4709693d6b4aace91a0b84d89ef30b23a8",
+  "current_source_sha256": "c71335ee3eaa3d371bef0f956e95ea302ca23a719329a7c54e15832b3c26c339",
   "current_route_counts": {
     "action-only": 2,
     "alternate-only": 2,
@@ -7829,5 +7867,6 @@
     "routed": 182,
     "status-only": 1,
     "stub": 1
-  }
+  },
+  "current_manifest_sha256": "fb072656ef80cb3fdf6d5fb858003562f941c031ea5ab9dcd802aa294991e67a"
 }

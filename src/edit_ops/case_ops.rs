@@ -36,7 +36,7 @@ use ropey::Rope;
 
 use crate::actions::*;
 use crate::buffer::BlockSelection;
-use crate::edit_ops::util::{byte_at_line_col, clamp_byte_range, floor_char_boundary};
+use crate::edit_ops::util::{clamp_byte_range, floor_char_boundary};
 use crate::tab::InputFocus;
 use crate::workspace::Workspace;
 
@@ -155,20 +155,7 @@ impl Workspace {
         transform: &impl Fn(&str) -> String,
         cx: &mut Context<Self>,
     ) {
-        let edits = block_case_edits(&self.buffer().rope, &block, transform);
-        if edits.is_empty() {
-            return;
-        }
-        self.begin_edit_group();
-        for (range, new_text) in edits {
-            self.replace_byte_range(range, &new_text, cx);
-        }
-        self.end_edit_group(cx);
-        let head = byte_at_line_col(&self.buffer().rope, block.head_line, block.head_col);
-        let tab = self.active_tab_mut();
-        tab.selection.collapse_to(head);
-        tab.desired_col_x = None;
-        cx.notify();
+        self.block_case(block, transform, cx);
     }
 }
 
@@ -193,21 +180,10 @@ fn case_edit(
 /// One edit per row of a column selection, bottom row first, so applying
 /// them in order leaves the offsets of the rows above valid. Rows shorter
 /// than the block's left column have nothing selected and are skipped.
-fn block_case_edits(
-    rope: &Rope,
-    block: &BlockSelection,
-    transform: &impl Fn(&str) -> String,
-) -> Vec<(Range<usize>, String)> {
-    let last = block.max_line().min(rope.len_lines().saturating_sub(1));
-    let (min_col, max_col) = (block.min_col(), block.max_col());
-    (block.min_line()..=last)
-        .rev()
-        .filter_map(|line| {
-            let start = byte_at_line_col(rope, line, min_col);
-            let end = byte_at_line_col(rope, line, max_col);
-            case_edit(rope, start..end, transform)
-        })
-        .collect()
+#[cfg(test)]
+fn block_case_edits(rope: &Rope, block: &BlockSelection, transform: &impl Fn(&str) -> String) -> Vec<(Range<usize>, String)> {
+    crate::workspace::column_plan::case(rope, *block, transform, 0)
+        .map(|plan| plan.edits.into_iter().map(|edit| (edit.range, edit.text)).collect()).unwrap_or_default()
 }
 // --- Transform fns ---------------------------------------------------------
 
@@ -521,16 +497,16 @@ mod tests {
         };
         assert!(block_case_edits(&Rope::from_str(text), &block, &invert_case).is_empty());
 
-        // ropey rows also end at LS and NEL; those stay in place.
+        // LS and NEL stay in the selected physical row's body.
         let text = "ab\u{2028}cd\u{85}ef\ngh";
         let block = BlockSelection {
             anchor_line: 0,
             anchor_col: 1,
-            head_line: 3,
+            head_line: 1,
             head_col: 9,
             is_dragging: false,
         };
         let edits = block_case_edits(&Rope::from_str(text), &block, &invert_case);
-        assert_eq!(apply(text, edits), "aB\u{2028}cD\u{85}eF\ngH");
+        assert_eq!(apply(text, edits), "aB\u{2028}CD\u{85}EF\ngH");
     }
 }

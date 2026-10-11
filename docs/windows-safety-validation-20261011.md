@@ -3,8 +3,8 @@
 Base: `088e8d209a5dfc226ec215da1a13853a412b9dac`, after the tested
 17-command checkpoint. These three isolated investigations established baseline
 failures through real callers. The root reviewed the evidence and approved the
-limited policies below. The reviewed save fix is applied to main; column and
-physical-line integration and final combined checks are pending.
+limited policies below. All three fixes are integrated. The combined Windows
+build, full tests, Clippy, inventory and large-file functional checks pass.
 
 ## Save rescue copy
 
@@ -125,7 +125,12 @@ introduced code-path cost, not a reproduced native clipboard failure. The
 correction now passes 35 column controls, 13 macro-context controls and nine
 macro-Undo controls. The first full run's sole failure came from a test fixture
 marking its workspace closed; scoped persistence sinks replace that artificial
-state. The final frozen full checks remain pending.
+state. Final leaf checks pass: build 13.890 s, 2,609 unit plus three integration
+tests (29 ignored; 280.96 s unit, 290.368 s total), and Clippy 11.398 s. Root
+verified the 17-file source manifest, 12 deciding log hashes and test executable.
+Source patch SHA-256 is
+`03e1ebb1cacec736a19315356a59befac6048df28fc825e1ba576f4066d64874`;
+the [column verification record](column-safety-validation.md) retains its scope.
 
 ## Physical lines
 
@@ -168,7 +173,10 @@ patch SHA-256 is
 `fa56bd046f6e6090ece6d3a810ed4de605ff0c0a90a2cc41f29d2da44a3f212a`.
 Its debug build, 2,605 unit plus three integration tests (30 ignored), and Clippy
 pass. Canonical diagnostics match the baseline's 334 occurrences and 195 unique
-message/path pairs. The optimized streaming controls are still pending.
+message/path pairs. Nine deciding optimized processes pass: three pre-policy
+loader controls, three candidate loader controls and three Unicode streaming
+callers. The shipping optimization flags are unchanged; compiler/test
+inventories were empty before, between and after the runs.
 One saved-macro fixture incorrectly expected Undo to recreate a removed bookmark;
 it is excluded from product-defect evidence. The oracle's
 `Notepad_plus.cpp:3060-3068` deletes the marker before the row text, and Scintilla's
@@ -177,11 +185,57 @@ the bookmark before replay tests the intended saved-event contract. The fixture
 correction adds no product behavior change. A legacy case test also encoded
 Unicode-row indexing; its expected case changes and final-row geometry now
 express the approved physical-row contract. That fixture correction adds no
-production behavior beyond the Ropey policy. Main integration is pending.
+production behavior beyond the Ropey policy. Root integrated the policy
+additively with the column tests and updated Cargo.toml atomically. Cargo.lock
+and Ropey's locked version remain unchanged.
 
-Each leaf must pass its required frozen checks before integration. Native
-Windows verification remains pending, Mac tests are deferred, and the overall
-Notepad++ parity goal remains active. Local gates/logs remain ignored.
+## Combined checkpoint
+
+Main Rust inventory SHA-256 is
+`c71335ee3eaa3d371bef0f956e95ea302ca23a719329a7c54e15832b3c26c339`,
+covering 337 production source files. Cargo.toml SHA-256 is
+`fb072656ef80cb3fdf6d5fb858003562f941c031ea5ab9dcd802aa294991e67a`;
+the inventory hashes Rust only. Root verified 446 Rust/config/test file hashes
+without source changes after integration or during the required checks.
+
+Main build passes in 36.338 s wall. Full tests pass 2,652 unit plus three
+integration, with 30 ignored (40.56 s unit, 157.024 s total wall). Clippy passes
+in 24.340 s wall. Canonical message/path diagnostics retain 334 occurrences and
+195 unique pairs, with zero additions or removals. The inventory's 12 tests and
+`--check` pass; route counts stay 182 routed and 285 missing. Main logs are
+`log/windows-safety-main-{build,tests,clippy}.txt`, timing JSONs, diagnostic
+comparison, inventory logs and the source manifests. No plugin ABI/host or
+vendor changes occurred; no additional plugin gate was required.
+
+The combined debug build also passes the actual streaming/caret/bookmark/save
+control on 14,240,003-byte UTF8 BOM and 25,280,002-byte UTF16 BE fixtures. Exact
+bytes and physical rows survive both saves; Duplicate followed by Undo is
+restoration smoke, without an intermediate-edit assertion. This additional
+control verifies composition with the newer save protection and column code.
+Its 2.20 s test runtime is functional evidence, not optimized or native latency.
+Log: `log/windows-safety-main-streaming-functional.txt`.
+
+## Continuing work
+
+Save protection is committed at `10d47236c088ea83309505c0398334af7ddd035e`.
+A separate `windows-bounded-restore` leaf starts there. Its actual writer
+restores and cleans up an 18,874,368-byte prior version, then fails the requested
+65,536-byte recovery scratch budget. A produced rescue-read OutOfMemory control
+passes and retains the exact original save error and rescue. These are an unmet
+bounded-memory contract and controlled error propagation, not a reproduced
+allocation abort. Root verified its 13-file evidence package and approved the
+same-handle fixed-buffer helper; that implementation is still separate from
+this checkpoint. G1 raw log SHA-256:
+`6b5e758ddf4f4e547e046c1d6bb62526097ab20b8da7fd35741be8d3e264e1e9`.
+
+`windows-hash-tools` is preparing the twelve missing Tools commands and the
+selected-editor-byte/codepage contract before implementation. Its baseline
+caller controls have not run. [Oracle notes](windows-hash-tools-oracle-20261011.md)
+record the initial text/file/selection behavior. Normal Save background work,
+large columns, older line operations and the remaining inventory stay open.
+
+Native Windows verification remains pending, Mac tests are deferred, and the
+overall Notepad++ parity goal remains active. Local gates/logs remain ignored.
 
 Storage for checks: Cargo cleaned the verified inactive
 `startup-background-reader/target/agent-startup-reader-debug` cache (24.9 GiB),

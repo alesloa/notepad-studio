@@ -52,6 +52,8 @@ A lightweight, cross-platform text editor inspired by Notepad++, written in Rust
 > Case-insensitive lexical, length and native Windows locale line sorts prepare in background,
 > including rectangle column keys, cancellation and one Undo for mixed macros.
 > Windows locale sorting uses the user locale with case-insensitive numeric keys.
+> [Source line boundaries](docs/physical-line-boundaries.md) follow Notepad++'s default
+> CRLF/LF/CR policy; Unicode separators remain document characters.
 > The File menu now exposes Rename, Move to Trash / Recycle Bin and the
 > containing-folder terminals and workspace route. Save a Copy As preserves
 > the original document's path and dirty state, with an option to open the copy.
@@ -60,6 +62,9 @@ A lightweight, cross-platform text editor inspired by Notepad++, written in Rust
 > exceeding it leaves both files unchanged and directs the user to Save As.
 > [Save protection](docs/windows-save-durability.md) requires a created and synced
 > recovery copy before overwriting an existing destination; failure refuses the save.
+> Column edit paths now preflight hostile geometry and cumulative allocations.
+> Their temporary foreground limits and remaining parity gaps are recorded in
+> [column operation limits](docs/column-safety.md).
 
 Optional [API completion definitions](docs/api-completion.md) supply language
 names for Function Completion and signatures for parameter hints, including

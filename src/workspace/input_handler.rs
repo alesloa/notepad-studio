@@ -1135,6 +1135,18 @@ impl EntityInputHandler for Workspace {
                 );
             }
             InputFocus::Editor => {
+                let column_input_work = if self.has_block_selection() {
+                    if !self.column_context(true, cx) { return; }
+                    if let Some(block) = self.block_selection() {
+                        if let Err(message) = super::column_plan::geometry(&self.buffer().rope, &block) {
+                            self.set_status(message); cx.notify(); return;
+                        }
+                    }
+                    let Some(work) = new_text.len().checked_mul(3).filter(|&n| n <= super::column_plan::MAX_WORK) else {
+                        self.set_status(super::column_plan::LIMIT); cx.notify(); return;
+                    };
+                    work
+                } else { 0 };
                 // NPP `Editing 2 ▸ Prevent control character (C0 code) typing
                 // into document` — strip 0x00..=0x08, 0x0E..=0x1F, 0x7F from
                 // typed text. \t (0x09), \n (0x0A), \r (0x0D) are legitimate
@@ -1346,12 +1358,11 @@ impl EntityInputHandler for Workspace {
                 // delete + insert inside one undo group and updates the
                 // block to a thin column at the post-insert position.
                 if self.has_block_selection() {
+                    let Some(block) = self.block_selection() else { return; };
+                    if !self.block_replace_geometry(block, new_text, column_input_work, cx) { return; }
                     if !new_text.is_empty() {
-                        crate::macros::record(crate::macros::MacroEvent::InsertText(
-                            new_text.to_string(),
-                        ));
+                        crate::macros::record(crate::macros::MacroEvent::InsertText(new_text.to_string()));
                     }
-                    self.block_replace(new_text, cx);
                     if self.find_state.open && !self.find_state.query.is_empty() {
                         self.refresh_matches();
                     }

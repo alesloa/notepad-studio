@@ -71,7 +71,7 @@ pub(super) fn record(event: &MacroEvent) -> bool {
     })
 }
 
-pub(super) fn execution_current() -> Option<Vec<MacroEvent>> {
+pub(crate) fn execution_current() -> Option<Vec<MacroEvent>> {
     EXECUTION.with(|slot| slot.borrow().as_ref().map(|execution| execution.recorder.current.clone()))
 }
 

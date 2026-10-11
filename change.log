@@ -10,11 +10,20 @@ Notepad++, written in Rust on GPUI. Apache-2.0.
 
 v0.0.5 — current
 
+  Source movement, bookmarks, line edits, rectangle sorts and search results
+  now use CRLF, LF and CR line boundaries. Unicode separators stay in the
+  text, with encoding and saved bytes preserved.
+
   Line Operations now includes ascending and descending sorts that ignore
   ASCII case or compare UTF-16 line lengths, plus native Windows locale
   ordering with numeric keys. Rectangular selections sort
   whole lines by their selected columns. Preparation and Undo/Redo run in
   background, Escape cancels, and mixed sort macros keep one Undo step.
+
+  Column operations now reject stale or oversized rectangles before changing
+  the document, clipboard or history. Uppercase/lowercase and saved text events
+  respect active rectangles. Temporary foreground limits apply to large column
+  requests; the status bar explains a refusal.
 
   Recent additions:
 

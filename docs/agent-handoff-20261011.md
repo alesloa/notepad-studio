@@ -7,9 +7,11 @@ checkpoint for one completed batch.
 ## Current checkpoint
 
 - Repository: `C:/Users/Ale/Documents/GitHub/notepad-studio`, branch `main`.
-- Implementation: `c077e2dca48b6c35c457691c84f4b9c2c843b935`, adding 17 File,
-  bookmark and line-sort commands plus the shared background engine. A records
-  commit follows it. Verify actual Git status before editing.
+- Feature checkpoint: `c077e2dca48b6c35c457691c84f4b9c2c843b935`, adding 17 File,
+  bookmark and line-sort commands plus the shared background engine. Save
+  protection is committed as `10d47236c088ea83309505c0398334af7ddd035e`.
+  The later column/physical-line composition also passes the combined gates
+  below. Verify actual Git status and log before editing or applying patches.
 - Gitignore: `1b1a11a` adds `/gates/` and removes eight old gate files from the
   index. All eight remain locally. Essential evidence is in committed documents.
 - Previous baseline: `d01099f01dd464607cdbe62736789192ba8787eb`. Earlier resumed
@@ -19,9 +21,10 @@ checkpoint for one completed batch.
   Study behavior and write original Rust; preserve the Apache-2.0 boundary.
 - Windows PowerShell; set both `CC` and `CXX` to
   `C:/Program Files/LLVM/bin/clang-cl.exe` for Cargo.
-- At this checkpoint all three workers completed. Their six borrowed debug and
-  release caches are idle and retained. Worktrees preserve local evidence.
-  Later turns may reactivate them; inspect actual agent/process state.
+- Completed save, column and physical-line worktrees preserve frozen evidence.
+  File now implements bounded restoration in `windows-bounded-restore`; Book
+  prepares hash-tool controls in `windows-hash-tools`. Sort is idle. Caches have
+  exclusive owners; inspect actual agent/process state before using one.
 - No push, release publication, Linux/WSL/VM work or Mac testing occurred.
 
 Read `AGENTS.md` and `README.md` first. Main has `.codegraph/`: use CodeGraph
@@ -118,11 +121,10 @@ Inventory: 581 appearances, 481 unique IDs, 45 separators, 275 catalog rows;
 182 routed, 285 missing, 8 partial, 2 alternate-only, 2 action-only, 1 status-only
 and 1 stub. Routing proves wiring only. Behavior records remain pending.
 
-The next safety batch is active in three fresh detached worktrees at `088e8d2`.
-Its baseline reproductions and approved policies are recorded in
-[the safety validation record](windows-safety-validation-20261011.md). Verify
-the current tree before integrating: the save patch below is already applied
-to main, while the column and physical-line candidates are still in review.
+The save, column and physical-line safety batch is integrated. Its baseline
+reproductions, approved policies and combined checks are recorded in
+[the safety validation record](windows-safety-validation-20261011.md). Do not
+reapply any of these completed patches.
 
 1. Save durability: `windows-save-durability` passes its required leaf checks
    (2,586 unit plus 3 integration tests, build and Clippy). Main already contains
@@ -136,7 +138,7 @@ to main, while the column and physical-line candidates are still in review.
    Canonical diagnostics have zero additions: 334 occurrences/195 unique pairs.
    Tested Rust inventory SHA-256 is
    `8781129422befa76ef7db9f6cca68a4709693d6b4aace91a0b84d89ef30b23a8`.
-   The later column/physical composition requires new combined checks.
+   The later column/physical composition passes the combined checks below.
    The quiet 18 MiB writer-helper comparison adds 194.542 ms at the medians;
    normal Save background capture/publication is the next read-only contract.
    That local contract is
@@ -147,17 +149,19 @@ to main, while the column and physical-line candidates are still in review.
    Preserve picker-time edits, UUID/Arc/path ownership, optional backup policy,
    mandatory rescue refusal and critical failed-restore diagnostics, including
    Cancel/stale replies. Settle destructive jobs before accepted close/Exit.
-   Legacy `.doc` conversion and whole-file restoration allocation require
-   explicit separate scope decisions; background scheduling alone does not
-   prove either safe. No normal-Save implementation is started yet.
+   Legacy `.doc` conversion requires separate scope. Bounded restoration is
+   now a separate active leaf below. No normal-Save background implementation
+   is started yet.
 2. Column safety: `windows-column-safety` has five actual hostile-state REDs
    and two classic-case rectangle behavior REDs. Its first five regression
    reruns pass. The candidate validates geometry, payload and history plans
    before publication, with temporary 128 KiB work, 4,096-row and 1 MiB
    metadata limits. The corrected candidate passes 35 column controls, 13
-   macro-context controls and nine macro-Undo controls; full frozen gates are
-   running. Root requested a single captured clipboard read for macro Paste
-   and persistence sinks instead of an artificial closed-workspace fixture.
+   macro-context controls and nine macro-Undo controls. Frozen build, 2,609
+   unit plus three integration tests (29 ignored), and Clippy pass. Reviewed
+   patch `03e1ebb1cacec736a19315356a59befac6048df28fc825e1ba576f4066d64874`
+   is integrated. Macro Paste reads the clipboard once, and fixture persistence
+   uses scoped sinks instead of an artificial closed-workspace state.
    No asynchronous input queue or new macro schema is authorized in
    this safety batch; mutating bookmark rectangles remain separate work.
 3. Physical lines: `windows-physical-lines` has 20 caller behavior REDs and
@@ -169,7 +173,47 @@ to main, while the column and physical-line candidates are still in review.
    tests (30 ignored), and Clippy with zero new canonical diagnostics. Its patch
    SHA-256 is `fa56bd046f6e6090ece6d3a810ed4de605ff0c0a90a2cc41f29d2da44a3f212a`.
    Recent-file isolation and legacy case/marker fixture corrections are
-   included. Optimized streaming controls and main integration remain pending.
+   included. Main integration and all nine quiet default-release processes
+   pass. The release comparison covers loader phases only; Unicode Save
+   timings describe this leaf's older writer. Duplicate→Undo is restoration
+   smoke, without an intermediate edit assertion. Final 54-entry evidence
+   manifest SHA-256 is
+   `22a4735c2f85404ff2cba9393d35a166a7f6bac4ea8ff33d324c75244dbae2d1`.
+
+Combined main checks pass without source changes during verification: build
+36.338 s; 2,652 unit plus three integration tests, 30 ignored (unit 40.56 s,
+total 157.024 s); Clippy 24.340 s. Canonical diagnostics remain 334 occurrences
+and 195 unique message/path pairs, with zero additions or removals. Inventory
+tests (12) and `--check` pass. Current 337-production-file Rust inventory SHA:
+`c71335ee3eaa3d371bef0f956e95ea302ca23a719329a7c54e15832b3c26c339`.
+Cargo manifest SHA:
+`fb072656ef80cb3fdf6d5fb858003562f941c031ea5ab9dcd802aa294991e67a`;
+Cargo.lock is unchanged. Logs are `log/windows-safety-main-*`.
+
+An additional debug functional run of the ignored streaming caller passes
+(one test, 2.20 s), composing the newer save protection with physical rows:
+14,240,003-byte UTF8-BOM and 25,280,002-byte UTF16BE files retain exact bytes,
+movement and bookmarks. This is functional evidence, not optimized/native
+latency. The historical feature and save-only source identities above remain
+separate checkpoints.
+
+Active next leaves:
+
+- `windows-bounded-restore`, detached at `10d4723`: reviewed G1 runs have one
+  positive and one intentional contract failure. The old restoration callback
+  receives 18,874,368 bytes against the proposed 65,536-byte budget. Injected
+  read OOM preserves the exact rescue and original write/restore errors; no
+  allocator abort or physical memory exhaustion was reproduced. Root verified
+  all 13 evidence hashes and approved the fixed 64 KiB same-handle recovery
+  pump, with checked counts, short-read/Interrupted/EOF/growth controls, final
+  truncation/sync only after complete restoration, and rescue retention on
+  failure. Implementation is active; nothing from this leaf is integrated.
+- `windows-hash-tools`, detached at `10d4723`: source-only G1 preparation for
+  twelve MD5/SHA1/SHA256/SHA512 text/file/selection commands. No Cargo or
+  production implementation yet. Selection policy review covers UTF8 editor
+  bytes, document EOL, no transport BOM, strict Windows-1252 and rectangle/focus
+  behavior. Read [oracle preparation](windows-hash-tools-oracle-20261011.md).
+  Rebase onto the latest combined checkpoint before production work.
 
 Then continue older sort/reverse/shuffle/dedup performance/macro/fidelity repair,
 hash tools, brace navigation/highlighting, session/pinning/printing, Search

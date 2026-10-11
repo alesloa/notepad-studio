@@ -34,7 +34,6 @@ use crate::actions::{
     EditDeleteLineLeft, EditDeleteLineRight, EditDeleteWordLeft, EditDeleteWordRight,
     EditScrollLineDown, EditScrollLineUp, EditToggleOvertype,
 };
-use crate::buffer::BlockSelection;
 use crate::macros::{self, MacroEvent};
 use crate::tab::InputFocus;
 use crate::workspace::Workspace;
@@ -94,6 +93,12 @@ fn is_combining_mark(c: char) -> bool {
     )
 }
 
+fn bounded_column_word(chars: impl Iterator<Item = char>) -> impl Iterator<Item = char> {
+    chars.scan(0usize, |bytes, ch| {
+        if *bytes > crate::workspace::column_plan::MAX_WORK { return None; }
+        *bytes = bytes.saturating_add(ch.len_utf8()); Some(ch)
+    })
+}
 /// Bytes Ctrl+Backspace removes. `before` yields the characters left of
 /// the caret, nearest first.
 pub(crate) fn word_start_before(before: impl Iterator<Item = char>) -> usize {
@@ -262,83 +267,85 @@ impl Workspace {
         self.delete_caret_part(CaretPart::LineRight, window, cx);
     }
 
-    fn delete_caret_part(&mut self, part: CaretPart, window: &mut Window, cx: &mut Context<Self>) {
+    pub(crate) fn delete_caret_part(&mut self, part: CaretPart, window: &mut Window, cx: &mut Context<Self>) -> bool {
         let focus = self.input_focus(window);
         if focus != InputFocus::Editor {
             self.input_delete_part(focus, part);
             cx.notify();
-            return;
+            return true;
         }
-        macros::record(part.macro_event());
-        if self.has_block_selection() {
+        let column_word = self.has_block_selection();
+        if column_word {
             match part {
                 CaretPart::LineLeft | CaretPart::LineRight => {
-                    self.block_delete_line_part(part, cx);
-                    return;
+                    let applied = self.block_delete_line_part(part, cx);
+                    if applied { macros::record(part.macro_event()); }
+                    return applied;
                 }
                 // A column selection would end ragged after a per-line
                 // word delete, which `BlockSelection` can't hold. Drop it
                 // and delete at the caret, which sits at the head corner.
                 CaretPart::WordLeft | CaretPart::WordRight => {
-                    self.clear_block_selection();
+                    if !self.column_context(true, cx) { return false; }
+                    let Some(block) = self.block_selection() else { return false; };
+                    if let Err(message) = crate::workspace::column_plan::geometry(&self.buffer().rope, &block) {
+                        self.set_status(message); cx.notify(); return false;
+                    }
                 }
             }
         }
+        if !column_word { macros::record(part.macro_event()); }
         let rope = &self.buffer().rope;
         let len_before = rope.len_bytes();
         let sel = self.selection();
         let head = rope_char_boundary(rope, sel.head);
         let range = match part {
             CaretPart::WordLeft => {
-                let removed = word_start_before(rope.chars_at(rope.byte_to_char(head)).reversed());
+                let chars = rope.chars_at(rope.byte_to_char(head)).reversed();
+                let removed = if column_word { word_start_before(bounded_column_word(chars)) } else { word_start_before(chars) };
                 head - removed..head
             }
             CaretPart::WordRight => {
-                head..head + word_start_after(rope.chars_at(rope.byte_to_char(head)))
+                let chars = rope.chars_at(rope.byte_to_char(head));
+                let removed = if column_word { word_start_after(bounded_column_word(chars)) } else { word_start_after(chars) };
+                head..head.saturating_add(removed)
             }
             CaretPart::LineLeft => self.line_start_byte(head)..head,
             CaretPart::LineRight => head..self.line_end_byte(head).max(head),
         };
-        if range.is_empty() {
-            return;
-        }
+        if column_word {
+            if !self.block_delete_stream_range(range.clone(), cx) { return false; }
+            self.clear_block_selection(); macros::record(part.macro_event());
+        } else if !range.is_empty() { self.replace_byte_range(range.clone(), "", cx); }
+        if range.is_empty() { return true; }
         let anchor = sel.anchor.min(len_before);
-        self.replace_byte_range(range.clone(), "", cx);
         // Read-only buffers refuse the edit; leave the selection alone then.
         if self.buffer().rope.len_bytes() == len_before {
-            return;
+            return true;
         }
         let new_anchor = rope_char_boundary(&self.buffer().rope, anchor_after_delete(anchor, &range));
         let tab = self.active_tab_mut();
         tab.selection.anchor = new_anchor;
         tab.selection.head = range.start;
-        cx.notify();
+        cx.notify(); true
     }
 
     /// Ctrl+Shift+Backspace / Delete on a column selection: delete from
     /// the caret column to the start or end of every spanned line.
-    fn block_delete_line_part(&mut self, part: CaretPart, cx: &mut Context<Self>) {
-        let Some(block) = self.block_selection() else {
-            return;
-        };
-        let (min_line, max_line) = (block.min_line(), block.max_line());
+    pub(crate) fn block_delete_line_part(&mut self, part: CaretPart, cx: &mut Context<Self>) -> bool {
+        let Some(mut block) = self.block_selection() else { return true; };
+        if !self.column_context(true, cx) { return false; }
+        if let Err(message) = crate::workspace::column_plan::geometry(&self.buffer().rope, &block) {
+            self.set_status(message); cx.notify(); return false;
+        }
         let (from_col, to_col) = if part == CaretPart::LineLeft {
             (0, block.head_col)
         } else {
-            let widest = (min_line..=max_line)
-                .map(|line| self.line_char_count(line))
-                .max()
-                .unwrap_or(0);
+            let widest = (block.min_line()..=block.max_line()).map(|line| self.line_char_count(line)).max().unwrap_or(0);
             (block.head_col, widest.max(block.head_col))
         };
-        self.set_block_selection(Some(BlockSelection {
-            anchor_line: min_line,
-            anchor_col: from_col,
-            head_line: max_line,
-            head_col: to_col,
-            is_dragging: false,
-        }));
-        self.block_replace("", cx);
+        block.anchor_col = from_col; block.head_col = to_col; block.is_dragging = false;
+        self.block_replace_geometry(block, "", 0, cx)
     }
 
     fn input_delete_part(&mut self, focus: InputFocus, part: CaretPart) {

@@ -237,11 +237,11 @@ impl Workspace {
             }
             return;
         }
-        crate::macros::record(crate::macros::MacroEvent::Copy);
         if self.has_block_selection() {
-            self.block_copy(cx);
+            if self.block_copy(cx) { crate::macros::record(crate::macros::MacroEvent::Copy); }
             return;
         }
+        crate::macros::record(crate::macros::MacroEvent::Copy);
         if self.selection().is_empty() {
             if !crate::settings::snapshot().copy_cut_line_without_selection {
                 return;
@@ -295,11 +295,11 @@ impl Workspace {
             }
             return;
         }
-        crate::macros::record(crate::macros::MacroEvent::Cut);
         if self.has_block_selection() {
-            self.block_cut(cx);
+            if self.block_cut(cx) { crate::macros::record(crate::macros::MacroEvent::Cut); }
             return;
         }
+        crate::macros::record(crate::macros::MacroEvent::Cut);
         if self.selection().is_empty() {
             if !crate::settings::snapshot().copy_cut_line_without_selection {
                 return;
@@ -383,20 +383,22 @@ impl Workspace {
             cx.notify();
             return;
         }
-        crate::macros::record(crate::macros::MacroEvent::Paste);
-        // The rope holds LF only; a CR LF or CR from the clipboard would be
-        // written back doubled on save.
-        let text = crate::text::eol_convert::to_rope_eols(&text);
-        // Notepad++ column paste: clipboard payloads written by a prior
-        // block Cut/Copy carry a sentinel prefix. When detected, route
-        // through the rectangular paste path.
-        if self.try_block_paste(&text, cx) {
-            return;
-        }
-        let r = self.selection().ordered();
-        self.replace_byte_range(r, &text, cx);
+        self.paste_editor_text(&text, cx);
     }
 
+    // False stops replay only when the column planner refuses the request.
+    pub(crate) fn paste_editor_text(&mut self, text: &str, cx: &mut Context<Self>) -> bool {
+        if text.is_empty() { return true; }
+        if text.starts_with(super::block::BLOCK_CLIPBOARD_SENTINEL) {
+            let applied = self.run_block_paste(text, cx);
+            if applied { crate::macros::record(crate::macros::MacroEvent::Paste); }
+            return applied;
+        }
+        crate::macros::record(crate::macros::MacroEvent::Paste);
+        let text = crate::text::eol_convert::to_rope_eols(text);
+        let r = self.selection().ordered();
+        self.replace_byte_range(r, &text, cx); true
+    }
     /// Drop `text` into the active editor at the current selection, the same
     /// way `paste` would but sourcing from an arbitrary string instead of
     /// the OS clipboard. Used by the Clipboard History panel to insert a
@@ -557,26 +559,11 @@ impl Workspace {
             cx.notify();
             return;
         }
-        crate::macros::record(crate::macros::MacroEvent::Backspace);
         if self.has_block_selection() {
-            // Backspace on a column selection deletes the rectangle when
-            // it has area; on a thin (zero-width) block, deletes one
-            // char from min_col on every spanned line.
-            if let Some(block) = self.block_selection() {
-                if block.min_col() == block.max_col() && block.min_col() > 0 {
-                    let new_block = crate::buffer::BlockSelection {
-                        anchor_line: block.min_line(),
-                        anchor_col: block.min_col() - 1,
-                        head_line: block.max_line(),
-                        head_col: block.max_col(),
-                        is_dragging: false,
-                    };
-                    self.set_block_selection(Some(new_block));
-                }
-            }
-            self.block_replace("", cx);
+            if self.block_delete(true, cx) { crate::macros::record(crate::macros::MacroEvent::Backspace); }
             return;
         }
+        crate::macros::record(crate::macros::MacroEvent::Backspace);
         if self.selection().is_empty() {
             let head = self.selection().head;
             let Some(range) = backspace_range(&self.buffer().rope, head) else {
@@ -605,25 +592,11 @@ impl Workspace {
             cx.notify();
             return;
         }
-        crate::macros::record(crate::macros::MacroEvent::Delete);
         if self.has_block_selection() {
-            if let Some(block) = self.block_selection() {
-                if block.min_col() == block.max_col() {
-                    // Thin column → expand by one to forward-delete one
-                    // char on every spanned line.
-                    let new_block = crate::buffer::BlockSelection {
-                        anchor_line: block.min_line(),
-                        anchor_col: block.min_col(),
-                        head_line: block.max_line(),
-                        head_col: block.max_col() + 1,
-                        is_dragging: false,
-                    };
-                    self.set_block_selection(Some(new_block));
-                }
-            }
-            self.block_replace("", cx);
+            if self.block_delete(false, cx) { crate::macros::record(crate::macros::MacroEvent::Delete); }
             return;
         }
+        crate::macros::record(crate::macros::MacroEvent::Delete);
         if self.selection().is_empty() {
             let head = self.selection().head;
             let Some(range) = delete_forward_range(&self.buffer().rope, head) else {
@@ -3562,6 +3535,12 @@ impl Workspace {
         if self.input_focus(window) != InputFocus::Editor {
             return;
         }
+        if let Some(block) = self.block_selection().filter(|block| !block.is_empty()) {
+            if self.block_case(block, &|text: &str| text.to_uppercase(), cx) {
+                crate::macros::record(crate::macros::MacroEvent::Uppercase);
+            }
+            return;
+        }
         crate::macros::record(crate::macros::MacroEvent::Uppercase);
         self.case_convert(true, cx);
     }
@@ -3573,6 +3552,12 @@ impl Workspace {
         cx: &mut Context<Self>,
     ) {
         if self.input_focus(window) != InputFocus::Editor {
+            return;
+        }
+        if let Some(block) = self.block_selection().filter(|block| !block.is_empty()) {
+            if self.block_case(block, &|text: &str| text.to_lowercase(), cx) {
+                crate::macros::record(crate::macros::MacroEvent::Lowercase);
+            }
             return;
         }
         crate::macros::record(crate::macros::MacroEvent::Lowercase);
@@ -4745,11 +4730,12 @@ mod line_command_tests {
     #[test]
     fn cut_last_line_after_multibyte_text_does_not_panic() {
         // The last line takes the break before it. Probing two bytes back
-        // for "\r\n" sliced into the middle of `é` / U+2028 and panicked.
+        // for "\r\n" sliced into the middle of `é` and panicked. Unicode
+        // separators now stay in the containing physical row.
         assert_eq!(cut_line_range(&Rope::from_str("é\nabc"), 4), 2..6);
         assert_eq!(cut_line_range(&Rope::from_str("中\nx"), 4), 3..5);
-        assert_eq!(cut_line_range(&Rope::from_str("a\u{2028}b"), 4), 1..5);
-        assert_eq!(cut_line_range(&Rope::from_str("a\u{85}b"), 3), 1..4);
+        assert_eq!(cut_line_range(&Rope::from_str("a\u{2028}b"), 4), 0..5);
+        assert_eq!(cut_line_range(&Rope::from_str("a\u{85}b"), 3), 0..4);
     }
 
     #[test]
@@ -4760,9 +4746,8 @@ mod line_command_tests {
         assert_eq!(cut_line_range(&Rope::from_str("a\rb"), 2), 1..3);
         assert_eq!(cut_line_range(&Rope::from_str("a\r\nb\r\n"), 0), 0..3);
         assert_eq!(cut_line_range(&Rope::from_str("a\nb\n"), 2), 2..4);
-        // A middle line ending in U+2028 is terminated: cut only that line,
-        // not the break before it as well.
-        assert_eq!(cut_line_range(&Rope::from_str("a\nb\u{2028}c"), 2), 2..6);
+        // The last physical row includes U+2028 as body text.
+        assert_eq!(cut_line_range(&Rope::from_str("a\nb\u{2028}c"), 2), 1..7);
     }
 
     #[test]

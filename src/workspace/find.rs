@@ -1752,11 +1752,17 @@ impl Workspace {
         for tab_idx in 0..self.tabs.len() {
             let Some(tab) = self.tabs.get(tab_idx) else { continue };
             if tab.buffer.read_only { continue; }
-            // Compute matches against this buffer's current rope. Each
-            // replacement walks back-to-front so earlier byte ranges stay
-            // valid.
-            let content = tab.buffer.rope.to_string();
-            let ranges: Vec<Range<usize>> = re
+            // Doc View uses visible text and AST coordinates, like Replace All
+            // in the current document. Raw View keeps the source edit route.
+            let (content, rich_offsets) = if let Some(payload) = tab.buffer.rich_doc.as_ref()
+                .filter(|_| super::find_view::uses_rich_text(tab))
+            {
+                let (text, offsets) = payload.flat_search_text();
+                (text, Some(offsets))
+            } else {
+                (tab.buffer.rope.to_string(), None)
+            };
+            let mut ranges: Vec<Range<usize>> = re
                 .find_iter(&content)
                 .filter(|m| m.start() != m.end())
                 .map(|m| m.start()..m.end())
@@ -1765,6 +1771,7 @@ impl Workspace {
                 continue;
             }
             let count_in_buffer = ranges.len();
+            ranges.reverse();
 
             // `apply_edit` / `replace_byte_range` operates on `self.active`.
             // Switch the index directly (without touching session/last_lines)
@@ -1776,13 +1783,20 @@ impl Workspace {
             // there at once. There is no cross-buffer composite — undo on
             // tab N only walks tab N's history.
             self.active = tab_idx;
-            self.begin_edit_group();
-            for r in ranges.into_iter().rev() {
-                self.replace_byte_range(r, &replacement, cx);
-            }
-            self.end_edit_group(cx);
-            total_replacements += count_in_buffer;
-            docs_changed += 1;
+            let replaced = if let Some(offsets) = rich_offsets {
+                self.find_state.rich_doc_block_offsets = Some(crate::find_block_map::FindBlockMap::legacy(offsets));
+                self.replace_rich_doc_ranges(&ranges, &replacement, cx)
+            } else {
+                self.find_state.rich_doc_block_offsets = None;
+                self.begin_edit_group();
+                for r in ranges {
+                    self.replace_byte_range(r, &replacement, cx);
+                }
+                self.end_edit_group(cx);
+                count_in_buffer
+            };
+            total_replacements = total_replacements.saturating_add(replaced);
+            if replaced > 0 { docs_changed = docs_changed.saturating_add(1); }
         }
 
         // Restore active tab without going through `set_active_tab` (which
@@ -2411,3 +2425,7 @@ mod rich_source_tests;
 #[cfg(test)]
 #[path = "find_result_owner_tests.rs"]
 mod result_owner_tests;
+
+#[cfg(test)]
+#[path = "find_all_opened_rich_tests.rs"]
+mod all_opened_rich_tests;

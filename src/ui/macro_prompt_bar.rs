@@ -64,6 +64,7 @@ pub(crate) fn macro_prompt_bar(
                     workspace: workspace.clone(),
                     target: InputFocus::MacroPrompt,
                     placeholder: Some(placeholder.to_string()),
+                    rename_prompt: None,
                 }),
         )
         .child(

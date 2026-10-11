@@ -341,6 +341,7 @@ fn inline_create_row(
                     workspace: workspace.clone(),
                     target: InputFocus::FolderInlineCreate,
                     placeholder: Some(placeholder.to_string()),
+                    rename_prompt: None,
                 }),
         );
 

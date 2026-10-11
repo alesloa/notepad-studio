@@ -1,4 +1,6 @@
 // Notepad++-style right-click context menu for the tab strip.
+// Behaviour reference: PowerEditor/src/Notepad_plus.rc:464,469,811-816 —
+// Rename, Close All but Active, and the tab-colour menu.
 //
 // Menu layout reproduces NPP 1:1:
 //   Close
@@ -93,11 +95,15 @@ pub(crate) fn tab_context_menu(
         .on_mouse_down(MouseButton::Left, {
             let ws = backdrop_workspace.clone();
             move |_e, _w, cx| {
-                ws.update(cx, |w, cx| w.hide_tab_context_menu(cx));
+                ws.update(cx, |w, cx| {
+                    if resolve_popup_target(w, state, cx).is_some() { w.hide_tab_context_menu(cx); }
+                });
             }
         })
         .on_mouse_down(MouseButton::Right, move |_e, _w, cx| {
-            backdrop_workspace.update(cx, |w, cx| w.hide_tab_context_menu(cx));
+            backdrop_workspace.update(cx, |w, cx| {
+                if resolve_popup_target(w, state, cx).is_some() { w.hide_tab_context_menu(cx); }
+            });
         });
 
     let main_panel = main_menu_panel(theme, &state, &flags, workspace.clone());
@@ -337,8 +343,11 @@ fn main_menu_panel(
                     },
                     {
                         let ws = workspace.clone();
+                        let painted = *state;
                         move |_w, cx| {
-                            ws.update(cx, |w, cx| w.close_tab_submenu(cx));
+                            ws.update(cx, |w, cx| {
+                                if resolve_popup_target(w, painted, cx).is_some() { w.close_tab_submenu(cx); }
+                            });
                         }
                     },
                 ));
@@ -358,8 +367,10 @@ fn main_menu_panel(
                     state.open_submenu == Some(which),
                     {
                         let ws = workspace.clone();
+                        let painted = *state;
                         move |_w, cx| {
                             ws.update(cx, |w, cx| {
+                                if resolve_popup_target(w, painted, cx).is_none() { return; }
                                 w.open_tab_submenu(
                                     which,
                                     Point::new(anchor_x, anchor_y),
@@ -398,7 +409,6 @@ fn close_multiple_panel(
     flags: &TabFlags,
     workspace: Entity<Workspace>,
 ) -> gpui::Div {
-    let target = state.target_tab_idx;
     let mut panel = panel_base(theme, SUBMENU_WIDTH_REM);
     panel = panel.child(leaf_row(
         theme,
@@ -409,6 +419,7 @@ fn close_multiple_panel(
             let ws = workspace.clone();
             move |window, cx| {
                 ws.update(cx, |w, cx| {
+                    let Some(target) = resolve_submenu_target(w, state, cx) else { return };
                     w.hide_tab_context_menu(cx);
                     w.close_all_but(target, window, cx);
                 });
@@ -425,6 +436,7 @@ fn close_multiple_panel(
             let ws = workspace.clone();
             move |window, cx| {
                 ws.update(cx, |w, cx| {
+                    let Some(target) = resolve_submenu_target(w, state, cx) else { return };
                     w.hide_tab_context_menu(cx);
                     w.close_all_to_left(target, window, cx);
                 });
@@ -441,6 +453,7 @@ fn close_multiple_panel(
             let ws = workspace.clone();
             move |window, cx| {
                 ws.update(cx, |w, cx| {
+                    let Some(target) = resolve_submenu_target(w, state, cx) else { return };
                     w.hide_tab_context_menu(cx);
                     w.close_all_to_right(target, window, cx);
                 });
@@ -457,6 +470,7 @@ fn close_multiple_panel(
             let ws = workspace.clone();
             move |window, cx| {
                 ws.update(cx, |w, cx| {
+                    let Some(_target) = resolve_submenu_target(w, state, cx) else { return };
                     w.hide_tab_context_menu(cx);
                     w.close_all_unchanged(window, cx);
                 });
@@ -473,7 +487,6 @@ fn open_into_panel(
     _flags: &TabFlags,
     workspace: Entity<Workspace>,
 ) -> gpui::Div {
-    let target = state.target_tab_idx;
     let mut panel = panel_base(theme, SUBMENU_WIDTH_REM + 60. / 16.);
 
     panel = panel.child(leaf_row(
@@ -485,6 +498,7 @@ fn open_into_panel(
             let ws = workspace.clone();
             move |_window, cx| {
                 ws.update(cx, |w, cx| {
+                    let Some(target) = resolve_submenu_target(w, state, cx) else { return };
                     w.hide_tab_context_menu(cx);
                     if let Some(path) = w
                         .tabs
@@ -509,6 +523,7 @@ fn open_into_panel(
             let ws = workspace.clone();
             move |_window, cx| {
                 ws.update(cx, |w, cx| {
+                    let Some(target) = resolve_submenu_target(w, state, cx) else { return };
                     w.hide_tab_context_menu(cx);
                     if let Some(path) = w
                         .tabs
@@ -536,6 +551,7 @@ fn open_into_panel(
             let ws = workspace.clone();
             move |_window, cx| {
                 ws.update(cx, |w, cx| {
+                    let Some(target) = resolve_submenu_target(w, state, cx) else { return };
                     w.hide_tab_context_menu(cx);
                     if let Some(parent) = w
                         .tabs
@@ -567,6 +583,7 @@ fn open_into_panel(
             let ws = workspace.clone();
             move |_window, cx| {
                 ws.update(cx, |w, cx| {
+                    let Some(target) = resolve_submenu_target(w, state, cx) else { return };
                     w.hide_tab_context_menu(cx);
                     if let Some(path) = w
                         .tabs
@@ -591,7 +608,6 @@ fn copy_panel(
     _flags: &TabFlags,
     workspace: Entity<Workspace>,
 ) -> gpui::Div {
-    let target = state.target_tab_idx;
     let mut panel = panel_base(theme, SUBMENU_WIDTH_REM);
 
     panel = panel.child(leaf_row(
@@ -603,6 +619,7 @@ fn copy_panel(
             let ws = workspace.clone();
             move |_window, cx| {
                 ws.update(cx, |w, cx| {
+                    let Some(target) = resolve_submenu_target(w, state, cx) else { return };
                     w.hide_tab_context_menu(cx);
                     if let Some(p) = w
                         .tabs
@@ -628,6 +645,7 @@ fn copy_panel(
             let ws = workspace.clone();
             move |_window, cx| {
                 ws.update(cx, |w, cx| {
+                    let Some(target) = resolve_submenu_target(w, state, cx) else { return };
                     w.hide_tab_context_menu(cx);
                     if let Some(p) = w
                         .tabs
@@ -655,6 +673,7 @@ fn copy_panel(
             let ws = workspace.clone();
             move |_window, cx| {
                 ws.update(cx, |w, cx| {
+                    let Some(target) = resolve_submenu_target(w, state, cx) else { return };
                     w.hide_tab_context_menu(cx);
                     if let Some(p) = w
                         .tabs
@@ -682,7 +701,6 @@ fn move_document_panel(
     flags: &TabFlags,
     workspace: Entity<Workspace>,
 ) -> gpui::Div {
-    let target = state.target_tab_idx;
     let mut panel = panel_base(theme, SUBMENU_WIDTH_REM);
 
     panel = panel.child(leaf_row(
@@ -694,6 +712,7 @@ fn move_document_panel(
             let ws = workspace.clone();
             move |_window, cx| {
                 ws.update(cx, |w, cx| {
+                    let Some(target) = resolve_submenu_target(w, state, cx) else { return };
                     w.hide_tab_context_menu(cx);
                     w.move_tab_to_start(target, cx);
                 });
@@ -710,6 +729,7 @@ fn move_document_panel(
             let ws = workspace.clone();
             move |_window, cx| {
                 ws.update(cx, |w, cx| {
+                    let Some(target) = resolve_submenu_target(w, state, cx) else { return };
                     w.hide_tab_context_menu(cx);
                     w.move_tab_to_end(target, cx);
                 });
@@ -732,6 +752,7 @@ fn move_document_panel(
             let ws = workspace.clone();
             move |window, cx| {
                 ws.update(cx, |w, cx| {
+                    let Some(target) = resolve_submenu_target(w, state, cx) else { return };
                     w.hide_tab_context_menu(cx);
                     move_tab_to_new_window(w, target, true, window, cx);
                 });
@@ -748,6 +769,7 @@ fn move_document_panel(
             let ws = workspace.clone();
             move |window, cx| {
                 ws.update(cx, |w, cx| {
+                    let Some(target) = resolve_submenu_target(w, state, cx) else { return };
                     w.hide_tab_context_menu(cx);
                     move_tab_to_new_window(w, target, false, window, cx);
                 });
@@ -764,7 +786,6 @@ fn apply_color_panel(
     flags: &TabFlags,
     workspace: Entity<Workspace>,
 ) -> gpui::Div {
-    let target = state.target_tab_idx;
     let mut panel = panel_base(theme, SUBMENU_WIDTH_REM);
 
     let palette: &[(&str, u8, u32)] = &[
@@ -783,6 +804,7 @@ fn apply_color_panel(
             let ws = workspace.clone();
             move |_window, cx| {
                 ws.update(cx, |w, cx| {
+                    let Some(target) = resolve_submenu_target(w, state, cx) else { return };
                     w.hide_tab_context_menu(cx);
                     w.set_tab_color(target, Some(idx), cx);
                 });
@@ -800,6 +822,7 @@ fn apply_color_panel(
             let ws = workspace.clone();
             move |_window, cx| {
                 ws.update(cx, |w, cx| {
+                    let Some(target) = resolve_submenu_target(w, state, cx) else { return };
                     w.hide_tab_context_menu(cx);
                     w.set_tab_color(target, None, cx);
                 });
@@ -810,6 +833,33 @@ fn apply_color_panel(
     panel
 }
 
+fn resolve_popup_target(
+    workspace: &mut Workspace,
+    painted: TabContextMenuState,
+    cx: &mut gpui::Context<Workspace>,
+) -> Option<usize> {
+    let current = workspace.tab_context_menu?;
+    if current.popup_id != painted.popup_id || current.target_tab_id != painted.target_tab_id {
+        return None;
+    }
+    let target = workspace.tabs.iter().position(|tab| tab.session_id == painted.target_tab_id);
+    if target.is_none() { workspace.hide_tab_context_menu(cx); }
+    target
+}
+
+fn resolve_submenu_target(
+    workspace: &mut Workspace,
+    painted: TabContextMenuState,
+    cx: &mut gpui::Context<Workspace>,
+) -> Option<usize> {
+    let current = workspace.tab_context_menu?;
+    if painted.submenu_id.is_none() || current.submenu_id != painted.submenu_id
+        || current.open_submenu != painted.open_submenu {
+        return None;
+    }
+    resolve_popup_target(workspace, painted, cx)
+}
+
 fn run_leaf_action(
     action: LeafAction,
     painted: TabContextMenuState,
@@ -818,14 +868,7 @@ fn run_leaf_action(
     cx: &mut gpui::App,
 ) {
     workspace.update(cx, |w, cx| {
-        let Some(current) = w.tab_context_menu else { return };
-        if current.popup_id != painted.popup_id || current.target_tab_id != painted.target_tab_id {
-            return;
-        }
-        let Some(target) = w.tabs.iter().position(|tab| tab.session_id == painted.target_tab_id) else {
-            w.hide_tab_context_menu(cx);
-            return;
-        };
+        let Some(target) = resolve_popup_target(w, painted, cx) else { return };
         w.hide_tab_context_menu(cx);
         match action {
             LeafAction::Close => w.close_tab_at(target, window, cx),
@@ -985,6 +1028,10 @@ pub(crate) fn leaf_row(
 #[cfg(test)]
 #[path = "tab_reload_tests.rs"]
 mod tab_reload_tests;
+
+#[cfg(test)]
+#[path = "tab_popup_tests.rs"]
+mod tab_popup_tests;
 
 fn color_row(
     theme: &Theme,

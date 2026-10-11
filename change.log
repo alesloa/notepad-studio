@@ -292,6 +292,10 @@ v0.0.5 — current
       failed write keeps documents and CSV drafts open and shows the error
       in the status bar; retrying Exit or window close remains available.
 
+  74. Tab-menu submenus and Rename keep their original document through
+      tab moves and late input. Old popups cannot act on newer ones, and
+      Rename refuses existing files instead of overwriting them.
+
   v0.1.0 — syntax & language:
 
     1. Tree-sitter syntax highlighting for 25 modes: Rust, Python, C,

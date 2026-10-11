@@ -27,20 +27,20 @@ Scope: Continue the requested cross-platform Notepad++ parity audit and fix the 
   EVIDENCE: partial; immutable8a1a353 built on Ubuntu24.04/WSL with Rust1.99.0;1425 units+1 integration passed,8ignored (Windows-only test omitted), logs log/linux-8a1a353-{build,tests}.txt. Current native computer-use transport is unavailable and CUA native surfaces are disabled. macOS/current later batches/native exercised UI remain open; headless GPUI tests are not native screenshots.
 
 - [x] G9: The integrated main tree builds and passes its required unit/integration/clippy checks with no new warnings on touched code.
-  CHECK: powershell -NoProfile -Command "Get-Content log/exit-recovery-integration-tests.txt -Tail 16"
-  EXPECT: 1518 passed; 0 failed
-  EVIDENCE: Exit/recovery batch; cargo build and clippy all-targets passed;1518 units + 1 integration passed,8 ignored, no new touched-code warnings. Refresh for each source batch.
+  CHECK: powershell -NoProfile -Command "Get-Content log/tab-popup-integration-tests.txt -Tail 16"
+  EXPECT: 1532 passed; 0 failed
+  EVIDENCE: Reviewed8935351 submenu/Rename batch; cargo build and clippy all-targets passed;1532 units + 1 integration passed,8 ignored, no new touched-code warnings. Refresh for each source batch.
 
 - [x] G10: Completed source batches have separate conventional commits and current change.log/devlog entries; the main working tree is clean before beginning a new batch.
   CHECK: git status --porcelain
   EXPECT: /^$/
-  EVIDENCE: main2707355 was clean before this Exit recovery batch;73 current-version release notes and a devlog entry accompany it. Refresh after each source batch.
+  EVIDENCE: main5274f63 was clean before this submenu/Rename batch;74 current-version release notes and a devlog entry accompany it. Refresh after each source batch.
 
 - [x] G11: View > Tab exposes every oracle Tab command in order with rebindable shortcuts; selection/reordering/color commands preserve document UUID, text, encoding/EOL, saved state and history, with edge and pending-cell refusal coverage.
   EVIDENCE: oracle RC789-817 / Commands1304-1412,3532-3537; red missing-menu contract then 7 new menu/actual-dispatch/refusal/edge tests pass. 1332-unit main gate; existing shortcut parity/collision tests cover added rows. Native appearance remains G8.
 
 - [x] G12: File menu tab commands use current UUID targets, expose oracle order and collision-free defaults, preserve pending cell drafts on refusal and launch literal external paths safely.
-  EVIDENCE: reviewed5e6efe0;22 new menu/catalog/current-UUID/draft/focus/encoding/literal-path fixture tests pass in1397-unit main gate. Missing commands, Reload draft loss, premature Close Unchanged and successful Reload focus loss reproduced red then green. Ctrl/CmdR collision fixed, saved action IDs unchanged; native external-launch evidence remainsG8. reviewedc615c929 adds18 actual-handler tests for central File/context Reload preflight, lazy drafts, intervening source/rich/CSV/metadata edits and original-tab/popup UUID main-leaf guards. Submenu/Rename callbacks remain separateG7leaves.
+  EVIDENCE: reviewed5e6efe0;22 new menu/catalog/current-UUID/draft/focus/encoding/literal-path fixture tests pass in1397-unit main gate. Missing commands, Reload draft loss, premature Close Unchanged and successful Reload focus loss reproduced red then green. Ctrl/CmdR collision fixed, saved action IDs unchanged; native external-launch evidence remainsG8. reviewedc615c929 adds18 actual-handler tests for central File/context Reload preflight, lazy drafts, intervening source/rich/CSV/metadata edits and original-tab/popup UUID main-leaf guards. Reviewed8935351 adds14 actual painted/native-file regressions: submenu/popup generations, reordered UUIDs, stale field/container/native-input callbacks, newer Find focus, collision/NUL refusal and Unicode/encoding/history-safe rename. Native shell launches and platform UI remainG8.
 
 - [x] G13: Macro editing playback is a single Undo operation across repetitions and nested command groups; no-op/refused replay preserves Redo, failures close their group and saved-state/Unicode/EOL/caret history remains correct.
   EVIDENCE: behavior-only oracle NppCommands.cpp83-149 and shortcut.cpp925-1054; six red failures then nine new handler/history/recording regressions pass in the 1367-unit gate. Balanced nested source transactions defer to the outer group; failed replay closes its group before restoring its reason. New recordings omit Undo/Redo; older persisted history events remain readable and replay on their legacy timeline.

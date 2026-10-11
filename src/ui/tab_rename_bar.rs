@@ -1,24 +1,25 @@
 // Inline tab-rename bar — shown above the editor when the user picks
+// Rename behaviour: PowerEditor/src/NppCommands.cpp:404.
 // Rename from the tab right-click menu. Mirrors macro_prompt_bar in shape:
 // label, single-line text input, close button. Enter commits via
 // `Workspace::commit_tab_rename`; Esc closes via `EditFindClose`.
 
 use gpui::{CursorStyle, Entity, IntoElement, MouseButton, div, prelude::*, rems, rgb};
 
-use crate::actions::EditFindClose;
 use crate::find_state::TabRenameState;
-use crate::input_field::InputFieldElement;
+use crate::input_field::{InputFieldElement, rename_prompt_matches};
 use crate::tab::InputFocus;
 use crate::theme::Theme;
 use crate::workspace::Workspace;
 
 pub(crate) fn tab_rename_bar(
     theme: &Theme,
-    _state: &TabRenameState,
+    state: &TabRenameState,
     workspace: Entity<Workspace>,
 ) -> impl IntoElement {
     let click_workspace = workspace.clone();
     let close_workspace = workspace.clone();
+    let prompt_id = state.prompt_id;
     div()
         .flex()
         .flex_row()
@@ -52,15 +53,20 @@ pub(crate) fn tab_rename_bar(
                 .text_color(rgb(theme.text))
                 .cursor(CursorStyle::IBeam)
                 .on_mouse_down(MouseButton::Left, move |_e, window, cx| {
-                    click_workspace.update(cx, |w, cx| {
-                        w.focus_input(InputFocus::TabRename, window, cx)
+                    let focused = click_workspace.update(cx, |w, cx| {
+                        if !rename_prompt_matches(w, InputFocus::TabRename, Some(prompt_id)) {
+                            return false;
+                        }
+                        w.focus_input(InputFocus::TabRename, window, cx);
+                        true
                     });
-                    window.prevent_default();
+                    if focused { window.prevent_default(); }
                 })
                 .child(InputFieldElement {
                     workspace: workspace.clone(),
                     target: InputFocus::TabRename,
                     placeholder: Some("New filename".to_string()),
+                    rename_prompt: Some(prompt_id),
                 }),
         )
         .child(
@@ -76,8 +82,13 @@ pub(crate) fn tab_rename_bar(
                 .child("×")
                 .on_mouse_down(MouseButton::Left, move |_e, window, cx| {
                     close_workspace.update(cx, |w, cx| {
+                        if w.tab_rename.as_ref().is_none_or(|state| state.prompt_id != prompt_id) {
+                            return;
+                        }
+                        let restore_focus = window.is_window_active()
+                            && w.tab_rename_focus.as_ref().is_some_and(|handle| handle.is_focused(window));
                         w.close_tab_rename(cx);
-                        w.close_find(&EditFindClose, window, cx);
+                        if restore_focus { window.focus(&w.focus_handle, cx); }
                     });
                 }),
         )

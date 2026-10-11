@@ -681,7 +681,7 @@ impl Workspace {
         cx.notify();
     }
 
-    /// Rename tab `idx`'s underlying file on disk via `std::fs::rename`.
+    /// Rename tab `idx`'s underlying file without replacing an existing path.
     /// `new_name` is the basename only (parent dir stays the same). Updates
     /// the buffer's `file_path` on success and refreshes the language / MRU.
     /// Untitled tabs without a path are a no-op (caller should disable the
@@ -701,6 +701,11 @@ impl Workspace {
             return;
         };
         let trimmed = new_name.trim();
+        if trimmed.contains('\0') || old_path.to_string_lossy().contains('\0') {
+            self.set_status("Rename failed — file path contains a null character");
+            cx.notify();
+            return;
+        }
         if trimmed.is_empty() {
             self.set_status("Rename cancelled — empty name");
             cx.notify();
@@ -724,7 +729,9 @@ impl Workspace {
         if new_path == old_path {
             return;
         }
-        match std::fs::rename(&old_path, &new_path) {
+        // renamore uses native no-replace rename on Windows, macOS and Linux.
+        // Unsupported filesystems refuse; never fall back to an overwrite.
+        match renamore::rename_exclusive(&old_path, &new_path) {
             Ok(()) => {
                 let buf = &mut self.tabs[idx].buffer;
                 buf.file_path = Some(new_path.clone());

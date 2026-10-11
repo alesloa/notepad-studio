@@ -78,6 +78,7 @@ uuid = { version = "1", features = ["v4", "serde"] }
 encoding_rs = "0.8"
 libloading = "0.8"
 trash = "5"
+renamore = "=0.3.2"
 chrono = "0.4"
 pulldown-cmark = { version = "0.13", default-features = false }
 open = { version = "5", features = ["shellexecute-on-windows"] }

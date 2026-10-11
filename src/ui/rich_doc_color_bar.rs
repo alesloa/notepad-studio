@@ -64,6 +64,7 @@ pub(crate) fn rich_doc_color_bar(
             workspace: workspace.clone(),
             target: InputFocus::RichDocColorHex,
             placeholder: Some("RRGGBB".to_string()),
+            rename_prompt: None,
         });
 
     let mut row = div()

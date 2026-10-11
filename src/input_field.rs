@@ -13,6 +13,9 @@ use crate::workspace::{InputDrag, Workspace};
 mod text_window;
 use text_window::FieldWindow;
 
+#[path = "input_field_rename.rs"]
+pub(crate) mod rename_input;
+
 /// A minimal text input. Renders the text + a cursor, and registers an
 /// IME-aware text input handler against the workspace's matching focus
 /// handle so typed characters route into the right `InputFocus` field.
@@ -20,6 +23,7 @@ pub(crate) struct InputFieldElement {
     pub(crate) workspace: Entity<Workspace>,
     pub(crate) target: InputFocus,
     pub(crate) placeholder: Option<String>,
+    pub(crate) rename_prompt: Option<uuid::Uuid>,
 }
 
 impl IntoElement for InputFieldElement {
@@ -198,7 +202,9 @@ impl gpui::Element for InputFieldElement {
             | InputFocus::CsvFindBar
             | InputFocus::CsvReplaceBar => workspace.focus_handle.clone(),
         };
-        window.set_focus_handle(&handle, cx);
+        if rename_prompt_matches(workspace, self.target, self.rename_prompt) {
+            window.set_focus_handle(&handle, cx);
+        }
         let field_window = FieldWindow::new(text_str, cursor_byte, anchor_byte);
 
         // If empty and a placeholder is set, paint that in a dimmed color.
@@ -255,6 +261,7 @@ impl gpui::Element for InputFieldElement {
         window: &mut Window,
         cx: &mut App,
     ) {
+        if !rename_prompt_matches(self.workspace.read(cx), self.target, self.rename_prompt) { return; }
         let (handle, shaped, cursor_local, anchor_local, field_window) = prepaint;
         let line_height = window.line_height();
 
@@ -354,11 +361,17 @@ impl gpui::Element for InputFieldElement {
         // 4. Route IME / OS keyboard text into the workspace via the matching
         //    focus handle. gpui only fires the input handler whose handle is
         //    currently focused, so this is safe to register every frame.
-        window.handle_input(
-            handle,
-            ElementInputHandler::new(bounds, self.workspace.clone()),
-            cx,
-        );
+        if self.target == InputFocus::TabRename {
+            if let Some(prompt_id) = self.rename_prompt {
+                window.handle_input(
+                    handle,
+                    rename_input::RenameInputHandler::new(bounds, self.workspace.clone(), prompt_id, handle.clone()),
+                    cx,
+                );
+            }
+        } else {
+            window.handle_input(handle, ElementInputHandler::new(bounds, self.workspace.clone()), cx);
+        }
 
         // 5. Mouse: click + drag = caret + selection. The mouse-down listener
         //    is element-local (only fires on hits inside `bounds`); the move
@@ -367,6 +380,7 @@ impl gpui::Element for InputFieldElement {
         //    All three listeners are re-registered every paint, so they
         //    don't accumulate across frames.
         let target = self.target;
+        let rename_prompt = self.rename_prompt;
         let click_workspace = self.workspace.clone();
         let click_bounds_left = bounds.left();
         let click_window = field_window.clone();
@@ -385,6 +399,7 @@ impl gpui::Element for InputFieldElement {
             // hold-and-drag afterwards doesn't mangle the selection.
             if event.click_count >= 2 {
                 click_workspace.update(cx, |w, cx| {
+                    if !rename_prompt_matches(w, target, rename_prompt) { return; }
                     w.input_set_caret_byte(target, 0, false);
                     w.input_set_caret_byte(target, click_window.total_len, true);
                     cx.notify();
@@ -393,6 +408,7 @@ impl gpui::Element for InputFieldElement {
             }
             let extend = event.modifiers.shift;
             click_workspace.update(cx, |w, cx| {
+                if !rename_prompt_matches(w, target, rename_prompt) { return; }
                 let byte = byte_for_x(
                     &click_window.text,
                     event.position.x - click_bounds_left + click_h_scroll,
@@ -424,6 +440,7 @@ impl gpui::Element for InputFieldElement {
                 return;
             }
             move_workspace.update(cx, |w, cx| {
+                if !rename_prompt_matches(w, target, rename_prompt) { return; }
                 let Some(drag) = w.input_drag else {
                     return;
                 };
@@ -451,6 +468,10 @@ impl gpui::Element for InputFieldElement {
                 return;
             }
             up_workspace.update(cx, |w, cx| {
+                if !rename_prompt_matches(w, target, rename_prompt) { return; }
+                if target == InputFocus::TabRename && w.input_drag.is_some_and(|drag| drag.focus != target) {
+                    return;
+                }
                 if w.input_drag.is_some() {
                     w.input_drag = None;
                     cx.notify();
@@ -458,6 +479,16 @@ impl gpui::Element for InputFieldElement {
             });
         });
     }
+}
+
+pub(crate) fn rename_prompt_matches(workspace: &Workspace, target: InputFocus, painted: Option<uuid::Uuid>) -> bool {
+    target != InputFocus::TabRename || painted.is_some_and(|id| {
+        workspace.tab_rename.as_ref().is_some_and(|state| {
+            state.prompt_id == id && workspace.tabs.iter().any(|tab| {
+                tab.session_id == state.target_tab_id && tab.buffer.file_path == state.original_path
+            })
+        })
+    })
 }
 
 /// Translate a window-relative x offset into a byte index inside `text_str`.

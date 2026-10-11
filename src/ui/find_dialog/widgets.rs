@@ -535,6 +535,7 @@ pub(super) fn text_input_with_chevron(
                     workspace: workspace_entity.clone(),
                     target,
                     placeholder,
+                    rename_prompt: None,
                 }),
         )
         .child(chevron);

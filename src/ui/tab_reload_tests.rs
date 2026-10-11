@@ -383,8 +383,8 @@ fn painted_close_save_rename_and_read_only_follow_the_original_uuid_after_reorde
                         "original source"
                     ),
                     LeafAction::Rename => assert_eq!(
-                        w.tab_rename.as_ref().expect("rename opened").target_tab_idx,
-                        2
+                        w.tab_rename.as_ref().expect("rename opened").target_tab_id,
+                        w.tabs[2].session_id
                     ),
                     LeafAction::ToggleReadOnly => assert!(w.tabs[2].buffer.read_only),
                     _ => unreachable!(),

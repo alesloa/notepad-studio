@@ -67,6 +67,7 @@ pub(crate) fn rich_doc_link_bar(
                     workspace: workspace.clone(),
                     target: InputFocus::RichDocLinkUrl,
                     placeholder: Some("https://example.com".to_string()),
+                    rename_prompt: None,
                 }),
         )
         .child(action_button(theme, "rd-link-apply", "Apply", true, move |window, cx| {

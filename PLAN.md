@@ -7,7 +7,7 @@ Continue the authorized clean-room Rust/gpui work. The primary acceptance ledger
 - Root: review branch commits, integrate exact source hunks, run the full main-tree build/test/clippy gate, update records and commit each batch. Pure API registry and call-context helpers remain root-owned.
 - language_menu: completion and inline input routing. Brief-list behavior integrated; API loading/manual Function lists integrated; next leaf: parameter hint UI. Root owns the pure registry parser.
 - doc_parser: CSV draft recovery integrated; clean-grid focus integrated and first-character input integrated; next leaf: Source/CSV IME composition. Own CSV helper/test seams, preserve tabUUID and newer focus.
-- undo_readonly: File menu commands integrated; context Reload integrated; next leaf: submenu/hover/Rename UUID targets and collision-safe rename.
+- undo_readonly: File menu commands integrated; context Reload integrated; submenu/Rename guards integrated; next leaf: complete menu/catalog/behavior inventory.
 
 Shared-file edits are surgical, re-read before integration. Agent branches are applied by commit, excluding conflicting changelog numbering; root gates the combined tree before committing. Rust text changes preserve encoding/EOL, Unicode and read-only behavior. Native runtime evidence is recorded separately from headless TestWindow evidence.
 
@@ -56,3 +56,5 @@ Shared-file edits are surgical, re-read before integration. Agent branches are a
 - 2026-10-10: reviewed API completionf592c22 + rootc1 parser integrated;1513units+1integration/8ignored,build/clippy pass,no new warnings.28 new pure/actual-frame lifecycle/manual/cache/encoding/case tests; optional background definitions and original static fallback shipped. Parameter hints+IME composition remain active; G14 met,G7/G8 open.
 
 - 2026-10-10: Exit recovery preflight;1518units+1integration/8ignored,build/clippy pass,no new warnings. Two red failures fixed; five actual dispatch/close-hook tests cover final recovery failure, CSV drafts, all-window retry, empty Exit and failed last-tab strip recovery. Synchronous recovery error dialog removed; actionable status preserves focus. G15met; Rename and IME ready, hints/inventory active, asynchronous Exit review continues.
+
+- 2026-10-10: reviewed submenu/Rename8935351 integrated;1532units+1integration/8ignored,build/clippy pass196app210test193duplicates,no new touched warnings.14 actual painted/native-file tests prove popup/UUID/fresh focus guards and atomic no-replace rename; renamore0.3.2 pinned, permissive license/NOTICE included. Root Close/futures/Quit preserved. IME next; hints, inventory and async Exit continue.

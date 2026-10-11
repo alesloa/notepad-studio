@@ -147,20 +147,25 @@ impl MacroPromptState {
 
 /// State for the inline tab-rename bar. Shown above the editor when the
 /// user picks Rename from the tab right-click menu — the tab whose file is
-/// being renamed is `target_tab_idx`. On Enter the workspace runs
+/// being renamed is `target_tab_id`. On Enter the workspace runs
 /// `rename_tab_file` and clears this state; Esc just clears.
+#[derive(Clone)]
 pub(crate) struct TabRenameState {
-    pub(crate) target_tab_idx: usize,
+    pub(crate) target_tab_id: uuid::Uuid,
+    pub(crate) prompt_id: uuid::Uuid,
+    pub(crate) original_path: Option<std::path::PathBuf>,
     pub(crate) text: String,
     pub(crate) text_cursor: usize,
     pub(crate) text_anchor: usize,
 }
 
 impl TabRenameState {
-    pub(crate) fn new(target: usize, initial: &str) -> Self {
+    pub(crate) fn new(target: uuid::Uuid, original_path: Option<std::path::PathBuf>, initial: &str) -> Self {
         let len = initial.len();
         Self {
-            target_tab_idx: target,
+            target_tab_id: target,
+            prompt_id: uuid::Uuid::new_v4(),
+            original_path,
             text: initial.to_string(),
             text_cursor: len,
             text_anchor: 0,

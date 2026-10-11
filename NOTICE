@@ -54,3 +54,10 @@ CSV draft recovery verifies immutable source snapshots with SHA-256.
     sha2 0.10.9 — RustCrypto Developers
     Source: https://github.com/RustCrypto/hashes
     License: MIT OR Apache-2.0; the MIT notice is in licenses/sha2-MIT.txt.
+
+File Rename refuses existing destinations through native exclusive rename.
+    renamore 0.3.2 — Indiana Kernick
+    Source: https://github.com/indianakernick/renamore
+    License: MIT OR Apache-2.0; the MIT notice is in licenses/renamore-MIT.txt.
+    Uses renameat2 NOREPLACE on Linux, renamex_np EXCL on macOS, and
+    MoveFileExW without replacement flags on Windows. No non-atomic fallback.

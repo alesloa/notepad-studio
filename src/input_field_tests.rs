@@ -75,7 +75,7 @@ fn open_field(
         }
         InputFocus::TabRename => {
             w.tab_rename_focus = Some(cx.focus_handle());
-            w.tab_rename = Some(TabRenameState::new(0, FIELD));
+            w.tab_rename = Some(TabRenameState::new(w.tabs[0].session_id, w.tabs[0].buffer.file_path.clone(), FIELD));
         }
         InputFocus::RichDocLinkUrl => {
             w.rich_doc_link_focus = Some(cx.focus_handle());

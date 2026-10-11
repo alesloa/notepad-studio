@@ -493,6 +493,7 @@ pub(crate) struct TabContextMenuState {
     pub(crate) position: Point<Pixels>,
     /// Currently-expanded submenu, if any.
     pub(crate) open_submenu: Option<TabSubmenu>,
+    pub(crate) submenu_id: Option<Uuid>,
     /// Anchor point for the active submenu — top-right of the parent row,
     /// used so the cascade lands flush against its parent. Window-space
     /// pixels.
@@ -992,6 +993,7 @@ impl Workspace {
             popup_id: Uuid::new_v4(),
             position,
             open_submenu: None,
+            submenu_id: None,
             submenu_anchor: position,
         });
         cx.notify();
@@ -1010,6 +1012,12 @@ impl Workspace {
         cx: &mut Context<Self>,
     ) {
         if let Some(state) = self.tab_context_menu.as_mut() {
+            if state.open_submenu == Some(which) && state.submenu_anchor == anchor {
+                return;
+            }
+            if state.open_submenu != Some(which) {
+                state.submenu_id = Some(Uuid::new_v4());
+            }
             state.open_submenu = Some(which);
             state.submenu_anchor = anchor;
             cx.notify();
@@ -1019,6 +1027,7 @@ impl Workspace {
     pub(crate) fn close_tab_submenu(&mut self, cx: &mut Context<Self>) {
         if let Some(state) = self.tab_context_menu.as_mut() {
             if state.open_submenu.take().is_some() {
+                state.submenu_id = None;
                 cx.notify();
             }
         }
@@ -1042,10 +1051,10 @@ impl Workspace {
             .and_then(|p| p.file_name())
             .map(|n| n.to_string_lossy().into_owned())
             .unwrap_or_default();
-        if self.tab_rename_focus.is_none() {
-            self.tab_rename_focus = Some(cx.focus_handle());
-        }
-        self.tab_rename = Some(TabRenameState::new(idx, &initial));
+        self.tab_rename_focus = Some(cx.focus_handle());
+        self.tab_rename = Some(TabRenameState::new(
+            self.tabs[idx].session_id, self.tabs[idx].buffer.file_path.clone(), &initial,
+        ));
         cx.notify();
     }
 
@@ -1059,7 +1068,16 @@ impl Workspace {
         let Some(state) = self.tab_rename.take() else {
             return;
         };
-        let idx = state.target_tab_idx;
+        let Some(idx) = self.tabs.iter().position(|tab| tab.session_id == state.target_tab_id) else {
+            self.set_status("Rename cancelled: original document is no longer open");
+            cx.notify();
+            return;
+        };
+        if self.tabs.get(idx).is_none_or(|tab| tab.buffer.file_path != state.original_path) {
+            self.set_status("Rename cancelled: file path changed while the prompt was open");
+            cx.notify();
+            return;
+        }
         let new_name = state.text;
         self.rename_tab_file(idx, new_name, cx);
     }

@@ -3374,6 +3374,7 @@ dependencies = [
  "pulldown-cmark",
  "quick-xml 0.36.2",
  "regex",
+ "renamore",
  "rfd",
  "ropey",
  "scrivener-rtf",
@@ -4431,6 +4432,16 @@ name = "regex-syntax"
 version = "0.8.10"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "dc897dd8d9e8bd1ed8cdad82b5966c3e0ecae09fb1907d58efaa013543185d0a"
+
+[[package]]
+name = "renamore"
+version = "0.3.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0f5bced8a18df26d088a61a8f314d853ad18705b0aee59b43ccc088ca4bc3670"
+dependencies = [
+ "cc",
+ "tempfile",
+]
 
 [[package]]
 name = "resvg"

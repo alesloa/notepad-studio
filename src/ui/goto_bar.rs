@@ -58,6 +58,7 @@ pub(crate) fn goto_bar(
                     workspace: workspace.clone(),
                     target: InputFocus::Goto,
                     placeholder: Some("e.g. 42".to_string()),
+                    rename_prompt: None,
                 }),
         )
         .child(

@@ -7,6 +7,7 @@ mod directx_renderer;
 mod dispatcher;
 mod display;
 mod events;
+mod ime;
 mod keyboard;
 mod platform;
 mod system_settings;

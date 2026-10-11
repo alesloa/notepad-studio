@@ -461,6 +461,9 @@ v0.0.5 — current
          preserving encodings, BOMs and line endings. Unsafe conversions report
          the affected file and leave its bytes untouched.
 
+    118. Windows IME input safely handles failed or changing composition reads,
+         malformed UTF-16 byte lengths and invalid cursor positions.
+
   v0.1.0 — syntax & language:
 
     1. Tree-sitter syntax highlighting for 25 modes: Rust, Python, C,

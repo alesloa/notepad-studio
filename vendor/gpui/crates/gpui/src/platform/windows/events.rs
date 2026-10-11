@@ -644,11 +644,9 @@ impl WindowsWindowInner {
                 let caret_pos =
                     (!comp_string.is_empty() && lparam & GCS_CURSORPOS.0 > 0).then(|| {
                         let cursor_pos = retrieve_composition_cursor_position(ctx);
-                        let pos = if should_use_ime_cursor_position(ctx, cursor_pos) {
-                            cursor_pos
-                        } else {
-                            comp_string.len()
-                        };
+                        let pos = cursor_pos.filter(|pos| {
+                            *pos <= comp_string.len() && should_use_ime_cursor_position(ctx, *pos)
+                        }).unwrap_or(comp_string.len());
                         pos..pos
                     });
                 self.with_input_handler(|input_handler| {
@@ -1462,60 +1460,33 @@ fn process_key(vkey: VIRTUAL_KEY, scan_code: u16) -> (Option<String>, bool) {
     )
 }
 
+fn read_ime_composition_bytes(ctx: HIMC, comp_type: IME_COMPOSITION_STRING) -> Option<Vec<u8>> {
+    super::ime::read_ime_bytes(|buffer| {
+        let (pointer, len) = buffer.map_or((None, 0), |buffer| {
+            (Some(buffer.as_mut_ptr().cast()), buffer.len() as u32)
+        });
+        // SAFETY: The optional buffer is writable for len bytes throughout the IMM call.
+        unsafe { ImmGetCompositionStringW(ctx, comp_type, pointer, len) }
+    })
+}
+
 fn parse_ime_composition_string(ctx: HIMC, comp_type: IME_COMPOSITION_STRING) -> Option<Vec<u16>> {
-    unsafe {
-        let string_len = ImmGetCompositionStringW(ctx, comp_type, None, 0);
-        if string_len >= 0 {
-            let mut buffer = vec![0u8; string_len as usize + 2];
-            ImmGetCompositionStringW(
-                ctx,
-                comp_type,
-                Some(buffer.as_mut_ptr() as _),
-                string_len as _,
-            );
-            let wstring = std::slice::from_raw_parts::<u16>(
-                buffer.as_mut_ptr().cast::<u16>(),
-                string_len as usize / 2,
-            );
-            Some(wstring.to_vec())
-        } else {
-            None
-        }
-    }
+    super::ime::decode_ime_utf16(&read_ime_composition_bytes(ctx, comp_type)?)
 }
 
 #[inline]
-fn retrieve_composition_cursor_position(ctx: HIMC) -> usize {
-    unsafe { ImmGetCompositionStringW(ctx, GCS_CURSORPOS, None, 0) as usize }
+fn retrieve_composition_cursor_position(ctx: HIMC) -> Option<usize> {
+    // SAFETY: GCS_CURSORPOS returns a scalar and does not dereference an output buffer.
+    usize::try_from(unsafe { ImmGetCompositionStringW(ctx, GCS_CURSORPOS, None, 0) }).ok()
 }
 
 fn should_use_ime_cursor_position(ctx: HIMC, cursor_pos: usize) -> bool {
-    let attrs_size = unsafe { ImmGetCompositionStringW(ctx, GCS_COMPATTR, None, 0) } as usize;
-    if attrs_size == 0 {
+    let Some(attrs) = read_ime_composition_bytes(ctx, GCS_COMPATTR) else {
         return false;
-    }
-
-    let mut attrs = vec![0u8; attrs_size];
-    let result = unsafe {
-        ImmGetCompositionStringW(
-            ctx,
-            GCS_COMPATTR,
-            Some(attrs.as_mut_ptr() as *mut _),
-            attrs_size as u32,
-        )
     };
-    if result <= 0 {
-        return false;
-    }
 
-    // Keep the cursor adjacent to the inserted text by only using the suggested position
-    // if it's adjacent to unconverted text.
-    let at_cursor_is_input = cursor_pos < attrs.len() && attrs[cursor_pos] == (ATTR_INPUT as u8);
-    let before_cursor_is_input = cursor_pos > 0
-        && (cursor_pos - 1) < attrs.len()
-        && attrs[cursor_pos - 1] == (ATTR_INPUT as u8);
-
-    at_cursor_is_input || before_cursor_is_input
+    // Only honor cursor positions next to unconverted input.
+    super::ime::cursor_adjacent_to_input(&attrs, cursor_pos, ATTR_INPUT as u8)
 }
 
 #[inline]

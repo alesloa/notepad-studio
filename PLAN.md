@@ -7,7 +7,7 @@ Continue the authorized clean-room Rust/gpui work. The primary acceptance ledger
 - Root: review branch commits, integrate exact source hunks, run the full main-tree build/test/clippy gate, update records and commit each batch. Completion macro helper/tests remain root-owned.
 - language_menu: completion and inline input routing. Brief-list behavior integrated; next leaf: optional user API loading and manual Function lists. Root owns the pure registry parser.
 - doc_parser: CSV pending-cell Save/close/tab-switch/recovery correctness. Own CSV model/actions and surgical save/close hooks; retain tab UUID across asynchronous operations.
-- undo_readonly: macro playback context batch ready; next leaf: File menu actions backed by existing tab helpers and safe native external launching.
+- undo_readonly: File menu commands integrated; next leaf: legacy/context Reload draft and focus guards.
 
 Shared-file edits are surgical, re-read before integration. Agent branches are applied by commit, excluding conflicting changelog numbering; root gates the combined tree before committing. Rust text changes preserve encoding/EOL, Unicode and read-only behavior. Native runtime evidence is recorded separately from headless TestWindow evidence.
 
@@ -38,3 +38,5 @@ Shared-file edits are surgical, re-read before integration. Agent branches are a
 - 2026-10-10: macro Undo batch implemented;1367 units+1 integration pass,8 ignored;build/clippy pass with no new touched warnings. G13 met for editing playback, with legacy persisted Undo/Redo timeline compatibility. CSV recovery, File menu and brief-completion leaves remain active.
 
 - 2026-10-10: reviewed brief02ee135 integrated;1375 units+1 integration pass,8 ignored;build/clippy pass with no new touched warnings. Preferences now control row narrowing, retained nonmatches cannot overwrite new text, capped discovery and matching selection remain bounded. API registry/completion implementation begins separately; CSV recovery and File batches ready for review.
+
+- 2026-10-10: reviewed File5e6efe0 integrated;1397 units+1 integration pass,8ignored;build/clippy pass,no new touched warnings. G12met for File entrypoints/menu/defaults/UUID/draft/focus/literal paths. Shared catalog preserved root folder row/defaultless114 and View rows; tabs fixture depth1 retained. Legacy/context Reload remains active separateleaf. CSV recovery next.

@@ -102,7 +102,7 @@ pub(crate) fn open_terminal_at(dir: &Path) -> Result<(), String> {
 }
 
 /// Open `path` with the OS default viewer/handler — `open` on macOS,
-/// `xdg-open` on Linux, the `start` shell builtin on Windows.
+/// `xdg-open` on Linux, native ShellExecute on Windows.
 pub(crate) fn open_with_default_viewer(path: &Path) -> Result<(), String> {
     #[cfg(target_os = "macos")]
     {
@@ -114,12 +114,9 @@ pub(crate) fn open_with_default_viewer(path: &Path) -> Result<(), String> {
     }
     #[cfg(target_os = "windows")]
     {
-        Command::new("cmd")
-            .args(["/C", "start", "\"\""])
-            .arg(path)
-            .spawn()
-            .map_err(|e| e.to_string())?;
-        return Ok(());
+        // open 5.3.4, windows.rs:40 — the enabled shellexecute-on-windows
+        // feature sends lpFile as UTF-16 data, without CMD or a process wait.
+        return open::that_detached(path).map_err(|error| error.to_string());
     }
     #[cfg(all(unix, not(target_os = "macos")))]
     {

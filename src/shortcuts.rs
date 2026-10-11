@@ -125,12 +125,19 @@ static CATALOG: &[ActionEntry] = &[
     row!(FileNewWindow,        "New Window",                EXTRA,                                  GLOBAL, ["ctrl-shift-n"], ["cmd-shift-n"]),
     row!(FileNew,              "New",                       Some("IDM_FILE_NEW"),                   W,      ["ctrl-n"],       ["cmd-n"]),
     row!(FileOpen,             "Open",                      Some("IDM_FILE_OPEN"),                  W,      ["ctrl-o"],       ["cmd-o"]),
+    row!(FileOpenContainingFolder, "Open Containing Folder", Some("IDM_FILE_OPEN_FOLDER"),           W,      [],               []),
+    row!(FileOpenDefaultViewer, "Open in Default Viewer",   Some("IDM_FILE_OPEN_DEFAULT_VIEWER"),   W,      [],               []),
+    row!(FileReloadFromDisk,   "Reload from Disk",          Some("IDM_FILE_RELOAD"),                W,      ["ctrl-r"],       ["cmd-r"]),
     row!(FileOpenFolderAsWorkspace, "Open Folder as Workspace", Some("IDM_FILE_OPENFOLDERASWORKSPACE"), W, [], []),
     row!(FileSave,             "Save",                      Some("IDM_FILE_SAVE"),                  W,      ["ctrl-s"],       ["cmd-s"]),
     row!(FileSaveAs,           "Save As",                   Some("IDM_FILE_SAVEAS"),                W,      ["ctrl-alt-s"],   ["cmd-shift-s"]),
     row!(FileSaveAll,          "Save All",                  Some("IDM_FILE_SAVEALL"),               W,      ["ctrl-shift-s"], ["cmd-alt-s"]),
     row!(FileCloseTab,         "Close Tab",                 Some("IDM_FILE_CLOSE"),                 W,      ["ctrl-w"],       ["cmd-w"]),
     row!(FileCloseAllTabs,     "Close All Tabs",            Some("IDM_FILE_CLOSEALL"),              W,      ["ctrl-shift-w"], ["cmd-shift-w"]),
+    row!(FileCloseAllButActive, "Close All but Active Document", Some("IDM_FILE_CLOSEALL_BUT_CURRENT"), W, [], []),
+    row!(FileCloseAllToLeft,   "Close All to the Left",      Some("IDM_FILE_CLOSEALL_TOLEFT"),       W,      [],               []),
+    row!(FileCloseAllToRight,  "Close All to the Right",     Some("IDM_FILE_CLOSEALL_TORIGHT"),      W,      [],               []),
+    row!(FileCloseAllUnchanged, "Close All Unchanged",       Some("IDM_FILE_CLOSEALL_UNCHANGED"),    W,      [],               []),
     row!(FileRestoreClosedTab, "Restore Recent Closed Tab", Some("IDM_FILE_RESTORELASTCLOSEDFILE"), W,      ["ctrl-shift-t"], ["cmd-shift-t"]),
 
     // --- Edit ---
@@ -159,9 +166,9 @@ static CATALOG: &[ActionEntry] = &[
     row!(EditInsertTab,     "Insert Tab",         Some("SCI_TAB"),                W, ["tab"],                             ["tab"]),
     row!(EditOutdent,       "Decrease Line Indent", Some("SCI_BACKTAB"),          W, ["shift-tab"],                       ["shift-tab"]),
     row!(EditDuplicateLine, "Duplicate Line",     Some("SCI_SELECTIONDUPLICATE"), W, ["ctrl-d"],                          ["cmd-d"]),
-    // CSV extras. Ctrl+R is Notepad++'s Reload, so Fill Right has no
-    // Windows/Linux default.
-    row!(EditFillRight,       "CSV: Fill Right",          EXTRA, W, [],               ["cmd-r"]),
+    // Ctrl/Cmd+R belongs to Reload. CSV Fill Right remains unassigned on
+    // Windows/Linux and uses Cmd+Alt+R on macOS.
+    row!(EditFillRight,       "CSV: Fill Right",          EXTRA, W, [],               ["cmd-alt-r"]),
     row!(EditInsertTodayDate, "CSV: Insert Today's Date", EXTRA, W, ["ctrl-;"],       ["cmd-;"]),
     row!(EditInsertNowTime,   "CSV: Insert Now Time",     EXTRA, W, ["ctrl-shift-;"], ["cmd-shift-;"]),
     // macOS keeps the Mac convention (Option+Shift+Arrow moves lines); on

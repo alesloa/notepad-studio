@@ -250,6 +250,12 @@ v0.0.5 — current
        retains its rows and follows the current prefix. Selection survives
        filtering, and a retained nonmatching row cannot overwrite newer text.
 
+   65. File menu: Reload from Disk, Open Containing Folder, Default Viewer
+       and Close Multiple commands now use the current document and retain
+       refused CSV drafts. Reload keeps grid focus. On macOS, CSV Fill Right
+       uses Cmd+Alt+R, leaving Cmd+R for Reload. Windows viewer paths go through
+       the native shell, preserving literal spaces and special characters.
+
   v0.1.0 — syntax & language:
 
     1. Tree-sitter syntax highlighting for 25 modes: Rust, Python, C,

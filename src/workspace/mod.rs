@@ -12,6 +12,7 @@ mod cursor;
 mod tag_match;
 pub(crate) mod edits;
 mod find;
+mod file_tab_actions;
 mod find_in_files;
 mod folder_panel;
 mod format;

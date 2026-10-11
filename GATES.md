@@ -27,20 +27,20 @@ Scope: Continue the requested cross-platform Notepad++ parity audit and fix the 
   EVIDENCE: pending; current native computer-use transport is unavailable and CUA native surfaces are disabled. Headless GPUI tests are not native screenshots.
 
 - [x] G9: The integrated main tree builds and passes its required unit/integration/clippy checks with no new warnings on touched code.
-  CHECK: powershell -NoProfile -Command "Get-Content log/brief-integration-tests.txt -Tail 16"
-  EXPECT: 1375 passed; 0 failed
-  EVIDENCE: reviewed02ee135 brief-list batch; cargo build and clippy all-targets passed; 1375 units + 1 integration passed, 8 ignored. Refresh for each source batch.
+  CHECK: powershell -NoProfile -Command "Get-Content log/file-menu-integration-tests.txt -Tail 16"
+  EXPECT: 1397 passed; 0 failed
+  EVIDENCE: reviewed5e6efe0 File batch; cargo build and clippy all-targets passed;1397 units + 1 integration passed,8 ignored. Refresh for each source batch.
 
 - [x] G10: Completed source batches have separate conventional commits and current change.log/devlog entries; the main working tree is clean before beginning a new batch.
   CHECK: git status --porcelain
   EXPECT: /^$/
-  EVIDENCE: main4814e74 was clean before this brief-list batch; 64 current-version release notes and a devlog entry accompany it. Refresh after each source batch.
+  EVIDENCE: main8ca427c was clean before this File batch;65 current-version release notes and a devlog entry accompany it. Refresh after each source batch.
 
 - [x] G11: View > Tab exposes every oracle Tab command in order with rebindable shortcuts; selection/reordering/color commands preserve document UUID, text, encoding/EOL, saved state and history, with edge and pending-cell refusal coverage.
   EVIDENCE: oracle RC789-817 / Commands1304-1412,3532-3537; red missing-menu contract then 7 new menu/actual-dispatch/refusal/edge tests pass. 1332-unit main gate; existing shortcut parity/collision tests cover added rows. Native appearance remains G8.
 
-- [ ] G12: File menu tab commands use current UUID targets, expose oracle order and collision-free defaults, preserve pending cell drafts on refusal and launch literal external paths safely.
-  EVIDENCE: active agent branch reproduced missing menu/catalog, read-only draft loss on Reload and premature Close Unchanged; reviewed source integration and main gate pending.
+- [x] G12: File menu tab commands use current UUID targets, expose oracle order and collision-free defaults, preserve pending cell drafts on refusal and launch literal external paths safely.
+  EVIDENCE: reviewed5e6efe0;22 new menu/catalog/current-UUID/draft/focus/encoding/literal-path fixture tests pass in1397-unit main gate. Missing commands, Reload draft loss, premature Close Unchanged and successful Reload focus loss reproduced red then green. Ctrl/CmdR collision fixed, saved action IDs unchanged; native external-launch evidence remainsG8. Legacy context Reload guard is a separate activeG7leaf.
 
 - [x] G13: Macro editing playback is a single Undo operation across repetitions and nested command groups; no-op/refused replay preserves Redo, failures close their group and saved-state/Unicode/EOL/caret history remains correct.
   EVIDENCE: behavior-only oracle NppCommands.cpp83-149 and shortcut.cpp925-1054; six red failures then nine new handler/history/recording regressions pass in the 1367-unit gate. Balanced nested source transactions defer to the outer group; failed replay closes its group before restoring its reason. New recordings omit Undo/Redo; older persisted history events remain readable and replay on their legacy timeline.

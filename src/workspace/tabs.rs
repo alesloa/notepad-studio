@@ -2,7 +2,7 @@
 
 use std::collections::HashSet;
 
-use gpui::{Context, Window};
+use gpui::{Context, FocusHandle, Window};
 use uuid::Uuid;
 
 use crate::actions::{
@@ -583,6 +583,16 @@ impl Workspace {
 
     // PowerEditor/src/NppIO.cpp:588 — doReload confirms discarding dirty edits.
     pub(crate) fn reload_tab(&mut self, idx: usize, window: &mut Window, cx: &mut Context<Self>) {
+        self.reload_tab_with_csv_focus(idx, None, window, cx);
+    }
+
+    pub(super) fn reload_tab_with_csv_focus(
+        &mut self,
+        idx: usize,
+        csv_focus: Option<FocusHandle>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         let Some(tab) = self.tabs.get(idx) else {
             return;
         };
@@ -598,27 +608,30 @@ impl Workspace {
         }
         let id = tab.session_id;
         if !tab.buffer.dirty {
-            self.finish_reload(id, false, cx);
+            self.finish_reload(id, false, csv_focus, window, cx);
             return;
         }
         let name = tab.buffer.display_short_name().to_string();
+        let confirmation = super::file_tab_actions::confirm_reload(name);
         cx.spawn_in(window, async move |this, cx| {
-            let answer = rfd::AsyncMessageDialog::new()
-                .set_level(rfd::MessageLevel::Warning)
-                .set_title(crate::consts::APP_NAME)
-                .set_description(format!("Reload {name} and lose its unsaved changes?"))
-                .set_buttons(rfd::MessageButtons::YesNo)
-                .show()
-                .await;
-            let confirmed = matches!(answer, rfd::MessageDialogResult::Yes);
-            if confirmed {
-                this.update(cx, |w, cx| w.finish_reload(id, true, cx)).ok();
+            if confirmation.await {
+                this.update_in(cx, |w, window, cx| {
+                    w.finish_reload(id, true, csv_focus, window, cx);
+                })
+                .ok();
             }
         })
         .detach();
     }
 
-    fn finish_reload(&mut self, id: Uuid, confirmed: bool, cx: &mut Context<Self>) {
+    fn finish_reload(
+        &mut self,
+        id: Uuid,
+        confirmed: bool,
+        csv_focus: Option<FocusHandle>,
+        window: &mut Window,
+        cx: &mut Context<Self>,
+    ) {
         match reload_tab_by_id(&mut self.tabs, id, confirmed) {
             Ok(Some(idx)) => {
                 let Some(path) = self.tabs[idx].buffer.file_path.clone() else {
@@ -635,6 +648,9 @@ impl Workspace {
                     self.refresh_smart_highlight();
                     self.refresh_tag_match();
                     self.caret_visible = true;
+                }
+                if let Some(handle) = csv_focus {
+                    self.restore_reloaded_csv_focus(id, handle, window, cx);
                 }
             }
             Err(err) => {

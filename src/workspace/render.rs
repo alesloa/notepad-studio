@@ -112,9 +112,12 @@ impl Render for Workspace {
                 None,
                 None,
             ));
+        let (can_undo, can_redo) = super::history::history_availability(
+            active_tab, self.input_focus(window), self.csv_models.get(&active_tab.session_id),
+        );
         let toolbar_flags = ToolbarFlags {
-            can_undo: !active_tab.undo_stack.is_empty(),
-            can_redo: !active_tab.redo_stack.is_empty(),
+            can_undo,
+            can_redo,
             has_selection: !self.selection().is_empty(),
             active_dirty: active_tab.buffer.dirty,
             any_dirty: self.tabs.iter().any(|t| t.buffer.dirty),
@@ -715,10 +718,9 @@ impl Render for Workspace {
                 ))
             })
             .when_some(self.context_menu, |this, position| {
-                let active_tab = &self.tabs[self.active];
                 let flags = ContextMenuFlags {
-                    can_undo: !active_tab.undo_stack.is_empty(),
-                    can_redo: !active_tab.redo_stack.is_empty(),
+                    can_undo,
+                    can_redo,
                     has_selection: !self.selection().is_empty(),
                 };
                 this.child(context_menu(&theme, position, flags, cx.entity().clone()))

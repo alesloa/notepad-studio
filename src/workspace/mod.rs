@@ -15,6 +15,7 @@ mod find;
 mod find_in_files;
 mod folder_panel;
 mod format;
+mod history;
 mod input_handler;
 mod language;
 mod macros;

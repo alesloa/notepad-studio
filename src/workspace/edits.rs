@@ -17,6 +17,7 @@ use crate::syntax::comments::comment_syntax;
 use crate::tab::InputFocus;
 use crate::text::utf16::{next_char_byte_in_str, prev_char_byte_in_str};
 use crate::workspace::Workspace;
+use super::history::{HistoryDirection, HistoryTarget, apply_rich_history, history_target};
 
 /// True if `line` (with leading-whitespace allowed) looks like a CommonMark
 /// list item marker: `- `, `* `, `+ ` (bullet) or `1. `, `2) ` (ordered).
@@ -419,17 +420,25 @@ impl Workspace {
     }
 
     pub(crate) fn undo(&mut self, _: &EditUndo, window: &mut Window, cx: &mut Context<Self>) {
-        if self.input_focus(window) == InputFocus::RichDocBody {
-            if let Some(payload) = self.tabs[self.active].buffer.rich_doc.as_mut() {
-                if payload.undo() {
+        match history_target(self.input_focus(window), self.buffer().read_only, self.csv_undo_active()) {
+            HistoryTarget::RichDocument => {
+                if apply_rich_history(&mut self.active_tab_mut().buffer, HistoryDirection::Undo) {
+                    self.schedule_autosave(cx);
                     cx.notify();
                 }
+                return;
             }
-            return;
-        }
-        if self.csv_undo_active() {
-            self.csv_undo_active_tab(cx);
-            return;
+            HistoryTarget::Csv => {
+                self.csv_undo_active_tab(cx);
+                return;
+            }
+            HistoryTarget::ReadOnly => {
+                self.set_status("Buffer is read-only");
+                cx.notify();
+                return;
+            }
+            HistoryTarget::Ignored => return,
+            HistoryTarget::Editor => {}
         }
         crate::macros::record(crate::macros::MacroEvent::Undo);
         let Some(entry) = self.active_tab_mut().undo_stack.pop() else {
@@ -444,17 +453,25 @@ impl Workspace {
     }
 
     pub(crate) fn redo(&mut self, _: &EditRedo, window: &mut Window, cx: &mut Context<Self>) {
-        if self.input_focus(window) == InputFocus::RichDocBody {
-            if let Some(payload) = self.tabs[self.active].buffer.rich_doc.as_mut() {
-                if payload.redo() {
+        match history_target(self.input_focus(window), self.buffer().read_only, self.csv_undo_active()) {
+            HistoryTarget::RichDocument => {
+                if apply_rich_history(&mut self.active_tab_mut().buffer, HistoryDirection::Redo) {
+                    self.schedule_autosave(cx);
                     cx.notify();
                 }
+                return;
             }
-            return;
-        }
-        if self.csv_undo_active() {
-            self.csv_redo_active_tab(cx);
-            return;
+            HistoryTarget::Csv => {
+                self.csv_redo_active_tab(cx);
+                return;
+            }
+            HistoryTarget::ReadOnly => {
+                self.set_status("Buffer is read-only");
+                cx.notify();
+                return;
+            }
+            HistoryTarget::Ignored => return,
+            HistoryTarget::Editor => {}
         }
         crate::macros::record(crate::macros::MacroEvent::Redo);
         let Some(entry) = self.active_tab_mut().redo_stack.pop() else {

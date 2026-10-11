@@ -190,12 +190,13 @@ impl gpui::Element for InputFieldElement {
             | InputFocus::CsvFindBar
             | InputFocus::CsvReplaceBar => workspace.focus_handle.clone(),
         };
+        window.set_focus_handle(&handle, cx);
 
         // If empty and a placeholder is set, paint that in a dimmed color.
-        let display: SharedString = if text_str.is_empty() {
-            self.placeholder.clone().unwrap_or_default().into()
+        let display = if text_str.is_empty() {
+            single_line_display(self.placeholder.as_deref().unwrap_or_default())
         } else {
-            text_str.clone().into()
+            single_line_display(&text_str)
         };
         let display_color: Hsla = if text_str.is_empty() {
             // Approximate gutter_text — placeholder shouldn't shout.
@@ -323,7 +324,7 @@ impl gpui::Element for InputFieldElement {
             | InputFocus::CsvFindBar
             | InputFocus::CsvReplaceBar => String::new(),
         };
-        let display: SharedString = text_str.clone().into();
+        let display = single_line_display(&text_str);
         let measure_line = if display.is_empty() {
             None
         } else {
@@ -543,7 +544,7 @@ fn byte_for_x(
     if text_str.is_empty() {
         return 0;
     }
-    let display: SharedString = text_str.to_string().into();
+    let display = single_line_display(text_str);
     let runs = vec![TextRun {
         len: display.len(),
         font: style.font(),
@@ -559,3 +560,13 @@ fn byte_for_x(
     line.closest_index_for_x(local_x).min(line.len)
 }
 
+/// Keep raw field contents intact while shaping one visual line. CR/LF are
+/// one-byte separators, so replacing each with a space preserves byte offsets
+/// used by caret placement, selection and click hit testing.
+fn single_line_display(text: &str) -> SharedString {
+    text.replace(['\r', '\n'], " ").into()
+}
+
+#[cfg(test)]
+#[path = "input_field_tests.rs"]
+mod tests;

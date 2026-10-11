@@ -5,9 +5,9 @@ Continue the authorized clean-room Rust/gpui work. The primary acceptance ledger
 ## Current ownership
 
 - Root: review branch commits, integrate exact source hunks, run the full main-tree build/test/clippy gate, update records and commit each batch. Completion macro helper/tests remain root-owned.
-- language_menu: completion popup session/view/activation routing and source focus restoration. Next leaf: actual InputFieldElement action-dispatch audit, with reproductions before edits.
+- language_menu: completion and inline input routing. Next leaf: bounded UTF-8 field shaping and portable catalog-derived fixture chords.
 - doc_parser: CSV pending-cell Save/close/tab-switch/recovery correctness. Own CSV model/actions and surgical save/close hooks; retain tab UUID across asynchronous operations.
-- undo_readonly: selected rich Tab history, then macro playback context audit. Own macro replay entry and new focused tests; report reproduced scope before changing behavior.
+- undo_readonly: macro playback context batch ready; next leaf: File menu actions backed by existing tab helpers and safe native external launching.
 
 Shared-file edits are surgical, re-read before integration. Agent branches are applied by commit, excluding conflicting changelog numbering; root gates the combined tree before committing. Rust text changes preserve encoding/EOL, Unicode and read-only behavior. Native runtime evidence is recorded separately from headless TestWindow evidence.
 
@@ -28,3 +28,5 @@ Shared-file edits are surgical, re-read before integration. Agent branches are a
 - 2026-10-10: reviewed CSV pending-cell fec4d0c/e257957 integrated; 1325 units + 1 integration passed, 8 ignored; build/clippy passed with no new touched-code warnings. Save/close/switch now include pending text; G3 remains open for recovery.
 
 - 2026-10-10: View Tab menu and actions implemented from behavior-only oracle review; 1332 units + 1 integration passed,8 ignored; build/clippy passed. G11 met; G7 remains open for broader parity. Inline crash/focus and macro context branches are ready for integration; CSV recovery is active.
+
+- 2026-10-10: reviewed inline input focus/crash ec8869b delta integrated; 1339 units + 1 integration passed,8 ignored; build/clippy passed with no new touched-code warnings. G6 met for real headless routing; native checks remain G8. Macro context integration is next; bounded shaping, CSV recovery and File menu branches continue.

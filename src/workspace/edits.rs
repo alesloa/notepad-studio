@@ -659,6 +659,7 @@ impl Workspace {
             }
             InputFocus::Goto => {
                 self.commit_goto_line(cx);
+                if !self.goto_state.open { window.focus(&self.focus_handle, cx); }
             }
             InputFocus::FifQuery
             | InputFocus::FifReplacement
@@ -1104,12 +1105,11 @@ impl Workspace {
     /// no-op (the bar stays open so the user can correct it).
     pub(crate) fn commit_goto_line(&mut self, cx: &mut Context<Self>) {
         let trimmed = self.goto_state.text.trim();
-        let Ok(line_one_based) = trimmed.parse::<usize>() else {
+        let Some(line_one_based) = trimmed.parse::<usize>().ok().filter(|line| *line > 0) else {
+            self.set_status("Go to Line needs a positive line number");
+            cx.notify();
             return;
         };
-        if line_one_based == 0 {
-            return;
-        }
         let total = self.buffer().rope.len_lines().max(1);
         let line = (line_one_based - 1).min(total - 1);
         let target = self.buffer().rope.line_to_byte(line);

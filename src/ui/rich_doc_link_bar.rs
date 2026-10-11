@@ -43,6 +43,7 @@ pub(crate) fn rich_doc_link_bar(
         )
         .child(
             div()
+                .debug_selector(|| "rich-link-input".into())
                 .flex()
                 .flex_1()
                 .max_w(rems(420. / 16.))
@@ -60,6 +61,7 @@ pub(crate) fn rich_doc_link_bar(
                     click_workspace.update(cx, |w, cx| {
                         w.focus_input(InputFocus::RichDocLinkUrl, window, cx)
                     });
+                    window.prevent_default();
                 })
                 .child(InputFieldElement {
                     workspace: workspace.clone(),

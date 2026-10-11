@@ -38,6 +38,7 @@ pub(crate) fn rich_doc_color_bar(
 
     // Hex input box.
     let hex_input = div()
+        .debug_selector(|| "rich-color-input".into())
         .flex()
         .w(rems(110. / 16.))
         .h(rems(22. / 16.))
@@ -57,6 +58,7 @@ pub(crate) fn rich_doc_color_bar(
             click_workspace.update(cx, |w, cx| {
                 w.focus_input(InputFocus::RichDocColorHex, window, cx)
             });
+            window.prevent_default();
         })
         .child(InputFieldElement {
             workspace: workspace.clone(),

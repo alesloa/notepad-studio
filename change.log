@@ -228,6 +228,10 @@ v0.0.5 — current
         preserves the selected document and its edits. Open Folder as
         Workspace is also available in the Shortcut Mapper.
 
+    60. Inline text fields handle keyboard editing, Enter and Escape reliably.
+        Go to Line returns focus after jumping and explains invalid input.
+        Multiline field contents no longer crash display shaping.
+
   v0.1.0 — syntax & language:
 
     1. Tree-sitter syntax highlighting for 25 modes: Rust, Python, C,

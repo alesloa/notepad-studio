@@ -321,6 +321,7 @@ fn inline_create_row(
         .child(
             div()
                 .id(SharedString::from("folder-panel-inline-create-input"))
+                .debug_selector(|| "folder-draft-input".into())
                 .track_focus(&snap.focus)
                 .flex()
                 .flex_1()

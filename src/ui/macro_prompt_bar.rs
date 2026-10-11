@@ -40,6 +40,7 @@ pub(crate) fn macro_prompt_bar(
         )
         .child(
             div()
+                .debug_selector(|| "macro-input".into())
                 .flex()
                 .flex_1()
                 .max_w(rems(360. / 16.))
@@ -57,6 +58,7 @@ pub(crate) fn macro_prompt_bar(
                     click_workspace.update(cx, |w, cx| {
                         w.focus_input(InputFocus::MacroPrompt, window, cx)
                     });
+                    window.prevent_default();
                 })
                 .child(InputFieldElement {
                     workspace: workspace.clone(),

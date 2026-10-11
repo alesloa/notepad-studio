@@ -37,6 +37,7 @@ pub(crate) fn tab_rename_bar(
         )
         .child(
             div()
+                .debug_selector(|| "tab-rename-input".into())
                 .flex()
                 .flex_1()
                 .max_w(rems(360. / 16.))
@@ -54,6 +55,7 @@ pub(crate) fn tab_rename_bar(
                     click_workspace.update(cx, |w, cx| {
                         w.focus_input(InputFocus::TabRename, window, cx)
                     });
+                    window.prevent_default();
                 })
                 .child(InputFieldElement {
                     workspace: workspace.clone(),

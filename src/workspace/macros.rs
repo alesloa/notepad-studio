@@ -22,6 +22,8 @@ use crate::actions::{
     EditPageDown, EditPageUp, EditPaste, EditRedo, EditScrollLineDown, EditScrollLineUp,
     EditSelectAll, EditStreamComment, EditToggleOvertype, EditTrimTrailingWs, EditUndo,
     EditUppercase, MacroPlayback, MacroRunMultipleTimes,
+    EditTrimLeadingWs, EditTrimLeadingAndTrailingWs, EditEolToSpace,
+    EditRemoveUnnecessaryBlankAndEol, EditTabToSpace, EditSpaceToTabAll, EditSpaceToTabLeading,
     MacroRunSaved, MacroSaveCurrent, MacroStartRecording, MacroStartStopRecording,
     MacroStopRecording, MoveDocEnd, MoveDocStart, MoveDown, MoveLeft, MoveLineEnd, MoveLineStart,
     MoveRight, MoveUp, MoveWordLeft, MoveWordRight, SelectDocEnd, SelectDocStart, SelectDown,
@@ -168,6 +170,17 @@ impl Workspace {
                 self.insert_blank_line_below(&EditInsertBlankLineBelow, window, cx)
             }
             MacroEvent::TrimTrailingWs => self.trim_trailing_ws(&EditTrimTrailingWs, window, cx),
+            MacroEvent::TrimLeadingWs => self.trim_leading_ws(&EditTrimLeadingWs, window, cx),
+            MacroEvent::TrimLeadingAndTrailingWs => {
+                self.trim_leading_and_trailing_ws(&EditTrimLeadingAndTrailingWs, window, cx)
+            }
+            MacroEvent::EolToSpace => self.eol_to_space(&EditEolToSpace, window, cx),
+            MacroEvent::RemoveUnnecessaryBlankAndEol => {
+                self.remove_unnecessary_blank_and_eol(&EditRemoveUnnecessaryBlankAndEol, window, cx)
+            }
+            MacroEvent::TabToSpace => self.tab_to_space(&EditTabToSpace, window, cx),
+            MacroEvent::SpaceToTabAll => self.space_to_tab_all(&EditSpaceToTabAll, window, cx),
+            MacroEvent::SpaceToTabLeading => self.space_to_tab_leading(&EditSpaceToTabLeading, window, cx),
             MacroEvent::Cut => self.cut(&EditCut, window, cx),
             MacroEvent::Copy => self.copy(&EditCopy, window, cx),
             MacroEvent::Paste => self.paste(&EditPaste, window, cx),

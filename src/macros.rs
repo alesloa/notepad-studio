@@ -30,6 +30,10 @@ pub(crate) use playback_fixture::override_for_test as override_playback_for_test
 #[cfg(test)]
 pub(crate) use playback_fixture::override_execution_for_test;
 
+#[cfg(test)]
+#[path = "blank_ops_macro_tests.rs"]
+mod blank_ops_macro_tests;
+
 /// Events captured during recording. Each variant maps onto a single
 /// keyboard-driven editor action. Replay dispatches these by calling the
 /// matching `Workspace` method directly (not via gpui action dispatch) so
@@ -59,6 +63,13 @@ pub(crate) enum MacroEvent {
     InsertBlankLineAbove,
     InsertBlankLineBelow,
     TrimTrailingWs,
+    TrimLeadingWs,
+    TrimLeadingAndTrailingWs,
+    EolToSpace,
+    RemoveUnnecessaryBlankAndEol,
+    TabToSpace,
+    SpaceToTabAll,
+    SpaceToTabLeading,
     Cut,
     Copy,
     Paste,

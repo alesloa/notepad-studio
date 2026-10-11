@@ -591,6 +591,9 @@ v0.0.5 — current
     150. Find Next/Previous and F3/Shift+F3 keep their explicit directions
          regardless of the Find dialog's Backward option. The primary
          button and Enter follow that option; Shift reverses them once.
+    151. Every Blank Operations command can now be recorded and replayed
+         in saved macros. Playback keeps each command's current selection
+         and tab-width behavior and undoes the complete macro in one step.
 
   v0.1.0 — syntax & language:
 

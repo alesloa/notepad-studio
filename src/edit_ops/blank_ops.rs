@@ -13,6 +13,8 @@
 //   Notepad_plus.cpp:1343 wsTabConvert (column-aware tab/space conversion)
 //   Notepad_plus.cpp:1628 doTrim (regex-driven trim)
 //   Notepad_plus.cpp:1684 eol2ws  (calls SCI_LINESJOIN — see below)
+//   NppCommands.cpp:4413–4415, 4464–4471, 4607 — record command identity
+//   for every Blank Operations command, including commands with no edits.
 //
 // SCI_LINESJOIN semantics (Scintilla `Editor::LinesJoin`): walks bytes,
 // removes each EOL char in turn; if the previous non-EOL byte was a
@@ -45,6 +47,7 @@ impl Workspace {
         _w: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        crate::macros::record(crate::macros::MacroEvent::TrimLeadingWs);
         // PowerEditor/src/Notepad_plus.cpp:1651–1704 — trim only expanded
         // selected physical lines; rectangular selection is unsupported.
         let Some(tab) = self.tabs.get(self.active) else { return; };
@@ -94,6 +97,7 @@ impl Workspace {
         _w: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        crate::macros::record(crate::macros::MacroEvent::TrimLeadingAndTrailingWs);
         trim_both_scope::apply(self, cx);
     }
 
@@ -103,6 +107,7 @@ impl Workspace {
         _w: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        crate::macros::record(crate::macros::MacroEvent::EolToSpace);
         run_full_buffer_transform(self, cx, |s| Ok(eol_to_space_lines_join(s)));
     }
 
@@ -112,6 +117,7 @@ impl Workspace {
         _w: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        crate::macros::record(crate::macros::MacroEvent::RemoveUnnecessaryBlankAndEol);
         // NPP IDM_EDIT_TRIMALL: trim leading+trailing per line, then apply
         // SCI_LINESJOIN. Composed transform.
         run_full_buffer_transform(self, cx, |s| {
@@ -126,6 +132,7 @@ impl Workspace {
         _w: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        crate::macros::record(crate::macros::MacroEvent::TabToSpace);
         let width = crate::settings::snapshot().tab_width.max(1);
         run_full_buffer_transform(self, cx, |s| {
             tab_to_space(s, width).ok_or_else(|| {
@@ -140,6 +147,7 @@ impl Workspace {
         _w: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        crate::macros::record(crate::macros::MacroEvent::SpaceToTabAll);
         let width = crate::settings::snapshot().tab_width.max(1);
         run_full_buffer_transform(self, cx, |s| Ok(space_to_tab(s, width, false)));
     }
@@ -150,6 +158,7 @@ impl Workspace {
         _w: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        crate::macros::record(crate::macros::MacroEvent::SpaceToTabLeading);
         let width = crate::settings::snapshot().tab_width.max(1);
         run_full_buffer_transform(self, cx, |s| Ok(space_to_tab(s, width, true)));
     }

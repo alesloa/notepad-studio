@@ -40,7 +40,9 @@ fn stream_syntax_completion_defers_parsing_the_inactive_document() {
             let revision = w.tabs[1].buffer.raw_revision.clone();
             let uuid = w.tabs[1].session_id;
             let selection = (w.tabs[1].selection.anchor, w.tabs[1].selection.head);
+            crate::buffer::highlight_tests::reset_flatten_calls();
             finish_streaming(w, completed, cx);
+            assert_eq!(crate::buffer::highlight_tests::flatten_calls(), 0, "EOF must not flatten on the UI thread");
             assert_eq!(w.active, 0);
             assert!(w.tabs[0].buffer.rope.is_instance(&untouched));
             assert!(w.tabs[0].buffer.highlights.is_empty());

@@ -299,19 +299,20 @@ impl Buffer {
 
     /// Re-run the tree-sitter highlighter against the rope contents and
     /// store the resulting spans. Cheap no-op when `language` is `None`.
-    /// Called from `Workspace::apply_edit` after every rope mutation and
-    /// once on file load.
+    /// Used for initial file load and restoration. Post-edit refresh runs
+    /// through Workspace's background syntax controller.
     pub(crate) fn reparse_highlights(&mut self) {
         let Some(lang) = self.language else {
             self.highlights.clear();
             return;
         };
-        let source = self.rope.to_string();
         let snap = crate::settings::snapshot();
-        if crate::syntax::should_skip_syntax(source.len() as u64, &snap) {
+        if crate::syntax::should_skip_syntax(self.rope.len_bytes() as u64, &snap) {
             self.highlights.clear();
             return;
         }
+        #[cfg(test)] highlight_tests::record_flatten();
+        let source = self.rope.to_string();
         self.highlights = crate::syntax::highlight(lang, &source);
     }
 
@@ -1377,3 +1378,7 @@ mod savepoint_tests {
 #[cfg(test)]
 #[path = "buffer_annotation_tests.rs"]
 mod annotation_tests;
+
+#[cfg(test)]
+#[path = "buffer_highlight_tests.rs"]
+pub(crate) mod highlight_tests;

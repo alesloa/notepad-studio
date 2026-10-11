@@ -410,6 +410,9 @@ v0.0.5 — current
     101. Streamed files finish syntax highlighting in background workers, even
          after switching tabs. Closed windows retire late loading callbacks.
 
+    102. Avoid copying the whole document when syntax highlighting is disabled
+         by the configured large-file threshold or the hard size ceiling.
+
   v0.1.0 — syntax & language:
 
     1. Tree-sitter syntax highlighting for 25 modes: Rust, Python, C,

@@ -20,7 +20,8 @@ A lightweight, cross-platform text editor inspired by Notepad++, written in Rust
 > background, with Escape cancellation and one Undo per completed edit.
 > This includes costly annotations and a few very long selected lines.
 > Post-edit and streamed-file completion syntax highlighting run in background
-> workers, with per-tab coalescing and bounded output.
+> workers, with per-tab coalescing and bounded output. Syntax size limits use
+> the Rope byte count before allocating a full text copy.
 
 Optional [API completion definitions](docs/api-completion.md) supply language
 names for Function Completion and signatures for parameter hints, including

@@ -14,6 +14,7 @@ impl Workspace {
         cx: &mut Context<Self>,
     ) {
         self.close_autocomplete(cx);
+        self.close_function_hint(cx);
         let offset = self.offset_at_position(event.position);
         let shift = event.modifiers.shift;
         let alt = event.modifiers.alt;

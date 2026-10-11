@@ -76,6 +76,7 @@ impl Workspace {
             return false;
         }
         self.close_autocomplete(cx);
+        self.close_function_hint(cx);
         // Old saved macros can contain history commands; replay them on their
         // existing timeline instead of placing Undo/Redo inside an open group.
         let grouped = !events.iter().any(|event| matches!(event, MacroEvent::Undo | MacroEvent::Redo));

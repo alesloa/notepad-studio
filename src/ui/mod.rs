@@ -1,5 +1,6 @@
 pub(crate) mod about_dialog;
 pub(crate) mod autocomplete_popup;
+pub(crate) mod function_hint;
 pub(crate) mod character_panel;
 pub(crate) mod chrome;
 pub(crate) mod clipboard_history_panel;

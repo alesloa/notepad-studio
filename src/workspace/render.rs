@@ -34,6 +34,7 @@ impl Render for Workspace {
         self.retire_ime_composition(window, cx);
         let theme = self.theme();
         let prefs = crate::settings::snapshot();
+        self.refresh_function_hint_for_frame(window, cx);
         // Sync the OS title bar with the active tab's path (or "new N" label).
         // NPP format: `*<path or label> - Notepad Studio`, asterisk only when dirty.
         // `MISC. ▸ Show only filename in title bar` swaps the full-path body
@@ -371,6 +372,8 @@ impl Render for Workspace {
             .on_action(cx.listener(Self::autocomplete_function))
             .on_action(cx.listener(Self::autocomplete_function_and_word))
             .on_action(cx.listener(Self::autocomplete_function_params))
+            .on_action(cx.listener(Self::function_hint_previous))
+            .on_action(cx.listener(Self::function_hint_next))
             .on_action(cx.listener(Self::zoom_in))
             .on_action(cx.listener(Self::zoom_out))
             .on_action(cx.listener(Self::zoom_reset))
@@ -830,6 +833,9 @@ impl Render for Workspace {
                 // The list resolves current caret geometry during deferred
                 // prepaint; outside clicks dismiss and reach their target.
                 this.child(autocomplete_popup(&theme, cx.entity().clone()))
+            })
+            .when(self.function_hint_visible(), |this| {
+                this.child(crate::ui::function_hint::function_hint(&theme, cx.entity().clone()))
             })
     }
 }

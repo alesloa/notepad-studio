@@ -446,6 +446,7 @@ impl Workspace {
             HistoryTarget::Editor => {}
         }
         crate::macros::record(crate::macros::MacroEvent::Undo);
+        self.close_function_hint(cx);
         let Some(entry) = self.active_tab_mut().undo_stack.pop() else {
             return;
         };
@@ -478,6 +479,7 @@ impl Workspace {
             HistoryTarget::Editor => {}
         }
         crate::macros::record(crate::macros::MacroEvent::Redo);
+        self.close_function_hint(cx);
         let Some(entry) = self.active_tab_mut().redo_stack.pop() else {
             return;
         };
@@ -1196,6 +1198,7 @@ impl Workspace {
         if tab.view_mode != next {
             tab.view_mode = next;
             self.close_autocomplete(cx);
+            self.close_function_hint(cx);
             cx.notify();
         }
     }
@@ -1244,6 +1247,7 @@ impl Workspace {
         if tab.view_mode != next {
             tab.view_mode = next;
             self.close_autocomplete(cx);
+            self.close_function_hint(cx);
             cx.notify();
         }
     }
@@ -1348,6 +1352,7 @@ impl Workspace {
         if tab.view_mode != next {
             tab.view_mode = next;
             self.close_autocomplete(cx);
+            self.close_function_hint(cx);
             cx.notify();
         }
     }

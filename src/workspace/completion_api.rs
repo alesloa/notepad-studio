@@ -4,7 +4,7 @@ use std::collections::VecDeque;
 use std::path::PathBuf;
 use std::sync::Arc;
 
-use gpui::{AppContext, Context, Subscription, Task, Window};
+use gpui::{AppContext, Context, Subscription, Task, Window, WindowId};
 use uuid::Uuid;
 
 use crate::api_registry::{ApiError, ApiRegistry};
@@ -18,9 +18,9 @@ use super::Workspace;
 const MAX_CACHED_LANGUAGES: usize = 4;
 
 #[derive(Clone)]
-pub(super) struct ApiSnapshot {
-    pub(super) generation: Uuid,
-    pub(super) registry: Arc<ApiRegistry>,
+pub(crate) struct ApiSnapshot {
+    pub(crate) generation: Uuid,
+    pub(crate) registry: Arc<ApiRegistry>,
 }
 
 struct ApiSlot {
@@ -29,16 +29,22 @@ struct ApiSlot {
 }
 
 #[derive(Clone)]
+enum ApiPurpose { Completion, FunctionHint }
+
+#[derive(Clone)]
 struct ApiRequest {
     id: Uuid,
+    window: WindowId,
     epoch: Uuid,
     language: Option<LanguageId>,
     kind: CandidateKind,
     manual: bool,
+    purpose: ApiPurpose,
     tab: Uuid,
     caret: usize,
     anchor: usize,
     revision: ContentRevision,
+    rich_revision: Option<ContentRevision>,
     rope: ropey::Rope,
     popup: Option<Uuid>,
     status: Option<String>,
@@ -173,6 +179,23 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        self.request_language_api(kind, manual, ApiPurpose::Completion, window, cx);
+    }
+
+    pub(super) fn api_result_cached(&self, language: Option<LanguageId>) -> bool {
+        self.completion_api.contains(language)
+    }
+
+    pub(super) fn api_load_pending(&self, language: Option<LanguageId>) -> bool {
+        self.completion_api.pending.as_ref().is_some_and(|request| request.language == language)
+    }
+
+    pub(super) fn request_hint_api(&mut self, manual: bool, window: &mut Window, cx: &mut Context<Self>) -> bool {
+        self.request_language_api(CandidateKind::Function(self.buffer().language), manual, ApiPurpose::FunctionHint, window, cx)
+    }
+
+    fn request_language_api(&mut self, kind: CandidateKind, manual: bool, purpose: ApiPurpose,
+        window: &mut Window, cx: &mut Context<Self>) -> bool {
         let language = self.buffer().language;
         self.completion_api.touch(language);
         if !manual
@@ -183,24 +206,27 @@ impl Workspace {
                     .as_ref()
                     .is_some_and(|request| request.language == language))
         {
-            return;
+            return true;
         }
         // Unit fixtures have no directory unless a scoped synthetic one is supplied.
         let Some(directory) = api_directory() else {
-            return;
+            return false;
         };
         let path = directory.join(api_filename(language));
         self.completion_api.task = None;
         let mut request = ApiRequest {
             id: Uuid::new_v4(),
-            epoch: self.completion_api.epoch,
+            window: window.window_handle().window_id(),
+            epoch: if matches!(purpose, ApiPurpose::FunctionHint) { self.function_hint_epoch() } else { self.completion_api.epoch },
             language,
             kind,
             manual,
+            purpose,
             tab: self.active_tab_mut().session_id,
             caret: self.selection().head,
             anchor: self.selection().anchor,
             revision: self.buffer().raw_revision.clone(),
+            rich_revision: self.buffer().rich_doc.as_ref().map(|payload| payload.revision.clone()),
             rope: self.buffer().rope.clone(),
             popup: self.autocomplete.as_ref().map(|state| state.session_id),
             status: self.status_message.clone(),
@@ -232,8 +258,12 @@ impl Workspace {
                 }
             },
         ));
-        if manual && self.autocomplete.is_none() {
+        if manual && match request.purpose {
+            ApiPurpose::Completion => self.autocomplete.is_none(),
+            ApiPurpose::FunctionHint => !self.function_hint_visible(),
+        } {
             self.set_status(format!("Loading API definitions from {}…", path.display()));
+            if matches!(request.purpose, ApiPurpose::FunctionHint) { self.own_function_hint_loading_status(); }
             cx.notify();
         }
         request.status = self.status_message.clone();
@@ -246,11 +276,17 @@ impl Workspace {
                 workspace.finish_completion_api(request, path, result, window, cx);
             });
         }));
+        true
     }
 
     fn api_request_context_valid(&self, request: &ApiRequest, window: &Window) -> bool {
-        self.completion_api.epoch == request.epoch
+        (match request.purpose {
+            ApiPurpose::Completion => self.completion_api.epoch == request.epoch
+                && self.autocomplete.as_ref().map(|state| state.session_id) == request.popup,
+            ApiPurpose::FunctionHint => self.function_hint_epoch() == request.epoch && !self.is_composing_text(window),
+        })
             && window.is_window_active()
+            && window.window_handle().window_id() == request.window
             && self.focus_handle.is_focused(window)
             && self.input_focus(window) == InputFocus::Editor
             && self.autocomplete_editable()
@@ -258,11 +294,11 @@ impl Workspace {
                 tab.session_id == request.tab
                     && tab.buffer.language == request.language
                     && tab.buffer.raw_revision == request.revision
+                    && tab.buffer.rich_doc.as_ref().map(|payload| &payload.revision) == request.rich_revision.as_ref()
                     && tab.buffer.rope.is_instance(&request.rope)
                     && tab.selection.head == request.caret
                     && tab.selection.anchor == request.anchor
             })
-            && self.autocomplete.as_ref().map(|state| state.session_id) == request.popup
     }
 
     fn finish_completion_api(
@@ -299,7 +335,22 @@ impl Workspace {
                 Some(error.to_string())
             }
         };
-        if !self.api_request_context_valid(&request, window) {
+        let context_valid = self.api_request_context_valid(&request, window);
+        if matches!(request.purpose, ApiPurpose::FunctionHint) {
+            if context_valid && request.manual && self.status_message == request.status {
+                if let Some(error) = error {
+                    self.set_status(format!("Cannot load function hints from {}: {error}. The last valid definitions remain available; the file was left unchanged.", path.display()));
+                    cx.notify();
+                } else if self.loaded_api_snapshot(request.language).is_none() {
+                    self.set_status(format!("Function hint: no API definitions at {}. Add a function with an Overload to this language XML file.", path.display()));
+                    cx.notify();
+                }
+            }
+            self.function_hint_registry_changed(window, cx);
+            return;
+        }
+        self.function_hint_registry_changed(window, cx);
+        if !context_valid {
             return;
         }
         let previous_status = self.status_message.clone();
@@ -368,3 +419,7 @@ impl Workspace {
 #[cfg(test)]
 #[path = "completion_api_loader_tests.rs"]
 mod tests;
+
+#[cfg(test)]
+#[path = "call_hint_api_tests.rs"]
+mod hint_tests;

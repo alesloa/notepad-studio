@@ -462,6 +462,11 @@ impl Workspace {
         // runs. Cheap to check and idempotent when no popup is active.
         if self.autocomplete.is_some() {
             self.close_autocomplete(cx);
+            self.close_function_hint(cx);
+            return;
+        }
+        if self.function_hint_active() {
+            self.close_function_hint(cx);
             return;
         }
         // Paste-format chooser modal — next priority. It's a true modal
@@ -752,7 +757,7 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if target != InputFocus::Editor { self.close_autocomplete(cx); }
+        if target != InputFocus::Editor { self.close_autocomplete(cx); self.close_function_hint(cx); }
         self.ensure_dialog_focus_handles(cx);
         match target {
             InputFocus::FindQuery => window.focus(&self.find_focus, cx),
@@ -915,6 +920,7 @@ impl Workspace {
             return;
         };
         self.close_autocomplete(cx);
+        self.close_function_hint(cx);
         if let Some(offsets) = self.find_state.rich_doc_block_offsets.clone() {
             let payload_opt = self.tabs[self.active].buffer.rich_doc.as_ref();
             let (Some(anchor_pos), Some(cursor_pos)) = (

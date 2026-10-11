@@ -15,6 +15,7 @@ mod api_registry;
 mod app;
 mod assets;
 mod buffer;
+mod call_context;
 mod changelog;
 mod clipboard_history;
 mod clipboard_rich;

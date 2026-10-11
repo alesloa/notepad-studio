@@ -5,9 +5,9 @@ Continue the authorized clean-room Rust/gpui work. The primary acceptance ledger
 ## Current ownership
 
 - Root: review branch commits, integrate exact source hunks, run the full main-tree build/test/clippy gate, update records and commit each batch. Pure API registry and call-context helpers remain root-owned.
-- language_menu: completion and inline input routing. Brief-list behavior integrated; API loading/manual Function lists integrated; next leaf: parameter hint UI. Root owns the pure registry parser.
+- language_menu: completion and inline input routing. Brief-list behavior integrated; API loading/manual Function lists integrated; parameter hints integrated; next leaf: consistent regex replacement and guarded background planning. Root owns the pure registry parser and completion/IME follow-ups.
 - doc_parser: CSV draft recovery integrated; clean-grid focus integrated and first-character input integrated; Source/CSV IME composition integrated; next leaf: asynchronous Exit recovery and responsiveness. Own recovery helpers/tests, preserve tabUUID and newer focus.
-- undo_readonly: File menu commands integrated; context Reload integrated; submenu/Rename guards integrated; next leaf: complete menu/catalog/behavior inventory.
+- undo_readonly: File menu commands integrated; context Reload integrated; submenu/Rename guards integrated; complete inventory integrated; next leaf: static-menu catalog completeness and actual Shortcut Mapper routing.
 
 Shared-file edits are surgical, re-read before integration. Agent branches are applied by commit, excluding conflicting changelog numbering; root gates the combined tree before committing. Rust text changes preserve encoding/EOL, Unicode and read-only behavior. Native runtime evidence is recorded separately from headless TestWindow evidence.
 
@@ -66,3 +66,5 @@ Shared-file edits are surgical, re-read before integration. Agent branches are a
 - 2026-10-10: Edit menu line indentation and duplication separated from keyboardTab/CtrlD.19 new tests;1567units+1integration/8ignored,build/clippy pass. Foreground indentation4096-row cap refuses atomically; larger background batches and block-selection parity remain open. Release12MiB core3.5us indent/1.3us duplicate;4096-row plan+Rope median6.886ms/p9518.421ms, no native latency claim.
 
 - 2026-10-10: portable GPUI golden ratio preserves exact float bits/const/pixel/rem behavior. Reviewed3254c04 integrated;1567units+3integration/8ignored,Windowsbuild/clippy pass. Linux1.99 leaf Clippy and geometry tests pass; current combined Linux/native/macOS checks remain open.
+
+- 2026-10-10: original parameter hints integrated;32 new tests,1599units+3integration/8ignored,Windowsbuild/clippy pass,no new warnings. Fresh bounded background scan/API replies, active argument/overload/caret+list placement and IME/tab/frame lifecycle covered. Ordinary manual-hint dismissal status, IME-final completion lists, native visual/currentMac checks remain follow-ups. Regex, catalog and asyncExit branches continue.

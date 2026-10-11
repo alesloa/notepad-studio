@@ -197,6 +197,17 @@ impl Element for CaretPopup {
     }
 }
 
+/// Fresh geometry for a simultaneous call hint; no previous-frame bounds.
+pub(crate) fn occupied_bounds(workspace: &Workspace, window: &mut Window) -> Option<Bounds<Pixels>> {
+    if !workspace.autocomplete_context_valid(window) { return None; }
+    let state = workspace.autocomplete.as_ref()?;
+    let caret = workspace.autocomplete_caret_bounds()?;
+    let viewport = workspace.viewport.bounds.intersect(&Bounds::new(Point::default(), window.viewport_size()));
+    let width = candidate_width(&state.candidates, window);
+    popup_placement(caret, viewport, width, state.candidates.len(), f32::from(window.rem_size()))
+        .map(|placement| placement.bounds)
+}
+
 fn candidate_width(candidates: &[String], window: &mut Window) -> Pixels {
     let font = window.text_style().font();
     let font_size = window.rem_size() * (12. / 16.);

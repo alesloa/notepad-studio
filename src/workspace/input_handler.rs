@@ -1232,6 +1232,7 @@ impl EntityInputHandler for Workspace {
                             let advance = typed.len_utf8();
                             let new_pos = cursor + advance;
                             self.active_tab_mut().selection.collapse_to(new_pos);
+                            self.update_function_hint_after_input(new_text, window, cx);
                             cx.notify();
                             return;
                         }
@@ -1251,6 +1252,7 @@ impl EntityInputHandler for Workspace {
                             // the two pair chars.
                             let between = cursor + open.len_utf8();
                             self.active_tab_mut().selection.collapse_to(between);
+                            self.update_function_hint_after_input(new_text, window, cx);
                             if self.find_state.open && !self.find_state.query.is_empty() {
                                 self.refresh_matches();
                             }
@@ -1286,6 +1288,7 @@ impl EntityInputHandler for Workspace {
                             let tab = self.active_tab_mut();
                             tab.selection.anchor = inner_start;
                             tab.selection.head = inner_end;
+                            self.update_function_hint_after_input(new_text, window, cx);
                             if self.find_state.open && !self.find_state.query.is_empty() {
                                 self.refresh_matches();
                             }
@@ -1386,6 +1389,7 @@ impl EntityInputHandler for Workspace {
                 {
                     self.maybe_auto_trigger_autocomplete(window, cx);
                 }
+                self.update_function_hint_after_input(new_text, window, cx);
             }
         }
     }
@@ -1399,6 +1403,7 @@ impl EntityInputHandler for Workspace {
         cx: &mut Context<Self>,
     ) {
         self.close_autocomplete(cx);
+        self.close_function_hint(cx);
         self.retire_ime_composition(window, cx);
         if self.replace_ime_text(range_utf16.clone(), new_text, new_selected_range_utf16, true, window, cx) {
             return;

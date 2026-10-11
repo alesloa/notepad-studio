@@ -46,7 +46,25 @@ Function Completion inserts the selected name only. Function and Word
 Completion also includes identifiers from the current buffer. The environment's
 `ignoreCase` controls ASCII case matching; `additionalWordChar` adds characters
 such as `.` to identifiers. Return types, descriptions and ordered overloads
-are retained for parameter hints; the parameter-hint popup is still pending.
+appear in parameter hints. Edit → Auto-Completion → Function Parameters Hint
+(`Ctrl+Shift+Space`) shows the open call's signature. Previous Hint (`Alt+Up`)
+and Next Hint (`Alt+Down`), or the popup arrows, cycle through overloads.
+The active argument is highlighted; long signatures show a bounded window
+around that parameter. The popup stays inside the editor pane and avoids the
+caret line and completion list.
+
+With Function Parameters Hint enabled in Preferences, committed typing of
+the call opener or parameter separator can open a hint. An existing hint
+updates as the call changes. IME preedit hides hints; final Source commits
+and unmarking can open them again. Escape, focus/window changes, Source/Raw
+view transitions, tab changes, cursor movement and history/macro replay
+dismiss hints. Hint navigation does not edit the document or add Undo entries.
+
+Call scanning uses fresh text from the document's start on a background
+executor. It scans at most 8 MiB before the caret, with nesting limited to
+128 levels, and does not guess the lexical state of a truncated window.
+A manual request reports when a limit prevents a hint. Completion list
+auto-triggering after an IME final commit remains a separate behavior.
 
 Invoke an Edit → Auto-Completion command to reload an edited definition file.
 Reads and parsing run in the background. Original static completion, or the

@@ -6,8 +6,8 @@
 //   * Function Completion — optional per-language API definitions, with
 //     original static keywords and common builtins while a file loads or is absent.
 //   * Function and Word Completion — merges both candidate pools.
-//   * Function Parameters Hint — toasts a status message. Real call-tip
-//     popup integration remains pending; loaded registries retain signatures.
+//   * Function Parameters Hint — bounded background call scanning and a
+//     themed signature popup live in `call_hint` and `ui::function_hint`.
 //
 // Settings wiring map (so future readers don't have to grep):
 //   * `autocompletion_insert_with_tab` — gates Tab acceptance, lives in
@@ -434,21 +434,15 @@ impl Workspace {
     }
 
     /// Edit ▸ Auto-Completion ▸ Function Parameters Hint (NPP
-    /// `IDM_EDIT_FUNCCALLTIP`). Surface an actionable notice until the
-    /// parameter-hint popup integration is available.
+    /// `IDM_EDIT_FUNCCALLTIP`). Load optional signatures without opening
+    /// a completion list, then scan the current call in the background.
     pub(crate) fn autocomplete_function_params(
         &mut self,
         _: &EditAutocompleteFuncParams,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if !self.focus_handle.is_focused(window) || self.input_focus(window) != InputFocus::Editor {
-            self.close_autocomplete(cx);
-            return;
-        }
-        self.status_message =
-            Some("Function parameter hint popup is not yet implemented".to_string());
-        cx.notify();
+        self.show_function_hint(window, cx);
     }
 
     /// Close the popup. Idempotent — safe to call when no popup is up.

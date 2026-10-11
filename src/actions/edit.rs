@@ -64,15 +64,13 @@ gpui::actions!(
         BlockExtendDown,
         BlockExtendLeft,
         BlockExtendRight,
-        // Edit ▸ Auto-Completion submenu. NPP exposes four entries — Function,
-        // Word, Function + Word, and Parameters Hint. Notepad Studio implements
-        // Word completion fully (buffer-scan); the Function variants delegate
-        // to Word for v1 (no per-language API registry yet) and Parameters
-        // Hint surfaces a status-bar deferral notice.
+        // PowerEditor/src/Notepad_plus.rc:568-576 — completion and call hints.
         EditAutocompleteFunc,
         EditAutocompleteWord,
         EditAutocompleteFuncAndWord,
         EditAutocompleteFuncParams,
+        EditAutocompleteFuncParamsPrevious,
+        EditAutocompleteFuncParamsNext,
     ]
 );
 

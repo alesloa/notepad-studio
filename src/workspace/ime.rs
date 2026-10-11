@@ -108,7 +108,7 @@ impl Workspace {
         crate::macros::record(event);
     }
 
-    fn finish_ime_state(&mut self, mut state: ImeComposition, window: &Window, cx: &mut Context<Self>) {
+    fn finish_ime_state(&mut self, mut state: ImeComposition, window: &mut Window, cx: &mut Context<Self>) {
         if !state.valid(self, window) { return; }
         let ImeTarget::Source { before_revision, undo_index, prior_redo, .. } = &mut state.target else { return; };
         let Some(tab) = self.tabs.get_mut(self.active) else { return; };
@@ -123,11 +123,12 @@ impl Workspace {
         } else {
             let text = op.inserted.clone();
             self.record_ime_text(&text);
+            self.update_function_hint_after_input(&text, window, cx);
         }
         cx.notify();
     }
 
-    pub(super) fn finish_ime_composition(&mut self, window: &Window, cx: &mut Context<Self>) {
+    pub(super) fn finish_ime_composition(&mut self, window: &mut Window, cx: &mut Context<Self>) {
         if let Some(state) = self.ime_composition.take() { self.finish_ime_state(state, window, cx); }
     }
 

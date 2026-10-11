@@ -180,6 +180,8 @@ fn autocompletion_menu() -> Menu {
             MenuItem::action("Function and Word Completion", EditAutocompleteFuncAndWord),
             MenuItem::separator(),
             MenuItem::action("Function Parameters Hint", EditAutocompleteFuncParams),
+            MenuItem::action("Function Parameters Previous Hint", EditAutocompleteFuncParamsPrevious),
+            MenuItem::action("Function Parameters Next Hint", EditAutocompleteFuncParamsNext),
         ],
     }
 }

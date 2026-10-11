@@ -7,6 +7,8 @@
 
 pub(crate) mod autocomplete;
 mod completion_api;
+mod call_hint;
+pub(crate) use call_hint::HintSnapshot;
 mod block;
 mod close_tag;
 mod cursor;
@@ -395,6 +397,7 @@ pub(crate) struct Workspace {
     pub(crate) autocomplete_activation_subscription: Option<gpui::Subscription>,
     pub(crate) autocomplete_auto_trigger_suppressed: bool,
     completion_api: completion_api::CompletionApiCache,
+    function_hint: call_hint::FunctionHintRuntime,
     /// Per-tab CSV preview model. Built lazily the first time a `.csv` /
     /// `.tsv` tab enters preview mode and re-parsed only when the
     /// buffer's edit generation has changed. See
@@ -742,6 +745,7 @@ impl Workspace {
             autocomplete_activation_subscription: None,
             autocomplete_auto_trigger_suppressed: false,
             completion_api: completion_api::CompletionApiCache::default(),
+            function_hint: call_hint::FunctionHintRuntime::default(),
             csv_models: std::collections::HashMap::new(),
             csv_grid_blur_subscriptions: std::collections::HashMap::new(),
             csv_context_menu: None,

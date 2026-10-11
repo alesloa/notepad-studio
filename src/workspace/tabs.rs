@@ -49,6 +49,7 @@ impl Workspace {
         }
         if !crate::ui::csv_doc::actions::commit_cell_edit(self, cx) { return; }
         self.close_autocomplete(cx);
+        self.close_function_hint(cx);
         self.active = idx;
         self.touch_mru();
         self.last_lines.clear();
@@ -96,6 +97,7 @@ impl Workspace {
         tab.buffer.new_label = Some(label);
         self.tabs.push(tab);
         self.close_autocomplete(cx);
+        self.close_function_hint(cx);
         self.active = self.tabs.len() - 1;
         self.touch_mru();
         self.last_lines.clear();
@@ -212,6 +214,7 @@ impl Workspace {
         cx: &mut Context<Self>,
     ) {
         self.close_autocomplete(cx);
+        self.close_function_hint(cx);
         if self.tabs.is_empty() {
             if crate::settings::snapshot().tab_exit_on_last_close {
                 self.close_window_after_last_tab(window, cx);
@@ -260,6 +263,7 @@ impl Workspace {
     pub(crate) fn adopt_transferred_tab(&mut self, tab: Tab, cx: &mut Context<Self>) {
         self.tabs.push(tab);
         self.close_autocomplete(cx);
+        self.close_function_hint(cx);
         self.active = self.tabs.len() - 1;
         self.touch_mru();
         self.last_lines.clear();
@@ -314,6 +318,7 @@ impl Workspace {
             return;
         }
         self.close_autocomplete(cx);
+        self.close_function_hint(cx);
         let prompts = ClosePrompts::capture();
         cx.spawn_in(window, async move |this, cx| {
             for id in targets.into_iter().rev() {
@@ -514,7 +519,7 @@ impl Workspace {
         if idx >= self.tabs.len() {
             return;
         }
-        if on && idx == self.active { self.close_autocomplete(cx); }
+        if on && idx == self.active { self.close_autocomplete(cx); self.close_function_hint(cx); }
         self.tabs[idx].buffer.read_only = on;
         self.save_session(cx);
         cx.notify();
@@ -595,7 +600,7 @@ impl Workspace {
             return;
         }
         let Some(idx) = tab_index_of(&self.tabs, id) else { return };
-        if idx == self.active { self.close_autocomplete(cx); }
+        if idx == self.active { self.close_autocomplete(cx); self.close_function_hint(cx); }
         let Some(tab) = self.tabs.get(idx) else { return };
         if !tab.buffer.dirty {
             self.finish_reload(id, false, csv_focus, window, cx);
@@ -853,6 +858,7 @@ impl Workspace {
             .is_some_and(|label| label.starts_with("Recovered raw source "));
         self.tabs.push(Tab::from_closed(closed));
         self.close_autocomplete(cx);
+        self.close_function_hint(cx);
         self.active = self.tabs.len() - 1;
         self.touch_mru();
         self.last_lines.clear();
@@ -925,6 +931,7 @@ impl Workspace {
         }
         if !crate::ui::csv_doc::actions::commit_cell_edit(self, cx) { return; }
         self.close_autocomplete(cx);
+        self.close_function_hint(cx);
         self.active = target_idx;
         self.last_lines.clear();
         self.caret_visible = true;

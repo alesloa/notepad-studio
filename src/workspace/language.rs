@@ -85,6 +85,7 @@ impl Workspace {
             Ok(true) => {}
         }
         self.close_autocomplete(cx);
+        self.close_function_hint(cx);
         self.refresh_tag_match();
         self.last_lines.clear();
         self.set_status(format!("Language: {}", language.map(LanguageId::label).unwrap_or("None (Normal Text)")));

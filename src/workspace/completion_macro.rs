@@ -48,6 +48,7 @@ impl Workspace {
         cx: &mut Context<Self>,
     ) -> bool {
         self.close_autocomplete(cx);
+        self.close_function_hint(cx);
         let Some(tab) = self.tabs.get(self.active) else {
             return false;
         };

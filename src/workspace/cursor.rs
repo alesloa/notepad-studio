@@ -132,6 +132,7 @@ impl Workspace {
         // a batched run did not. Zed keeps highlighting async/incremental and
         // persistence off the edit path for exactly this reason.
         self.refresh_autocomplete_after_edit(cx);
+        self.invalidate_function_hint_after_edit(cx);
         self.last_lines.clear();
         self.caret_visible = true;
         self.status_message = None;
@@ -540,6 +541,7 @@ impl Workspace {
     /// cursor stays in sync, then notifies, in one call.
     pub(crate) fn commit_caret(&mut self, cx: &mut Context<Self>) {
         self.close_autocomplete(cx);
+        self.close_function_hint(cx);
         self.ensure_cursor_visible(cx);
         self.refresh_smart_highlight();
         self.refresh_tag_match();
@@ -554,6 +556,7 @@ impl Workspace {
 
     pub(crate) fn move_vertical(&mut self, delta: i32, extend: bool, cx: &mut Context<Self>) {
         self.close_autocomplete(cx);
+        self.close_function_hint(cx);
         self.clear_block_selection();
         let head = self.selection().head;
 

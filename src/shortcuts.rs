@@ -208,6 +208,9 @@ static CATALOG: &[ActionEntry] = &[
     row!(EditAutocompleteWord,        "Word Completion",              Some("IDM_EDIT_AUTOCOMPLETE_CURRENTFILE"), W, ["ctrl-enter"],       ["ctrl-enter"]),
     row!(EditAutocompleteFuncAndWord, "Function and Word Completion", EXTRA,                                     W, [],                   ["ctrl-alt-space"]),
     row!(EditAutocompleteFuncParams,  "Function Parameters Hint",     Some("IDM_EDIT_FUNCCALLTIP"),              W, ["ctrl-shift-space"], ["ctrl-shift-space"]),
+    // PowerEditor/src/Parameters.cpp:204-205 — calltip overload navigation.
+    row!(EditAutocompleteFuncParamsPrevious, "Function Parameters Previous Hint", Some("IDM_EDIT_FUNCCALLTIP_PREVIOUS"), W, ["alt-up"], ["alt-up"]),
+    row!(EditAutocompleteFuncParamsNext, "Function Parameters Next Hint", Some("IDM_EDIT_FUNCCALLTIP_NEXT"), W, ["alt-down"], ["alt-down"]),
 
     // --- Caret movement ---
     row!(MoveLeft,        "Move Left",                Some("SCI_CHARLEFT"),            W, ["left"],             ["left"]),

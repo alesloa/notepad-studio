@@ -309,6 +309,11 @@ v0.0.5 — current
    77. Portable GPUI geometry builds cleanly with newer Rust compilers while
        preserving the exact pixel and font-relative sizing.
 
+   78. Function Parameters Hint shows API signatures and the active argument.
+       Alt+Up/Down or popup arrows cycle overloads without editing. Hints
+       avoid the caret line and completion list, scan fresh text in the
+       background, and dismiss when the editing context changes.
+
   v0.1.0 — syntax & language:
 
     1. Tree-sitter syntax highlighting for 25 modes: Rust, Python, C,

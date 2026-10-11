@@ -43,9 +43,23 @@ pub enum RichDocError {
     SaveAsRequired { suggested_ext: &'static str },
     #[error("unsupported extension")]
     Unsupported,
+    #[error("saving edited documents with tables or images is not supported; the file has not been changed")]
+    UnsupportedContent,
 }
 
 pub type Result<T> = std::result::Result<T, RichDocError>;
+
+fn ensure_text_only(doc: &ast::Document) -> Result<()> {
+    if doc.blocks.iter().any(|block| matches!(block, ast::Block::Table { .. } | ast::Block::Image { .. })) {
+        return Err(RichDocError::UnsupportedContent);
+    }
+    Ok(())
+}
+
+fn write_document_bytes(path: &Path, bytes: &[u8]) -> Result<()> {
+    crate::io::write_file_safely(path, bytes)
+        .map_err(|err| RichDocError::Io(std::io::Error::other(err)))
+}
 
 /// Detect rich-doc format from path extension. Phases 1-4 recognise `.docx`, `.rtf`, `.odt`, `.doc`.
 pub fn detect_format(path: &Path) -> Option<DocFormat> {
@@ -680,6 +694,29 @@ pub fn save(payload: &RichDocPayload, path: &Path, raw_view_override: Option<&st
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn edited_image_blocks_are_refused_before_writing() {
+        let dir = crate::persist::TempDir::new("rich-save-image");
+        let path = dir.join("source.rtf");
+        let original = b"{\\rtf1 keep this source}";
+        std::fs::write(&path, original).expect("write fixture");
+        let mut payload = rtf::open(&path).expect("open");
+        payload.ast.blocks.push(ast::Block::Image {
+            source: ast::ImageSource::Inline {
+                bytes: std::sync::Arc::new(vec![1, 2, 3]), mime: "image/png".into(),
+            },
+            width_px: None, height_px: None, alt: Some("keep image".into()),
+        });
+        payload.apply_edit(edits::Edit::SetBlockBold { block: 0, on: true });
+        for format in [DocFormat::Docx, DocFormat::Odt, DocFormat::Rtf] {
+            payload.format = format;
+            assert!(matches!(save(&payload, &path, None), Err(RichDocError::UnsupportedContent)));
+            assert_eq!(std::fs::read(&path).expect("read"), original);
+        }
+        assert!(matches!(doc::save_as_docx(&payload, &path), Err(RichDocError::UnsupportedContent)));
+        assert_eq!(std::fs::read(&path).expect("read"), original);
+    }
     use std::path::PathBuf;
 
     #[test]

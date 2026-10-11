@@ -68,9 +68,10 @@ pub fn open(path: &Path) -> Result<RichDocPayload> {
 /// to emit the body; we synthesise the rest of the minimal-valid OOXML
 /// package by hand (Content Types, rels, styles).
 pub fn save_as_docx(payload: &RichDocPayload, target_path: &Path) -> Result<()> {
+    super::ensure_text_only(&payload.ast)?;
     let document_xml = docx_body_for(&payload.ast);
     let bytes = build_minimal_docx(&document_xml)?;
-    std::fs::write(target_path, &bytes)?;
+    super::write_document_bytes(target_path, &bytes)?;
     Ok(())
 }
 

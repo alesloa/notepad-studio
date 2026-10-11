@@ -48,15 +48,16 @@ pub fn open(path: &Path) -> Result<RichDocPayload> {
 /// Save dispatch — see module docs for the three branches.
 pub fn save(payload: &RichDocPayload, path: &Path, raw_view_override: Option<&str>) -> Result<()> {
     if !payload.edit_log.is_empty() {
+        super::ensure_text_only(&payload.ast)?;
         let new_rtf = serialize_ast(&payload.ast)?;
-        std::fs::write(path, new_rtf.as_bytes())?;
+        super::write_document_bytes(path, new_rtf.as_bytes())?;
         return Ok(());
     }
     if let Some(raw) = raw_view_override {
-        std::fs::write(path, raw.as_bytes())?;
+        super::write_document_bytes(path, raw.as_bytes())?;
         return Ok(());
     }
-    std::fs::write(path, &payload.original_bytes)?;
+    super::write_document_bytes(path, &payload.original_bytes)?;
     Ok(())
 }
 
@@ -525,11 +526,7 @@ fn serialize_block(block: &ast::Block, out: &mut Vec<srtf::Content>, colors: &[u
         ast::Block::Heading { level, runs, props } => {
             (runs, Some(level.saturating_sub(1)), props)
         }
-        // RTF backend's Phase 3 parser doesn't extract tables or images, and
-        // Phase 5a doesn't add it. If a Table/Image somehow appears in the AST
-        // for an RTF document (would require a cross-format edit not yet
-        // designed), dropping is preferable to emitting `\trowd`/`\pict` blocks
-        // we haven't validated against Word.
+        // Save rejects these blocks before calling the text serializer.
         ast::Block::Table { .. } | ast::Block::Image { .. } => return,
     };
     out.push(srtf::Content::ControlWord("pard".into(), None));

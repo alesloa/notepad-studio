@@ -57,9 +57,10 @@ pub fn open(path: &Path) -> Result<RichDocPayload> {
 ///   media, headers/footers, styles, comments — copy through unchanged).
 pub fn save(payload: &RichDocPayload, path: &Path) -> Result<()> {
     if payload.edit_log.is_empty() {
-        std::fs::write(path, &payload.original_bytes)?;
+        super::write_document_bytes(path, &payload.original_bytes)?;
         return Ok(());
     }
+    super::ensure_text_only(&payload.ast)?;
     // Read the existing rels first so the LinkAllocator can dedupe new
     // hyperlinks against URLs Word already had. Without this, every save
     // appends a fresh `<Relationship Id="rIdRDN" Target="…">` row even when
@@ -133,7 +134,7 @@ pub fn save(payload: &RichDocPayload, path: &Path) -> Result<()> {
         .map(|(n, b)| (*n, b.as_slice()))
         .collect();
     let new_zip = container::replace_zip_entries(&payload.original_bytes, &ref_replacements)?;
-    std::fs::write(path, &new_zip)?;
+    super::write_document_bytes(path, &new_zip)?;
     Ok(())
 }
 
@@ -411,13 +412,7 @@ fn serialize_block(out: &mut String, block: &ast::Block, links: &mut LinkAllocat
     match block {
         ast::Block::Paragraph { .. } | ast::Block::Heading { .. } => {}
         ast::Block::Table { .. } | ast::Block::Image { .. } => {
-            // Phase 5a doesn't regenerate tables or images on save — they're
-            // read-only displayed from the original container and survive
-            // intact because `original_bytes` is byte-perfect when edit_log
-            // is empty, and the edit_log only ever contains paragraph-level
-            // style toggles. If a table/image somehow reaches here through a
-            // future edit type, dropping it is preferable to writing malformed
-            // OOXML that Word would reject.
+            // Save rejects these blocks before calling the text serializer.
             return;
         }
     }
@@ -425,7 +420,7 @@ fn serialize_block(out: &mut String, block: &ast::Block, links: &mut LinkAllocat
     let (heading_level, props) = match block {
         ast::Block::Heading { level, props, .. } => (Some(*level), props),
         ast::Block::Paragraph { props, .. } => (None, props),
-        _ => unreachable!("table/image handled above"),
+        ast::Block::Table { .. } | ast::Block::Image { .. } => return,
     };
     let needs_ppr = heading_level.is_some()
         || props.alignment != ast::Alignment::Left
@@ -468,7 +463,7 @@ fn serialize_block(out: &mut String, block: &ast::Block, links: &mut LinkAllocat
     }
     let runs = match block {
         ast::Block::Paragraph { runs, .. } | ast::Block::Heading { runs, .. } => runs,
-        _ => unreachable!("table/image handled above"),
+        ast::Block::Table { .. } | ast::Block::Image { .. } => return,
     };
     for r in runs {
         if let Some(url) = r.style.link.as_deref() {
@@ -1389,6 +1384,25 @@ mod tests {
         p.push("src/rich_doc/fixtures");
         p.push(name);
         p
+    }
+
+    #[test]
+    fn edited_document_with_a_table_is_not_silently_truncated() {
+        let dir = crate::persist::TempDir::new("docx-table-save");
+        let path = dir.join("document.docx");
+        let original = std::fs::read(fixture("hello.docx")).expect("fixture");
+        let xml = container::read_zip_entry_text(&fixture("hello.docx"), "word/document.xml").expect("XML");
+        let table = "<w:tbl><w:tblGrid><w:gridCol w:w=\"2400\"/></w:tblGrid><w:tr><w:tc><w:p><w:r><w:t>keep this table</w:t></w:r></w:p></w:tc></w:tr></w:tbl>";
+        let xml = xml.replace("</w:body>", &format!("{table}</w:body>"));
+        let original = container::replace_zip_entry(&original, "word/document.xml", xml.as_bytes()).expect("container");
+        std::fs::write(&path, &original).expect("write fixture");
+        let mut payload = open(&path).expect("open");
+        assert!(payload.ast.blocks.iter().any(|block| matches!(block, ast::Block::Table { .. })));
+        save(&payload, &path).expect("unchanged table document");
+        assert_eq!(std::fs::read(&path).expect("read"), original);
+        payload.apply_edit(super::super::edits::Edit::SetBlockBold { block: 0, on: true });
+        assert!(matches!(save(&payload, &path), Err(RichDocError::UnsupportedContent)));
+        assert_eq!(std::fs::read(&path).expect("read"), original);
     }
 
     #[test]

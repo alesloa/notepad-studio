@@ -73,16 +73,17 @@ pub fn open(path: &Path) -> Result<RichDocPayload> {
 
 pub fn save(payload: &RichDocPayload, path: &Path) -> Result<()> {
     if payload.edit_log.is_empty() {
-        std::fs::write(path, &payload.original_bytes)?;
+        super::write_document_bytes(path, &payload.original_bytes)?;
         return Ok(());
     }
+    super::ensure_text_only(&payload.ast)?;
     let new_content = serialize_content_xml(&payload.ast, &payload.raw_view_text);
     let new_zip = container::replace_zip_entry(
         &payload.original_bytes,
         "content.xml",
         new_content.as_bytes(),
     )?;
-    std::fs::write(path, &new_zip)?;
+    super::write_document_bytes(path, &new_zip)?;
     Ok(())
 }
 
@@ -1558,10 +1559,7 @@ fn serialize_block(out: &mut String, block: &ast::Block, catalog: &StyleCatalog)
             }
             out.push_str("</text:h>");
         }
-        // Phase 5a — tables/images live in `original_bytes` and survive saves
-        // via the byte-perfect path. If a future edit type ever creates one in
-        // the AST and reaches serialize, dropping is safer than emitting half-
-        // formed `<table:table>` / `<draw:frame>` XML.
+        // Save rejects these blocks before calling the text serializer.
         ast::Block::Table { .. } | ast::Block::Image { .. } => {}
     }
 }
@@ -1714,6 +1712,23 @@ office:version=\"1.2\">\
 <office:styles></office:styles>\
 <office:automatic-styles></office:automatic-styles>\
 </office:document-styles>"
+    }
+
+    #[test]
+    fn edited_document_with_a_table_keeps_the_original_file() {
+        let dir = crate::persist::TempDir::new("odt-table-save");
+        let path = dir.join("document.odt");
+        let body = "<text:p>text</text:p><table:table><table:table-row><table:table-cell><text:p>keep table</text:p></table:table-cell></table:table-row></table:table>";
+        let content = minimal_content(body, "").replacen("office:version=", "xmlns:table=\"urn:oasis:names:tc:opendocument:xmlns:table:1.0\" office:version=", 1);
+        let original = build_minimal_odt(&content, minimal_styles_xml());
+        std::fs::write(&path, &original).expect("write fixture");
+        let mut payload = open(&path).expect("open");
+        assert!(payload.ast.blocks.iter().any(|block| matches!(block, ast::Block::Table { .. })));
+        save(&payload, &path).expect("unchanged table document");
+        assert_eq!(std::fs::read(&path).expect("read"), original);
+        payload.apply_edit(super::super::edits::Edit::SetBlockBold { block: 0, on: true });
+        assert!(matches!(save(&payload, &path), Err(RichDocError::UnsupportedContent)));
+        assert_eq!(std::fs::read(&path).expect("read"), original);
     }
 
     #[test]

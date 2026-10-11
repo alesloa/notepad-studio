@@ -95,6 +95,9 @@ v0.0.5 — current
    26. Doc View handles stale edit positions without overflowing or walking
        past the document. Malformed HTML color values pasted into Doc View
        no longer crash it, and oversized RGB components stay within range.
+   27. Rich-document saves protect the original file if writing fails.
+       Edited documents with tables or images report a save error instead
+       of silently removing that content. Unchanged files still save intact.
 
   v0.1.0 — syntax & language:
 

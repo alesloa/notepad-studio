@@ -471,6 +471,10 @@ v0.0.5 — current
          Results from changed or reopened documents ask you to search again,
          and old painted rows cannot select results from a newer search.
 
+    121. Restored-session syntax highlighting starts in background after the
+         window mounts, prioritizes the active document and refills a bounded
+         queue without changing recovered text or undo history.
+
   v0.1.0 — syntax & language:
 
     1. Tree-sitter syntax highlighting for 25 modes: Rust, Python, C,

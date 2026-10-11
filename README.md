@@ -22,6 +22,9 @@ A lightweight, cross-platform text editor inspired by Notepad++, written in Rust
 > Post-edit and streamed-file completion syntax highlighting run in background
 > workers, with per-tab coalescing and bounded output. Syntax size limits use
 > the Rope byte count before allocating a full text copy.
+> Restored-session syntax parsing starts after the window mounts, prioritizes
+> the active document, and refills a bounded background queue. Session file
+> reads, decoding and rich-document imports still run during restoration.
 > Reload also reads and parses in background, keeping the original document
 > editable and rejecting results after intervening edits or cancellation.
 

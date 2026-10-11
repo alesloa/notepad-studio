@@ -1274,6 +1274,7 @@ impl Workspace {
 
         self.tabs = restored;
         self.active = manifest.active.min(self.tabs.len().saturating_sub(1));
+        self.seed_initial_syntax(self.active);
 
         self.closed_tabs.clear();
         for entry in &manifest.closed_tabs {

@@ -12,6 +12,8 @@ pub(crate) struct Tab {
     pub(crate) instance: std::sync::Arc<()>,
     /// Runtime edit activity survives an Undo/Redo return to the same saved revision.
     pub(crate) content_activity: crate::buffer::ContentRevision,
+    /// Restored source waiting for its first valid background syntax result.
+    pub(crate) initial_syntax_pending: bool,
     observed_raw: Option<crate::buffer::ContentRevision>,
     observed_rich: Option<crate::buffer::ContentRevision>,
     pub(crate) buffer: Buffer,
@@ -72,6 +74,7 @@ impl Tab {
         Self {
             instance: std::sync::Arc::new(()),
             content_activity: Default::default(), observed_raw: None, observed_rich: None,
+            initial_syntax_pending: false,
             buffer: Buffer::untitled(),
             selection: Selection::default(),
             block_selection: None,
@@ -107,6 +110,7 @@ impl Tab {
         Self {
             instance: std::sync::Arc::new(()),
             content_activity: Default::default(), observed_raw: None, observed_rich: None,
+            initial_syntax_pending: false,
             buffer: Buffer::empty(),
             selection: Selection::default(),
             block_selection: None,

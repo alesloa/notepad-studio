@@ -277,6 +277,7 @@ fn spawn_window(cx: &mut App, entry: Option<WindowEntry>, restore_session: bool)
     window
         .update(cx, |workspace, window, cx| {
             window.focus(&workspace.focus_handle(cx), cx);
+            workspace.start_initial_syntax(cx);
         })
         .ok();
 }

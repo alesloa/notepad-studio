@@ -553,11 +553,35 @@ pub(crate) enum RestoreOutcome {
     Skipped(String),
 }
 
+#[cfg(test)]
+thread_local! {
+    static RESTORE_BACKUP_ROOT: std::cell::RefCell<Option<PathBuf>> = const { std::cell::RefCell::new(None) };
+}
+
+#[cfg(test)]
+pub(crate) struct RestoreBackupRoot(Option<PathBuf>);
+
+#[cfg(test)]
+impl Drop for RestoreBackupRoot {
+    fn drop(&mut self) {
+        RESTORE_BACKUP_ROOT.with(|root| { root.replace(self.0.take()); });
+    }
+}
+
+#[cfg(test)]
+pub(crate) fn override_restore_backup_root(dir: PathBuf) -> RestoreBackupRoot {
+    RestoreBackupRoot(RESTORE_BACKUP_ROOT.with(|root| root.replace(Some(dir))))
+}
+
 /// Reconstruct a `Tab` from a manifest entry. For dirty / untitled entries
 /// the content lives in the `.bak`; for clean disk-backed entries it loads
 /// from the file path. Restore best-effort — corrupt or missing sources
 /// produce `Skipped(reason)` instead of failing the whole session.
 pub(crate) fn restore_tab(entry: &SessionTab) -> RestoreOutcome {
+    #[cfg(test)]
+    if let Some(dir) = RESTORE_BACKUP_ROOT.with(|root| root.borrow().clone()) {
+        return restore_tab_in(entry, &dir);
+    }
     let Some(dir) = bak_dir() else {
         return RestoreOutcome::Skipped("no config directory".to_string());
     };
@@ -748,7 +772,6 @@ fn restore_tab_in(entry: &SessionTab, bak_dir: &Path) -> RestoreOutcome {
     };
     if dirty { buffer.forget_savepoint(); } else { buffer.mark_saved(); }
     buffer.normalize_bookmarks();
-    buffer.reparse_highlights();
 
     let mut tab = Tab::empty();
     tab.buffer = buffer;
@@ -800,6 +823,7 @@ fn restore_tab_in(entry: &SessionTab, bak_dir: &Path) -> RestoreOutcome {
         }
     }
 
+    tab.initial_syntax_pending = true;
     RestoreOutcome::Restored(tab)
 }
 

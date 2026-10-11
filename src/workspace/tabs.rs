@@ -44,7 +44,9 @@ impl ClosePrompts {
 
 impl Workspace {
     pub(crate) fn set_active_tab(&mut self, idx: usize, cx: &mut Context<Self>) {
-        if idx >= self.tabs.len() || idx == self.active {
+        if idx >= self.tabs.len() { return; }
+        if idx == self.active {
+            self.activate_initial_syntax(cx);
             return;
         }
         if !crate::ui::csv_doc::actions::commit_cell_edit(self, cx) { return; }
@@ -52,6 +54,7 @@ impl Workspace {
         self.close_function_hint(cx);
         self.cancel_regex_replacement();
         self.active = idx;
+        self.activate_initial_syntax(cx);
         self.touch_mru();
         self.last_lines.clear();
         self.caret_visible = true;
@@ -234,6 +237,7 @@ impl Workspace {
         }
 
         self.active = active_after_removal(self.active, idx, self.tabs.len());
+        self.activate_initial_syntax(cx);
         self.touch_mru();
         self.last_lines.clear();
         self.caret_visible = true;
@@ -267,11 +271,14 @@ impl Workspace {
     /// welcome tab aside — the user sees `[welcome] [transferred]`, which
     /// matches NPP's "Open in New Instance" behaviour.
     pub(crate) fn adopt_transferred_tab(&mut self, tab: Tab, cx: &mut Context<Self>) {
+        let pending = tab.initial_syntax_pending;
         self.tabs.push(tab);
+        if pending { self.seed_initial_syntax(self.tabs.len().saturating_sub(1)); }
         self.close_autocomplete(cx);
         self.close_function_hint(cx);
         self.cancel_regex_replacement();
         self.active = self.tabs.len() - 1;
+        self.activate_initial_syntax(cx);
         self.touch_mru();
         self.last_lines.clear();
         self.caret_visible = true;
@@ -390,6 +397,7 @@ impl Workspace {
                         if leave_blank_if_empty { w.append_blank_tab(cx); }
                         else { w.close_window_after_last_tab(window, cx); }
                     } else {
+                        w.activate_initial_syntax(cx);
                         w.touch_mru();
                         w.last_lines.clear();
                         cx.notify();
@@ -409,6 +417,7 @@ impl Workspace {
                         return;
                     }
                 }
+                w.activate_initial_syntax(cx);
                 w.touch_mru();
                 w.last_lines.clear();
                 w.caret_visible = true;
@@ -771,6 +780,7 @@ impl Workspace {
                     return;
                 }
                 self.active = active_after_removal(self.active, idx, self.tabs.len());
+                self.activate_initial_syntax(cx);
                 self.touch_mru();
                 self.last_lines.clear();
                 self.caret_visible = true;
@@ -928,6 +938,7 @@ impl Workspace {
         self.close_function_hint(cx);
         self.cancel_regex_replacement();
         self.active = target_idx;
+        self.activate_initial_syntax(cx);
         self.sync_source_input_tab();
         self.last_lines.clear();
         self.caret_visible = true;
@@ -1025,6 +1036,7 @@ impl Workspace {
             self.active
         };
 
+        self.activate_initial_syntax(cx);
         self.last_lines.clear();
         self.caret_visible = true;
         self.save_session(cx);

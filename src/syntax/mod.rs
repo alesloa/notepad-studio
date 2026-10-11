@@ -1,6 +1,5 @@
 // Tree-sitter syntax spans are sliced per visible line in editor_element.rs.
-// Post-edit/language refresh uses Workspace's bounded background controller;
-// initial load and restoration callers still use Buffer::reparse_highlights.
+// Workspace schedules file-open, session and post-edit/language syntax jobs in background.
 
 pub(crate) mod comments;
 pub(crate) mod grammars;

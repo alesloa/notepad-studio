@@ -15,6 +15,11 @@ use super::Workspace;
 use crate::buffer::ContentRevision;
 use crate::syntax::{HighlightError, HighlightSpan, LanguageId};
 
+mod session_pump;
+
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+enum Origin { Regular, Initial }
+
 const MAX_PENDING_TABS: usize = 256;
 const DEBOUNCE: Duration = Duration::from_millis(100);
 const QUEUE_STATUS: &str = "Syntax highlighting queue limit (256 documents) reached; select this language again after parsing finishes to retry";
@@ -67,6 +72,7 @@ mod tests {
     fn restricted_and_cancelled_requests_refuse_before_flattening() {
         let rope = Rope::from_str("fn café() {}\r\n");
         let mut request = Request {
+            origin: Origin::Regular,
             id: Uuid::new_v4(),
             tab: Uuid::new_v4(),
             instance: Arc::new(()),
@@ -106,6 +112,7 @@ impl Policy {
 }
 
 struct Request {
+    origin: Origin,
     id: Uuid,
     tab: Uuid,
     instance: Arc<()>,
@@ -124,6 +131,7 @@ struct Delayed {
 }
 
 struct Running {
+    origin: Origin,
     id: Uuid,
     tab: Uuid,
     cancel: Arc<AtomicUsize>,
@@ -137,6 +145,7 @@ type Parsed = (
 
 #[derive(Default)]
 pub(super) struct Runtime {
+    initial: session_pump::Pump,
     latest: HashMap<Uuid, Uuid>,
     delayed: HashMap<Uuid, Delayed>,
     queued: VecDeque<Request>,
@@ -173,6 +182,7 @@ impl Drop for Runtime {
 
 impl Runtime {
     pub(super) fn close(&mut self) {
+        self.initial.close();
         if let Some(running) = self.running.take() {
             running.cancel.store(1, Ordering::Relaxed);
         }
@@ -256,6 +266,7 @@ impl Workspace {
         if let Some(tab) = self.tabs.iter_mut().find(|tab| tab.session_id == id) {
             dispose(cx.background_executor(), std::mem::take(&mut tab.buffer.highlights));
         }
+        self.wake_initial_syntax(cx);
     }
 
     pub(super) fn retire_syntax_tab(&mut self, tab: Uuid, cx: &mut Context<Self>) {
@@ -305,6 +316,10 @@ impl Workspace {
 
     /// File loading can finish after another document becomes active.
     pub(crate) fn request_syntax_refresh_for_tab(&mut self, id: Uuid, delay: Duration, cx: &mut Context<Self>) {
+        self.capture_syntax_refresh(id, delay, Origin::Regular, cx);
+    }
+
+    fn capture_syntax_refresh(&mut self, id: Uuid, delay: Duration, origin: Origin, cx: &mut Context<Self>) {
         if self.window_closed {
             self.syntax_refresh.close();
             return;
@@ -322,12 +337,13 @@ impl Workspace {
         if skip {
             self.retire_syntax_tab(id, cx);
             if let Some(tab) = self.tabs.get_mut(index) {
+                if tab.buffer.loading.is_none() { tab.initial_syntax_pending = false; }
                 dispose(
                     cx.background_executor(),
                     std::mem::take(&mut tab.buffer.highlights),
                 );
             }
-            if index == self.active && delay.is_zero() && size as u64 > crate::io_stream::HIGHLIGHT_SIZE_LIMIT {
+            if origin == Origin::Regular && index == self.active && delay.is_zero() && size as u64 > crate::io_stream::HIGHLIGHT_SIZE_LIMIT {
                 self.set_status(HighlightError::SizeLimit.to_string());
             }
             cx.notify();
@@ -336,6 +352,7 @@ impl Workspace {
         if !self.syntax_refresh.latest.contains_key(&id)
             && self.syntax_refresh.latest.len() >= MAX_PENDING_TABS
         {
+            if origin == Origin::Initial { return; }
             self.syntax_refresh.refused = Some(id);
             if index == self.active { self.set_status(QUEUE_STATUS); }
             if let Some(tab) = self.tabs.get_mut(index) {
@@ -351,6 +368,7 @@ impl Workspace {
             return;
         };
         let mut request = Request {
+            origin,
             id: Uuid::new_v4(),
             tab: id,
             instance: tab.instance.clone(),
@@ -373,7 +391,11 @@ impl Workspace {
         self.retire_syntax_tab(id, cx);
         self.syntax_refresh.latest.insert(id, request.id);
         if delay.is_zero() {
-            self.syntax_refresh.queued.push_back(request);
+            if origin == Origin::Initial && index == self.active {
+                self.syntax_refresh.queued.push_front(request);
+            } else {
+                self.syntax_refresh.queued.push_back(request);
+            }
             self.start_next_syntax_refresh(cx);
         } else {
             let request_id = request.id;
@@ -415,6 +437,7 @@ impl Workspace {
             self.syntax_refresh.latest.remove(&tab);
             dispose(cx.background_executor(), delayed.request);
             self.start_next_syntax_refresh(cx);
+            self.wake_initial_syntax(cx);
             return;
         }
         if let Some(tab) = self
@@ -438,15 +461,18 @@ impl Workspace {
         if self.syntax_refresh.running.is_some() {
             return;
         }
+        let mut discarded = false;
         while let Some(request) = self.syntax_refresh.queued.pop_front() {
             if !self.syntax_request_valid(&request) {
                 if self.syntax_refresh.latest.get(&request.tab) == Some(&request.id) {
                     self.syntax_refresh.latest.remove(&request.tab);
                 }
                 dispose(cx.background_executor(), request);
+                discarded = true;
                 continue;
             }
             self.syntax_refresh.running = Some(Running {
+                origin: request.origin,
                 id: request.id,
                 tab: request.tab,
                 cancel: request.cancel.clone(),
@@ -482,6 +508,7 @@ impl Workspace {
             .detach();
             break;
         }
+        if discarded { self.wake_initial_syntax(cx); }
     }
 
     fn finish_syntax_refresh(&mut self, parsed: Parsed, cx: &mut Context<Self>) {
@@ -507,6 +534,7 @@ impl Workspace {
                         .iter_mut()
                         .find(|tab| tab.session_id == request.tab)
                     {
+                        tab.initial_syntax_pending = false;
                         let retired = super::language::install_highlights(
                             &mut tab.buffer,
                             request.language,
@@ -527,6 +555,7 @@ impl Workspace {
                         .iter_mut()
                         .find(|tab| tab.session_id == request.tab)
                     {
+                        tab.initial_syntax_pending = false;
                         dispose(
                             cx.background_executor(),
                             std::mem::take(&mut tab.buffer.highlights),
@@ -540,7 +569,12 @@ impl Workspace {
                         .is_some_and(|tab| tab.session_id == request.tab)
                         && self.status_message == request.status
                     {
-                        self.set_status(error.to_string());
+                        if request.origin == Origin::Initial {
+                            self.set_status(request.status.as_ref().map_or_else(
+                                || error.to_string(), |status| format!("{status}; syntax: {error}")));
+                        } else {
+                            self.set_status(error.to_string());
+                        }
                         cx.notify();
                     }
                 }
@@ -556,7 +590,9 @@ impl Workspace {
         }
         #[cfg(not(test))]
         let _ = (duration, install_started);
+        self.prioritize_initial_syntax(cx);
         self.start_next_syntax_refresh(cx);
+        self.wake_initial_syntax(cx);
     }
 
     #[cfg(test)]
@@ -593,3 +629,19 @@ mod stream_bench;
 #[cfg(test)]
 #[path = "initial_syntax_tests.rs"]
 mod initial_tests;
+
+#[cfg(test)]
+#[path = "session_syntax_tests.rs"]
+mod session_tests;
+
+#[cfg(test)]
+#[path = "session_syntax_bench.rs"]
+mod session_bench;
+
+#[cfg(test)]
+impl Workspace {
+    fn session_syntax_bench_times(&self) -> (Duration, Duration, Duration, Duration) {
+        (self.syntax_refresh.capture_time, self.syntax_refresh.worker_time,
+         self.syntax_refresh.install_time, self.syntax_refresh.initial.callback_time)
+    }
+}

@@ -177,6 +177,10 @@ v0.0.5 — current
        Stale clicks cannot replace another prefix or a read-only document.
        Word scans stay bounded near the caret, including huge identifiers.
 
+   48. HTML paste keeps formatting and links within their matching tags,
+       including malformed closing tags. Soft line breaks retain heading,
+       list and inline styles, and preformatted text keeps its spaces.
+
   v0.1.0 — syntax & language:
 
     1. Tree-sitter syntax highlighting for 25 modes: Rust, Python, C,

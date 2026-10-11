@@ -448,6 +448,7 @@ struct ListContext {
 
 #[derive(Debug, Clone)]
 struct StyleFrame {
+    tag: String,
     style: InlineStyle,
 }
 
@@ -521,10 +522,14 @@ impl Parser {
                 return;
             }
             "br" => {
-                // Inside a block, <br> ends the current paragraph and starts a
-                // new one — we don't have a soft-break primitive in the AST so
-                // hard-paragraph is the closest fit.
-                self.flush_block();
+                // HTML's line break stays inside the current paragraph and
+                // carries its inline style; native exporters handle LF.
+                if self.pre_depth == 0 {
+                    self.trim_trailing_space();
+                }
+                self.append_text("\n");
+                self.at_block_start = true;
+                self.last_was_whitespace = true;
                 return;
             }
             "hr" => {
@@ -555,6 +560,7 @@ impl Parser {
                 }
                 self.at_block_start = true;
                 self.last_was_whitespace = false;
+                self.push_style(name, |_s| {}, &[]);
             }
             "h1" | "h2" | "h3" | "h4" | "h5" | "h6" => {
                 self.flush_block_if_dirty();
@@ -564,6 +570,7 @@ impl Parser {
                 self.apply_block_style_attr(attrs);
                 self.at_block_start = true;
                 self.last_was_whitespace = false;
+                self.push_style(name, |_s| {}, &[]);
             }
             "pre" => {
                 self.flush_block_if_dirty();
@@ -572,16 +579,19 @@ impl Parser {
                 self.pre_depth = self.pre_depth.saturating_add(1);
                 self.at_block_start = true;
                 self.last_was_whitespace = false;
+                self.push_style(name, |_s| {}, &[]);
             }
             "ul" => {
                 self.flush_block_if_dirty();
                 let level = self.list_stack.len().min(u8::MAX as usize) as u8;
                 self.list_stack.push(ListContext { ordered: false, level });
+                self.push_style(name, |_s| {}, &[]);
             }
             "ol" => {
                 self.flush_block_if_dirty();
                 let level = self.list_stack.len().min(u8::MAX as usize) as u8;
                 self.list_stack.push(ListContext { ordered: true, level });
+                self.push_style(name, |_s| {}, &[]);
             }
             "li" => {
                 self.flush_block_if_dirty();
@@ -593,16 +603,20 @@ impl Parser {
                 self.apply_block_style_attr(attrs);
                 self.at_block_start = true;
                 self.last_was_whitespace = false;
+                self.push_style(name, |_s| {}, &[]);
             }
-            "strong" | "b" => self.push_style(|s| s.bold = true, attrs),
-            "em" | "i" | "cite" | "var" | "dfn" => self.push_style(|s| s.italic = true, attrs),
-            "u" | "ins" => self.push_style(|s| s.underline = true, attrs),
-            "s" | "strike" | "del" => self.push_style(|s| s.strike = true, attrs),
+            "strong" | "b" => self.push_style(name, |s| s.bold = true, attrs),
+            "em" | "i" | "cite" | "var" | "dfn" => self.push_style(name, |s| s.italic = true, attrs),
+            "u" | "ins" => self.push_style(name, |s| s.underline = true, attrs),
+            "s" | "strike" | "del" => self.push_style(name, |s| s.strike = true, attrs),
             "a" => {
+                // HTML anchors cannot nest. End a prior anchor rather than
+                // restoring its URL after the new anchor closes.
+                self.handle_close("a");
                 let href = attrs.iter().find(|(k, _)| k == "href").map(|(_, v)| v.clone());
                 // Identity-style frame — link decoration is added by render
                 // (underline + theme link color) once `style.link` is set.
-                self.push_style(|_s| {}, attrs);
+                self.push_style(name, |_s| {}, attrs);
                 if let Some(last) = self.style_stack.last_mut() {
                     last.style.link = href;
                 }
@@ -611,12 +625,12 @@ impl Parser {
             | "abbr" | "q" => {
                 // Inline pass-through — capture style attr but no implicit
                 // weight / italic / underline.
-                self.push_style(|_s| {}, attrs);
+                self.push_style(name, |_s| {}, attrs);
             }
             _ => {
-                // Unknown / unsupported tag — push an identity style frame so
-                // the close tag can pop without unbalancing the stack.
-                self.push_style(|_s| {}, attrs);
+                // Retain the tag name so an unrelated end tag cannot remove
+                // this frame or a surrounding link/style.
+                self.push_style(name, |_s| {}, attrs);
             }
         }
         if self_closing {
@@ -625,34 +639,23 @@ impl Parser {
     }
 
     fn handle_close(&mut self, name: &str) {
-        match name {
-            "html" | "head" | "body" | "meta" | "link" | "title" | "base" | "br" | "hr"
-            | "img" | "wbr" | "col" | "colgroup" | "tbody" | "thead" | "tfoot" => return,
-            "table" | "tr" | "td" | "th" => return,
-            _ => {}
-        }
+        let Some(frame) = self.style_stack.iter().rposition(|frame| frame.tag == name) else { return };
         match name {
             "p" | "div" | "blockquote" | "section" | "article" | "header" | "footer" | "nav"
             | "main" | "aside" | "figure" | "figcaption" | "dl" | "dt" | "dd" | "address"
             | "form" | "li" => self.flush_block_if_dirty(),
             "h1" | "h2" | "h3" | "h4" | "h5" | "h6" => self.flush_block_if_dirty(),
-            "pre" => {
-                self.flush_block_if_dirty();
-                self.pre_depth = self.pre_depth.saturating_sub(1);
-            }
-            "ul" | "ol" => {
-                self.flush_block_if_dirty();
-                self.list_stack.pop();
-            }
-            "strong" | "b" | "em" | "i" | "cite" | "var" | "dfn" | "u" | "ins" | "a" | "span"
-            | "font" | "mark" | "small" | "sub" | "sup" | "code" | "kbd" | "samp" | "abbr"
-            | "q" => {
-                self.pop_style();
-            }
-            _ => {
-                self.pop_style();
-            }
+            "pre" | "ul" | "ol" => self.flush_block_if_dirty(),
+            _ => {}
         }
+        // End the matching scope and its dangling descendants. This small
+        // converter does not reconstruct browser formatting after misnesting.
+        let closed = self.style_stack.get(frame..).unwrap_or_default();
+        let lists = closed.iter().filter(|frame| matches!(frame.tag.as_str(), "ul" | "ol")).count();
+        let pre = closed.iter().filter(|frame| frame.tag == "pre").count();
+        self.list_stack.truncate(self.list_stack.len().saturating_sub(lists));
+        self.pre_depth = self.pre_depth.saturating_sub(pre as u32);
+        self.style_stack.truncate(frame);
     }
 
     fn handle_text(&mut self, text: &str) {
@@ -708,15 +711,11 @@ impl Parser {
         self.style_stack.last().map(|f| f.style.clone()).unwrap_or_default()
     }
 
-    fn push_style<F: FnOnce(&mut InlineStyle)>(&mut self, mutator: F, attrs: &[(String, String)]) {
+    fn push_style<F: FnOnce(&mut InlineStyle)>(&mut self, name: &str, mutator: F, attrs: &[(String, String)]) {
         let mut next = self.current_style();
         mutator(&mut next);
         apply_inline_style_attr(&mut next, attrs);
-        self.style_stack.push(StyleFrame { style: next });
-    }
-
-    fn pop_style(&mut self) {
-        self.style_stack.pop();
+        self.style_stack.push(StyleFrame { tag: name.to_string(), style: next });
     }
 
     fn apply_block_style_attr(&mut self, attrs: &[(String, String)]) {
@@ -753,15 +752,10 @@ impl Parser {
         // An empty block (no runs at all) is meaningful — that's a blank line
         // — but a block whose only content is a trailing space gets the space
         // trimmed so we don't carry a phantom whitespace into the document.
-        let mut runs = std::mem::take(&mut self.current_runs);
-        if let Some(last) = runs.last_mut() {
-            if last.text.ends_with(' ') && !self.at_block_start {
-                last.text.pop();
-                if last.text.is_empty() && runs.len() > 1 {
-                    runs.pop();
-                }
-            }
+        if !self.at_block_start {
+            self.trim_trailing_space();
         }
+        let mut runs = std::mem::take(&mut self.current_runs);
         if runs.is_empty() {
             runs.push(InlineRun::plain(""));
         }
@@ -773,6 +767,17 @@ impl Parser {
         self.blocks.push(block);
         self.at_block_start = true;
         self.last_was_whitespace = false;
+    }
+
+    fn trim_trailing_space(&mut self) {
+        if let Some(last) = self.current_runs.last_mut() {
+            if last.text.ends_with(' ') {
+                last.text.pop();
+                if last.text.is_empty() && self.current_runs.len() > 1 {
+                    self.current_runs.pop();
+                }
+            }
+        }
     }
 
     fn flush_block_if_dirty(&mut self) {
@@ -1162,11 +1167,135 @@ mod tests {
     }
 
     #[test]
-    fn br_splits_paragraphs() {
+    fn br_is_a_soft_break_inside_the_paragraph() {
         let out = html_to_blocks("<p>one<br>two</p>");
+        assert_eq!(out.len(), 1);
+        assert_eq!(paragraph_text(&out[0]), "one\ntwo");
+    }
+
+    fn paragraph_runs(block: &Block) -> &[InlineRun] {
+        match block {
+            Block::Paragraph { runs, .. } | Block::Heading { runs, .. } => runs,
+            _ => panic!("text fixture"),
+        }
+    }
+
+    #[test]
+    fn unrelated_closing_tags_do_not_remove_active_formatting() {
+        let out = html_to_blocks("<p><b>\u{00E9}</unknown>\u{1F600}</strong>still</b>plain</p>");
+        assert_eq!(out.len(), 1);
+        let runs = paragraph_runs(&out[0]);
+        assert_eq!(runs[0].text, "\u{00E9}\u{1F600}still");
+        assert!(runs[0].style.bold);
+        assert_eq!(runs[1].text, "plain");
+        assert_eq!(runs[1].style, InlineStyle::default());
+    }
+
+    #[test]
+    fn closing_an_inline_ancestor_does_not_leak_its_link_or_child_styles() {
+        let out = html_to_blocks("<p><a href='https://example.test/\u{00E9}'><b>linked</a>plain</b>tail</p>");
+        assert_eq!(paragraph_text(&out[0]), "linkedplaintail");
+        let runs = paragraph_runs(&out[0]);
+        assert!(runs[0].style.bold);
+        assert_eq!(runs[0].style.link.as_deref(), Some("https://example.test/\u{00E9}"));
+        assert_eq!(runs[1].text, "plaintail");
+        assert_eq!(runs[1].style, InlineStyle::default());
+    }
+
+    #[test]
+    fn nested_anchors_do_not_restore_an_invalid_outer_link() {
+        let out = html_to_blocks("<p><a href='https://outer.test/'>outer<a href='https://inner.test/'>inner</a>plain</a>tail</p>");
+        let runs = paragraph_runs(&out[0]);
+        assert_eq!(runs[0].style.link.as_deref(), Some("https://outer.test/"));
+        assert_eq!(runs[1].style.link.as_deref(), Some("https://inner.test/"));
+        assert_eq!(runs[2].text, "plaintail");
+        assert_eq!(runs[2].style, InlineStyle::default());
+    }
+
+    #[test]
+    fn unrelated_list_close_preserves_list_membership() {
+        let out = html_to_blocks("<ul><li>one</ol></li><li>two</li></ul>");
         assert_eq!(out.len(), 2);
-        assert_eq!(paragraph_text(&out[0]), "one");
-        assert_eq!(paragraph_text(&out[1]), "two");
+        for block in &out {
+            let Block::Paragraph { props, .. } = block else { panic!("list paragraph") };
+            assert_eq!(props.list, Some(ListMarker { ordered: false, level: 0 }));
+        }
+    }
+
+    #[test]
+    fn closing_pre_ends_dangling_formatting_and_preserves_its_spaces() {
+        let out = html_to_blocks("<pre><b>  one  </pre>  two  </b> three");
+        assert_eq!(out.iter().map(paragraph_text).collect::<Vec<_>>(), vec!["  one  ", "two three"]);
+        assert!(paragraph_runs(&out[0])[0].style.bold);
+        assert!(paragraph_runs(&out[1]).iter().all(|run| run.style == InlineStyle::default()));
+    }
+
+    #[test]
+    fn closing_a_block_ends_its_unclosed_inline_formatting() {
+        for tag in ["p", "div"] {
+            let html = format!("<{tag}><a href='https://example.test/'><b>linked</{tag}>plain<p>end</p>");
+            let out = html_to_blocks(&html);
+            assert_eq!(out.iter().map(paragraph_text).collect::<Vec<_>>(), vec!["linked", "plain", "end"]);
+            let linked = paragraph_runs(&out[0]);
+            assert!(linked[0].style.bold && linked[0].style.link.is_some());
+            for block in &out[1..] {
+                assert!(paragraph_runs(block).iter().all(|run| run.style == InlineStyle::default()), "{tag}: {out:?}");
+            }
+        }
+    }
+
+    #[test]
+    fn closing_a_nested_block_preserves_only_outer_formatting() {
+        let out = html_to_blocks("<b><div>inner<i>italic</div>outer</b>plain");
+        assert_eq!(out.iter().map(paragraph_text).collect::<Vec<_>>(), vec!["inneritalic", "outerplain"]);
+        let inner = paragraph_runs(&out[0]);
+        assert!(inner[0].style.bold && !inner[0].style.italic);
+        assert!(inner[1].style.bold && inner[1].style.italic);
+        let outer = paragraph_runs(&out[1]);
+        assert_eq!(outer[0].text, "outer");
+        assert!(outer[0].style.bold && !outer[0].style.italic);
+        assert_eq!(outer[1].style, InlineStyle::default());
+    }
+
+    #[test]
+    fn styled_breaks_keep_unicode_quotes_and_links_in_one_block() {
+        let out = html_to_blocks("<p><a href='https://example.test/?q=\u{00E9}>x&amp;y=&quot;z&quot;'><b>\u{1F600}&quot;<i>\u{4E2D}<br>\u{00E9}</i> tail</b></a> plain</p>");
+        assert_eq!(out.len(), 1);
+        assert_eq!(paragraph_text(&out[0]), "\u{1F600}\"\u{4E2D}\n\u{00E9} tail plain");
+        let runs = paragraph_runs(&out[0]);
+        assert!(runs[1].style.bold && runs[1].style.italic);
+        assert_eq!(runs[1].text, "\u{4E2D}\n\u{00E9}");
+        assert_eq!(runs[1].style.link.as_deref(), Some("https://example.test/?q=\u{00E9}>x&y=\"z\""));
+        assert_eq!(runs.last().expect("plain run").style, InlineStyle::default());
+    }
+
+    #[test]
+    fn repeated_breaks_keep_heading_and_list_membership() {
+        let out = html_to_blocks("<h2>one<br><br>two<br></h2><ul><li>three<br>four</li></ul>");
+        assert_eq!(out.len(), 2);
+        assert!(matches!(out[0], Block::Heading { level: 2, .. }));
+        assert_eq!(paragraph_text(&out[0]), "one\n\ntwo\n");
+        assert_eq!(paragraph_text(&out[1]), "three\nfour");
+        let Block::Paragraph { props, .. } = &out[1] else { panic!("list paragraph") };
+        assert_eq!(props.list, Some(ListMarker { ordered: false, level: 0 }));
+    }
+
+    #[test]
+    fn breaks_collapse_line_edge_whitespace_except_inside_pre() {
+        let out = html_to_blocks("<p>one <b> </b><br>   <i>two</i></p><pre>one <br>  two</pre>");
+        assert_eq!(out.len(), 2);
+        assert_eq!(paragraph_text(&out[0]), "one\ntwo");
+        assert_eq!(paragraph_text(&out[1]), "one \n  two");
+    }
+
+    #[test]
+    fn missing_block_close_does_not_consume_an_unrelated_style_frame() {
+        let out = html_to_blocks("<b>before</div>after</b>plain");
+        assert_eq!(out.len(), 1);
+        let runs = paragraph_runs(&out[0]);
+        assert_eq!(runs[0].text, "beforeafter");
+        assert!(runs[0].style.bold);
+        assert_eq!(runs[1].style, InlineStyle::default());
     }
 
     #[test]

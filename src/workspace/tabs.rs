@@ -562,28 +562,66 @@ impl Workspace {
         cx.notify();
     }
 
-    /// Reload tab `idx` from disk, replacing its in-memory edits.
-    pub(crate) fn reload_tab(&mut self, idx: usize, cx: &mut Context<Self>) {
-        if idx >= self.tabs.len() {
+    // PowerEditor/src/NppIO.cpp:588 — doReload confirms discarding dirty edits.
+    pub(crate) fn reload_tab(&mut self, idx: usize, window: &mut Window, cx: &mut Context<Self>) {
+        let Some(tab) = self.tabs.get(idx) else {
+            return;
+        };
+        if tab.buffer.loading.is_some() {
+            self.set_status("Cannot reload while the file is still loading");
+            cx.notify();
             return;
         }
-        let Some(path) = self.tabs[idx].buffer.file_path.clone() else {
+        if tab.buffer.file_path.is_none() {
             self.set_status("Cannot reload — tab has no file path");
             cx.notify();
             return;
-        };
-        match reload_tab_from_disk(&mut self.tabs[idx]) {
-            Ok(()) => {
+        }
+        let id = tab.session_id;
+        if !tab.buffer.dirty {
+            self.finish_reload(id, false, cx);
+            return;
+        }
+        let name = tab.buffer.display_short_name().to_string();
+        cx.spawn_in(window, async move |this, cx| {
+            let answer = rfd::AsyncMessageDialog::new()
+                .set_level(rfd::MessageLevel::Warning)
+                .set_title(crate::consts::APP_NAME)
+                .set_description(format!("Reload {name} and lose its unsaved changes?"))
+                .set_buttons(rfd::MessageButtons::YesNo)
+                .show()
+                .await;
+            let confirmed = matches!(answer, rfd::MessageDialogResult::Yes);
+            if confirmed {
+                this.update(cx, |w, cx| w.finish_reload(id, true, cx)).ok();
+            }
+        })
+        .detach();
+    }
+
+    fn finish_reload(&mut self, id: Uuid, confirmed: bool, cx: &mut Context<Self>) {
+        match reload_tab_by_id(&mut self.tabs, id, confirmed) {
+            Ok(Some(idx)) => {
+                let Some(path) = self.tabs[idx].buffer.file_path.clone() else {
+                    return;
+                };
                 self.csv_models.remove(&self.tabs[idx].session_id);
                 if self.tabs[idx].buffer.read_only {
                     self.set_status(format!("Reloaded {} read-only", path.display()));
                 } else {
                     self.set_status(format!("Reloaded {}", path.display()));
                 }
+                if idx == self.active {
+                    self.refresh_matches();
+                    self.refresh_smart_highlight();
+                    self.refresh_tag_match();
+                    self.caret_visible = true;
+                }
             }
             Err(err) => {
                 self.set_status(format!("Reload failed: {err}"));
             }
+            Ok(None) => return,
         }
         self.last_lines.clear();
         self.save_session();
@@ -928,6 +966,20 @@ fn tab_index_of(tabs: &[Tab], id: Uuid) -> Option<usize> {
     tabs.iter().position(|t| t.session_id == id)
 }
 
+fn reload_tab_by_id(tabs: &mut [Tab], id: Uuid, confirmed: bool) -> Result<Option<usize>, String> {
+    let Some(idx) = tab_index_of(tabs, id) else {
+        return Ok(None);
+    };
+    let Some(tab) = tabs.get_mut(idx) else {
+        return Ok(None);
+    };
+    if tab.buffer.dirty && !confirmed {
+        return Ok(None);
+    }
+    reload_tab_from_disk(tab)?;
+    Ok(Some(idx))
+}
+
 fn reload_tab_from_disk(tab: &mut Tab) -> Result<(), String> {
     if tab.buffer.loading.is_some() {
         return Err("file is still loading".to_string());
@@ -964,7 +1016,7 @@ fn park_closed_strip(tabs: &mut Vec<Tab>, active: &mut usize) {
 
 #[cfg(test)]
 mod tests {
-    use super::{active_after_removal, park_closed_strip, reload_tab_from_disk};
+    use super::{active_after_removal, park_closed_strip, reload_tab_by_id, reload_tab_from_disk};
     use crate::tab::Tab;
 
     #[test]
@@ -1072,6 +1124,43 @@ mod tests {
         assert!(reload_tab_from_disk(&mut tab).is_err());
         assert_eq!(tab.buffer.rope.to_string(), "partial");
         assert!(tab.buffer.loading.is_some());
+    }
+
+    #[test]
+    fn declined_reload_keeps_dirty_text() {
+        let dir = crate::persist::TempDir::new("reload-declined");
+        let path = dir.join("file.txt");
+        std::fs::write(&path, "on disk").expect("write fixture");
+        let mut tab = Tab::empty();
+        tab.buffer.file_path = Some(path);
+        tab.buffer.rope = ropey::Rope::from_str("unsaved edits");
+        tab.buffer.dirty = true;
+        let id = tab.session_id;
+        let mut tabs = vec![tab];
+        assert_eq!(reload_tab_by_id(&mut tabs, id, false).expect("decline"), None);
+        assert_eq!(tabs[0].buffer.rope.to_string(), "unsaved edits");
+        assert!(tabs[0].buffer.dirty);
+    }
+
+    #[test]
+    fn confirmed_reload_tracks_tab_after_reorder() {
+        let dir = crate::persist::TempDir::new("reload-reorder");
+        let path = dir.join("file.txt");
+        std::fs::write(&path, "on disk").expect("write fixture");
+        let mut tab = Tab::empty();
+        tab.buffer.file_path = Some(path);
+        tab.buffer.rope = ropey::Rope::from_str("unsaved edits");
+        tab.buffer.dirty = true;
+        let id = tab.session_id;
+        let mut tabs = vec![tab, Tab::empty()];
+        let other_id = tabs[1].session_id;
+        tabs.swap(0, 1);
+        assert_eq!(reload_tab_by_id(&mut tabs, id, true).expect("confirm"), Some(1));
+        assert_eq!(tabs[1].buffer.rope.to_string(), "on disk");
+        assert!(!tabs[1].buffer.dirty);
+        assert_eq!(tabs[0].session_id, other_id);
+        assert_eq!(tabs[0].buffer.rope.len_bytes(), 0);
+        assert_eq!(reload_tab_by_id(&mut tabs, uuid::Uuid::new_v4(), true).expect("closed"), None);
     }
 
     /// A closed window's strip must still answer `tabs[active]`: the

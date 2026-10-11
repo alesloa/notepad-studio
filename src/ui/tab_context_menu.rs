@@ -835,7 +835,7 @@ fn run_leaf_action(
             }
             LeafAction::Rename => w.open_tab_rename(target, cx),
             LeafAction::MoveToTrash => w.move_tab_to_trash(target, window, cx),
-            LeafAction::Reload => w.reload_tab(target, cx),
+            LeafAction::Reload => w.reload_tab(target, window, cx),
             LeafAction::Print => {
                 w.set_status("Print not yet implemented");
             }

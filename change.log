@@ -87,6 +87,9 @@ v0.0.5 — current
        UTF-16 stays read-only, Doc View shows the new file contents, and old
        column selections and selection markers are cleared. A failed reload
        keeps the current buffer and its unsaved edits.
+   24. Reload asks before discarding unsaved changes. Cancelling keeps the
+       document, and switching or moving tabs while the prompt is open
+       cannot make it reload a different file.
 
   v0.1.0 — syntax & language:
 

@@ -252,6 +252,23 @@ fn merge_candidates(a: Vec<String>, b: Vec<String>) -> Vec<String> {
 }
 
 impl Workspace {
+    /// Resolved after the editor prepaints this frame. Missing or offscreen
+    /// geometry hides the list rather than covering the editor's first row.
+    pub(crate) fn autocomplete_caret_bounds(&self) -> Option<gpui::Bounds<Pixels>> {
+        let tab = self.tabs.get(self.active)?;
+        if tab.view_mode != crate::tab::TabViewMode::Edit {
+            return None;
+        }
+        let caret = tab.selection.clamped(&tab.buffer.rope).head;
+        // A wrap boundary belongs to the next visual row, just as the caret
+        // painter resolves it; the later row wins when both include it.
+        let line = self.last_lines.iter().rev().find(|line| {
+            caret >= line.line_byte_start && caret <= line.line_byte_start.saturating_add(line.line_byte_len)
+        })?;
+        let x = line.bounds.left() + line.shaped.x_for_index(caret.saturating_sub(line.line_byte_start));
+        Some(gpui::Bounds::new(point(x, line.bounds.top()), gpui::size(gpui::px(1.), line.bounds.size.height)))
+    }
+
     /// Compute the popup's window-space anchor by reading `last_lines` (the
     /// per-paint cache of visible-line geometry). Falls back to the editor
     /// pane's top-left when the caret's line isn't visible — drop-rare but

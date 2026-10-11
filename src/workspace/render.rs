@@ -791,9 +791,8 @@ impl Render for Workspace {
                 },
             )
             .when_some(self.autocomplete.as_ref().cloned(), |this, state| {
-                // Auto-Completion popup mounts last so it sits above the
-                // context menus / modals — its backdrop captures the next
-                // click anywhere outside the candidate list and dismisses.
+                // The list resolves current caret geometry during deferred
+                // prepaint; outside clicks dismiss and reach their target.
                 this.child(autocomplete_popup(
                     &theme,
                     state.anchor,

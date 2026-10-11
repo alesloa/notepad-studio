@@ -155,6 +155,11 @@ v0.0.5 — current
        discarding them. Failed Save/Save As keeps the original file and
        unsaved source, including recovered drafts and legacy conversion.
 
+   43. Auto-completion follows the current caret and stays clear of its
+       active line. The compact list fits above or below within the pane,
+       scales with zoom, supports mouse-wheel selection, and dismisses
+       without swallowing outside clicks or leaving invisible suggestions.
+
   v0.1.0 — syntax & language:
 
     1. Tree-sitter syntax highlighting for 25 modes: Rust, Python, C,

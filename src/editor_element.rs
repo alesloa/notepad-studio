@@ -42,13 +42,6 @@ pub(crate) struct EditorPrepaint {
     /// Recomputed every prepaint — caching only spans one render frame.
     bracket_quads: Vec<PaintQuad>,
     caret: Option<PaintQuad>,
-    /// Total number of logical lines in the buffer at prepaint time. Stashed
-    /// onto `Workspace.viewport` during paint so scroll math has access.
-    total_lines: usize,
-    /// Width of the widest visible line. Lower bound on widest-overall line —
-    /// not the document maximum, but enough to size the h-scrollbar for the
-    /// content currently in view.
-    max_line_width: Pixels,
     /// "Show whitespace" overlay glyphs. Empty when the toggle is off.
     /// Built additively in `prepaint_whitespace_glyphs` so the existing
     /// per-line paint logic above stays untouched. Each entry is the origin
@@ -1809,6 +1802,22 @@ impl gpui::Element for EditorElement {
             );
         }
 
+        // Deferred popups prepaint before the editor paints. Publish this
+        // frame's geometry now, after edits have cleared the old cache.
+        let hit_geo = lines.iter().map(|line| LineGeo {
+            bounds: line.bounds,
+            line_byte_start: line.line_byte_start,
+            line_byte_len: line.line_byte_len,
+            shaped: line.shaped.clone(),
+        }).collect();
+        self.workspace.update(cx, |w, _| {
+            w.last_lines = hit_geo;
+            w.viewport.bounds = bounds;
+            w.viewport.line_height = line_height;
+            w.viewport.total_lines = total_lines;
+            w.viewport.max_line_width = w.viewport.max_line_width.max(max_line_width);
+        });
+
         EditorPrepaint {
             lines,
             selection_quads,
@@ -1817,8 +1826,6 @@ impl gpui::Element for EditorElement {
             mark_quads,
             bracket_quads,
             caret,
-            total_lines,
-            max_line_width,
             whitespace_glyphs,
             eol_glyphs,
             npc_glyphs,
@@ -1957,31 +1964,6 @@ impl gpui::Element for EditorElement {
         window.on_modifiers_changed(move |event, _window, cx| {
             if event.modifiers.platform != prev_cmd_held {
                 modkey_workspace.update(cx, |_, cx| cx.notify());
-            }
-        });
-
-        let line_height = window.line_height();
-        let mut hit_geo = Vec::with_capacity(prepaint.lines.len());
-        for line in prepaint.lines.drain(..) {
-            hit_geo.push(LineGeo {
-                bounds: line.bounds,
-                line_byte_start: line.line_byte_start,
-                line_byte_len: line.line_byte_len,
-                shaped: line.shaped,
-            });
-        }
-
-        let total_lines = prepaint.total_lines;
-        let max_line_width = prepaint.max_line_width;
-        self.workspace.update(cx, |w, _| {
-            w.last_lines = hit_geo;
-            w.viewport.bounds = bounds;
-            w.viewport.line_height = line_height;
-            w.viewport.total_lines = total_lines;
-            // Track the max across paints so the h-scrollbar doesn't shrink
-            // when the widest line scrolls offscreen.
-            if max_line_width > w.viewport.max_line_width {
-                w.viewport.max_line_width = max_line_width;
             }
         });
 
@@ -2342,5 +2324,112 @@ mod tests {
         assert_eq!(wrap_row_text("abc", 10, &row(5, 12)), (0, "ab"));
         // Valid row is untouched.
         assert_eq!(wrap_row_text("\u{4e2d}\u{6587}x", 7, &row(10, 14)), (3, "\u{6587}x"));
+    }
+}
+
+#[cfg(test)]
+mod caret_geometry_tests {
+    use super::*;
+    use gpui::{AppContext, Element, TestAppContext, WindowAppearance};
+
+    struct Probe {
+        editor: gpui::AnyElement,
+        workspace: Entity<Workspace>,
+    }
+
+    impl IntoElement for Probe {
+        type Element = Self;
+        fn into_element(self) -> Self {
+            self
+        }
+    }
+
+    impl Element for Probe {
+        type RequestLayoutState = ();
+        type PrepaintState = ();
+        fn id(&self) -> Option<ElementId> {
+            None
+        }
+        fn source_location(&self) -> Option<&'static core::panic::Location<'static>> {
+            None
+        }
+        fn request_layout(
+            &mut self,
+            _: Option<&GlobalElementId>,
+            _: Option<&gpui::InspectorElementId>,
+            window: &mut Window,
+            cx: &mut App,
+        ) -> (LayoutId, ()) {
+            (self.editor.request_layout(window, cx), ())
+        }
+        fn prepaint(
+            &mut self,
+            _: Option<&GlobalElementId>,
+            _: Option<&gpui::InspectorElementId>,
+            bounds: Bounds<Pixels>,
+            _: &mut (),
+            window: &mut Window,
+            cx: &mut App,
+        ) {
+            self.editor.prepaint(window, cx);
+            let w = self.workspace.read(cx);
+            assert!(
+                !w.last_lines.is_empty(),
+                "caret geometry must exist before deferred popups prepaint"
+            );
+            assert_eq!(w.last_lines[0].line_byte_len, "alpha".len());
+            assert_eq!(w.viewport.bounds, bounds);
+        }
+        fn paint(
+            &mut self,
+            _: Option<&GlobalElementId>,
+            _: Option<&gpui::InspectorElementId>,
+            _: Bounds<Pixels>,
+            _: &mut (),
+            _: &mut (),
+            window: &mut Window,
+            cx: &mut App,
+        ) {
+            self.editor.paint(window, cx);
+        }
+    }
+
+    #[test]
+    fn edited_caret_geometry_is_ready_before_popup_prepaint() {
+        let mut cx = TestAppContext::single();
+        let workspace = cx.new(|cx| {
+            let mut w = Workspace::new(
+                cx.focus_handle(),
+                cx.focus_handle(),
+                cx.focus_handle(),
+                cx.focus_handle(),
+                cx.focus_handle(),
+                cx.focus_handle(),
+                1.,
+                WindowAppearance::Dark,
+            );
+            w.active_tab_mut().buffer.rope = ropey::Rope::from_str("alpha");
+            w.active_tab_mut().selection = crate::buffer::Selection {
+                anchor: 5,
+                head: 5,
+                ..Default::default()
+            };
+            w.last_lines.clear();
+            w.window_closed = true;
+            w
+        });
+        let visual = cx.add_empty_window();
+        visual.draw(
+            point(px(80.), px(110.)),
+            size(px(400.), px(150.)),
+            |_, _| Probe {
+                editor: EditorElement {
+                    workspace: workspace.clone(),
+                }
+                .into_any_element(),
+                workspace: workspace.clone(),
+            },
+        );
+        cx.quit();
     }
 }

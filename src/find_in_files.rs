@@ -249,7 +249,12 @@ fn skip_entry(entry: &walkdir::DirEntry, in_subfolders: bool, in_hidden: bool) -
 
 /// Walk `query.directory` and collect matches. Blocking — caller's job to
 /// keep this off the UI thread.
+#[cfg(test)]
 pub(crate) fn run_search(query: &FindInFilesQuery) -> FindInFilesOutcome {
+    run_search_cancelled(query, &std::sync::atomic::AtomicBool::new(false))
+}
+
+pub(crate) fn run_search_cancelled(query: &FindInFilesQuery, cancelled: &std::sync::atomic::AtomicBool) -> FindInFilesOutcome {
     if !query.directory.is_dir() {
         return FindInFilesOutcome::DirectoryMissing;
     }
@@ -271,6 +276,7 @@ pub(crate) fn run_search(query: &FindInFilesQuery) -> FindInFilesOutcome {
         .filter_entry(move |e| !skip_entry(e, in_subfolders, in_hidden));
 
     for entry in walker.flatten() {
+        if cancelled.load(std::sync::atomic::Ordering::Acquire) { break; }
         if results.len() >= FIND_IN_FILES_RESULT_CAP {
             truncated = true;
             break;
@@ -292,9 +298,11 @@ pub(crate) fn run_search(query: &FindInFilesQuery) -> FindInFilesOutcome {
         if metadata.len() > FIND_IN_FILES_FILE_SIZE_LIMIT {
             continue;
         }
+        if cancelled.load(std::sync::atomic::Ordering::Acquire) { break; }
         let Ok(Some(bytes)) = read_capped(path, FIND_IN_FILES_FILE_SIZE_LIMIT) else {
             continue;
         };
+        if cancelled.load(std::sync::atomic::Ordering::Acquire) { break; }
         let Ok(decoded) = crate::text::search_file::decode(&bytes) else { continue; };
         let content = decoded.text.as_ref();
         searched_files += 1;

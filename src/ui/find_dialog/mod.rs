@@ -262,6 +262,8 @@ fn open_new_dialog_window(
                 // `close_find_dialog`. Clear the find-match highlight state
                 // and repaint the editor, otherwise the as-you-type match
                 // highlights stay painted after the window is gone.
+                if w.find_dialog_window != Some(handle) { return; }
+                w.cancel_dialog_directory_operations(handle.into());
                 w.find_dialog_window = None;
                 w.cancel_regex_replacement();
                 w.find_state.open = false;
@@ -599,6 +601,7 @@ pub(crate) fn close_find_dialog(
     _window: &mut Window,
     cx: &mut Context<Workspace>,
 ) {
+    if let Some(handle) = workspace.find_dialog_window { workspace.cancel_dialog_directory_operations(handle.into()); }
     workspace.cancel_regex_replacement();
     workspace.find_state.open = false;
     workspace.find_history_open = None;

@@ -159,7 +159,7 @@ pub(super) fn render(
             theme,
             "Replace in Files",
             false,
-            true,
+            !workspace.directory_operations.busy(),
             move |w, cx| {
                 replace_ws.update(cx, |ws, cx| {
                     ws.find_in_files_replace(&FindInFilesReplace, w, cx)

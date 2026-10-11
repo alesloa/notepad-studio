@@ -8,7 +8,7 @@
 
 use std::path::PathBuf;
 
-use gpui::{AppContext, Context, Window};
+use gpui::{Context, Window};
 
 use crate::actions::{
     FindInFilesClose, FindInFilesPickDir, FindInFilesReplace, FindInFilesRun, FindInFilesSwap,
@@ -20,7 +20,7 @@ use crate::actions::{
     FindInProjectsTogglePanel2, FindInProjectsTogglePanel3, SearchFindInFiles,
     SearchFindInProjects,
 };
-use crate::find_in_files::{FindInFilesOutcome, FindInFilesQuery, build_pattern, run_search};
+use crate::find_in_files::{FindInFilesQuery, build_pattern};
 use crate::find_state::DialogTab;
 use crate::ui::find_dialog::open_or_focus_find_dialog;
 use crate::workspace::Workspace;
@@ -91,6 +91,13 @@ impl Workspace {
     ) {
         // Promote the typed directory text into the validated `directory`
         // field before kicking off the walk.
+        if self.window_closed || self.directory_operations.busy() || self.find_in_files.searching { return; }
+        if self.find_in_files.query.len() > 1024 * 1024 || self.find_in_files.filter.len() > 1024 * 1024 {
+            self.find_in_files.error = Some("Directory query or filter exceeds 1 MiB".into()); cx.notify(); return;
+        }
+        if self.find_in_files.directory_text.len() > 1024 * 1024 {
+            self.find_in_files.error = Some("Directory path exceeds 1 MiB".into()); cx.notify(); return;
+        }
         self.commit_directory_text();
         crate::settings::push_find_history(
             crate::settings::FindHistorySlot::FifQuery,
@@ -111,7 +118,7 @@ impl Workspace {
 
     /// Sync `directory_text` (what the user typed) into `directory` (the
     /// validated PathBuf). No-op when the field matches the cached path.
-    fn commit_directory_text(&mut self) {
+    pub(super) fn commit_directory_text(&mut self) {
         let trimmed = self.find_in_files.directory_text.trim();
         if trimmed.is_empty() {
             return;
@@ -132,91 +139,7 @@ impl Workspace {
     /// responsive — when the walk finishes, the result is applied back via
     /// `update`.
     pub(crate) fn run_find_in_files(&mut self, window: &mut Window, cx: &mut Context<Self>) {
-        if self.find_in_files.searching {
-            return;
-        }
-        if self.find_in_files.query.trim().is_empty() {
-            self.find_in_files.error = Some("Enter a search query".to_string());
-            self.find_in_files.status = None;
-            cx.notify();
-            return;
-        }
-        let Some(dir) = self.find_in_files.directory.clone() else {
-            self.find_in_files.error = Some("Pick a directory first".to_string());
-            self.find_in_files.status = None;
-            cx.notify();
-            return;
-        };
-
-        let query = FindInFilesQuery {
-            text: self.find_in_files.query.clone(),
-            directory: dir,
-            filter: self.find_in_files.filter.clone(),
-            match_case: self.find_in_files.match_case,
-            whole_word: self.find_in_files.whole_word,
-            regex: self.find_in_files.regex,
-            extended: self.find_in_files.extended,
-            dot_matches_newline: self.find_in_files.dot_matches_newline,
-            in_subfolders: self.find_in_files.in_subfolders,
-            in_hidden_folders: self.find_in_files.in_hidden_folders,
-        };
-
-        self.find_in_files.searching = true;
-        self.find_in_files.error = None;
-        self.find_in_files.status = Some("Searching…".to_string());
-        self.find_in_files.results.clear();
-        self.find_in_files.truncated = false;
-        self.find_in_files.last_search_query = self.find_in_files.query.clone();
-        self.find_in_files.last_search_mode = describe_search_mode(
-            self.find_in_files.regex,
-            self.find_in_files.extended,
-        );
-        self.find_in_files.last_search_files_searched = 0;
-        cx.notify();
-
-        let bg_task = cx
-            .background_executor()
-            .spawn(async move { run_search(&query) });
-        cx.spawn_in(window, async move |this, cx| {
-            let outcome = bg_task.await;
-            this.update(cx, |w, cx| {
-                w.find_in_files.searching = false;
-                if !w.find_in_files.open {
-                    return;
-                }
-                match outcome {
-                    FindInFilesOutcome::Ok {
-                        results,
-                        searched_files,
-                        truncated,
-                        elapsed_ms,
-                    } => {
-                        let result_count = results.len();
-                        w.find_in_files.results = results;
-                        w.find_in_files.truncated = truncated;
-                        w.find_in_files.error = None;
-                        w.find_in_files.last_search_files_searched = searched_files;
-                        w.find_in_files.status = Some(format!(
-                            "{result_count} match{} in {searched_files} file{} · {elapsed_ms}ms{}",
-                            if result_count == 1 { "" } else { "es" },
-                            if searched_files == 1 { "" } else { "s" },
-                            if truncated { " (truncated)" } else { "" },
-                        ));
-                    }
-                    FindInFilesOutcome::InvalidRegex(msg) => {
-                        w.find_in_files.error = Some(msg);
-                        w.find_in_files.status = None;
-                    }
-                    FindInFilesOutcome::DirectoryMissing => {
-                        w.find_in_files.error = Some("Directory not found".to_string());
-                        w.find_in_files.status = None;
-                    }
-                }
-                cx.notify();
-            })
-            .ok();
-        })
-        .detach();
+        self.start_directory_operation(super::directory_operations::Route::Files, false, window, cx);
     }
 
     /// "Replace in Files" — runs a fresh search, then rewrites every matched
@@ -238,113 +161,7 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        self.commit_directory_text();
-        if self.find_in_files.query.trim().is_empty() {
-            self.find_in_files.error = Some("Enter a search query".to_string());
-            self.find_in_files.status = None;
-            cx.notify();
-            return;
-        }
-        let Some(dir) = self.find_in_files.directory.clone() else {
-            self.find_in_files.error = Some("Pick a directory first".to_string());
-            self.find_in_files.status = None;
-            cx.notify();
-            return;
-        };
-        crate::settings::push_find_history(
-            crate::settings::FindHistorySlot::FifQuery,
-            &self.find_in_files.query,
-        );
-        crate::settings::push_find_history(
-            crate::settings::FindHistorySlot::FifReplacement,
-            &self.find_in_files.replacement,
-        );
-        crate::settings::push_find_history(
-            crate::settings::FindHistorySlot::FifFilter,
-            &self.find_in_files.filter,
-        );
-        crate::settings::push_find_history(
-            crate::settings::FindHistorySlot::FifDirectory,
-            &self.find_in_files.directory_text,
-        );
-        let query = FindInFilesQuery {
-            text: self.find_in_files.query.clone(),
-            directory: dir.clone(),
-            filter: self.find_in_files.filter.clone(),
-            match_case: self.find_in_files.match_case,
-            whole_word: self.find_in_files.whole_word,
-            regex: self.find_in_files.regex,
-            extended: self.find_in_files.extended,
-            dot_matches_newline: self.find_in_files.dot_matches_newline,
-            in_subfolders: self.find_in_files.in_subfolders,
-            in_hidden_folders: self.find_in_files.in_hidden_folders,
-        };
-        let replacement = self.find_in_files.replacement.clone();
-        let prompt_query = self.find_in_files.query.clone();
-        let prompt_replacement = replacement.clone();
-
-        self.find_in_files.error = None;
-        self.find_in_files.status = Some("Confirming Replace in Files…".to_string());
-        cx.notify();
-
-        cx.spawn_in(window, async move |this, cx| {
-            // OS-native confirm. AsyncMessageDialog returns a button enum
-            // — "Yes" / "No" mapped onto Notepad++'s Apply / Cancel.
-            let confirm = rfd::AsyncMessageDialog::new()
-                .set_level(rfd::MessageLevel::Warning)
-                .set_title("Replace in Files")
-                .set_description(format!(
-                    "Replace every match of\n  {prompt_query}\nwith\n  {prompt_replacement}\nin {} ?\n\nThis rewrites every matching file on disk and cannot be undone from inside Notepad Studio.",
-                    dir.display()
-                ))
-                .set_buttons(rfd::MessageButtons::YesNo)
-                .show()
-                .await;
-            if !matches!(confirm, rfd::MessageDialogResult::Yes) {
-                this.update(cx, |w, cx| {
-                    w.find_in_files.status = Some("Replace in Files cancelled".to_string());
-                    cx.notify();
-                })
-                .ok();
-                return;
-            }
-            this.update(cx, |w, cx| {
-                w.find_in_files.searching = true;
-                w.find_in_files.status = Some("Replacing…".to_string());
-                cx.notify();
-            })
-            .ok();
-            let report =
-                cx.background_spawn(async move { run_replace_in_files(&query, &replacement) })
-                    .await;
-            this.update(cx, |w, cx| {
-                w.find_in_files.searching = false;
-                match report {
-                    Ok(report) => {
-                        w.find_in_files.status = Some(format!(
-                            "Replaced {} occurrence{} in {} file{}{}",
-                            report.replacements,
-                            if report.replacements == 1 { "" } else { "s" },
-                            report.files_changed,
-                            if report.files_changed == 1 { "" } else { "s" },
-                            if report.failures > 0 {
-                                report.failure_status()
-                            } else {
-                                String::new()
-                            },
-                        ));
-                        w.find_in_files.error = None;
-                    }
-                    Err(msg) => {
-                        w.find_in_files.error = Some(msg);
-                        w.find_in_files.status = None;
-                    }
-                }
-                cx.notify();
-            })
-            .ok();
-        })
-        .detach();
+        self.start_directory_operation(super::directory_operations::Route::Files, true, window, cx);
     }
 
     pub(crate) fn find_in_files_pick_dir(
@@ -590,35 +407,16 @@ impl Workspace {
         open_or_focus_find_dialog(self, DialogTab::FindInProject, window, cx);
     }
 
-    /// Folder-panel roots that drive Project Panel 1/2/3 in the dialog. NPP
-    /// caps at three so we mirror that — extra sidebar roots beyond index 2
-    /// can't be searched from this tab (the user can switch to Find in
-    /// Files for those).
-    pub(crate) fn find_in_projects_selected_roots(&self) -> Vec<PathBuf> {
-        let snap = crate::settings::snapshot();
-        let mut out = Vec::new();
-        let roots = &snap.folder_panel_roots;
-        let flags = [
-            self.find_in_files.project_panel_1,
-            self.find_in_files.project_panel_2,
-            self.find_in_files.project_panel_3,
-        ];
-        for (i, on) in flags.iter().enumerate() {
-            if *on {
-                if let Some(p) = roots.get(i) {
-                    out.push(p.clone());
-                }
-            }
-        }
-        out
-    }
-
     pub(crate) fn find_in_projects_run_action(
         &mut self,
         _: &FindInProjectsRun,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        if self.window_closed || self.directory_operations.busy() || self.find_in_files.searching { return; }
+        if self.find_in_files.query.len() > 1024 * 1024 || self.find_in_files.filter.len() > 1024 * 1024 {
+            self.find_in_files.error = Some("Directory query or filter exceeds 1 MiB".into()); cx.notify(); return;
+        }
         crate::settings::push_find_history(
             crate::settings::FindHistorySlot::FifQuery,
             &self.find_in_files.query,
@@ -639,129 +437,7 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if self.find_in_files.searching {
-            return;
-        }
-        if self.find_in_files.query.trim().is_empty() {
-            self.find_in_files.error = Some("Enter a search query".to_string());
-            self.find_in_files.status = None;
-            cx.notify();
-            return;
-        }
-        let roots = self.find_in_projects_selected_roots();
-        if roots.is_empty() {
-            self.find_in_files.error =
-                Some("Tick a Project Panel with an open folder".to_string());
-            self.find_in_files.status = None;
-            cx.notify();
-            return;
-        }
-        let text = self.find_in_files.query.clone();
-        let filter = self.find_in_files.filter.clone();
-        let match_case = self.find_in_files.match_case;
-        let whole_word = self.find_in_files.whole_word;
-        let regex = self.find_in_files.regex;
-        let extended = self.find_in_files.extended;
-        let dot_matches_newline = self.find_in_files.dot_matches_newline;
-
-        self.find_in_files.searching = true;
-        self.find_in_files.error = None;
-        self.find_in_files.status = Some("Searching projects…".to_string());
-        self.find_in_files.results.clear();
-        self.find_in_files.truncated = false;
-        cx.notify();
-
-        let bg_task = cx.background_executor().spawn(async move {
-            let mut merged_results = Vec::new();
-            let mut merged_files = 0usize;
-            let mut merged_truncated = false;
-            let mut merged_elapsed = 0u64;
-            let mut invalid_regex: Option<String> = None;
-            for dir in &roots {
-                let q = FindInFilesQuery {
-                    text: text.clone(),
-                    directory: dir.clone(),
-                    filter: filter.clone(),
-                    match_case,
-                    whole_word,
-                    regex,
-                    extended,
-                    dot_matches_newline,
-                    in_subfolders: true,
-                    in_hidden_folders: false,
-                };
-                match run_search(&q) {
-                    FindInFilesOutcome::Ok {
-                        results,
-                        searched_files,
-                        truncated,
-                        elapsed_ms,
-                    } => {
-                        merged_results.extend(results);
-                        merged_files += searched_files;
-                        merged_truncated |= truncated;
-                        merged_elapsed += elapsed_ms;
-                    }
-                    FindInFilesOutcome::InvalidRegex(msg) => {
-                        invalid_regex = Some(msg);
-                        break;
-                    }
-                    FindInFilesOutcome::DirectoryMissing => {
-                        // Skip missing roots silently — user may have one
-                        // panel pointing at a folder that's been moved.
-                    }
-                }
-            }
-            if let Some(msg) = invalid_regex {
-                FindInFilesOutcome::InvalidRegex(msg)
-            } else {
-                FindInFilesOutcome::Ok {
-                    results: merged_results,
-                    searched_files: merged_files,
-                    truncated: merged_truncated,
-                    elapsed_ms: merged_elapsed,
-                }
-            }
-        });
-        cx.spawn_in(window, async move |this, cx| {
-            let outcome = bg_task.await;
-            this.update(cx, |w, cx| {
-                w.find_in_files.searching = false;
-                if !w.find_in_files.open {
-                    return;
-                }
-                match outcome {
-                    FindInFilesOutcome::Ok {
-                        results,
-                        searched_files,
-                        truncated,
-                        elapsed_ms,
-                    } => {
-                        let n = results.len();
-                        w.find_in_files.results = results;
-                        w.find_in_files.truncated = truncated;
-                        w.find_in_files.error = None;
-                        w.find_in_files.status = Some(format!(
-                            "{n} match{} in {searched_files} file{} · {elapsed_ms}ms{}",
-                            if n == 1 { "" } else { "es" },
-                            if searched_files == 1 { "" } else { "s" },
-                            if truncated { " (truncated)" } else { "" },
-                        ));
-                    }
-                    FindInFilesOutcome::InvalidRegex(msg) => {
-                        w.find_in_files.error = Some(msg);
-                        w.find_in_files.status = None;
-                    }
-                    FindInFilesOutcome::DirectoryMissing => {
-                        w.find_in_files.error = Some("Folder not found".to_string());
-                        w.find_in_files.status = None;
-                    }
-                }
-                cx.notify();
-            })
-            .ok();
-        })
-        .detach();
+        self.start_directory_operation(super::directory_operations::Route::Projects, false, window, cx);
     }
 
     /// "Replace in Projects" — same destructive on-disk rewrite as Replace
@@ -772,147 +448,7 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if self.find_in_files.query.trim().is_empty() {
-            self.find_in_files.error = Some("Enter a search query".to_string());
-            self.find_in_files.status = None;
-            cx.notify();
-            return;
-        }
-        let roots = self.find_in_projects_selected_roots();
-        if roots.is_empty() {
-            self.find_in_files.error =
-                Some("Tick a Project Panel with an open folder".to_string());
-            self.find_in_files.status = None;
-            cx.notify();
-            return;
-        }
-        crate::settings::push_find_history(
-            crate::settings::FindHistorySlot::FifQuery,
-            &self.find_in_files.query,
-        );
-        crate::settings::push_find_history(
-            crate::settings::FindHistorySlot::FifReplacement,
-            &self.find_in_files.replacement,
-        );
-        crate::settings::push_find_history(
-            crate::settings::FindHistorySlot::FifFilter,
-            &self.find_in_files.filter,
-        );
-        let text = self.find_in_files.query.clone();
-        let filter = self.find_in_files.filter.clone();
-        let match_case = self.find_in_files.match_case;
-        let whole_word = self.find_in_files.whole_word;
-        let regex = self.find_in_files.regex;
-        let extended = self.find_in_files.extended;
-        let dot_matches_newline = self.find_in_files.dot_matches_newline;
-        let replacement = self.find_in_files.replacement.clone();
-        let prompt_query = self.find_in_files.query.clone();
-        let prompt_replacement = replacement.clone();
-        let dirs_list = roots
-            .iter()
-            .map(|p| format!("  {}", p.display()))
-            .collect::<Vec<_>>()
-            .join("\n");
-
-        self.find_in_files.error = None;
-        self.find_in_files.status = Some("Confirming Replace in Projects…".to_string());
-        cx.notify();
-
-        cx.spawn_in(window, async move |this, cx| {
-            let confirm = rfd::AsyncMessageDialog::new()
-                .set_level(rfd::MessageLevel::Warning)
-                .set_title("Replace in Projects")
-                .set_description(format!(
-                    "Replace every match of\n  {prompt_query}\nwith\n  {prompt_replacement}\nin:\n{dirs_list}\n\nThis rewrites every matching file on disk and cannot be undone from inside Notepad Studio."
-                ))
-                .set_buttons(rfd::MessageButtons::YesNo)
-                .show()
-                .await;
-            if !matches!(confirm, rfd::MessageDialogResult::Yes) {
-                this.update(cx, |w, cx| {
-                    w.find_in_files.status = Some("Replace in Projects cancelled".to_string());
-                    cx.notify();
-                })
-                .ok();
-                return;
-            }
-            this.update(cx, |w, cx| {
-                w.find_in_files.searching = true;
-                w.find_in_files.status = Some("Replacing…".to_string());
-                cx.notify();
-            })
-            .ok();
-            let report = cx
-                .background_spawn(async move {
-                    let mut total = ReplaceInFilesReport {
-                        files_changed: 0,
-                        replacements: 0,
-                        failures: 0,
-                        first_failure: None,
-                    };
-                    let mut last_err: Option<String> = None;
-                    for dir in &roots {
-                        let q = FindInFilesQuery {
-                            text: text.clone(),
-                            directory: dir.clone(),
-                            filter: filter.clone(),
-                            match_case,
-                            whole_word,
-                            regex,
-                            extended,
-                            dot_matches_newline,
-                            in_subfolders: true,
-                            in_hidden_folders: false,
-                        };
-                        match run_replace_in_files(&q, &replacement) {
-                            Ok(r) => {
-                                total.files_changed += r.files_changed;
-                                total.replacements += r.replacements;
-                                total.failures += r.failures;
-                                if total.first_failure.is_none() { total.first_failure = r.first_failure; }
-                            }
-                            Err(msg) => {
-                                last_err = Some(msg);
-                            }
-                        }
-                    }
-                    let nothing_done = total.files_changed == 0
-                        && total.replacements == 0
-                        && total.failures == 0;
-                    match last_err {
-                        Some(msg) if nothing_done => Err(msg),
-                        _ => Ok(total),
-                    }
-                })
-                .await;
-            this.update(cx, |w, cx| {
-                w.find_in_files.searching = false;
-                match report {
-                    Ok(report) => {
-                        w.find_in_files.status = Some(format!(
-                            "Replaced {} occurrence{} in {} file{}{}",
-                            report.replacements,
-                            if report.replacements == 1 { "" } else { "s" },
-                            report.files_changed,
-                            if report.files_changed == 1 { "" } else { "s" },
-                            if report.failures > 0 {
-                                report.failure_status()
-                            } else {
-                                String::new()
-                            },
-                        ));
-                        w.find_in_files.error = None;
-                    }
-                    Err(msg) => {
-                        w.find_in_files.error = Some(msg);
-                        w.find_in_files.status = None;
-                    }
-                }
-                cx.notify();
-            })
-            .ok();
-        })
-        .detach();
+        self.start_directory_operation(super::directory_operations::Route::Projects, true, window, cx);
     }
 
     /// Swap the Find what / Replace with strings — NPP's small ↑↓ button to
@@ -1091,15 +627,17 @@ fn result_range_in_rope(
 }
 
 /// Outcome of a successful Replace-in-Files run.
-struct ReplaceInFilesReport {
-    files_changed: usize,
-    replacements: usize,
-    failures: usize,
-    first_failure: Option<String>,
+#[derive(Default)]
+pub(super) struct ReplaceInFilesReport {
+    pub(super) cancelled: bool,
+    pub(super) files_changed: usize,
+    pub(super) replacements: usize,
+    pub(super) failures: usize,
+    pub(super) first_failure: Option<String>,
 }
 
 impl ReplaceInFilesReport {
-    fn failure_status(&self) -> String {
+    pub(super) fn failure_status(&self) -> String {
         format!(" · {} failed{}", self.failures,
             self.first_failure.as_ref().map_or(String::new(), |reason| format!(": {reason}")))
     }
@@ -1112,6 +650,7 @@ impl ReplaceInFilesReport {
 /// Uses the same `build_pattern` helper as the search path so every flag
 /// (extended-escape decoding, dot-matches-newline, case, whole-word) lands
 /// with identical semantics on both sides.
+#[cfg(test)]
 fn run_replace_in_files(
     query: &FindInFilesQuery,
     replacement: &str,
@@ -1119,12 +658,24 @@ fn run_replace_in_files(
     run_replace_in_files_with_reader(query, replacement, crate::find_in_files::read_capped)
 }
 
+#[cfg(test)]
 fn run_replace_in_files_with_reader(
     query: &FindInFilesQuery,
     replacement: &str,
+    read: impl FnMut(&std::path::Path, u64) -> std::io::Result<Option<Vec<u8>>>,
+) -> Result<ReplaceInFilesReport, String> {
+    run_replace_in_files_with_reader_cancelled(query, replacement, read, &std::sync::atomic::AtomicBool::new(false))
+}
+
+pub(super) fn run_replace_in_files_with_reader_cancelled(
+    query: &FindInFilesQuery, replacement: &str,
     mut read: impl FnMut(&std::path::Path, u64) -> std::io::Result<Option<Vec<u8>>>,
+    cancelled: &std::sync::atomic::AtomicBool,
 ) -> Result<ReplaceInFilesReport, String> {
     use walkdir::WalkDir;
+    if cancelled.load(std::sync::atomic::Ordering::Acquire) {
+        return Ok(ReplaceInFilesReport { cancelled: true, ..ReplaceInFilesReport::default() });
+    }
     if !query.directory.is_dir() {
         return Err("Directory not found".to_string());
     }
@@ -1190,6 +741,7 @@ fn run_replace_in_files_with_reader(
         });
 
     for entry in walker.flatten() {
+        if cancelled.load(std::sync::atomic::Ordering::Acquire) { break; }
         if !entry.file_type().is_file() {
             continue;
         }
@@ -1210,6 +762,7 @@ fn run_replace_in_files_with_reader(
         }
         // Bounded read: a file that grew past the limit since the stat is
         // skipped whole, never rewritten from a truncated copy.
+        if cancelled.load(std::sync::atomic::Ordering::Acquire) { break; }
         let bytes = match read(path, limit) {
             Ok(Some(b)) => b,
             Ok(None) => continue,
@@ -1219,6 +772,7 @@ fn run_replace_in_files_with_reader(
                 continue;
             }
         };
+        if cancelled.load(std::sync::atomic::Ordering::Acquire) { break; }
         let decoded = match crate::text::search_file::decode(&bytes) {
             Ok(decoded) => decoded,
             Err(error) => {
@@ -1227,6 +781,7 @@ fn run_replace_in_files_with_reader(
                 continue;
             }
         };
+        if cancelled.load(std::sync::atomic::Ordering::Acquire) { break; }
         let content = decoded.text.as_ref();
         let (replaced, count_in_file) = if let Some(template) = &regex_template {
             let result = template.plan(&re, content, None, crate::text::regex_replacement::MAX_CACHED_MATCHES)
@@ -1250,6 +805,7 @@ fn run_replace_in_files_with_reader(
             }
         };
         if count_in_file == 0 { continue; }
+        if cancelled.load(std::sync::atomic::Ordering::Acquire) { break; }
         let new_content = match crate::text::encoding::encode_checked(&replaced, decoded.encoding) {
             Ok(bytes) => bytes,
             Err(error) => {
@@ -1258,6 +814,7 @@ fn run_replace_in_files_with_reader(
                 continue;
             }
         };
+        if cancelled.load(std::sync::atomic::Ordering::Acquire) { break; }
         match crate::io::write_file_safely(path, &new_content) {
             Ok(()) => {
                 files_changed += 1;
@@ -1271,6 +828,7 @@ fn run_replace_in_files_with_reader(
     }
 
     Ok(ReplaceInFilesReport {
+        cancelled: cancelled.load(std::sync::atomic::Ordering::Acquire),
         files_changed,
         replacements,
         failures,
@@ -1280,6 +838,63 @@ fn run_replace_in_files_with_reader(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn lifecycle_worker_cancelled_before_read_preserves_utf16_bom() {
+        let dir = tempfile::tempdir().unwrap(); let file = dir.path().join("neutral.txt");
+        let bytes = utf16_sample(); std::fs::write(&file, &bytes).unwrap();
+        let token = std::sync::atomic::AtomicBool::new(true);
+        let report = run_replace_in_files_with_reader_cancelled(&query(dir.path(), "hit", false, false),
+            "done", |_, _| panic!("cancelled worker must not read"), &token).unwrap();
+        assert!(report.cancelled); assert_eq!((report.files_changed, report.replacements, report.failures), (0, 0, 0));
+        assert_eq!(std::fs::read(&file).unwrap(), bytes);
+    }
+
+    fn utf16_sample() -> Vec<u8> {
+        let mut bytes = vec![0xff, 0xfe];
+        for unit in "hit\r\n\u{e9}".encode_utf16() { bytes.extend_from_slice(&unit.to_le_bytes()); }
+        bytes
+    }
+
+    fn held_worker(cancel_at: usize, first_read_fails: bool) {
+        let dir = tempfile::tempdir().unwrap();
+        let first = dir.path().join("neutral-one.txt"); let second = dir.path().join("neutral-two.txt");
+        let bytes = utf16_sample();
+        std::fs::write(&first, &bytes).unwrap(); std::fs::write(&second, &bytes).unwrap();
+        let q = query(dir.path(), "hit", false, false);
+        let token = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)); let worker_token = token.clone();
+        let (entered, waiting) = std::sync::mpsc::channel(); let (release, released) = std::sync::mpsc::channel();
+        let worker = std::thread::spawn(move || {
+            let mut reads = 0;
+            run_replace_in_files_with_reader_cancelled(&q, "done", |path, limit| {
+                reads += 1;
+                if first_read_fails && reads == 1 {
+                    return Err(std::io::Error::new(std::io::ErrorKind::PermissionDenied, "synthetic read refusal"));
+                }
+                let actual = crate::find_in_files::read_capped(path, limit)?;
+                if reads == cancel_at { entered.send(()).unwrap(); released.recv().unwrap(); }
+                Ok(actual)
+            }, &worker_token).unwrap()
+        });
+        let reached = waiting.recv_timeout(std::time::Duration::from_secs(5));
+        token.store(true, std::sync::atomic::Ordering::Release); release.send(()).unwrap();
+        let report = worker.join().unwrap(); reached.unwrap(); assert!(report.cancelled);
+        assert_eq!(report.files_changed, usize::from(cancel_at == 2 && !first_read_fails));
+        assert_eq!(report.replacements, report.files_changed);
+        assert_eq!(report.failures, usize::from(first_read_fails));
+        let written: Vec<_> = [first, second].iter().map(|p| std::fs::read(p).unwrap()).collect();
+        assert_eq!(written.iter().filter(|b| **b == bytes).count(), 2 - report.files_changed);
+        for changed in written.iter().filter(|b| **b != bytes) {
+            let mut expected = vec![0xff, 0xfe];
+            for unit in "done\r\n\u{e9}".encode_utf16() { expected.extend_from_slice(&unit.to_le_bytes()); }
+            assert_eq!(changed, &expected);
+        }
+        if first_read_fails { assert!(report.first_failure.as_deref().unwrap().contains("synthetic read refusal")); }
+    }
+
+    #[test] fn lifecycle_worker_held_read_cancels_before_first_write() { held_worker(1, false); }
+    #[test] fn lifecycle_worker_held_second_read_preserves_written_prefix() { held_worker(2, false); }
+    #[test] fn lifecycle_worker_cancelled_after_read_failure_preserves_counts() { held_worker(2, true); }
+
     #[test]
     fn file_encoding_replace_ansi_fallback_preserves_every_unmatched_byte() {
         let dir = temp_dir();

@@ -31,6 +31,7 @@ mod rich_replacement;
 mod regex_replacement_tests;
 mod file_tab_actions;
 mod find_in_files;
+mod directory_operations;
 mod folder_panel;
 mod format;
 mod history;
@@ -158,6 +159,11 @@ pub(crate) struct Workspace {
     pub(crate) find_state: FindState,
     pub(crate) goto_state: GotoState,
     pub(crate) find_in_files: FindInFilesState,
+    pub(crate) directory_operations: directory_operations::DirectoryOperations,
+    #[cfg(test)]
+    pub(crate) replace_audit_confirmations: std::collections::VecDeque<futures::channel::oneshot::Receiver<rfd::MessageDialogResult>>,
+    #[cfg(test)]
+    pub(crate) replace_audit_ack: Option<futures::channel::oneshot::Receiver<()>>,
     pub(crate) mark_state: MarkState,
     /// Currently-active tab in the Find dialog. Persists across close/reopen
     /// so the dialog comes back showing the user's last working surface.
@@ -722,6 +728,11 @@ impl Workspace {
             find_state: FindState::new(),
             goto_state: GotoState::new(),
             find_in_files: FindInFilesState::new(),
+            directory_operations: directory_operations::DirectoryOperations::default(),
+            #[cfg(test)]
+            replace_audit_confirmations: std::collections::VecDeque::new(),
+            #[cfg(test)]
+            replace_audit_ack: None,
             mark_state: MarkState::new(),
             dialog_tab: DialogTab::Find,
             find_dialog_window: None,
@@ -1221,6 +1232,7 @@ impl Workspace {
 
     pub(crate) fn release_session_window(&mut self) {
         self.window_closed = true;
+        self.cancel_directory_operations();
         self.cancel_regex_replacement();
         self.syntax_refresh.close();
         self.reload.close();
@@ -1928,3 +1940,6 @@ mod prepared_edit_tests;
 
 #[cfg(test)]
 mod source_caret_tests;
+
+#[cfg(test)]
+mod replace_lifecycle_audit_tests;

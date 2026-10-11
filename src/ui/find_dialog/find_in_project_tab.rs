@@ -167,7 +167,7 @@ pub(super) fn render(
             theme,
             "Replace in Projects",
             false,
-            any_active_panel,
+            any_active_panel && !workspace.directory_operations.busy(),
             move |w, cx| {
                 replace_run_ws.update(cx, |ws, cx| {
                     ws.find_in_projects_replace(&FindInProjectsReplace, w, cx)

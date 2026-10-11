@@ -478,6 +478,12 @@ v0.0.5 — current
     122. Clicking a search result preserves its destination selection when
          a pending CSV cell edit prevents switching documents. Committing the
          cell edit lets you retry the result normally.
+    123. Replace in Files/Projects refuses stale confirmations after the
+         originating window closes or the captured search scope changes.
+         Closing the originating Find dialog/editor cancels upcoming file
+         work; completed writes remain counted. Directory requests cannot
+         overlap, and project search results share a 1,000-row limit.
+
 
   v0.1.0 — syntax & language:
 

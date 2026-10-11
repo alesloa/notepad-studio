@@ -31,6 +31,7 @@ use crate::workspace::Workspace;
 impl Render for Workspace {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
         csv_actions::restore_committed_cell_focus(self, window, cx);
+        self.retire_ime_composition(window, cx);
         let theme = self.theme();
         let prefs = crate::settings::snapshot();
         // Sync the OS title bar with the active tab's path (or "new N" label).

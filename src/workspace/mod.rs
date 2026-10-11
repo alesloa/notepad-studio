@@ -18,6 +18,7 @@ mod find_in_files;
 mod folder_panel;
 mod format;
 mod history;
+mod ime;
 mod input_handler;
 mod language;
 mod macros;
@@ -76,6 +77,9 @@ pub(crate) struct Workspace {
     pub(crate) tab_mru: VecDeque<Uuid>,
     pub(crate) theme_mode: ThemeMode,
     pub(crate) focus_handle: FocusHandle,
+    pub(crate) ime_composition: Option<ime::ImeComposition>,
+    #[cfg(test)]
+    pub(crate) ime_record_sink: Option<std::sync::mpsc::Sender<crate::macros::MacroEvent>>,
     /// Focus held by the find-query input. When focused, typed text routes
     /// into `find_state.query` instead of the active buffer.
     pub(crate) find_focus: FocusHandle,
@@ -653,6 +657,9 @@ impl Workspace {
             tab_mru: VecDeque::from([welcome_id]),
             theme_mode: ThemeMode::Dark,
             focus_handle,
+            ime_composition: None,
+            #[cfg(test)]
+            ime_record_sink: None,
             find_focus,
             replace_focus,
             goto_focus,

@@ -296,6 +296,10 @@ v0.0.5 — current
       tab moves and late input. Old popups cannot act on newer ones, and
       Rename refuses existing files instead of overwriting them.
 
+  75. Source and CSV IME composition replaces marked text, honors relative
+      UTF-16 selection and commits Source input as one Undo action. Changing
+      tabs, views or focus retires the old composition range safely.
+
   v0.1.0 — syntax & language:
 
     1. Tree-sitter syntax highlighting for 25 modes: Rust, Python, C,

@@ -4,6 +4,10 @@
 #[path = "rich_input_history_tests.rs"]
 mod rich_input_history_tests;
 
+#[cfg(test)]
+#[path = "ime_composition_tests.rs"]
+mod ime_composition_tests;
+
 // --- helpers for the find/replace/goto String inputs --------------------------------
 
 use std::ops::Range;
@@ -24,7 +28,7 @@ use crate::workspace::Workspace;
 /// cursor and anchor onto char starts inside `target`: several openers
 /// (Ctrl+F prefill, Go To reopen) replace the text but leave the anchor
 /// stale, and the wrapped helper slices at those offsets.
-fn replace_input_utf16(
+pub(super) fn replace_input_utf16(
     target: &mut String,
     cursor_field: &mut usize,
     anchor_field: &mut usize,
@@ -154,7 +158,7 @@ fn char_at_byte(rope: &ropey::Rope, cursor: usize) -> Option<char> {
 /// The OS can send offsets past the end, a reversed range, or one that
 /// splits a surrogate pair; the result is clamped, ordered and on char
 /// boundaries either way.
-fn utf16_range_to_bytes(rope: &ropey::Rope, range_utf16: Range<usize>) -> Range<usize> {
+pub(super) fn utf16_range_to_bytes(rope: &ropey::Rope, range_utf16: Range<usize>) -> Range<usize> {
     let a = super::edits::floor_rope_char_boundary(rope, rope_utf16_to_byte(rope, range_utf16.start));
     let b = super::edits::floor_rope_char_boundary(rope, rope_utf16_to_byte(rope, range_utf16.end));
     a.min(b)..a.max(b)
@@ -187,7 +191,7 @@ fn is_c0_control(b: u8) -> bool {
     matches!(b, 0x00..=0x08 | 0x0E..=0x1F | 0x7F)
 }
 
-fn strip_c0_controls(s: &str) -> String {
+pub(super) fn strip_c0_controls(s: &str) -> String {
     let mut out = String::with_capacity(s.len());
     for ch in s.chars() {
         let cp = ch as u32;
@@ -720,13 +724,15 @@ impl EntityInputHandler for Workspace {
 
     fn marked_text_range(
         &self,
-        _window: &mut Window,
+        window: &mut Window,
         _cx: &mut Context<Self>,
     ) -> Option<Range<usize>> {
-        None
+        self.ime_marked_range(window)
     }
 
-    fn unmark_text(&mut self, _window: &mut Window, _cx: &mut Context<Self>) {}
+    fn unmark_text(&mut self, window: &mut Window, cx: &mut Context<Self>) {
+        self.finish_ime_composition(window, cx);
+    }
 
     fn replace_text_in_range(
         &mut self,
@@ -735,6 +741,11 @@ impl EntityInputHandler for Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        self.retire_ime_composition(window, cx);
+        if self.is_composing_text(window) {
+            self.replace_ime_text(range_utf16, new_text, None, false, window, cx);
+            return;
+        }
         match self.input_focus(window) {
             InputFocus::FindQuery => {
                 let cursor = self.find_state.query_cursor;
@@ -1383,11 +1394,15 @@ impl EntityInputHandler for Workspace {
         &mut self,
         range_utf16: Option<Range<usize>>,
         new_text: &str,
-        _new_selected_range_utf16: Option<Range<usize>>,
+        new_selected_range_utf16: Option<Range<usize>>,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
         self.close_autocomplete(cx);
+        self.retire_ime_composition(window, cx);
+        if self.replace_ime_text(range_utf16.clone(), new_text, new_selected_range_utf16, true, window, cx) {
+            return;
+        }
         let previous = self.autocomplete_auto_trigger_suppressed;
         self.autocomplete_auto_trigger_suppressed = true;
         self.replace_text_in_range(range_utf16, new_text, window, cx);

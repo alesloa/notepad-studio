@@ -7,6 +7,19 @@ use crate::{actions::*, settings::Settings, tab::TabViewMode};
 
 const SAMPLE: &str = "al\nalpha albatross alpine";
 
+fn press(visual: &mut VisualTestContext, actions: &[&str]) {
+    for action in actions {
+        let entry = crate::shortcuts::catalog()
+            .iter()
+            .find(|entry| entry.id == *action)
+            .unwrap();
+        let chord = crate::shortcuts::platform_default_keys(entry)
+            .first()
+            .unwrap();
+        visual.simulate_keystrokes(chord);
+    }
+}
+
 fn fixture(cx: &mut TestAppContext) -> (Entity<Workspace>, &mut VisualTestContext) {
     cx.update(|cx| crate::shortcuts::register_catalog(cx, &Default::default()));
     let (workspace, visual) = cx.add_window_view(|_, cx| {
@@ -31,7 +44,7 @@ fn fixture(cx: &mut TestAppContext) -> (Entity<Workspace>, &mut VisualTestContex
         window.focus(&focus, cx);
     });
     visual.run_until_parked();
-    visual.simulate_keystrokes("ctrl-enter"); // CATALOG Word Completion.
+    press(visual, &["EditAutocompleteWord"]); // CATALOG Word Completion.
     assert!(visual.debug_bounds("autocomplete-menu").is_some());
     (workspace, visual)
 }
@@ -63,7 +76,8 @@ fn real_workspace_keys_navigate_accept_and_cancel_completion() {
             assert!(w.autocomplete.is_none());
             assert_eq!(w.tabs[w.active].undo_stack.len(), 1);
         });
-        visual.simulate_keystrokes("ctrl-z ctrl-enter escape");
+        press(visual, &["EditUndo", "EditAutocompleteWord"]);
+        visual.simulate_keystrokes("escape");
         visual.update(|_, cx| {
             let w = workspace.read(cx);
             assert_eq!(w.buffer().rope.to_string(), SAMPLE);
@@ -217,7 +231,7 @@ fn window_deactivation_cancels_before_a_rendered_blur() {
     visual.update(|window, _| window.activate_window());
     visual.run_until_parked();
     visual.update(|_, cx| assert!(workspace.read(cx).autocomplete.is_none()));
-    visual.simulate_keystrokes("ctrl-enter");
+    press(visual, &["EditAutocompleteWord"]);
     assert!(visual.debug_bounds("autocomplete-menu").is_some());
     cx.quit();
 }
@@ -339,7 +353,7 @@ fn source_view_actions_return_body_and_grid_focus_to_the_editor() {
             assert!(w.autocomplete.is_none());
         });
         if route != 3 {
-            visual.simulate_keystrokes("ctrl-enter");
+            press(visual, &["EditAutocompleteWord"]);
             assert!(visual.debug_bounds("autocomplete-menu").is_some());
         }
         cx.quit();

@@ -1,13 +1,17 @@
 use gpui::{
-    App, Bounds, DispatchPhase, ElementId, ElementInputHandler, Entity, FocusHandle,
+    App, Bounds, ContentMask, DispatchPhase, ElementId, ElementInputHandler, Entity, FocusHandle,
     GlobalElementId, Hsla, IntoElement, LayoutId, MouseButton, MouseDownEvent, MouseMoveEvent,
-    MouseUpEvent, Pixels, Rgba, ShapedLine, SharedString, Style, TextRun, Window, fill, point,
-    px, relative, rgb, rgba, size,
+    MouseUpEvent, Pixels, ShapedLine, SharedString, Style, TextRun, Window, fill, point, px,
+    relative, rgb, rgba, size,
 };
 
 use crate::consts::CARET_WIDTH_PX;
 use crate::tab::InputFocus;
 use crate::workspace::{InputDrag, Workspace};
+
+#[path = "input_field_window.rs"]
+mod text_window;
+use text_window::FieldWindow;
 
 /// A minimal text input. Renders the text + a cursor, and registers an
 /// IME-aware text input handler against the workspace's matching focus
@@ -27,11 +31,15 @@ impl IntoElement for InputFieldElement {
 
 impl gpui::Element for InputFieldElement {
     type RequestLayoutState = ();
-    /// Prepaint state: (focus handle, shaped line if any, cursor byte,
-    /// anchor byte). Anchor is needed to paint the selection rect spanning
-    /// anchor..cursor — collapsed selections have anchor == cursor and the
-    /// rect skips painting.
-    type PrepaintState = (FocusHandle, Option<ShapedLine>, Option<usize>, Option<usize>);
+    /// Local caret and selection offsets accompany a bounded source window.
+    /// The model and IME handler retain the full value and global byte offsets.
+    type PrepaintState = (
+        FocusHandle,
+        Option<ShapedLine>,
+        Option<usize>,
+        Option<usize>,
+        FieldWindow,
+    );
 
     fn id(&self) -> Option<ElementId> {
         None
@@ -70,70 +78,70 @@ impl gpui::Element for InputFieldElement {
 
         let (text_str, cursor_byte, anchor_byte) = match self.target {
             InputFocus::FindQuery => (
-                workspace.find_state.query.clone(),
+                workspace.find_state.query.as_str(),
                 workspace.find_state.query_cursor,
                 workspace.find_state.query_anchor,
             ),
             InputFocus::Replacement => (
-                workspace.find_state.replacement.clone(),
+                workspace.find_state.replacement.as_str(),
                 workspace.find_state.replacement_cursor,
                 workspace.find_state.replacement_anchor,
             ),
             InputFocus::Goto => (
-                workspace.goto_state.text.clone(),
+                workspace.goto_state.text.as_str(),
                 workspace.goto_state.text_cursor,
                 workspace.goto_state.text_anchor,
             ),
             InputFocus::FifQuery => (
-                workspace.find_in_files.query.clone(),
+                workspace.find_in_files.query.as_str(),
                 workspace.find_in_files.query_cursor,
                 workspace.find_in_files.query_anchor,
             ),
             InputFocus::FifReplacement => (
-                workspace.find_in_files.replacement.clone(),
+                workspace.find_in_files.replacement.as_str(),
                 workspace.find_in_files.replacement_cursor,
                 workspace.find_in_files.replacement_anchor,
             ),
             InputFocus::FifFilter => (
-                workspace.find_in_files.filter.clone(),
+                workspace.find_in_files.filter.as_str(),
                 workspace.find_in_files.filter_cursor,
                 workspace.find_in_files.filter_anchor,
             ),
             InputFocus::FifDirectory => (
-                workspace.find_in_files.directory_text.clone(),
+                workspace.find_in_files.directory_text.as_str(),
                 workspace.find_in_files.directory_text_cursor,
                 workspace.find_in_files.directory_text_anchor,
             ),
             InputFocus::MarkQuery => (
-                workspace.mark_state.query.clone(),
+                workspace.mark_state.query.as_str(),
                 workspace.mark_state.query_cursor,
                 workspace.mark_state.query_anchor,
             ),
             InputFocus::MacroPrompt => workspace
                 .macro_prompt
                 .as_ref()
-                .map(|s| (s.text.clone(), s.text_cursor, s.text_anchor))
-                .unwrap_or((String::new(), 0, 0)),
+                .map(|s| (s.text.as_str(), s.text_cursor, s.text_anchor))
+                .unwrap_or(("", 0, 0)),
             InputFocus::TabRename => workspace
                 .tab_rename
                 .as_ref()
-                .map(|s| (s.text.clone(), s.text_cursor, s.text_anchor))
-                .unwrap_or((String::new(), 0, 0)),
+                .map(|s| (s.text.as_str(), s.text_cursor, s.text_anchor))
+                .unwrap_or(("", 0, 0)),
             InputFocus::FolderInlineCreate => workspace
                 .folder_inline_create
                 .as_ref()
-                .map(|s| (s.text.clone(), s.text_cursor, s.text_anchor))
-                .unwrap_or((String::new(), 0, 0)),
+                .map(|s| (s.text.as_str(), s.text_cursor, s.text_anchor))
+                .unwrap_or(("", 0, 0)),
             InputFocus::RichDocLinkUrl => workspace
                 .rich_doc_link_bar
                 .as_ref()
-                .map(|s| (s.text.clone(), s.text_cursor, s.text_anchor))
-                .unwrap_or((String::new(), 0, 0)),
+                .map(|s| (s.text.as_str(), s.text_cursor, s.text_anchor))
+                .unwrap_or(("", 0, 0)),
             InputFocus::RichDocColorHex => workspace
                 .rich_doc_color_bar
                 .as_ref()
-                .map(|s| (s.text.clone(), s.text_cursor, s.text_anchor))
-                .unwrap_or((String::new(), 0, 0)),
+                .map(|s| (s.text.as_str(), s.text_cursor, s.text_anchor))
+                .unwrap_or(("", 0, 0)),
             // RichDocBody, CsvCell, CsvGrid, and the CSV find-bar all
             // route through Workspace's EntityInputHandler / custom
             // elements directly — they never target a plain InputField.
@@ -142,7 +150,7 @@ impl gpui::Element for InputFieldElement {
             | InputFocus::CsvCell
             | InputFocus::CsvGrid
             | InputFocus::CsvFindBar
-            | InputFocus::CsvReplaceBar => (String::new(), 0, 0),
+            | InputFocus::CsvReplaceBar => ("", 0, 0),
         };
 
         let handle = match self.target {
@@ -191,18 +199,21 @@ impl gpui::Element for InputFieldElement {
             | InputFocus::CsvReplaceBar => workspace.focus_handle.clone(),
         };
         window.set_focus_handle(&handle, cx);
+        let field_window = FieldWindow::new(text_str, cursor_byte, anchor_byte);
 
         // If empty and a placeholder is set, paint that in a dimmed color.
         let display = if text_str.is_empty() {
-            single_line_display(self.placeholder.as_deref().unwrap_or_default())
+            single_line_display(
+                &FieldWindow::new(self.placeholder.as_deref().unwrap_or_default(), 0, 0).text,
+            )
         } else {
-            single_line_display(&text_str)
+            single_line_display(&field_window.text)
         };
         let display_color: Hsla = if text_str.is_empty() {
             // Approximate gutter_text — placeholder shouldn't shout.
-            Rgba::from(rgb(theme.gutter_text)).into()
+            rgb(theme.gutter_text).into()
         } else {
-            Rgba::from(rgb(theme.text)).into()
+            rgb(theme.text).into()
         };
 
         let runs = if display.is_empty() {
@@ -221,27 +232,17 @@ impl gpui::Element for InputFieldElement {
         let shaped = if display.is_empty() {
             None
         } else {
-            Some(window.text_system().shape_line(
-                display.clone(),
-                font_size,
-                &runs,
-                None,
-            ))
-        };
-
-        let cursor_local = if text_str.is_empty() {
-            Some(0usize)
-        } else {
-            Some(cursor_byte.min(text_str.len()))
-        };
-        let anchor_local = if text_str.is_empty() {
-            Some(0usize)
-        } else {
-            Some(anchor_byte.min(text_str.len()))
+            Some(
+                window
+                    .text_system()
+                    .shape_line(display.clone(), font_size, &runs, None),
+            )
         };
 
         let _ = bounds;
-        (handle, shaped, cursor_local, anchor_local)
+        let cursor_local = Some(field_window.cursor);
+        let anchor_local = Some(field_window.anchor);
+        (handle, shaped, cursor_local, anchor_local, field_window)
     }
 
     fn paint(
@@ -254,93 +255,19 @@ impl gpui::Element for InputFieldElement {
         window: &mut Window,
         cx: &mut App,
     ) {
-        let (handle, shaped, cursor_local, anchor_local) = prepaint;
+        let (handle, shaped, cursor_local, anchor_local, field_window) = prepaint;
         let line_height = window.line_height();
 
         // Vertically center the text in the field.
         let baseline_y = bounds.top() + (bounds.size.height - line_height).max(px(0.)) / 2.0;
 
-        // Re-shape the current text so we can compute x positions for both
-        // the selection rect and the caret without threading the ShapedLine
-        // through the prepaint tuple. shape_line is cheap for a single-line
-        // input — far less work than the dispatch overhead saved.
         let style = window.text_style();
         let font_size = style.font_size.to_pixels(window.rem_size());
         let theme = self.workspace.read(cx).theme();
-        let text_str = match self.target {
-            InputFocus::FindQuery => self.workspace.read(cx).find_state.query.clone(),
-            InputFocus::Replacement => {
-                self.workspace.read(cx).find_state.replacement.clone()
-            }
-            InputFocus::Goto => self.workspace.read(cx).goto_state.text.clone(),
-            InputFocus::FifQuery => self.workspace.read(cx).find_in_files.query.clone(),
-            InputFocus::FifReplacement => {
-                self.workspace.read(cx).find_in_files.replacement.clone()
-            }
-            InputFocus::FifFilter => self.workspace.read(cx).find_in_files.filter.clone(),
-            InputFocus::FifDirectory => {
-                self.workspace.read(cx).find_in_files.directory_text.clone()
-            }
-            InputFocus::MarkQuery => self.workspace.read(cx).mark_state.query.clone(),
-            InputFocus::MacroPrompt => self
-                .workspace
-                .read(cx)
-                .macro_prompt
-                .as_ref()
-                .map(|s| s.text.clone())
-                .unwrap_or_default(),
-            InputFocus::TabRename => self
-                .workspace
-                .read(cx)
-                .tab_rename
-                .as_ref()
-                .map(|s| s.text.clone())
-                .unwrap_or_default(),
-            InputFocus::FolderInlineCreate => self
-                .workspace
-                .read(cx)
-                .folder_inline_create
-                .as_ref()
-                .map(|s| s.text.clone())
-                .unwrap_or_default(),
-            InputFocus::RichDocLinkUrl => self
-                .workspace
-                .read(cx)
-                .rich_doc_link_bar
-                .as_ref()
-                .map(|s| s.text.clone())
-                .unwrap_or_default(),
-            InputFocus::RichDocColorHex => self
-                .workspace
-                .read(cx)
-                .rich_doc_color_bar
-                .as_ref()
-                .map(|s| s.text.clone())
-                .unwrap_or_default(),
-            InputFocus::Editor
-            | InputFocus::RichDocBody
-            | InputFocus::CsvCell
-            | InputFocus::CsvGrid
-            | InputFocus::CsvFindBar
-            | InputFocus::CsvReplaceBar => String::new(),
-        };
-        let display = single_line_display(&text_str);
-        let measure_line = if display.is_empty() {
+        let measure_line = if field_window.text.is_empty() {
             None
         } else {
-            let runs = vec![TextRun {
-                len: display.len(),
-                font: style.font(),
-                color: Rgba::from(rgb(theme.text)).into(),
-                background_color: None,
-                underline: None,
-                strikethrough: None,
-            }];
-            Some(
-                window
-                    .text_system()
-                    .shape_line(display.clone(), font_size, &runs, None),
-            )
+            shaped.as_ref()
         };
 
         // Horizontal scroll: if the caret would land past the right edge,
@@ -364,63 +291,65 @@ impl gpui::Element for InputFieldElement {
         // 1. Paint the selection rect first so the text glyphs render on top
         //    of it. Only when the input is focused — we don't want stale
         //    selection bg painted in unfocused fields.
-        if handle.is_focused(window) {
-            if let (Some(cur), Some(anchor)) = (*cursor_local, *anchor_local) {
-                if cur != anchor {
-                    if let Some(line2) = measure_line.as_ref() {
-                        let lo = cur.min(anchor).min(line2.len);
-                        let hi = cur.max(anchor).min(line2.len);
-                        if lo < hi {
-                            let x_lo = bounds.left() + line2.x_for_index(lo) - h_scroll;
-                            let x_hi = bounds.left() + line2.x_for_index(hi) - h_scroll;
-                            // Reuse `theme.selection` — same colour as the
-                            // editor pane's selection — so the dialog input
-                            // matches the editor's visual language.
-                            let sel_color: Hsla = rgba(theme.selection).into();
-                            window.paint_quad(fill(
-                                Bounds::new(
-                                    point(x_lo, baseline_y),
-                                    size(x_hi - x_lo, line_height),
-                                ),
-                                sel_color,
-                            ));
+        window.with_content_mask(Some(ContentMask { bounds }), |window| {
+            if handle.is_focused(window) {
+                if let (Some(cur), Some(anchor)) = (*cursor_local, *anchor_local) {
+                    if cur != anchor {
+                        if let Some(line2) = measure_line.as_ref() {
+                            let lo = cur.min(anchor).min(line2.len);
+                            let hi = cur.max(anchor).min(line2.len);
+                            if lo < hi {
+                                let x_lo = bounds.left() + line2.x_for_index(lo) - h_scroll;
+                                let x_hi = bounds.left() + line2.x_for_index(hi) - h_scroll;
+                                // Reuse `theme.selection` — same colour as the
+                                // editor pane's selection — so the dialog input
+                                // matches the editor's visual language.
+                                let sel_color: Hsla = rgba(theme.selection).into();
+                                window.paint_quad(fill(
+                                    Bounds::new(
+                                        point(x_lo, baseline_y),
+                                        size(x_hi - x_lo, line_height),
+                                    ),
+                                    sel_color,
+                                ));
+                            }
                         }
                     }
                 }
             }
-        }
 
-        // 2. Paint the text glyphs (placeholder text or real text).
-        if let Some(shaped) = shaped.take() {
-            let _ = shaped.paint(
-                point(bounds.left() - h_scroll, baseline_y),
-                line_height,
-                gpui::TextAlign::Left,
-                None,
-                window,
-                cx,
-            );
-        }
-
-        // 3. Caret on top.
-        if handle.is_focused(window) {
-            if let Some(cur) = *cursor_local {
-                let caret_color: Hsla = Rgba::from(rgb(theme.text)).into();
-                let cx_pos = if let Some(line2) = measure_line.as_ref() {
-                    let cur = cur.min(line2.len);
-                    bounds.left() + line2.x_for_index(cur) - h_scroll
-                } else {
-                    bounds.left()
-                };
-                window.paint_quad(fill(
-                    Bounds::new(
-                        point(cx_pos, baseline_y),
-                        size(px(CARET_WIDTH_PX), line_height),
-                    ),
-                    caret_color,
-                ));
+            // 2. Paint the text glyphs (placeholder text or real text).
+            if let Some(shaped) = shaped.as_ref() {
+                let _ = shaped.paint(
+                    point(bounds.left() - h_scroll, baseline_y),
+                    line_height,
+                    gpui::TextAlign::Left,
+                    None,
+                    window,
+                    cx,
+                );
             }
-        }
+
+            // 3. Caret on top.
+            if handle.is_focused(window) {
+                if let Some(cur) = *cursor_local {
+                    let caret_color: Hsla = rgb(theme.text).into();
+                    let cx_pos = if let Some(line2) = measure_line.as_ref() {
+                        let cur = cur.min(line2.len);
+                        bounds.left() + line2.x_for_index(cur) - h_scroll
+                    } else {
+                        bounds.left()
+                    };
+                    window.paint_quad(fill(
+                        Bounds::new(
+                            point(cx_pos, baseline_y),
+                            size(px(CARET_WIDTH_PX), line_height),
+                        ),
+                        caret_color,
+                    ));
+                }
+            }
+        });
 
         // 4. Route IME / OS keyboard text into the workspace via the matching
         //    focus handle. gpui only fires the input handler whose handle is
@@ -440,7 +369,7 @@ impl gpui::Element for InputFieldElement {
         let target = self.target;
         let click_workspace = self.workspace.clone();
         let click_bounds_left = bounds.left();
-        let click_text = text_str.clone();
+        let click_window = field_window.clone();
         let style_for_listener = style.clone();
         let font_size_for_listener = font_size;
         let click_h_scroll = h_scroll;
@@ -457,7 +386,7 @@ impl gpui::Element for InputFieldElement {
             if event.click_count >= 2 {
                 click_workspace.update(cx, |w, cx| {
                     w.input_set_caret_byte(target, 0, false);
-                    w.input_set_caret_byte(target, click_text.len(), true);
+                    w.input_set_caret_byte(target, click_window.total_len, true);
                     cx.notify();
                 });
                 return;
@@ -465,13 +394,13 @@ impl gpui::Element for InputFieldElement {
             let extend = event.modifiers.shift;
             click_workspace.update(cx, |w, cx| {
                 let byte = byte_for_x(
-                    &click_text,
+                    &click_window.text,
                     event.position.x - click_bounds_left + click_h_scroll,
                     font_size_for_listener,
                     &style_for_listener,
                     window,
                 );
-                w.input_set_caret_byte(target, byte, extend);
+                w.input_set_caret_byte(target, click_window.source_byte(byte), extend);
                 w.input_drag = Some(InputDrag {
                     focus: target,
                     bounds_left: click_bounds_left,
@@ -481,7 +410,7 @@ impl gpui::Element for InputFieldElement {
         });
 
         let move_workspace = self.workspace.clone();
-        let move_text = text_str.clone();
+        let move_window = field_window.clone();
         let style_for_move = style.clone();
         let font_size_for_move = font_size;
         let move_h_scroll = h_scroll;
@@ -502,7 +431,7 @@ impl gpui::Element for InputFieldElement {
                     return;
                 }
                 let byte = byte_for_x(
-                    &move_text,
+                    &move_window.text,
                     event.position.x - drag.bounds_left + move_h_scroll,
                     font_size_for_move,
                     &style_for_move,
@@ -511,7 +440,7 @@ impl gpui::Element for InputFieldElement {
                 // Drag = extend. Only `cursor` moves; `anchor` stays seated
                 // at the click origin so the user can drag in either
                 // direction.
-                w.input_set_caret_byte(target, byte, true);
+                w.input_set_caret_byte(target, move_window.source_byte(byte), true);
                 cx.notify();
             });
         });

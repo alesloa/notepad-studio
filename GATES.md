@@ -18,7 +18,7 @@ Scope: Continue the requested cross-platform Notepad++ parity audit and fix the 
   EVIDENCE: reviewed b57b386; 13 context/caller/error regressions plus one isolated macro fixture test pass in the 1353-unit main gate. Preview, CSV draft/grid, visible fields, inactive/unfocused/loading/read-only/missing-tab contexts refuse replay; completion is closed first. Partial completion failure stops further events/repetitions and retains the reason. Native evidence remains G8; playback Undo grouping remains a G7 gap.
 
 - [x] G6: Rendered inline text fields have a real focus/action route for keyboard editing, Enter and Escape.
-  EVIDENCE: reviewed 766b763..ec8869b source delta; reproduced Go to Line Enter crash, seven actual-frame focus/edit/clipboard/Enter/Escape regressions, and multiline raw-value rendering tests pass in the 1339-unit main gate. Native evidence remains G8; bounded shaping and Mac test chords are a separate active follow-up.
+  EVIDENCE: reviewed 766b763..ec8869b source delta; reproduced Go to Line Enter crash, seven actual-frame focus/edit/clipboard/Enter/Escape regressions, and multiline raw-value rendering tests pass in the 1339-unit main gate. Bounded shaping and catalog-derived Mac fixture chords were reviewed in 4ffcf61 and integrated. Native evidence remains G8.
 
 - [ ] G7: A complete menu/behavior parity inventory names and closes remaining Notepad++ gaps, including command shortcuts, lexer/API completion and platform behavior.
   EVIDENCE: pending
@@ -27,14 +27,20 @@ Scope: Continue the requested cross-platform Notepad++ parity audit and fix the 
   EVIDENCE: pending; current native computer-use transport is unavailable and CUA native surfaces are disabled. Headless GPUI tests are not native screenshots.
 
 - [x] G9: The integrated main tree builds and passes its required unit/integration/clippy checks with no new warnings on touched code.
-  CHECK: powershell -NoProfile -Command "Get-Content log/macro-context-integration-tests.txt -Tail 16"
-  EXPECT: 1353 passed; 0 failed
-  EVIDENCE: macro context integration; cargo build and clippy all-targets passed; 1353 units + 1 integration passed, 8 ignored. Refresh for each source batch.
+  CHECK: powershell -NoProfile -Command "Get-Content log/input-window-integration-tests.txt -Tail 16"
+  EXPECT: 1358 passed; 0 failed
+  EVIDENCE: bounded input integration; cargo build and clippy all-targets passed; 1358 units + 1 integration passed, 8 ignored. Refresh for each source batch.
 
 - [x] G10: Completed source batches have separate conventional commits and current change.log/devlog entries; the main working tree is clean before beginning a new batch.
   CHECK: git status --porcelain
   EXPECT: /^$/
-  EVIDENCE: main ddd25a4 was clean before this macro context batch; 61 current-version release notes and a devlog entry accompany it. Refresh after each source batch.
+  EVIDENCE: main375a24b was clean before this bounded input batch; 62 current-version release notes and a devlog entry accompany it. Refresh after each source batch.
 
 - [x] G11: View > Tab exposes every oracle Tab command in order with rebindable shortcuts; selection/reordering/color commands preserve document UUID, text, encoding/EOL, saved state and history, with edge and pending-cell refusal coverage.
   EVIDENCE: oracle RC789-817 / Commands1304-1412,3532-3537; red missing-menu contract then 7 new menu/actual-dispatch/refusal/edge tests pass. 1332-unit main gate; existing shortcut parity/collision tests cover added rows. Native appearance remains G8.
+
+- [ ] G12: File menu tab commands use current UUID targets, expose oracle order and collision-free defaults, preserve pending cell drafts on refusal and launch literal external paths safely.
+  EVIDENCE: active agent branch reproduced missing menu/catalog, read-only draft loss on Reload and premature Close Unchanged; reviewed source integration and main gate pending.
+
+- [ ] G13: Macro editing playback is a single Undo operation across repetitions and nested command groups; no-op/refused replay preserves Redo, failures close their group and saved-state/Unicode/EOL/caret history remains correct.
+  EVIDENCE: behavior oracle NppCommands.cpp83-149 and shortcut.cpp925-1054; implementation pending.

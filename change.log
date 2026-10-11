@@ -237,6 +237,10 @@ v0.0.5 — current
        completion before replay, and reports why a replay stops without
        hiding the error behind a success message.
 
+   62. Long input fields shape a bounded window around the caret and clip
+       drawing to the field. Full text, selection, clipboard and IME input
+       stay intact; repeated full-value cloning and shaping are removed.
+
   v0.1.0 — syntax & language:
 
     1. Tree-sitter syntax highlighting for 25 modes: Rust, Python, C,

@@ -457,6 +457,10 @@ v0.0.5 — current
          Switching views clears captured search scopes and prevents raw results
          from selecting hidden source text in Doc View.
 
+    117. Find and Replace in Files supports UTF-16 and ANSI alongside UTF-8,
+         preserving encodings, BOMs and line endings. Unsafe conversions report
+         the affected file and leave its bytes untouched.
+
   v0.1.0 — syntax & language:
 
     1. Tree-sitter syntax highlighting for 25 modes: Rust, Python, C,

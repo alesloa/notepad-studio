@@ -4,6 +4,7 @@ pub(crate) mod extended_escape;
 pub(crate) mod line_ending;
 pub(crate) mod literal_replacement;
 pub(crate) mod regex_replacement;
+pub(crate) mod search_file;
 pub(crate) mod url_scan;
 pub(crate) mod utf16;
 pub(crate) mod wrap;

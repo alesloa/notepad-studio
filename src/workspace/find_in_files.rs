@@ -1210,16 +1210,15 @@ fn run_replace_in_files_with_reader(
                 continue;
             }
         };
-        let content = match std::str::from_utf8(&bytes) {
-            Ok(s) => s,
-            Err(_) => continue,
+        let decoded = match crate::text::search_file::decode(&bytes) {
+            Ok(decoded) => decoded,
+            Err(error) => {
+                failures += 1;
+                if first_failure.is_none() { first_failure = Some(format!("{}: {error}", path.display())); }
+                continue;
+            }
         };
-        // Match on the text after a UTF-8 BOM, as the search does, and put
-        // the BOM back on write.
-        let (bom, content) = match content.strip_prefix('\u{FEFF}') {
-            Some(rest) => ("\u{FEFF}", rest),
-            None => ("", content),
-        };
+        let content = decoded.text.as_ref();
         let (replaced, count_in_file) = if let Some(template) = &regex_template {
             let result = template.plan(&re, content, None, crate::text::regex_replacement::MAX_CACHED_MATCHES)
                 .and_then(|plan| crate::text::regex_replacement::apply_to_string(content, &plan).map(|text| (text, plan.len())));
@@ -1242,8 +1241,15 @@ fn run_replace_in_files_with_reader(
             }
         };
         if count_in_file == 0 { continue; }
-        let new_content = format!("{bom}{replaced}");
-        match crate::io::write_file_safely(path, new_content.as_bytes()) {
+        let new_content = match crate::text::encoding::encode_checked(&replaced, decoded.encoding) {
+            Ok(bytes) => bytes,
+            Err(error) => {
+                failures += 1;
+                if first_failure.is_none() { first_failure = Some(format!("{}: {error}", path.display())); }
+                continue;
+            }
+        };
+        match crate::io::write_file_safely(path, &new_content) {
             Ok(()) => {
                 files_changed += 1;
                 replacements += count_in_file;
@@ -1265,6 +1271,78 @@ fn run_replace_in_files_with_reader(
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn file_encoding_replace_ansi_fallback_preserves_every_unmatched_byte() {
+        let dir = temp_dir();
+        let all: Vec<u8> = (0..=255).collect();
+        let prefixes = [all, b"\xef\xbb\xbfcaf\xe9".to_vec()];
+        for (index, prefix) in prefixes.iter().enumerate() {
+            let mut bytes = prefix.clone(); bytes.extend_from_slice(b" hit\r\n");
+            std::fs::write(dir.join(format!("neutral{index}.txt")), bytes).unwrap();
+        }
+        let report = run_replace_in_files(&query(&dir, "hit", false, false), "done").unwrap();
+        assert_eq!((report.files_changed, report.replacements, report.failures), (2, 2, 0));
+        for (index, prefix) in prefixes.into_iter().enumerate() {
+            let mut expected = prefix; expected.extend_from_slice(b" done\r\n");
+            assert_eq!(std::fs::read(dir.join(format!("neutral{index}.txt"))).unwrap(), expected);
+        }
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn file_encoding_replace_preserves_bom_encoding_eol_and_no_match_bytes() {
+        use crate::text::encoding::{encode_checked, Encoding};
+        let dir = temp_dir();
+        let encodings = [Encoding::Utf8, Encoding::Utf8Bom, Encoding::Utf16Le, Encoding::Utf16Be, Encoding::Latin1];
+        for (index, encoding) in encodings.into_iter().enumerate() {
+            std::fs::write(dir.join(format!("neutral{index}.txt")), encode_checked("caf\u{e9} hit\r\nhit\nlast\r", encoding).unwrap()).unwrap();
+            std::fs::write(dir.join(format!("unchanged{index}.txt")), encode_checked("caf\u{e9} unchanged\r\n", encoding).unwrap()).unwrap();
+        }
+        let report = run_replace_in_files(&query(&dir, "hit", false, false), "done").unwrap();
+        assert_eq!((report.files_changed, report.replacements, report.failures), (5, 10, 0));
+        for (index, encoding) in encodings.into_iter().enumerate() {
+            assert_eq!(std::fs::read(dir.join(format!("neutral{index}.txt"))).unwrap(), encode_checked("caf\u{e9} done\r\ndone\nlast\r", encoding).unwrap());
+            assert_eq!(std::fs::read(dir.join(format!("unchanged{index}.txt"))).unwrap(), encode_checked("caf\u{e9} unchanged\r\n", encoding).unwrap());
+        }
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn file_encoding_replace_utf16_regex_preserves_captures_and_bom() {
+        use crate::text::encoding::{encode_checked, Encoding};
+        let dir = temp_dir(); let path = dir.join("neutral.txt");
+        std::fs::write(&path, encode_checked("hit\r\n", Encoding::Utf16Be).unwrap()).unwrap();
+        let report = run_replace_in_files(&query(&dir, "(?P<word>hit)", true, false), "${word}-caf\u{e9}").unwrap();
+        assert_eq!((report.files_changed, report.replacements, report.failures), (1, 1, 0));
+        assert_eq!(std::fs::read(&path).unwrap(), encode_checked("hit-caf\u{e9}\r\n", Encoding::Utf16Be).unwrap());
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn file_encoding_replace_refuses_malformed_utf16_without_skipping_valid_sibling() {
+        use crate::text::encoding::{encode_checked, Encoding};
+        let dir = temp_dir(); let bad = dir.join("neutral-bad.txt"); let good = dir.join("neutral-good.txt");
+        let mut bytes = encode_checked("hit\r\n", Encoding::Utf16Le).unwrap(); bytes.push(0x41);
+        std::fs::write(&bad, &bytes).unwrap(); std::fs::write(&good, "hit\r\n").unwrap();
+        let report = run_replace_in_files(&query(&dir, "hit", false, false), "done").unwrap();
+        assert_eq!((report.files_changed, report.replacements, report.failures), (1, 1, 1));
+        assert!(report.first_failure.as_deref().is_some_and(|error| error.contains("neutral-bad.txt")));
+        assert_eq!(std::fs::read(&bad).unwrap(), bytes); assert_eq!(std::fs::read(&good).unwrap(), b"done\r\n");
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn file_encoding_replace_refuses_unmappable_latin1_without_skipping_utf8() {
+        let dir = temp_dir(); let bad = dir.join("neutral-bad.txt"); let good = dir.join("neutral-good.txt");
+        let bytes = b"caf\xe9 hit\r\n";
+        std::fs::write(&bad, bytes).unwrap(); std::fs::write(&good, "hit\r\n").unwrap();
+        let report = run_replace_in_files(&query(&dir, "hit", false, false), "\u{4e2d}").unwrap();
+        assert_eq!((report.files_changed, report.replacements, report.failures), (1, 1, 1));
+        assert!(report.first_failure.as_deref().is_some_and(|error| error.contains("neutral-bad.txt")));
+        assert_eq!(std::fs::read(&bad).unwrap(), bytes); assert_eq!(std::fs::read(&good).unwrap(), "\u{4e2d}\r\n".as_bytes());
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
     #[test]
     fn literal_file_expansion_refuses_whole_file_before_write() {
         let dir = temp_dir();
@@ -1485,13 +1563,17 @@ mod tests {
         let dir = temp_dir();
         let big = "x".repeat(crate::find_in_files::FIND_IN_FILES_FILE_SIZE_LIMIT as usize + 1);
         std::fs::write(dir.join("big.txt"), &big).unwrap();
-        std::fs::write(dir.join("bin.dat"), [b'x', 0xFF, 0xFE]).unwrap();
+        // An odd UTF-16 body is malformed; unmarked high bytes are valid ANSI text.
+        let malformed = [0xFF, 0xFE, b'x', 0x00, 0xC3];
+        std::fs::write(dir.join("bin.dat"), malformed).unwrap();
         let report = run_replace_in_files(&query(&dir, "x", false, false), "y").ok().unwrap();
         let big_after = std::fs::read(dir.join("big.txt")).unwrap();
         let bin_after = std::fs::read(dir.join("bin.dat")).unwrap();
         let _ = std::fs::remove_dir_all(&dir);
         assert_eq!(report.files_changed, 0);
-        assert_eq!(big_after.len(), big.len());
-        assert_eq!(bin_after, [b'x', 0xFF, 0xFE]);
+        assert_eq!(report.failures, 1);
+        assert!(report.first_failure.as_deref().is_some_and(|error| error.contains("bin.dat")));
+        assert_eq!(big_after, big.as_bytes());
+        assert_eq!(bin_after, malformed);
     }
 }

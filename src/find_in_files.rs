@@ -267,13 +267,8 @@ pub(crate) fn run_search(query: &FindInFilesQuery) -> FindInFilesOutcome {
         let Ok(Some(bytes)) = read_capped(path, FIND_IN_FILES_FILE_SIZE_LIMIT) else {
             continue;
         };
-        let content = match std::str::from_utf8(&bytes) {
-            Ok(s) => s,
-            Err(_) => continue,
-        };
-        // The editor drops a UTF-8 BOM on load; offsets that counted it
-        // would land 3 bytes late in the opened rope.
-        let content = content.strip_prefix('\u{FEFF}').unwrap_or(content);
+        let Ok(decoded) = crate::text::search_file::decode(&bytes) else { continue; };
+        let content = decoded.text.as_ref();
         searched_files += 1;
         match_file(path, content, &re, &mut results);
         if results.len() >= FIND_IN_FILES_RESULT_CAP {
@@ -609,6 +604,38 @@ impl FindInFilesState {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn file_encoding_search_finds_all_supported_encodings_with_editor_offsets() {
+        use crate::text::encoding::{encode_checked, Encoding};
+        let dir = temp_dir();
+        let encodings = [Encoding::Utf8, Encoding::Utf8Bom, Encoding::Utf16Le, Encoding::Utf16Be, Encoding::Latin1];
+        let text = "prefix\r\ncaf\u{e9} hit\r\nsuffix\r";
+        for (index, encoding) in encodings.into_iter().enumerate() {
+            std::fs::write(dir.join(format!("neutral{index}.txt")), encode_checked(text, encoding).unwrap()).unwrap();
+        }
+        let results = search(&query(&dir, "hit"));
+        assert_eq!(results.len(), 5);
+        for result in results {
+            assert_eq!(result.line, 1);
+            assert_eq!(result.match_in_line, 6..9);
+            assert_eq!(result.line_text, "caf\u{e9} hit");
+        }
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
+    #[test]
+    fn file_encoding_search_utf16_surrogates_keep_utf8_line_offsets() {
+        use crate::text::encoding::{encode_checked, Encoding};
+        let dir = temp_dir();
+        for (index, encoding) in [Encoding::Utf16Le, Encoding::Utf16Be].into_iter().enumerate() {
+            std::fs::write(dir.join(format!("neutral{index}.txt")), encode_checked("first\r\n\u{4e2d}\u{1f600} hit\r\n", encoding).unwrap()).unwrap();
+        }
+        let results = search(&query(&dir, "hit"));
+        assert_eq!(results.len(), 2);
+        for result in results { assert_eq!(result.line, 1); assert_eq!(result.match_in_line, 8..11); }
+        let _ = std::fs::remove_dir_all(dir);
+    }
+
     use super::*;
 
     /// Run `f` on its own thread and fail if it takes longer than `secs`,

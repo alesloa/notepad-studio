@@ -69,14 +69,18 @@ The X11 input-method client is patched locally under `vendor/xim/`.
     transport sends return a typed error instead of panicking.
     X11 client transport 0.1 now sends ordered multi-ClientMessage packets
     and reassembles declared packets within a 262,144-byte bound, with
-    fallible allocation and final-padding validation. Transport 0.2 and
-    PropertyNotify modes remain unsupported. No native composition routing
+    fallible allocation and final-padding validation. PropertyNotify modes
+    remain unsupported. No native composition routing
     or generic server transport contract changed.
     Client transport 0.0 property input validates announced packet lengths
     before bounded GetProperty requests, preserves checked offsets across
     APPEND notifications, and bounds pending atoms/backlog. Reply metadata,
     header length and decoded request consumption are checked before delivery;
     related errors retire only their property's pending offset.
+    Client transport 0.2 selects bounded CM/property packets using the
+    negotiated dividing size, with an explicit mode and shared pending-byte
+    budget. A client-only property writer preserves the finite sequence atom
+    namespace and APPEND failure semantics. PropertyNotify remains unsupported.
     Added actual X11 property-transport/parser tests with an in-memory
     connection, and compound-text decoding regressions. The optional
     parser generator is retained to preserve the original manifests.

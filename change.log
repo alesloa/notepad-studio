@@ -435,6 +435,9 @@ v0.0.5 — current
     109. Reload now reads and parses in background while keeping the current
          document editable. Cancellation or intervening edits keep your text.
 
+    110. Linux input methods can negotiate mixed client-message/property
+         transport, with bounded framing and ordered callback delivery.
+
   v0.1.0 — syntax & language:
 
     1. Tree-sitter syntax highlighting for 25 modes: Rust, Python, C,

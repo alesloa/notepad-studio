@@ -4,7 +4,16 @@ use super::*;
 pub(super) const MAX_PACKET: usize = 4 + (u16::MAX as usize) * 4;
 
 #[derive(Default)]
+pub(super) enum ClientMode {
+    #[default]
+    PropertyCm,
+    MultiCm,
+    Mixed { dividing_size: u32 },
+}
+
+#[derive(Default)]
 pub(super) struct ClientTransport {
+    pub(super) mode: ClientMode,
     pub(super) more_data: Option<Atom>,
     incoming: Vec<u8>,
     expected: usize,
@@ -16,6 +25,8 @@ impl ClientTransport {
         self.expected = 0;
     }
 
+    pub(super) fn has_pending(&self) -> bool { self.expected != 0 }
+
     #[cfg(test)]
     pub(super) fn retained(&self) -> (usize, usize) {
         (self.incoming.len(), self.incoming.capacity())
@@ -24,23 +35,25 @@ impl ClientTransport {
     pub(super) fn reset(&mut self, more_data: Option<Atom>) {
         self.clear();
         self.more_data = more_data;
+        self.mode = if more_data.is_some() { ClientMode::MultiCm } else { ClientMode::PropertyCm };
     }
 
-    pub(super) fn receive(&mut self, msg: &ClientMessageEvent, final_chunk: bool)
+    pub(super) fn receive_bounded(&mut self, msg: &ClientMessageEvent, final_chunk: bool, budget: usize)
         -> Result<Option<Vec<u8>>, ClientError>
     {
-        let result = self.receive_chunk(msg, final_chunk);
+        let result = self.receive_chunk(msg, final_chunk, budget);
         if result.is_err() { self.clear(); }
         result
     }
 
-    fn receive_chunk(&mut self, msg: &ClientMessageEvent, final_chunk: bool)
+    fn receive_chunk(&mut self, msg: &ClientMessageEvent, final_chunk: bool, budget: usize)
         -> Result<Option<Vec<u8>>, ClientError>
     {
         if msg.format != 8 { return Err(ClientError::InvalidReply); }
         let data = msg.data.as_data8();
         if self.expected == 0 {
             self.expected = 4 + usize::from(u16::from_ne_bytes([data[2], data[3]])) * 4;
+            if self.expected > budget { return Err(ClientError::InvalidReply); }
             self.incoming.try_reserve_exact(self.expected)
                 .map_err(|_| ClientError::InvalidReply)?;
         }

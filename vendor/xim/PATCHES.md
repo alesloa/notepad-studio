@@ -55,12 +55,10 @@ request after these errors remains open: a caller that only logs the error
   can leave the server waiting. This patch establishes valid-path behavior.
 
 X transport version handling follows Table D.3 and its dividing-size rule in
-the same specification. The client implements multi-ClientMessage transport
-0.1; mixed transport 0.2 and PropertyNotify support remain open. Version 0.2
-below its dividing size is not silently rerouted to
-properties; it is refused before use. GPUI currently tears down XIM on an
-error and falls back to ordinary keys, so transport 0.2 and PropertyNotify
-modes remain unavailable.
+the same specification. The client implements 0.0 property-with-CM, 0.1
+multi-ClientMessage, and 0.2 mixed CM/property transports. PropertyNotify
+modes remain refused before use. GPUI tears down XIM on a transport error
+and falls back to ordinary keys.
 
 ASCII designation behavior follows the X Consortium Compound Text 1.1
 [standard](https://xorg.freedesktop.org/archive/current/doc/xorg-docs/ctext/ctext.html),
@@ -81,7 +79,8 @@ completion. Related framing/decoder/handler errors, successful reconnect,
 and disconnect retire pending bytes; unrelated events and successful
 independent outbound activity preserve them. The generic server sender/error
 bounds remain unchanged; the property receiver patch below changes client
-0.0 input framing. Native editor composition origin remains separate work.
+0.0 input framing. Native editor composition origin and coalesced
+PropertyNotify input remain separate work.
 
 Actual negotiated wire regressions cover Unicode fragments, callback-before-
 synchronous-ACK ordering, exact 20/40-byte boundaries, middle/final/flush
@@ -108,7 +107,7 @@ known opcode followed by header-announced trailing garbage. A related reply
 or callback error retires only its own atom; valid reconnect/disconnect and
 a server Window error clear all property offsets. The existing 0.1 fragment
 state stays independent and rejects mixed property input before any fetch.
-Transport 0.2 and PropertyNotify modes remain unsupported. No generic sender,
+PropertyNotify modes remain unsupported. No generic sender,
 server, parser/generator, or GPUI composition routing changes are included.
 
 Tests use dynamic and sparse GetProperty stores with real offset/unit/delete
@@ -119,3 +118,22 @@ traffic while retaining one small tail. The malformed value_len fixture
 serializes a coherent reply before mutating raw metadata; its old baseline
 already refused that case, so it is a positive control rather than a client
 bug reproduction. These wire tests do not exercise a native X11 desktop.
+
+Client transport 0.2 uses an explicit private mixed mode and preserves the
+server-announced dividing size. Complete CM/multi-CM and bounded property
+packets dispatch in order; a property cannot interrupt an incomplete CM.
+Pending property tails plus a new CM frame share the 64 MiB budget before
+CM allocation. Each incoming notification still publishes one complete
+protocol request, preserving the caller's single-callback contract.
+
+A private client-only property writer selects APPEND/STRING/format8 at or
+above the dividing size, checks the packet cap before interning/writing,
+and reserves the serialized buffer fallibly. Below the threshold, existing
+ordered CM chunks are used. Equality follows the existing 0.0 writer's
+property convention. The existing u16 sequence and finite _XIM_DATA_N
+namespace are retained. Intern success advances the sequence; append/send/
+flush errors clear outbound bytes and incomplete CM state. The writer does
+not delete potentially pending properties after an error. Generic server
+transport, PropertyNotify subscriptions and GPUI callback routing remain
+unchanged. Tests cover threshold boundaries, Unicode, sync ACK ordering,
+APPEND offsets/deletion, shared budgets and lifecycle/error isolation.

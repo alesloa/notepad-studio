@@ -370,7 +370,7 @@ fn disconnected_and_failed_reconnect_retire_pending_input() {
     let mut client = connected01();
     let mut handler = Handler::default();
     start_pending(&mut client, &mut handler);
-    assert!(client.filter_event(&xconnect(2, 64), &mut handler).is_err());
+    assert!(client.filter_event(&xconnect(9, 64), &mut handler).is_err());
     assert_eq!(client.transport.retained(), (0, 0));
     let wire = xim_parser::write_to_vec(Request::DisconnectReply {});
     assert!(client.filter_event(&chunk(9, &wire), &mut handler).unwrap());

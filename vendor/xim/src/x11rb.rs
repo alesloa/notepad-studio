@@ -52,7 +52,9 @@ mod client_decode_tests;
 #[cfg(feature = "x11rb-client")]
 mod client_transport;
 #[cfg(feature = "x11rb-client")]
-use client_transport::ClientTransport;
+use client_transport::{ClientMode, ClientTransport};
+#[cfg(feature = "x11rb-client")]
+mod client_writer;
 #[cfg(feature = "x11rb-client")]
 mod client_property;
 #[cfg(feature = "x11rb-client")]
@@ -571,8 +573,9 @@ impl<C: HasConnection> X11rbClient<C> {
                         return Err(ClientError::InvalidReply);
                     }
                     let [im_window, major, minor, max, _] = msg.data.as_data32();
-                    // PropertyNotify and mixed multi-CM/property modes remain unsupported.
-                    if !matches!((major, minor), (0, 0) | (0, 1)) {
+                    // X Consortium XIM Appendix D.3: 0.2 mixes CM and property-with-CM.
+                    // PropertyNotify modes remain unsupported.
+                    if !matches!((major, minor), (0, 0) | (0, 1) | (0, 2)) {
                         return Err(ClientError::UnsupportedTransport);
                     }
                     log::info!(
@@ -582,13 +585,14 @@ impl<C: HasConnection> X11rbClient<C> {
                         minor,
                         max
                     );
-                    let more_data = if minor == 1 {
+                    let more_data = if minor == 1 || minor == 2 {
                         Some(self.conn().intern_atom(false, b"_XIM_MOREDATA")?.reply()?.atom)
                     } else { None };
                     self.transport.reset(more_data);
+                    if minor == 2 { self.transport.mode = ClientMode::Mixed { dividing_size: max }; }
                     self.properties.clear();
                     self.im_window = im_window;
-                    self.transport_max = (max as usize).min(20);
+                    self.transport_max = if minor == 2 { max as usize } else { (max as usize).min(20) };
                     self.send_req(Request::Connect {
                         client_major_protocol_version: 1,
                         client_minor_protocol_version: 0,
@@ -597,7 +601,7 @@ impl<C: HasConnection> X11rbClient<C> {
                     })?;
                     Ok(true)
                 } else if self.transport.more_data == Some(msg.type_) {
-                    self.transport.receive(msg, false)?;
+                    self.transport.receive_bounded(msg, false, self.properties.frame_budget())?;
                     Ok(true)
                 } else if msg.type_ == self.atoms.XIM_PROTOCOL {
                     self.handle_xim_protocol(msg, handler)?;
@@ -623,8 +627,16 @@ impl<C: HasConnection> X11rbClient<C> {
         msg: &ClientMessageEvent,
         handler: &mut impl ClientHandler<Self>,
     ) -> Result<(), ClientError> {
-        if self.transport.more_data.is_some() {
-            if let Some(data) = self.transport.receive(msg, true)? {
+        if msg.format == 32 {
+            if matches!(self.transport.mode, ClientMode::MultiCm) || self.transport.has_pending() {
+                return Err(ClientError::InvalidReply);
+            }
+            let [length, atom, ..] = msg.data.as_data32();
+            let result = self.handle_property(msg.window, atom, length, handler);
+            if result.is_err() { self.properties.retire(atom); }
+            result?;
+        } else if self.transport.more_data.is_some() {
+            if let Some(data) = self.transport.receive_bounded(msg, true, self.properties.frame_budget())? {
                 let req: Request = xim_parser::read(&data)?;
                 if matches!(req, Request::DisconnectReply {}) {
                     self.transport.clear();
@@ -632,11 +644,6 @@ impl<C: HasConnection> X11rbClient<C> {
                 }
                 client_handle_request(self, handler, req)?;
             }
-        } else if msg.format == 32 {
-            let [length, atom, ..] = msg.data.as_data32();
-            let result = self.handle_property(msg.window, atom, length, handler);
-            if result.is_err() { self.properties.retire(atom); }
-            result?;
         } else if msg.format == 8 {
             let data = msg.data.as_data8();
             let req: xim_parser::Request = xim_parser::read(&data)?;
@@ -730,10 +737,14 @@ impl<C: HasConnection> ClientCore for X11rbClient<C> {
     #[inline]
     fn send_req(&mut self, req: Request) -> Result<(), ClientError> {
         if let Some(more_data) = self.transport.more_data {
-            let result = client_transport::send_multi(
+            let use_property = matches!(self.transport.mode, ClientMode::Mixed { dividing_size } if req.size() >= dividing_size as usize);
+            let result = if use_property {
+                client_writer::send_property(&self.has_conn, self.im_window, self.atoms.XIM_PROTOCOL,
+                    &mut self.buf, &mut self.sequence, &req)
+            } else { client_transport::send_multi(
                 &self.has_conn, self.im_window, more_data, self.atoms.XIM_PROTOCOL,
                 &mut self.buf, &req,
-            );
+            ) };
             if result.is_err() {
                 self.transport.clear();
                 self.buf.clear();

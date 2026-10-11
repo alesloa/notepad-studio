@@ -20,6 +20,8 @@ impl PropertyReceiver {
     #[cfg(test)]
     pub(super) fn retained(&self) -> (usize, usize) { (self.pending.len(), self.pending_bytes) }
 
+    pub(super) fn frame_budget(&self) -> usize { MAX_PENDING_BYTES.saturating_sub(self.pending_bytes) }
+
     pub(super) fn clear(&mut self) {
         self.pending.clear();
         self.pending_bytes = 0;

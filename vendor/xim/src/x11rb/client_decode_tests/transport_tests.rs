@@ -31,16 +31,14 @@ fn key_press() -> KeyPressEvent {
 }
 
 #[test]
-fn unsupported_02_is_rejected_before_forwarding_a_key() {
+fn supported_02_preserves_threshold_and_forwards_key_as_multi_cm() {
     let mut client = client(Vec::new());
-    let mut handler = Handler::default();
-    assert!(matches!(
-        client.filter_event(&xconnect(0, 2, 64), &mut handler),
-        Err(ClientError::UnsupportedTransport)
-    ));
-    assert_eq!(client.transport_max, 20);
-    assert_eq!(client.im_window, 3);
-    assert!(client.has_conn.sent.borrow().is_empty());
+    assert!(client.filter_event(&xconnect(0, 2, 64), &mut Handler::default()).unwrap());
+    assert_eq!(client.transport_max, 64);
+    client.has_conn.sent.borrow_mut().clear();
+    client.has_conn.with_reply.borrow_mut().clear();
+    client.forward_event(7, 11, xim_parser::ForwardEventFlag::empty(), &key_press()).unwrap();
+    assert_eq!(client.has_conn.sent.borrow().len(), 3);
     assert!(client.has_conn.with_reply.borrow().is_empty());
 }
 
@@ -69,7 +67,7 @@ fn assert_rejected_without_mutation(mut event: Event, invalid_format: Option<u8>
 
 #[test]
 fn unsupported_transport_versions_preserve_prior_state() {
-    for (major, minor) in [(0, 2), (1, 0), (2, 0), (2, 1), (9, 9)] {
+    for (major, minor) in [(1, 0), (2, 0), (2, 1), (9, 9)] {
         let mut event = xconnect(major, minor, 64);
         if let Event::ClientMessage(message) = &mut event {
             message.data = [30, major, minor, 64, 0].into();

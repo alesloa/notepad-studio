@@ -29,6 +29,7 @@ struct WireConnection {
     reject_send: bool,
     reject_send_at: Option<usize>,
     reject_flush: bool,
+    reject_intern: bool,
     flush_calls: RefCell<usize>,
     reply_opcode: RefCell<u8>,
     with_reply: RefCell<Vec<Vec<u8>>>,
@@ -66,6 +67,7 @@ impl RequestConnection for WireConnection {
     fn extension_information(&self, _: &'static str) -> Result<Option<ExtensionInformation>, ConnectionError> { Ok(None) }
     fn wait_for_reply_or_raw_error(&self, _: SequenceNumber) -> Result<ReplyOrError<Vec<u8>>, ConnectionError> {
         if *self.reply_opcode.borrow() == 16 {
+            if self.reject_intern { return Err(ConnectionError::UnsupportedExtension); }
             let reply = x11rb::protocol::xproto::InternAtomReply { sequence: 1, length: 0, atom: 42 };
             let mut bytes = reply.serialize().to_vec();
             bytes.resize(32, 0);
@@ -356,3 +358,5 @@ mod transport_tests;
 mod multicm_tests;
 
 mod property_tests;
+
+mod mixed_transport_tests;

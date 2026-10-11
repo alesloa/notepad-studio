@@ -488,6 +488,11 @@ impl Workspace {
         if owns_status && request.manual {
             self.status_message = None;
         }
+        // Diagnostics belong to the explicit request. Later typing only
+        // updates or dismisses the hint.
+        if let Some(intent) = self.function_hint.intent.as_mut() {
+            intent.manual = false;
+        }
         cx.notify();
     }
 

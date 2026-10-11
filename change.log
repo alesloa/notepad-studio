@@ -314,6 +314,9 @@ v0.0.5 — current
        avoid the caret line and completion list, scan fresh text in the
        background, and dismiss when the editing context changes.
 
+   79. Closing a function call dismisses a successfully opened manual hint
+       quietly. An initial request with no open call still explains why.
+
   v0.1.0 — syntax & language:
 
     1. Tree-sitter syntax highlighting for 25 modes: Rust, Python, C,

@@ -521,3 +521,42 @@ fn same_frame_tab_round_trip_retires_the_hint_session_and_held_scan() {
     });
     cx.quit();
 }
+
+#[test]
+fn successful_manual_hint_closes_quietly_and_initial_failure_stays_actionable() {
+    let _settings = crate::settings::override_for_test(preferences());
+    let (_temp, _directory) = registry_directory();
+    for already_visible in [false, true] {
+        let mut cx = gpui::TestAppContext::single();
+        let (workspace, visual) = fixture(&mut cx, "draw(blue");
+        press(visual, "EditAutocompleteFuncParams");
+        if already_visible { press(visual, "EditAutocompleteFuncParams"); }
+        visual.update(|window, cx| {
+            let w = workspace.read(cx);
+            assert!(w.function_hint_snapshot(window).is_some());
+            assert!(w.status_message.is_none());
+        });
+        visual.simulate_input(")");
+        visual.update(|window, cx| {
+            let w = workspace.read(cx);
+            assert!(!w.function_hint_active());
+            assert!(w.function_hint_snapshot(window).is_none());
+            assert!(w.status_message.is_none(), "{:?}", w.status_message);
+            assert_eq!(w.buffer().rope.to_string(), "draw(blue)");
+            assert_eq!(w.tabs[w.active].undo_stack.len(), 1);
+        });
+        press(visual, "EditUndo");
+        visual.update(|_, cx| assert_eq!(workspace.read(cx).buffer().rope.to_string(), "draw(blue"));
+        cx.quit();
+    }
+    let mut cx = gpui::TestAppContext::single();
+    let (workspace, visual) = fixture(&mut cx, "draw(blue)");
+    press(visual, "EditAutocompleteFuncParams");
+    visual.update(|_, cx| {
+        let w = workspace.read(cx);
+        assert!(!w.function_hint_active());
+        assert!(w.status_message.as_deref().is_some_and(|status| status.contains("no open function call")));
+        assert!(w.tabs[w.active].undo_stack.is_empty());
+    });
+    cx.quit();
+}

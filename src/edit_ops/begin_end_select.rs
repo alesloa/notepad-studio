@@ -58,6 +58,7 @@ impl Workspace {
                 ));
             }
             Some(marker) => {
+                self.settle_source_input_edit_caret();
                 if column_mode {
                     eprintln!(
                         "begin_end_select: column-mode selection requires multi-cursor infra — \
@@ -70,6 +71,7 @@ impl Workspace {
                 tab.selection.head = head;
                 tab.selection.is_dragging = false;
                 tab.desired_col_x = None;
+                self.sync_source_input_caret();
                 let mode_label = if column_mode {
                     "linear (column-mode unsupported)"
                 } else {

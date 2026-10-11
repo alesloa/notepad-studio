@@ -396,6 +396,10 @@ v0.0.5 — current
         Late workers cannot change the closed window's Source or rich documents;
         failed recovery saves keep the window and replacement usable.
 
+    98. Old Source input callbacks now retire after real caret or selection
+        movement, including same-frame round trips. No-op movement keeps current
+        input usable; final selections after edits no longer retire fresh input.
+
   v0.1.0 — syntax & language:
 
     1. Tree-sitter syntax highlighting for 25 modes: Rust, Python, C,

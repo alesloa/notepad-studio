@@ -177,6 +177,8 @@ impl Workspace {
         #[cfg(test)]
         let capture_start = std::time::Instant::now();
         self.cancel_prepared_edit(cx);
+        self.settle_source_input_edit_caret();
+        self.sync_source_input_caret();
         let stamp = match Stamp::capture(self, window) {
             Ok(stamp) => stamp,
             Err(message) => { self.set_status(message); cx.notify(); return false; }

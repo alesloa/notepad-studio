@@ -119,7 +119,7 @@ impl Workspace {
     /// manifest, and schedule the debounced autosave. Keeping this out of the
     /// per-edit hot loop is what makes batched edits fast.
     pub(crate) fn after_edit_flush(&mut self, cx: &mut Context<Self>) {
-        self.retire_source_input();
+        self.retire_source_input_after_edit();
         self.cancel_prepared_edit(cx);
         // The synchronous edit-commit path stays CHEAP so the edit, caret, and
         // repaint land this frame and the UI thread never stalls. The two
@@ -531,7 +531,6 @@ impl Workspace {
     }
 
     pub(crate) fn move_to_byte(&mut self, byte: usize, extend: bool, reset_col: bool) {
-        let before = (self.selection().anchor, self.selection().head, self.block_selection().is_some());
         // Linear cursor movement collapses any in-flight block selection.
         // Block-aware actions call `block_extend` directly — they bypass
         // this funnel and keep the block alive.
@@ -546,9 +545,7 @@ impl Workspace {
         if reset_col {
             tab.desired_col_x = None;
         }
-        if before != (tab.selection.anchor, tab.selection.head, false) {
-            self.retire_source_input();
-        }
+        self.sync_source_input_caret();
         self.caret_visible = true;
     }
 
@@ -557,7 +554,8 @@ impl Workspace {
     /// refreshes the smart-highlight band so the green halo on the word at
     /// cursor stays in sync, then notifies, in one call.
     pub(crate) fn commit_caret(&mut self, cx: &mut Context<Self>) {
-        self.retire_source_input();
+        self.settle_source_input_edit_caret();
+        self.sync_source_input_caret();
         self.close_autocomplete(cx);
         self.close_function_hint(cx);
         self.ensure_cursor_visible(cx);
@@ -668,6 +666,7 @@ impl Workspace {
             } else {
                 tab.selection.collapse_to(new_byte);
             }
+            self.sync_source_input_caret();
             self.caret_visible = true;
             self.ensure_cursor_visible(cx);
             cx.notify();
@@ -739,6 +738,7 @@ impl Workspace {
         } else {
             tab.selection.collapse_to(new_byte);
         }
+        self.sync_source_input_caret();
         self.caret_visible = true;
         self.ensure_cursor_visible(cx);
         cx.notify();

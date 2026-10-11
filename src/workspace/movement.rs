@@ -235,6 +235,7 @@ impl Workspace {
             self.active_tab_mut().selection.collapse_to(target_byte);
         }
         self.active_tab_mut().desired_col_x = None;
+        self.sync_source_input_caret();
         self.caret_visible = true;
         self.ensure_cursor_visible(cx);
         cx.notify();

@@ -1234,7 +1234,9 @@ impl EntityInputHandler for Workspace {
                             self.close_autocomplete(cx);
                             let advance = typed.len_utf8();
                             let new_pos = cursor + advance;
+                            self.settle_source_input_edit_caret();
                             self.active_tab_mut().selection.collapse_to(new_pos);
+                            self.sync_source_input_caret();
                             self.update_function_hint_after_input(new_text, window, cx);
                             cx.notify();
                             return;

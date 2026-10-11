@@ -535,6 +535,7 @@ impl Workspace {
             self.refresh_matches();
         }
 
+        if tab_idx == self.active { self.settle_source_input_edit_caret(); }
         let Some(tab) = self.tabs.get_mut(tab_idx) else {
             return;
         };
@@ -543,6 +544,7 @@ impl Workspace {
         tab.selection.head = range.end;
         tab.selection.is_dragging = false;
         tab.desired_col_x = None;
+        if tab_idx == self.active { self.sync_source_input_caret(); }
         self.last_lines.clear();
         self.caret_visible = true;
         self.ensure_cursor_visible(cx);

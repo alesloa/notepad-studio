@@ -213,6 +213,7 @@ impl Workspace {
         tab.selection.anchor = 0;
         tab.selection.head = total;
         tab.selection.is_dragging = false;
+        self.sync_source_input_caret();
         cx.notify();
     }
 

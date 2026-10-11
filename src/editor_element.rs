@@ -2163,6 +2163,7 @@ impl gpui::Element for EditorElement {
                 }
                 if w.selection().is_dragging {
                     w.active_tab_mut().selection.is_dragging = false;
+                    w.sync_source_input_caret();
                     w.drag_mode = crate::workspace::DragMode::Char;
                     w.drag_anchor_range = None;
                     cx.notify();

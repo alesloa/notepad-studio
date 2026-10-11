@@ -113,13 +113,17 @@ impl Workspace {
     }
 
     pub(crate) fn set_block_selection(&mut self, block: Option<BlockSelection>) {
-        let active = self.active;
-        self.tabs[active].block_selection = block;
+        self.settle_source_input_edit_caret();
+        let Some(tab) = self.tabs.get_mut(self.active) else { return; };
+        tab.block_selection = block;
+        self.sync_source_input_caret();
     }
 
     pub(crate) fn clear_block_selection(&mut self) -> bool {
-        let active = self.active;
-        if self.tabs[active].block_selection.take().is_some() {
+        self.settle_source_input_edit_caret();
+        let Some(tab) = self.tabs.get_mut(self.active) else { return false; };
+        if tab.block_selection.take().is_some() {
+            self.sync_source_input_caret();
             return true;
         }
         false
@@ -473,6 +477,7 @@ impl Workspace {
             self.tabs[active].selection.anchor = byte;
             self.tabs[active].selection.head = byte;
         }
+        self.sync_source_input_caret();
         self.caret_visible = true;
         self.ensure_cursor_visible(cx);
         cx.notify();

@@ -24,10 +24,30 @@ impl Default for SourceInputToken {
 pub(crate) struct SourceInputContext {
     epoch: SourceInputToken,
     tab: Option<Uuid>,
+    caret: Option<SourceCaret>,
+    pending_edit_caret: bool,
 }
 
 impl SourceInputContext {
-    pub(super) fn new(tab: Uuid) -> Self { Self { epoch: Default::default(), tab: Some(tab) } }
+    pub(super) fn new(tab: Uuid) -> Self { Self { epoch: Default::default(), tab: Some(tab), caret: None, pending_edit_caret: false } }
+}
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+struct SourceCaret {
+    tab: Uuid,
+    selection: (usize, usize, bool),
+    block: Option<(usize, usize, usize, usize, bool)>,
+}
+
+impl SourceCaret {
+    fn capture(w: &Workspace) -> Option<Self> {
+        let tab = w.tabs.get(w.active)?;
+        Some(Self {
+            tab: tab.session_id,
+            selection: (tab.selection.anchor, tab.selection.head, tab.selection.is_dragging),
+            block: tab.block_selection.map(|b| (b.anchor_line, b.anchor_col, b.head_line, b.head_col, b.is_dragging)),
+        })
+    }
 }
 
 impl Workspace {
@@ -49,6 +69,33 @@ impl Workspace {
 
     pub(crate) fn retire_source_input(&mut self) {
         self.source_input_context.epoch = SourceInputToken::default();
+        self.source_input_context.caret = SourceCaret::capture(self);
+        self.source_input_context.pending_edit_caret = false;
+    }
+
+    pub(super) fn retire_source_input_after_edit(&mut self) {
+        self.retire_source_input();
+        self.source_input_context.pending_edit_caret = true;
+    }
+
+    pub(crate) fn settle_source_input_edit_caret(&mut self) {
+        if self.source_input_context.pending_edit_caret {
+            // Some edits correct their selection after the content flush.
+            // Older callbacks are already retired; observe the correction
+            // before comparing the next genuine movement, never after it.
+            self.source_input_context.caret = SourceCaret::capture(self);
+            self.source_input_context.pending_edit_caret = false;
+        }
+    }
+
+    pub(crate) fn sync_source_input_caret(&mut self) {
+        let current = SourceCaret::capture(self);
+        if self.source_input_context.caret.is_some() && self.source_input_context.caret != current {
+            self.retire_source_input();
+        } else {
+            // The welcome/restored tab has no observed caret until first paint.
+            self.source_input_context.caret = current;
+        }
     }
 
     pub(super) fn source_input_token(&self) -> SourceInputToken {
@@ -61,6 +108,8 @@ impl Workspace {
             self.retire_source_input();
             self.source_input_context.tab = tab;
         }
+        self.settle_source_input_edit_caret();
+        self.sync_source_input_caret();
     }
 }
 
@@ -106,7 +155,8 @@ pub(crate) struct SourceInputHandler {
 }
 
 impl SourceInputHandler {
-    pub(crate) fn new(bounds: Bounds<Pixels>, workspace: Entity<Workspace>, window: &Window, cx: &App) -> Self {
+    pub(crate) fn new(bounds: Bounds<Pixels>, workspace: Entity<Workspace>, window: &Window, cx: &mut App) -> Self {
+        workspace.update(cx, |w, _| w.sync_source_input_tab());
         let w = workspace.read(cx);
         Self {
             inner: ElementInputHandler::new(bounds, workspace.clone()),
@@ -125,9 +175,13 @@ impl SourceInputHandler {
         w.tabs.get(w.active).is_some_and(|tab| !tab.buffer.read_only && tab.buffer.loading.is_none())
     }
 
-    fn refresh(&mut self, window: &Window, cx: &App) {
+    fn refresh(&mut self, window: &Window, cx: &mut App) {
         // The delegate's own edit/caret flush retires old callbacks. Adopt
         // that new identity only after this handler accepted genuine input.
+        self.workspace.update(cx, |w, _| {
+            w.settle_source_input_edit_caret();
+            w.sync_source_input_caret();
+        });
         self.stamp = SourceStamp::capture(self.workspace.read(cx), window);
     }
 }
@@ -186,6 +240,31 @@ mod tests {
     use super::*;
     use crate::{actions::{EditUndo, TabGoto2, ViewCsvPreview}, editor_element::source_input_origin_tests::with_sources};
     use gpui::VisualContext;
+
+    #[test]
+    fn source_caret_snapshot_has_fixed_storage_and_does_not_dereference_offsets() {
+        assert!(std::mem::size_of::<SourceCaret>() <= 128);
+        with_sources(|entity, visual| {
+            visual.update_window_entity(entity, |w, _, _| {
+                let selection = w.active_tab_mut().selection;
+                let block = w.block_selection();
+                w.active_tab_mut().selection = crate::buffer::Selection {
+                    anchor: usize::MAX, head: 7, is_dragging: true,
+                };
+                w.set_block_selection(Some(crate::buffer::BlockSelection {
+                    anchor_line: usize::MAX, anchor_col: usize::MAX, head_line: usize::MAX,
+                    head_col: usize::MAX - 1, is_dragging: true,
+                }));
+                let state = SourceCaret::capture(w).unwrap();
+                assert_eq!(state.selection, (usize::MAX, 7, true));
+                assert_eq!(state.block, Some((usize::MAX, usize::MAX, usize::MAX, usize::MAX - 1, true)));
+                let epoch = w.source_input_token();
+                w.sync_source_input_caret(); assert_eq!(w.source_input_token(), epoch);
+                w.active_tab_mut().selection = selection;
+                w.set_block_selection(block); w.sync_source_input_caret();
+            });
+        });
+    }
 
     fn draft_boundary(restored: bool) {
         with_sources(|entity, visual| {

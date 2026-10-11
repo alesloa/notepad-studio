@@ -1933,3 +1933,6 @@ impl crate::ui::style_configurator::hsv_surface::HsvHost for Workspace {
 
 #[cfg(test)]
 mod prepared_edit_tests;
+
+#[cfg(test)]
+mod source_caret_tests;

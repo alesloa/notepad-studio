@@ -961,11 +961,13 @@ impl Workspace {
         if self.buffer().rope.get_byte_slice(range.clone()).is_none() {
             return;
         }
+        self.settle_source_input_edit_caret();
         let tab = self.active_tab_mut();
         tab.selection.anchor = range.start;
         tab.selection.head = range.end;
         tab.selection.is_dragging = false;
         tab.desired_col_x = None;
+        self.sync_source_input_caret();
         self.find_state.current = Some(idx);
         self.last_lines.clear();
         self.caret_visible = true;

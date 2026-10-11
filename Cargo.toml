@@ -118,6 +118,9 @@ tree-sitter-toml-ng = "0.7.0"
 tree-sitter-xml = "0.7.0"
 tree-sitter-sequel = "0.3.11"
 
+[dev-dependencies]
+gpui = { path = "vendor/gpui/crates/gpui", features = ["test-support"] }
+
 # macOS-only NSPasteboard bridge for reading public.html / public.rtf flavors
 # during paste — GPUI's clipboard API only exposes string/image, so the paste-
 # with-formatting flow reaches past it through these crates. Pinned to the same

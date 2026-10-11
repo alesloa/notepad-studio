@@ -147,6 +147,10 @@ v0.0.5 — current
    40. Legacy Word blank paragraphs survive opening and DOCX conversion.
        Compressed characters now follow Word's documented Unicode mapping.
 
+   41. Doc View typing, deletion, paste, formatting and replacements schedule
+       recovery. Read-Only blocks these edits, and Replace All schedules a
+       single recovery snapshot for the batch.
+
   v0.1.0 — syntax & language:
 
     1. Tree-sitter syntax highlighting for 25 modes: Rust, Python, C,

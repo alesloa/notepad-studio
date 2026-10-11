@@ -995,19 +995,22 @@ impl Workspace {
     /// `DeleteRange` or `DeleteAcrossBlocks`, then inserts the replacement
     /// at the start position. Sets the caret to the end of the inserted
     /// text so subsequent edits stay anchored where the user expects.
-    pub(crate) fn replace_rich_doc_range(&mut self, range: Range<usize>, replacement: &str) {
+    fn replace_rich_doc_range(&mut self, range: Range<usize>, replacement: &str) -> bool {
+        if self.buffer().read_only || (range.is_empty() && replacement.is_empty()) {
+            return false;
+        }
         let Some(offsets) = self.find_state.rich_doc_block_offsets.clone() else {
-            return;
+            return false;
         };
         let payload_opt = self.tabs[self.active].buffer.rich_doc.as_ref();
         let (Some(lo), Some(hi)) = (
             payload_opt.and_then(|p| p.pos_from_global_flat(&offsets, range.start, true)),
             payload_opt.and_then(|p| p.pos_from_global_flat(&offsets, range.end, true)),
         ) else {
-            return;
+            return false;
         };
         let Some(payload) = self.tabs[self.active].buffer.rich_doc.as_mut() else {
-            return;
+            return false;
         };
         // Delete the matched span first.
         if !(lo.block == hi.block && lo.run == hi.run && lo.byte == hi.byte) {
@@ -1043,7 +1046,7 @@ impl Workspace {
         // Place the caret at the end of the replacement (or the deletion
         // point when replacement is empty) so the user sees where the edit
         // landed and so a follow-up Find Next picks the right next match.
-        let caret_flat = payload.flat_byte_for(lo) + replacement.len();
+        let caret_flat = payload.flat_byte_for(lo).saturating_add(replacement.len());
         let caret = payload.pos_from_flat_byte(lo.block, caret_flat);
         payload.selection = Some(crate::rich_doc::TextSelection {
             anchor: caret,
@@ -1052,6 +1055,28 @@ impl Workspace {
         payload.active_block = Some(lo.block);
         payload.drag_active = false;
         payload.pending_drag_anchor = None;
+        true
+    }
+
+    pub(super) fn replace_rich_doc_ranges(
+        &mut self,
+        ranges: &[Range<usize>],
+        replacement: &str,
+        cx: &mut Context<Self>,
+    ) -> usize {
+        if !self.rich_doc_edit_allowed(cx) {
+            return 0;
+        }
+        let mut replaced = 0usize;
+        for range in ranges {
+            if self.replace_rich_doc_range(range.clone(), replacement) {
+                replaced = replaced.saturating_add(1);
+            }
+        }
+        if replaced > 0 {
+            self.after_rich_doc_edit(cx);
+        }
+        replaced
     }
 
     fn step_match(&mut self, forward: bool, cx: &mut Context<Self>) {
@@ -1279,7 +1304,9 @@ impl Workspace {
             // Without this the next refresh either over-scans (text grew) or
             // drops matches (text shrank) inside the captured scope.
             let delta = replacement.len() as isize - (range.end - range.start) as isize;
-            self.replace_rich_doc_range(range.clone(), &replacement);
+            if self.replace_rich_doc_ranges(std::slice::from_ref(&range), &replacement, cx) == 0 {
+                return;
+            }
             if let Some(scope) = self.find_state.in_selection_scope.as_mut() {
                 scope.end = (scope.end as isize + delta).max(scope.start as isize) as usize;
             }
@@ -1364,9 +1391,12 @@ impl Workspace {
             // in-selection scope's end edge after the run finishes — same
             // pattern as the source-view branch below.
             let mut total_delta: isize = 0;
-            for r in ranges {
+            for r in &ranges {
                 total_delta += replacement.len() as isize - (r.end - r.start) as isize;
-                self.replace_rich_doc_range(r, &replacement);
+            }
+            let count = self.replace_rich_doc_ranges(&ranges, &replacement, cx);
+            if count == 0 {
+                return;
             }
             if let Some(scope) = self.find_state.in_selection_scope.as_mut() {
                 scope.end = (scope.end as isize + total_delta).max(scope.start as isize) as usize;

@@ -19,6 +19,10 @@ use crate::text::utf16::{next_char_byte_in_str, prev_char_byte_in_str};
 use crate::workspace::Workspace;
 use super::history::{HistoryDirection, HistoryTarget, apply_rich_history, history_target};
 
+#[cfg(test)]
+#[path = "rich_edit_tests.rs"]
+mod rich_edit_tests;
+
 /// True if `line` (with leading-whitespace allowed) looks like a CommonMark
 /// list item marker: `- `, `* `, `+ ` (bullet) or `1. `, `2) ` (ordered).
 /// Used by `insert_tab` to decide whether Tab in markdown-preview mode
@@ -423,8 +427,7 @@ impl Workspace {
         match history_target(self.input_focus(window), self.buffer().read_only, self.csv_undo_active()) {
             HistoryTarget::RichDocument => {
                 if apply_rich_history(&mut self.active_tab_mut().buffer, HistoryDirection::Undo) {
-                    self.schedule_autosave(cx);
-                    cx.notify();
+                    self.after_rich_doc_edit(cx);
                 }
                 return;
             }
@@ -456,8 +459,7 @@ impl Workspace {
         match history_target(self.input_focus(window), self.buffer().read_only, self.csv_undo_active()) {
             HistoryTarget::RichDocument => {
                 if apply_rich_history(&mut self.active_tab_mut().buffer, HistoryDirection::Redo) {
-                    self.schedule_autosave(cx);
-                    cx.notify();
+                    self.after_rich_doc_edit(cx);
                 }
                 return;
             }
@@ -1451,6 +1453,9 @@ impl Workspace {
     /// Paragraph. Tables and Images are skipped; mixed-kind selections each
     /// shift independently from their own current level.
     fn rich_doc_shift_heading(&mut self, shift: HeadingShift, cx: &mut Context<Self>) {
+        if !self.rich_doc_edit_allowed(cx) {
+            return;
+        }
         let tab = self.active_tab_mut();
         let Some(payload) = tab.buffer.rich_doc.as_mut() else {
             return;
@@ -1496,8 +1501,7 @@ impl Workspace {
             dirty = true;
         }
         if dirty {
-            tab.buffer.dirty = true;
-            cx.notify();
+            self.after_rich_doc_edit(cx);
         }
     }
 
@@ -1518,6 +1522,9 @@ impl Workspace {
     }
 
     fn rich_doc_toggle_list(&mut self, ordered: bool, cx: &mut Context<Self>) {
+        if !self.rich_doc_edit_allowed(cx) {
+            return;
+        }
         let tab = self.active_tab_mut();
         let Some(payload) = tab.buffer.rich_doc.as_mut() else {
             return;
@@ -1526,8 +1533,7 @@ impl Workspace {
             return;
         };
         payload.apply_edit(crate::rich_doc::edits::Edit::ToggleBlockList { block, ordered });
-        tab.buffer.dirty = true;
-        cx.notify();
+        self.after_rich_doc_edit(cx);
     }
 
     /// Ensure the rich-doc body focus handle exists. Lazy-init so cold paths
@@ -1818,6 +1824,9 @@ impl Workspace {
     /// selection. Wired from `EntityInputHandler::replace_text_in_range`
     /// when the focus is RichDocBody.
     pub(crate) fn rich_doc_insert_text(&mut self, text: &str, cx: &mut Context<Self>) {
+        if !self.rich_doc_edit_allowed(cx) {
+            return;
+        }
         if text.is_empty() {
             return;
         }
@@ -1874,8 +1883,7 @@ impl Workspace {
             anchor: new_pos,
             cursor: new_pos,
         });
-        tab.buffer.dirty = true;
-        cx.notify();
+        self.after_rich_doc_edit(cx);
     }
 
     /// Phase 2g.B — Enter inside the rich-doc body splits the current
@@ -1883,6 +1891,9 @@ impl Workspace {
     /// remaining single-position cursor then splits, leaving the right half
     /// as a new Paragraph at block+1 and dropping the cursor at its start.
     pub(crate) fn rich_doc_insert_paragraph_break(&mut self, cx: &mut Context<Self>) {
+        if !self.rich_doc_edit_allowed(cx) {
+            return;
+        }
         let tab = self.active_tab_mut();
         let Some(payload) = tab.buffer.rich_doc.as_mut() else {
             return;
@@ -1930,8 +1941,7 @@ impl Workspace {
             anchor: new_pos,
             cursor: new_pos,
         });
-        tab.buffer.dirty = true;
-        cx.notify();
+        self.after_rich_doc_edit(cx);
     }
 
     /// Delete the active selection if non-empty, else delete one grapheme
@@ -1945,6 +1955,9 @@ impl Workspace {
         forward: bool,
         cx: &mut Context<Self>,
     ) {
+        if !self.rich_doc_edit_allowed(cx) {
+            return;
+        }
         let tab = self.active_tab_mut();
         let Some(payload) = tab.buffer.rich_doc.as_mut() else {
             return;
@@ -1993,8 +2006,7 @@ impl Workspace {
                     cursor: collapsed,
                 });
             }
-            tab.buffer.dirty = true;
-            cx.notify();
+            self.after_rich_doc_edit(cx);
             return;
         }
         // Collapsed — delete one grapheme, or merge with neighbor at boundary.
@@ -2020,8 +2032,7 @@ impl Workspace {
                     anchor: lo_pos,
                     cursor: lo_pos,
                 });
-                tab.buffer.dirty = true;
-                cx.notify();
+                self.after_rich_doc_edit(cx);
                 return;
             }
             // At end of block — try merging with next paragraph/heading.
@@ -2044,8 +2055,7 @@ impl Workspace {
                 anchor: keep_pos,
                 cursor: keep_pos,
             });
-            tab.buffer.dirty = true;
-            cx.notify();
+            self.after_rich_doc_edit(cx);
             return;
         }
         // Backspace branch.
@@ -2067,8 +2077,7 @@ impl Workspace {
                 anchor: lo_pos,
                 cursor: lo_pos,
             });
-            tab.buffer.dirty = true;
-            cx.notify();
+            self.after_rich_doc_edit(cx);
             return;
         }
         // Backspace at byte 0 — merge with previous paragraph/heading.
@@ -2092,8 +2101,7 @@ impl Workspace {
             anchor: join_pos,
             cursor: join_pos,
         });
-        tab.buffer.dirty = true;
-        cx.notify();
+        self.after_rich_doc_edit(cx);
     }
 
     /// Move the rich-doc cursor left / right one grapheme. Extends the
@@ -2345,6 +2353,9 @@ impl Workspace {
 
     /// Cut: copy + delete in one call.
     pub(crate) fn rich_doc_cut_selection(&mut self, cx: &mut Context<Self>) {
+        if !self.rich_doc_edit_allowed(cx) {
+            return;
+        }
         self.rich_doc_copy_selection(cx);
         let has_sel = self.tabs[self.active]
             .buffer
@@ -2395,6 +2406,9 @@ impl Workspace {
     /// `replace_text_in_range` path so Cmd+V and middle-click-paste produce
     /// the same block layout for multi-line clipboard payloads.
     pub(crate) fn rich_doc_paste(&mut self, text: &str, cx: &mut Context<Self>) {
+        if !self.rich_doc_edit_allowed(cx) {
+            return;
+        }
         if text.is_empty() {
             return;
         }
@@ -2436,6 +2450,9 @@ impl Workspace {
         blocks: Vec<crate::rich_doc::ast::Block>,
         cx: &mut Context<Self>,
     ) {
+        if !self.rich_doc_edit_allowed(cx) {
+            return;
+        }
         if blocks.is_empty() {
             return;
         }
@@ -2515,8 +2532,7 @@ impl Workspace {
             anchor: new_pos,
             cursor: new_pos,
         });
-        tab.buffer.dirty = true;
-        cx.notify();
+        self.after_rich_doc_edit(cx);
     }
 
     /// Insert a tab character at the cursor. Phase 2g.B does not implement
@@ -2645,6 +2661,9 @@ impl Workspace {
         alignment: crate::rich_doc::ast::Alignment,
         cx: &mut Context<Self>,
     ) {
+        if !self.rich_doc_edit_allowed(cx) {
+            return;
+        }
         let tab = self.active_tab_mut();
         let Some(payload) = tab.buffer.rich_doc.as_mut() else {
             return;
@@ -2653,11 +2672,13 @@ impl Workspace {
             return;
         };
         payload.apply_edit(crate::rich_doc::edits::Edit::SetBlockAlignment { block, alignment });
-        tab.buffer.dirty = true;
-        cx.notify();
+        self.after_rich_doc_edit(cx);
     }
 
     fn rich_doc_apply_indent_delta(&mut self, delta: i8, cx: &mut Context<Self>) {
+        if !self.rich_doc_edit_allowed(cx) {
+            return;
+        }
         let tab = self.active_tab_mut();
         let Some(payload) = tab.buffer.rich_doc.as_mut() else {
             return;
@@ -2666,8 +2687,7 @@ impl Workspace {
             return;
         };
         payload.apply_edit(crate::rich_doc::edits::Edit::SetBlockIndent { block, delta });
-        tab.buffer.dirty = true;
-        cx.notify();
+        self.after_rich_doc_edit(cx);
     }
 
     /// Open the inline rich-doc color-picker bar over the active block.
@@ -2716,6 +2736,9 @@ impl Workspace {
     /// a swatch; partial buffers (1-5 chars) likewise skip. Six-char
     /// buffers parse and commit.
     pub(crate) fn apply_rich_doc_color_buffer(&mut self, cx: &mut Context<Self>) {
+        if !self.rich_doc_edit_allowed(cx) {
+            return;
+        }
         let Some(state) = self.rich_doc_color_bar.as_ref() else {
             return;
         };
@@ -2737,8 +2760,7 @@ impl Workspace {
             block: target_block,
             color: Some(color),
         });
-        tab.buffer.dirty = true;
-        cx.notify();
+        self.after_rich_doc_edit(cx);
     }
 
     /// Click handler for a swatch tile in the color bar — overwrites the
@@ -2798,6 +2820,9 @@ impl Workspace {
     /// Clear button: strip the color from the active block and dismiss
     /// the bar.
     pub(crate) fn rich_doc_color_clear(&mut self, cx: &mut Context<Self>) {
+        if !self.rich_doc_edit_allowed(cx) {
+            return;
+        }
         let Some(state) = self.rich_doc_color_bar.as_ref() else {
             return;
         };
@@ -2813,7 +2838,7 @@ impl Workspace {
             block: target_block,
             color: None,
         });
-        tab.buffer.dirty = true;
+        self.after_rich_doc_edit(cx);
         self.close_rich_doc_color_bar(cx);
     }
 
@@ -2861,6 +2886,9 @@ impl Workspace {
     /// as Unlink (matches what a user would expect from clearing the box
     /// then hitting Apply). Trims surrounding whitespace.
     pub(crate) fn commit_rich_doc_link_bar(&mut self, cx: &mut Context<Self>) {
+        if !self.rich_doc_edit_allowed(cx) {
+            return;
+        }
         let Some(state) = self.rich_doc_link_bar.as_ref() else {
             return;
         };
@@ -2878,13 +2906,16 @@ impl Workspace {
             block: target_block,
             url,
         });
-        tab.buffer.dirty = true;
+        self.after_rich_doc_edit(cx);
         self.close_rich_doc_link_bar(cx);
     }
 
     /// Unlink button: strip the link and dismiss the bar without
     /// committing the typed URL.
     pub(crate) fn rich_doc_link_unlink(&mut self, cx: &mut Context<Self>) {
+        if !self.rich_doc_edit_allowed(cx) {
+            return;
+        }
         let Some(state) = self.rich_doc_link_bar.as_ref() else {
             return;
         };
@@ -2900,11 +2931,14 @@ impl Workspace {
             block: target_block,
             url: None,
         });
-        tab.buffer.dirty = true;
+        self.after_rich_doc_edit(cx);
         self.close_rich_doc_link_bar(cx);
     }
 
     fn rich_doc_toggle_style(&mut self, axis: RichDocStyleAxis, cx: &mut Context<Self>) {
+        if !self.rich_doc_edit_allowed(cx) {
+            return;
+        }
         let tab = self.active_tab_mut();
         let Some(payload) = tab.buffer.rich_doc.as_mut() else {
             return;
@@ -2963,8 +2997,7 @@ impl Workspace {
                 },
             };
             payload.apply_edit(edit);
-            tab.buffer.dirty = true;
-            cx.notify();
+            self.after_rich_doc_edit(cx);
             return;
         }
         // No-selection path — fall back to whole-block toggle, using
@@ -2997,8 +3030,7 @@ impl Workspace {
             },
         };
         payload.apply_edit(edit);
-        tab.buffer.dirty = true;
-        cx.notify();
+        self.after_rich_doc_edit(cx);
     }
 
     /// `File ▸ Save As .docx` — only meaningful for legacy `.doc` tabs (the

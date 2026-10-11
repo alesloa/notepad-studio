@@ -27,6 +27,7 @@ pub(crate) use open_existing::{already_open_message, show_already_open_error};
 mod movement;
 mod plugins;
 mod render;
+mod rich_edit;
 mod status;
 mod menu_state;
 mod tabs;

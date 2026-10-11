@@ -36,6 +36,7 @@ impl WindowSnapshots {
                 let tab_id = backup.id();
                 if let (Some(tab), Some(old)) = (snapshot.tabs.iter_mut().find(|tab| tab.id == tab_id), previous.tabs.iter().find(|tab| tab.id == tab_id)) {
                     tab.dirty = old.dirty;
+                    tab.rich_backup = old.rich_backup;
                     tab.line_ending = old.line_ending;
                     tab.encoding = old.encoding;
                 }

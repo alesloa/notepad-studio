@@ -68,7 +68,8 @@ ropey = "1.6"
 rfd = "0.14"
 anyhow = "1"
 dirs = "5"
-serde = { version = "1", features = ["derive"] }
+serde = { version = "1", features = ["derive", "rc"] }
+serde_json.workspace = true
 toml = "0.8"
 regex = "1"
 walkdir = "2"

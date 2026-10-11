@@ -36,6 +36,7 @@ use crate::theme::ThemeMode;
 
 mod windows;
 mod persistence;
+mod rich_backup;
 use persistence::Backup;
 pub(crate) use persistence::{prepare_save, write_prepared};
 pub(crate) use windows::{register_workspace, release_workspace};
@@ -83,6 +84,9 @@ pub(crate) struct SessionTab {
     /// When true, `<id>.bak` holds the in-memory contents.
     #[serde(default)]
     pub(crate) dirty: bool,
+    /// An atomic native container + edited AST recovery file accompanies this tab.
+    #[serde(default)]
+    pub(crate) rich_backup: bool,
     #[serde(default)]
     pub(crate) line_ending: LineEndingTag,
     #[serde(default)]
@@ -143,6 +147,8 @@ pub(crate) struct SessionClosedTab {
     #[serde(default)]
     // Older manifests omitted this flag; only those need a disk comparison.
     pub(crate) dirty: Option<bool>,
+    #[serde(default)]
+    pub(crate) rich_backup: bool,
     #[serde(default)]
     pub(crate) read_only: bool,
     #[serde(default)]
@@ -289,7 +295,7 @@ fn salvage_manifest(table: &toml::Table) -> SessionManifest {
 /// Append an untitled, dirty tab for every non-empty `<uuid>.bak` in
 /// `bak_dir` that `manifest` doesn't reference, oldest first.
 fn recover_unreferenced_baks(mut manifest: SessionManifest, bak_dir: &Path) -> SessionManifest {
-    let referenced: BTreeSet<Uuid> = manifest
+    let mut referenced: BTreeSet<Uuid> = manifest
         .tabs
         .iter()
         .map(|t| t.id)
@@ -302,7 +308,7 @@ fn recover_unreferenced_baks(mut manifest: SessionManifest, bak_dir: &Path) -> S
         .flatten()
         .filter_map(|entry| {
             let path = entry.path();
-            if path.extension().and_then(|e| e.to_str()) != Some("bak") {
+            if !matches!(path.extension().and_then(|e| e.to_str()), Some("bak" | "rich")) {
                 return None;
             }
             let id = Uuid::parse_str(path.file_stem()?.to_str()?).ok()?;
@@ -328,12 +334,14 @@ fn recover_unreferenced_baks(mut manifest: SessionManifest, bak_dir: &Path) -> S
         LineEndingTag::from_line_ending(crate::settings::resolved_default_line_ending());
     let encoding = EncodingTag::from_encoding(crate::settings::resolved_default_encoding());
     for (_, id) in orphans {
+        if !referenced.insert(id) { continue; }
         let label = crate::buffer::next_new_label_for(labels.iter().map(Some));
         eprintln!("[session] recovered autosave {id} as {label}");
         manifest.tabs.push(SessionTab {
             id,
             path: None,
             dirty: true,
+            rich_backup: rich_backup::path_in(bak_dir, id).is_file(),
             line_ending,
             encoding,
             language: None,
@@ -422,6 +430,7 @@ pub(crate) fn snapshot_tab_with_policy(tab: &Tab, bak_policy: BakPolicy) -> Sess
         id,
         path: buffer.file_path.clone(),
         dirty: manifest_dirty,
+        rich_backup: needs_backup && buffer.rich_doc.is_some(),
         line_ending: LineEndingTag::from_line_ending(buffer.line_ending),
         encoding: EncodingTag::from_encoding(buffer.encoding),
         language: buffer.language,
@@ -450,6 +459,7 @@ pub(crate) fn snapshot_closed_tab(closed: &ClosedTab) -> SessionClosedTab {
         id,
         path: closed.buffer.file_path.clone(),
         dirty: Some(closed.buffer.dirty),
+        rich_backup: closed.buffer.rich_doc.is_some(),
         read_only: closed.buffer.read_only,
         line_ending: LineEndingTag::from_line_ending(closed.buffer.line_ending),
         encoding: EncodingTag::from_encoding(closed.buffer.encoding),
@@ -538,7 +548,29 @@ fn restore_tab_in(entry: &SessionTab, bak_dir: &Path) -> RestoreOutcome {
     let mut line_ending = entry.line_ending.into_line_ending();
     let mut encoding = entry.encoding.into_encoding();
     let mut lossy = false;
-    let (rope, dirty) = if entry.dirty {
+    let (rope, dirty) = if entry.rich_backup {
+        match rich_backup::read(&rich_backup::path_in(bak_dir, entry.id)) {
+            Ok((mut payload, mut source)) => {
+                // A damaged manifest must not attach one native format to
+                // another format's destination path.
+                if file_path.as_ref().is_some_and(|path| crate::rich_doc::detect_format(path) != Some(payload.format)) {
+                    file_path = None;
+                }
+                let dirty = refresh_clean_rich_recovery(file_path.as_deref(), entry.dirty, &mut payload, &mut source);
+                rich_doc_payload = Some(payload);
+                (ropey::Rope::from_str(&source), dirty)
+            }
+            Err(err) => {
+                eprintln!("[session] rich recovery {}: {err}", entry.id);
+                let Some(source) = read_bak_in(bak_dir, entry.id) else {
+                    return RestoreOutcome::Skipped(format!("rich recovery is damaged and raw source is missing: {err}"));
+                };
+                new_label = Some(raw_recovery_label(file_path.as_deref()));
+                file_path = None;
+                (ropey::Rope::from_str(&source), true)
+            }
+        }
+    } else if entry.dirty {
         let Some(body) = read_bak_in(bak_dir, entry.id) else {
             let label = entry.path.as_ref().map(|p| p.display().to_string())
                 .or_else(|| entry.new_label.clone()).unwrap_or_else(|| "untitled".into());
@@ -666,6 +698,26 @@ fn restored_scroll(v: f32) -> f32 {
     if v.is_finite() { v.max(0.0) } else { 0.0 }
 }
 
+fn raw_recovery_label(path: Option<&Path>) -> SharedString {
+    let name = path.and_then(Path::file_name).map(|name| name.to_string_lossy()).unwrap_or_default();
+    format!("Recovered raw source {name}.txt").into()
+}
+
+/// A clean closed document may have been moved or changed before reopening.
+/// Keep its snapshot dirty unless disk still contains the same visible state;
+/// otherwise the next autosave would delete its only remaining native copy.
+fn refresh_clean_rich_recovery(path: Option<&Path>, dirty: bool, payload: &mut crate::rich_doc::RichDocPayload, source: &mut String) -> bool {
+    if dirty { return true; }
+    let Some(path) = path else { return true; };
+    let Ok(current) = read_rich_file(path) else { return true; };
+    if current.ast != payload.ast || current.headers != payload.headers || current.footers != payload.footers {
+        return true;
+    }
+    *source = crate::text::line_ending::split_line_endings(current.raw_view_text.clone()).1;
+    *payload = current;
+    false
+}
+
 /// Reconstruct a `ClosedTab` from a manifest entry. Closed-tab content is
 /// always in a `.bak` — the closed-tab restore stack carries unsaved drafts
 /// across launches the same way the open-tab list does.
@@ -694,27 +746,48 @@ fn restore_rich_backup(path: &Path, body: &str, backup: &Path) -> Option<(crate:
 }
 
 fn restore_closed_tab_in(entry: &SessionClosedTab, dir: &Path) -> Option<ClosedTab> {
-    let body = read_bak_in(dir, entry.id)?;
     let mut file_path = entry.path.clone();
     let mut new_label = entry.new_label.clone().map(SharedString::from);
     let mut dirty = entry.dirty.unwrap_or(false) || file_path.is_none();
     let mut rich_doc = None;
-    if let Some(path) = entry.path.as_ref().filter(|p| crate::rich_doc::detect_format(p).is_some()) {
-        if let Some((payload, recovered_edits)) = restore_rich_backup(path, &body, &bak_path_in(dir, entry.id)) {
-            dirty |= recovered_edits;
-            rich_doc = Some(payload);
-        } else {
-            // Keep the backup reachable without pointing plain text at a
-            // native document. Save now asks for a new destination.
-            let name = path.file_name().map(|s| s.to_string_lossy()).unwrap_or_default();
-            new_label = Some(format!("Recovered {name}.txt").into());
-            file_path = None;
-            dirty = true;
+    let body = if entry.rich_backup {
+        match rich_backup::read(&rich_backup::path_in(dir, entry.id)) {
+            Ok((mut payload, mut source)) => {
+                if file_path.as_ref().is_some_and(|path| crate::rich_doc::detect_format(path) != Some(payload.format)) {
+                    file_path = None;
+                    dirty = true;
+                }
+                dirty = refresh_clean_rich_recovery(file_path.as_deref(), dirty, &mut payload, &mut source);
+                rich_doc = Some(payload);
+                source
+            }
+            Err(err) => {
+                eprintln!("[session] closed rich recovery {}: {err}", entry.id);
+                new_label = Some(raw_recovery_label(file_path.as_deref()));
+                file_path = None;
+                dirty = true;
+                read_bak_in(dir, entry.id)?
+            }
         }
-    } else if let Some(path) = file_path.as_ref().filter(|_| entry.dirty.is_none()) {
-        // Older manifests omitted dirty. Compare their saved text with disk
-        // so reopening a recovered draft cannot delete its only backup.
-        dirty |= read_clean_file(path).map_or(true, |file| file.rope != body.as_str());
+    } else { read_bak_in(dir, entry.id)? };
+    if !entry.rich_backup {
+        if let Some(path) = entry.path.as_ref().filter(|p| crate::rich_doc::detect_format(p).is_some()) {
+            if let Some((payload, recovered_edits)) = restore_rich_backup(path, &body, &bak_path_in(dir, entry.id)) {
+                dirty |= recovered_edits;
+                rich_doc = Some(payload);
+            } else {
+                // Keep the backup reachable without pointing plain text at a
+                // native document. Save now asks for a new destination.
+                let name = path.file_name().map(|s| s.to_string_lossy()).unwrap_or_default();
+                new_label = Some(format!("Recovered {name}.txt").into());
+                file_path = None;
+                dirty = true;
+            }
+        } else if let Some(path) = file_path.as_ref().filter(|_| entry.dirty.is_none()) {
+            // Older manifests omitted dirty. Compare their saved text with disk
+            // so reopening a recovered draft cannot delete its only backup.
+            dirty |= read_clean_file(path).map_or(true, |file| file.rope != body.as_str());
+        }
     }
     let read_only = entry.read_only || rich_doc.as_ref().is_some_and(|p| p.format == crate::rich_doc::DocFormat::Doc);
     let buffer = Buffer {
@@ -759,7 +832,7 @@ fn reap_orphan_baks_at(manifest: &SessionManifest, dir: &Path) {
         let ext_ok = path
             .extension()
             .and_then(|e| e.to_str())
-            .map(|e| e == "bak" || e == "undo")
+            .map(|e| e == "bak" || e == "undo" || e == "rich")
             .unwrap_or(false);
         if !ext_ok {
             continue;
@@ -951,6 +1024,7 @@ mod tests {
             id,
             path,
             dirty,
+            rich_backup: false,
             line_ending: LineEndingTag::Lf,
             encoding: EncodingTag::Utf8,
             language: None,
@@ -987,7 +1061,7 @@ mod tests {
             .expect("closed entry")
     }
 
-    fn rich_fixture(path: &Path) {
+    pub(super) fn rich_fixture(path: &Path) {
         use std::io::Write;
         let entries = if path.extension().and_then(|e| e.to_str()) == Some("docx") {
             vec![

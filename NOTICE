@@ -33,3 +33,9 @@ Modifications made to the vendored sources (per Apache-2.0 section 4(b)):
 
 No other source modifications were made; the vendored crate sources are
 otherwise unchanged from upstream.
+
+Session recovery also uses serde_json (already included through GPUI).
+    Authors: Erick Tryzelaar and David Tolnay
+    Source: https://github.com/serde-rs/json
+    Version: 1.0.149
+    License: MIT OR Apache-2.0; the MIT notice is in licenses/serde_json-MIT.txt.

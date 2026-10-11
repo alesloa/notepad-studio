@@ -8,7 +8,7 @@ use std::collections::BTreeMap;
 use uuid::Uuid;
 
 pub(crate) enum Backup {
-    Write { id: Uuid, rope: ropey::Rope, undo: Vec<UndoEntry> },
+    Write { id: Uuid, rope: ropey::Rope, undo: Vec<UndoEntry>, rich: Option<super::rich_backup::Capture> },
     Delete { id: Uuid },
     Keep { id: Uuid },
 }
@@ -30,19 +30,25 @@ impl Backup {
             BakPolicy::UntitledOnly if tab.buffer.file_path.is_some() => Self::Keep { id },
             _ if tab.buffer.dirty || tab.buffer.file_path.is_none() => Self::Write {
                 id, rope: tab.buffer.rope.clone(), undo: tab.undo_stack.clone(),
+                rich: tab.buffer.rich_doc.as_ref().map(super::rich_backup::Capture::new),
             },
             _ => Self::Delete { id },
         }
     }
 
     pub(super) fn closed(tab: &ClosedTab) -> Self {
-        Self::Write { id: tab.session_id, rope: tab.buffer.rope.clone(), undo: Vec::new() }
+        Self::Write { id: tab.session_id, rope: tab.buffer.rope.clone(), undo: Vec::new(),
+            rich: tab.buffer.rich_doc.as_ref().map(super::rich_backup::Capture::new) }
     }
 
     fn write_at(&self, dir: &Path) -> io::Result<()> {
         match self {
-            Self::Write { id, rope, undo } => {
-                crate::persist::atomic_write(&bak_path_in(dir, *id), rope.to_string().as_bytes())?;
+            Self::Write { id, rope, undo, rich } => {
+                let source = rope.to_string();
+                if let Some(rich) = rich {
+                    rich.write(&super::rich_backup::path_in(dir, *id), &source)?;
+                }
+                crate::persist::atomic_write(&bak_path_in(dir, *id), source.as_bytes())?;
                 let bytes = serialize_undo_stack(undo);
                 if bytes.is_empty() {
                     remove_if_present(&undo_path_in(dir, *id))?;
@@ -53,6 +59,7 @@ impl Backup {
             Self::Delete { id } => {
                 remove_if_present(&bak_path_in(dir, *id))?;
                 remove_if_present(&undo_path_in(dir, *id))?;
+                remove_if_present(&super::rich_backup::path_in(dir, *id))?;
             }
             Self::Keep { .. } => {}
         }
@@ -111,6 +118,10 @@ impl Writer {
             if matches!(backup.as_ref(), Backup::Delete { .. }) {
                 backup.write_at(dir)?;
                 self.written_backups.remove(&backup.id());
+            } else if matches!(backup.as_ref(), Backup::Write { rich: None, .. }) {
+                // A recovered raw-source tab can share a UUID with an older
+                // native backup. Remove that stale state only after publication.
+                remove_if_present(&super::rich_backup::path_in(dir, backup.id()))?;
             }
         }
         if pending.reap {
@@ -171,6 +182,131 @@ mod tests {
         let capture = started.elapsed();
         for job in jobs { writer.write_at(job, &path, dir.path()).expect("worker write"); }
         println!("11 MiB draft, five full synchronous captures/writes: {synchronous:?}; five UI captures: {capture:?}");
+    }
+
+    #[test]
+    fn unsaved_doc_view_text_and_formatting_survive_a_restart() {
+        use crate::rich_doc::edits::Edit;
+        let dir = TempDir::new("session-rich-edits");
+        let manifest_path = dir.join("session.toml");
+        for name in ["source.rtf", "source.docx", "source.odt"] {
+            let path = dir.join(name);
+            if name.ends_with("rtf") {
+                std::fs::write(&path, r"{\rtf1\ansi caf\'e9}").expect("rtf");
+            } else {
+                super::super::tests::rich_fixture(&path);
+            }
+            let original = std::fs::read(&path).expect("original");
+            let mut tab = Tab::empty();
+            tab.buffer = crate::io::read_buffer(&path).expect("open");
+            let payload = tab.buffer.rich_doc.as_mut().expect("payload");
+            payload.apply_edit(Edit::InsertText { block: 0, run: 0, byte: 0, text: "draft 中 ".into() });
+            payload.apply_edit(Edit::SetBlockBold { block: 0, on: true });
+            let expected = payload.block_text(0);
+            tab.buffer.dirty = true;
+            let mut writer = Writer::default();
+            writer.write_at(pending(1, &[tab]), &manifest_path, dir.path()).expect("autosave");
+            let manifest = super::super::load_manifest_at(&manifest_path, dir.path()).expect("manifest");
+            let entry = manifest.tabs.first().expect("entry");
+            let restored = match super::super::restore_tab_in(entry, dir.path()) {
+                super::super::RestoreOutcome::Restored(tab) => tab,
+                super::super::RestoreOutcome::Skipped(reason) => panic!("lost rich document: {reason}"),
+            };
+            let payload = restored.buffer.rich_doc.as_ref().expect("restored payload");
+            assert_eq!(payload.block_text(0), expected, "{name}: unsaved text lost");
+            assert!(payload.block_is_bold(0), "{name}: unsaved formatting lost");
+            assert!(restored.buffer.dirty);
+            assert_eq!(std::fs::read(&path).expect("original kept"), original);
+            let saved = dir.join(&format!("saved-{name}"));
+            crate::rich_doc::save(payload, &saved, None).expect("save recovered native document");
+            let saved_payload = crate::rich_doc::open(&saved).expect("reopen saved native document");
+            assert_eq!(saved_payload.block_text(0), expected);
+            assert!(saved_payload.block_is_bold(0));
+
+            // The structured file carries its own raw source and original
+            // native bytes. Neither the legacy shadow nor the source is needed.
+            std::fs::remove_file(&path).expect("remove original");
+            std::fs::remove_file(bak_path_in(dir.path(), entry.id)).expect("remove raw shadow");
+            let reopened = match super::super::restore_tab_in(entry, dir.path()) {
+                super::super::RestoreOutcome::Restored(tab) => tab,
+                super::super::RestoreOutcome::Skipped(reason) => panic!("missing native recovery: {reason}"),
+            };
+            assert_eq!(reopened.buffer.rich_doc.as_ref().expect("native recovery").block_text(0), expected);
+
+            let closed = ClosedTab { buffer: reopened.buffer, session_id: reopened.session_id };
+            let closed_entry = super::super::snapshot_closed_tab(&closed);
+            Backup::closed(&closed).write_at(dir.path()).expect("closed recovery");
+            std::fs::remove_file(bak_path_in(dir.path(), entry.id)).expect("remove closed raw shadow");
+            let restored_closed = super::super::restore_closed_tab_in(&closed_entry, dir.path()).expect("closed tab");
+            assert_eq!(restored_closed.buffer.rich_doc.as_ref().expect("closed payload").block_text(0), expected);
+
+            // A lost manifest must find the .rich file on its own, once per
+            // UUID, and require Save As instead of trusting an old destination.
+            let orphan = super::super::load_manifest_at(&dir.join("missing.toml"), dir.path()).expect("orphan manifest");
+            let orphan_entry = orphan.tabs.iter().find(|tab| tab.id == entry.id).expect("orphan entry");
+            assert!(orphan_entry.rich_backup);
+            assert!(orphan_entry.path.is_none());
+            let recovered = match super::super::restore_tab_in(orphan_entry, dir.path()) {
+                super::super::RestoreOutcome::Restored(tab) => tab,
+                super::super::RestoreOutcome::Skipped(reason) => panic!("missing orphan recovery: {reason}"),
+            };
+            assert!(recovered.buffer.file_path.is_none());
+            assert_eq!(recovered.buffer.rich_doc.as_ref().expect("orphan payload").block_text(0), expected);
+        }
+    }
+
+    #[test]
+    fn damaged_doc_view_recovery_keeps_raw_source_as_a_safe_scratch_tab() {
+        let dir = TempDir::new("session-rich-fallback");
+        let path = dir.join("source.docx");
+        super::super::tests::rich_fixture(&path);
+        let original = std::fs::read(&path).expect("original");
+        let mut tab = Tab::empty();
+        tab.buffer = crate::io::read_buffer(&path).expect("open");
+        tab.buffer.rich_doc.as_mut().expect("payload").apply_edit(crate::rich_doc::edits::Edit::SetBlockBold { block: 0, on: true });
+        tab.buffer.dirty = true;
+        let entry = super::super::snapshot_tab_with_policy(&tab, BakPolicy::Full);
+        Backup::capture(&tab, BakPolicy::Full).write_at(dir.path()).expect("backup");
+        let closed = ClosedTab { buffer: tab.buffer, session_id: tab.session_id };
+        let closed_entry = super::super::snapshot_closed_tab(&closed);
+        std::fs::write(super::super::rich_backup::path_in(dir.path(), entry.id), b"damaged").expect("damage");
+        let restored = match super::super::restore_tab_in(&entry, dir.path()) {
+            super::super::RestoreOutcome::Restored(tab) => tab,
+            super::super::RestoreOutcome::Skipped(reason) => panic!("lost readable raw source: {reason}"),
+        };
+        assert!(restored.buffer.file_path.is_none());
+        assert!(restored.buffer.rich_doc.is_none());
+        assert!(restored.buffer.dirty);
+        assert_eq!(restored.buffer.rope, closed.buffer.rope);
+        assert!(restored.buffer.new_label.as_ref().expect("label").starts_with("Recovered raw source "));
+        let restored_closed = super::super::restore_closed_tab_in(&closed_entry, dir.path()).expect("closed fallback");
+        assert!(restored_closed.buffer.file_path.is_none());
+        assert!(restored_closed.buffer.rich_doc.is_none());
+        assert!(restored_closed.buffer.dirty);
+        assert_eq!(std::fs::read(path).expect("original untouched"), original);
+        let mut writer = Writer::default();
+        writer.write_at(pending(1, &[restored]), &dir.join("session.toml"), dir.path()).expect("save scratch recovery");
+        assert!(!super::super::rich_backup::path_in(dir.path(), entry.id).exists());
+    }
+
+    #[test]
+    fn clean_closed_native_recovery_becomes_dirty_when_the_source_is_missing_or_changed() {
+        let dir = TempDir::new("session-rich-clean-source");
+        let path = dir.join("source.rtf");
+        std::fs::write(&path, br"{\rtf1\ansi original}").expect("original");
+        let closed = ClosedTab { buffer: crate::io::read_buffer(&path).expect("open"), session_id: Uuid::new_v4() };
+        let entry = super::super::snapshot_closed_tab(&closed);
+        Backup::closed(&closed).write_at(dir.path()).expect("backup");
+        let restored = super::super::restore_closed_tab_in(&entry, dir.path()).expect("unchanged restore");
+        assert!(!restored.buffer.dirty);
+        std::fs::write(&path, br"{\rtf1\ansi external change}").expect("external change");
+        let restored = super::super::restore_closed_tab_in(&entry, dir.path()).expect("changed restore");
+        assert!(restored.buffer.dirty);
+        assert_eq!(restored.buffer.rich_doc.as_ref().expect("payload").block_text(0), "original");
+        std::fs::remove_file(&path).expect("remove original");
+        let restored = super::super::restore_closed_tab_in(&entry, dir.path()).expect("missing restore");
+        assert!(restored.buffer.dirty);
+        assert_eq!(restored.buffer.rich_doc.as_ref().expect("payload").block_text(0), "original");
     }
 
     #[test]

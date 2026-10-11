@@ -35,7 +35,7 @@ pub fn open(path: &Path) -> Result<RichDocPayload> {
         format: DocFormat::Docx,
         ast,
         raw_view_text,
-        original_bytes,
+        original_bytes: original_bytes.into(),
         edit_log: Vec::new(),
         active_block: None,
         selection: None,

@@ -485,13 +485,7 @@ impl Workspace {
             .or_else(dirs::document_dir)
             .or_else(dirs::home_dir);
 
-        let suggested = self
-            .buffer()
-            .file_path
-            .as_ref()
-            .and_then(|p| p.file_name())
-            .map(|n| n.to_string_lossy().into_owned())
-            .unwrap_or_else(|| "Untitled.txt".to_string());
+        let suggested = suggested_save_name(self.buffer());
 
         cx.spawn_in(window, async move |this, cx| {
             let mut dialog = rfd::AsyncFileDialog::new()
@@ -927,6 +921,19 @@ fn run_save_backup(saved_path: &Path) {
     }
 }
 
+fn suggested_save_name(buffer: &Buffer) -> String {
+    if let Some(name) = buffer.file_path.as_ref().and_then(|path| path.file_name()) {
+        return name.to_string_lossy().into_owned();
+    }
+    let extension = match buffer.rich_doc.as_ref().map(|payload| payload.format) {
+        Some(crate::rich_doc::DocFormat::Docx | crate::rich_doc::DocFormat::Doc) => "docx",
+        Some(crate::rich_doc::DocFormat::Odt) => "odt",
+        Some(crate::rich_doc::DocFormat::Rtf) => "rtf",
+        None => "txt",
+    };
+    format!("Untitled.{extension}")
+}
+
 pub(crate) async fn show_dirty_close_dialog(name: String) -> CloseDecision {
     let result = rfd::AsyncMessageDialog::new()
         .set_level(rfd::MessageLevel::Warning)
@@ -972,13 +979,7 @@ pub(crate) async fn save_tab_for_close(
                 .or(active_dir)
                 .or_else(dirs::document_dir)
                 .or_else(dirs::home_dir);
-            let suggested = tab
-                .buffer
-                .file_path
-                .as_ref()
-                .and_then(|p| p.file_name())
-                .map(|n| n.to_string_lossy().into_owned())
-                .unwrap_or_else(|| "Untitled.txt".to_string());
+            let suggested = suggested_save_name(&tab.buffer);
             Some((tab.session_id, tab.buffer.file_path.is_some(), starting, suggested))
         })
         .map_err(|e| e.to_string())?;
@@ -1080,6 +1081,20 @@ pub(crate) fn read_buffer(path: &Path) -> Result<Buffer, String> {
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn recovered_native_documents_keep_their_format_in_save_as_names() {
+        let mut buffer = crate::buffer::Buffer::empty();
+        assert_eq!(super::suggested_save_name(&buffer), "Untitled.txt");
+        let payload = crate::rich_doc::rtf::open_bytes(br"{\rtf1\ansi test}".to_vec()).expect("rtf");
+        buffer.rich_doc = Some(payload);
+        for (format, name) in [(crate::rich_doc::DocFormat::Rtf, "Untitled.rtf"), (crate::rich_doc::DocFormat::Docx, "Untitled.docx"), (crate::rich_doc::DocFormat::Odt, "Untitled.odt")] {
+            buffer.rich_doc.as_mut().expect("payload").format = format;
+            assert_eq!(super::suggested_save_name(&buffer), name);
+        }
+        buffer.file_path = Some(std::path::PathBuf::from("source.odt"));
+        assert_eq!(super::suggested_save_name(&buffer), "source.odt");
+    }
+
     use super::*;
     use crate::persist::TempDir;
 

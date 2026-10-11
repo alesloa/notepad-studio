@@ -20,7 +20,10 @@ use scrivener_rtf as srtf;
 use std::path::Path;
 
 pub fn open(path: &Path) -> Result<RichDocPayload> {
-    let original_bytes = std::fs::read(path)?;
+    open_bytes(std::fs::read(path)?)
+}
+
+pub(crate) fn open_bytes(original_bytes: Vec<u8>) -> Result<RichDocPayload> {
     // RTF is 7-bit ASCII for control tokens with code-page-decoded text spans
     // already resolved into UTF-8 by scrivener-rtf's hex-escape pass, so the
     // raw view shows the source text exactly as on disk (modulo any non-UTF-8
@@ -32,7 +35,7 @@ pub fn open(path: &Path) -> Result<RichDocPayload> {
         format: DocFormat::Rtf,
         ast,
         raw_view_text,
-        original_bytes,
+        original_bytes: original_bytes.into(),
         edit_log: Vec::new(),
         active_block: None,
         selection: None,
@@ -63,8 +66,62 @@ pub fn save(payload: &RichDocPayload, path: &Path, raw_view_override: Option<&st
 
 fn parse_bytes(bytes: &[u8]) -> Result<ast::Document> {
     check_lexable(bytes)?;
-    let doc = srtf::parse(bytes).map_err(|e| RichDocError::Rtf(format!("{e:?}")))?;
+    let fallback_bytes = normalize_unicode_fallbacks(bytes);
+    let doc = srtf::parse(fallback_bytes.as_deref().unwrap_or(bytes)).map_err(|e| RichDocError::Rtf(format!("{e:?}")))?;
     Ok(flatten_to_ast(&doc))
+}
+
+/// scrivener resolves a pair of code-page hex bytes to one text character
+/// before our tree walk. In \uc2 fallback text those bytes count separately.
+/// Replace only skipped bytes with ASCII placeholders before that resolution;
+/// keep the native bytes and displayed raw source untouched.
+fn normalize_unicode_fallbacks(bytes: &[u8]) -> Option<Vec<u8>> {
+    if !bytes.windows(2).any(|pair| pair == br"\u") { return None; }
+    let mut out = Vec::new();
+    let mut counts = Vec::new();
+    let mut count = 1usize;
+    let mut remaining = 0usize;
+    let mut i = 0usize;
+    while let Some(&byte) = bytes.get(i) {
+        match byte {
+            b'{' => { counts.push(count); remaining = 0; out.push(byte); i = i.saturating_add(1); }
+            b'}' => { count = counts.pop().unwrap_or(1); remaining = 0; out.push(byte); i = i.saturating_add(1); }
+            b'\\' => {
+                let start = i;
+                i = i.saturating_add(1);
+                if bytes.get(i) == Some(&b'\'') && remaining > 0 {
+                    out.push(b'?');
+                    remaining -= 1;
+                    i = i.saturating_add(3).min(bytes.len());
+                    continue;
+                }
+                let name_start = i;
+                while bytes.get(i).is_some_and(u8::is_ascii_alphabetic) { i = i.saturating_add(1); }
+                if i == name_start {
+                    i = i.saturating_add(if bytes.get(i) == Some(&b'\'') { 3 } else { 1 }).min(bytes.len());
+                    remaining = remaining.saturating_sub(1);
+                } else {
+                    let name = bytes.get(name_start..i).unwrap_or_default();
+                    let param_start = i;
+                    if bytes.get(i) == Some(&b'-') { i = i.saturating_add(1); }
+                    while bytes.get(i).is_some_and(u8::is_ascii_digit) { i = i.saturating_add(1); }
+                    let parameter = std::str::from_utf8(bytes.get(param_start..i).unwrap_or_default()).ok().and_then(|text| text.parse::<i32>().ok());
+                    if remaining > 0 { remaining -= 1; }
+                    else if name == b"uc" { count = parameter.and_then(|n| usize::try_from(n).ok()).unwrap_or(1); }
+                    else if name == b"u" { remaining = count; }
+                    if bytes.get(i) == Some(&b' ') { i = i.saturating_add(1); }
+                }
+                out.extend_from_slice(bytes.get(start..i).unwrap_or_default());
+            }
+            b'\r' | b'\n' => { out.push(byte); i = i.saturating_add(1); }
+            _ => {
+                out.push(if remaining > 0 && !byte.is_ascii() { b'?' } else { byte });
+                remaining = remaining.saturating_sub(1);
+                i = i.saturating_add(1);
+            }
+        }
+    }
+    Some(out)
 }
 
 /// Refuse input that scrivener-rtf 0.1 would panic on instead of returning
@@ -112,20 +169,26 @@ fn check_lexable(bytes: &[u8]) -> Result<()> {
             k += 1;
         }
         if k == digits_start {
+            if matches!(bytes.get(name_start..j), Some(b"u" | b"uc")) {
+                return Err(RichDocError::Rtf(format!("missing Unicode parameter at byte {i}")));
+            }
             // No parameter; a lone `-` stays in the text stream.
             i = j;
             continue;
         }
         let param = bytes.get(j..k).unwrap_or_default();
-        let fits = std::str::from_utf8(param)
+        let value = std::str::from_utf8(param)
             .ok()
-            .and_then(|s| s.parse::<i32>().ok())
-            .is_some();
-        if !fits {
+            .and_then(|s| s.parse::<i32>().ok());
+        let Some(value) = value else {
             let name = String::from_utf8_lossy(bytes.get(name_start..j).unwrap_or_default());
             return Err(RichDocError::Rtf(format!(
                 "control word \\{name} at byte {i} has a parameter outside the 32-bit range"
             )));
+        };
+        let name = bytes.get(name_start..j).unwrap_or_default();
+        if (name == b"u" && !(-32768..=65535).contains(&value)) || (name == b"uc" && value < 0) {
+            return Err(RichDocError::Rtf(format!("invalid Unicode parameter at byte {i}")));
         }
         i = k;
     }
@@ -162,6 +225,19 @@ struct ParseState {
     /// `None`; `N >= 1` is `colortbl[N-1]`). Empty when the document had no
     /// color table — `\cf<N>` then degrades to a no-op.
     colortbl: Vec<u32>,
+    unicode: UnicodeState,
+}
+
+// MSFT-RTF v1.6, Header / Unicode RTF: \ucN is scoped, defaults to one,
+// and each \uN is a signed UTF-16 unit followed by N fallback characters.
+struct UnicodeState {
+    fallback_count: usize,
+    remaining: usize,
+    high_surrogate: Option<(u16, ast::InlineStyle)>,
+}
+
+impl Default for UnicodeState {
+    fn default() -> Self { Self { fallback_count: 1, remaining: 0, high_surrogate: None } }
 }
 
 impl ParseState {
@@ -171,16 +247,42 @@ impl ParseState {
         if text.is_empty() {
             return;
         }
+        self.flush_surrogate();
         self.cur_runs.push(ast::InlineRun {
             text: text.to_string(),
             style: self.style.clone(),
         });
     }
 
+    fn flush_surrogate(&mut self) {
+        if let Some((_, style)) = self.unicode.high_surrogate.take() {
+            self.cur_runs.push(ast::InlineRun { text: "�".into(), style });
+        }
+    }
+
+    fn push_unicode(&mut self, unit: u16) {
+        if (0xD800..=0xDBFF).contains(&unit) {
+            self.flush_surrogate();
+            self.unicode.high_surrogate = Some((unit, self.style.clone()));
+            return;
+        }
+        let (character, style) = if (0xDC00..=0xDFFF).contains(&unit) {
+            if let Some((high, style)) = self.unicode.high_surrogate.take() {
+                let scalar = 0x10000 + (u32::from(high) - 0xD800) * 1024 + (u32::from(unit) - 0xDC00);
+                (char::from_u32(scalar).unwrap_or('�'), style)
+            } else { ('�', self.style.clone()) }
+        } else {
+            self.flush_surrogate();
+            (char::from_u32(u32::from(unit)).unwrap_or('�'), self.style.clone())
+        };
+        self.cur_runs.push(ast::InlineRun { text: character.to_string(), style });
+    }
+
     /// Close the current paragraph (called on `\par` and at end of document).
     /// Drops empty paragraphs entirely so a stray trailing `\par` doesn't add
     /// a blank block to the AST (the renderer would draw it as an empty row).
     fn end_paragraph(&mut self) {
+        self.flush_surrogate();
         let runs = std::mem::take(&mut self.cur_runs);
         let level = self.cur_outline_level.take();
         let props = std::mem::take(&mut self.cur_props);
@@ -247,23 +349,42 @@ fn walk_group(group: &srtf::Group, state: &mut ParseState, in_root: bool) {
     // into surrounding text (RTF's `{ \b bold } normal` scoping rule).
     // Outline level is paragraph-scoped (not group-scoped) so only style is saved.
     let saved_style = state.style.clone();
+    let saved_fallback_count = state.unicode.fallback_count;
     for content in &group.content {
         match content {
             srtf::Content::Group(sub) => {
+                state.unicode.remaining = 0;
                 walk_group(sub, state, false);
             }
             srtf::Content::Text(s) => {
-                state.push_text(s);
+                let mut start = 0usize;
+                for ch in s.chars().take(state.unicode.remaining) {
+                    start = start.saturating_add(ch.len_utf8());
+                    state.unicode.remaining = state.unicode.remaining.saturating_sub(1);
+                }
+                state.push_text(s.get(start..).unwrap_or_default());
             }
             srtf::Content::ControlWord(name, param) => {
-                handle_control_word(name, *param, state, in_root);
+                if state.unicode.remaining > 0 {
+                    state.unicode.remaining -= 1;
+                } else if name == "uc" {
+                    state.unicode.fallback_count = param.and_then(|n| usize::try_from(n).ok()).unwrap_or(1);
+                } else if name == "u" {
+                    if let Some(unit) = param { state.push_unicode(*unit as u16); }
+                    state.unicode.remaining = state.unicode.fallback_count;
+                } else {
+                    handle_control_word(name, *param, state, in_root);
+                }
             }
             srtf::Content::ControlSymbol(c) => {
-                handle_control_symbol(*c, state);
+                if state.unicode.remaining > 0 { state.unicode.remaining -= 1; }
+                else { handle_control_symbol(*c, state); }
             }
         }
     }
     state.style = saved_style;
+    state.unicode.fallback_count = saved_fallback_count;
+    state.unicode.remaining = 0;
 }
 
 /// Name of the first control word in `group`, if any. Used to recognize
@@ -469,7 +590,9 @@ fn serialize_ast(doc: &ast::Document) -> Result<String> {
         }],
         properties: srtf::DocumentProperties::default(),
     };
-    Ok(out_doc.to_rtf())
+    let mut bytes = Vec::new();
+    out_doc.write_to(&mut bytes).map_err(|err| RichDocError::Rtf(err.to_string()))?;
+    String::from_utf8(bytes).map_err(|err| RichDocError::Rtf(err.to_string()))
 }
 
 /// Walk every block/run in `doc` and collect each distinct color in
@@ -720,6 +843,41 @@ fn build_hyperlink_group(url: &str, run: &ast::InlineRun, colors: &[u32]) -> srt
 
 #[cfg(test)]
 mod tests {
+    #[test]
+    fn unicode_escapes_fallback_scope_and_surrogates_preserve_text() {
+        for (source, text) in [
+            (r"{\rtf1\ansi caf\u233? \u20013? \u-10179?\u-8704?}", "café 中 😀"),
+            (r"{\rtf1\ansi\uc1 \u233?{\uc0\u20013}\u233?}", "é中é"),
+            (r"{\rtf1\ansi\uc2 \u20013\'3f\'3f!}", "中!"),
+            (r"{\rtf1\ansi\ansicpg936\uc2 \u20013\'d6\'d0!}", "中!"),
+            (r"{\rtf1\ansi\uc1 \u233\{x\u233{y}z}", "éxéyz"),
+            (r"{\rtf1\ansi\uc0 \u-10179 x\u-8704}", "�x�"),
+        ] {
+            let payload = super::open_bytes(source.as_bytes().to_vec()).expect("rtf");
+            assert_eq!(payload.block_text(0), text, "{source}");
+        }
+    }
+
+    #[test]
+    fn unicode_text_and_style_survive_actual_rtf_save_and_reopen() {
+        let dir = crate::persist::TempDir::new("rtf-unicode-save");
+        let path = dir.join("source.rtf");
+        let mut payload = super::open_bytes(br"{\rtf1\ansi text}".to_vec()).expect("open");
+        payload.apply_edit(crate::rich_doc::edits::Edit::InsertText { block: 0, run: 0, byte: 0, text: "café 中 😀 ".into() });
+        payload.apply_edit(crate::rich_doc::edits::Edit::SetBlockBold { block: 0, on: true });
+        super::save(&payload, &path, None).expect("save");
+        let restored = super::open(&path).expect("reopen");
+        assert_eq!(restored.block_text(0), "café 中 😀 text");
+        assert!(restored.block_is_bold(0));
+    }
+
+    #[test]
+    fn missing_or_out_of_range_unicode_parameters_are_errors() {
+        for source in [r"{\rtf1\u text}", r"{\rtf1\uc text}", r"{\rtf1\u65536?}", r"{\rtf1\u-32769?}", r"{\rtf1\uc-1\u233?}"] {
+            assert!(super::open_bytes(source.as_bytes().to_vec()).is_err(), "{source}");
+        }
+    }
+
     use super::*;
 
     #[test]
@@ -771,20 +929,20 @@ mod tests {
         let unicode = format!(
             "{{{bs}rtf1 {bs}u-70000? {bs}u2147483647 {bs}u-2147483648? {bs}uc0{bs}u65 x}}"
         );
-        let refused: [&[u8]; 5] = [
+        let refused: [&[u8]; 6] = [
             b"{",
             b"}",
             b"{\\rtf1 x",
             b"{\\rtf1\\",
             b"{\\rtf1 \\'",
+            unicode.as_bytes(),
         ];
         for src in refused {
             assert!(parse_bytes(src).is_err(), "{}", String::from_utf8_lossy(src));
         }
-        let parsed: [&[u8]; 10] = [
+        let parsed: [&[u8]; 9] = [
             b"",
             b"{}",
-            unicode.as_bytes(),
             b"{\\rtf1 \\'ZZ \\'4 \\'\\'}",
             b"{\\rtf1 \\bin2147483647 x}",
             b"{\\rtf1 \x00\xff\xfe x}",
@@ -883,7 +1041,7 @@ mod tests {
             format: DocFormat::Rtf,
             ast: ast::Document::default(),
             raw_view_text: String::from_utf8(bytes.clone()).unwrap(),
-            original_bytes: bytes.clone(),
+            original_bytes: bytes.clone().into(),
             edit_log: Vec::new(),
             active_block: None,
             selection: None,
@@ -908,7 +1066,7 @@ mod tests {
             format: DocFormat::Rtf,
             ast: ast::Document::default(),
             raw_view_text: String::from_utf8(bytes.clone()).unwrap(),
-            original_bytes: bytes,
+            original_bytes: bytes.into(),
             edit_log: Vec::new(),
             active_block: None,
             selection: None,
@@ -934,7 +1092,7 @@ mod tests {
             format: DocFormat::Rtf,
             ast: parse_bytes(&bytes).expect("parses src"),
             raw_view_text: String::from_utf8(bytes.clone()).unwrap(),
-            original_bytes: bytes,
+            original_bytes: bytes.into(),
             edit_log: Vec::new(),
             active_block: None,
             selection: None,
@@ -970,7 +1128,7 @@ mod tests {
             format: DocFormat::Rtf,
             ast: parse_bytes(&bytes).expect("parses src"),
             raw_view_text: String::from_utf8(bytes.clone()).unwrap(),
-            original_bytes: bytes,
+            original_bytes: bytes.into(),
             edit_log: Vec::new(),
             active_block: None,
             selection: None,
@@ -1009,7 +1167,7 @@ mod tests {
             format: DocFormat::Rtf,
             ast: parse_bytes(&bytes).expect("parses src"),
             raw_view_text: String::from_utf8(bytes.clone()).unwrap(),
-            original_bytes: bytes,
+            original_bytes: bytes.into(),
             edit_log: Vec::new(),
             active_block: None,
             selection: None,
@@ -1074,7 +1232,7 @@ mod tests {
             format: DocFormat::Rtf,
             ast: parse_bytes(&bytes).expect("parses src"),
             raw_view_text: String::from_utf8(bytes.clone()).unwrap(),
-            original_bytes: bytes,
+            original_bytes: bytes.into(),
             edit_log: Vec::new(),
             active_block: None,
             selection: None,

@@ -127,6 +127,11 @@ v0.0.5 — current
        previous manifest. Closing flushes the final snapshot; a failed
        recovery write reports an error and prevents a normal window close.
 
+   36. Doc View text and formatting edits survive recovery for RTF, DOCX and
+       ODT, even without the original file. Damaged recovery keeps readable
+       raw source in a separate unsaved tab. Recovered native documents
+       keep their format in Save As. RTF Unicode text now reopens intact.
+
   v0.1.0 — syntax & language:
 
     1. Tree-sitter syntax highlighting for 24 languages: Rust, Python, C,

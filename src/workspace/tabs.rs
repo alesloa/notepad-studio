@@ -789,12 +789,17 @@ impl Workspace {
         let Some(closed) = self.closed_tabs.pop() else {
             return;
         };
+        let recovered_raw = closed.buffer.rich_doc.is_none() && closed.buffer.new_label.as_ref()
+            .is_some_and(|label| label.starts_with("Recovered raw source "));
         self.tabs.push(Tab::from_closed(closed));
         self.active = self.tabs.len() - 1;
         self.touch_mru();
         self.last_lines.clear();
         self.caret_visible = true;
         self.save_session(cx);
+        if recovered_raw {
+            self.set_status("Reopened recovered raw source; Doc View recovery was missing or damaged. Save As keeps the original native document safe.");
+        }
         cx.notify();
     }
 

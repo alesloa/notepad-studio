@@ -1,13 +1,15 @@
 //! Internal rich-document AST. Format-agnostic; populated by per-format parsers.
 
 use std::sync::Arc;
+use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default, PartialEq, Eq)]
+#[serde(default)]
 pub struct Document {
     pub blocks: Vec<Block>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 pub enum Block {
     Paragraph { runs: Vec<InlineRun>, props: BlockProps },
     Heading { level: u8, runs: Vec<InlineRun>, props: BlockProps },
@@ -25,7 +27,8 @@ pub enum Block {
 /// round-trip (DOCX `<w:pPr>`, ODT `<style:paragraph-properties>`, RTF
 /// `\ql…\liN…\pn`) all model these per paragraph. Defaults to `Alignment::Left`
 /// + zero indent + no list so existing constructions stay behavior-equivalent.
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default, PartialEq, Eq)]
+#[serde(default)]
 pub struct BlockProps {
     pub alignment: Alignment,
     /// Left indent in "levels" where each level = 720 twips (= 0.5 inch =
@@ -45,13 +48,13 @@ pub struct BlockProps {
 /// outermost list. Bulleted lists render as `•` for every level (matching
 /// Word's default Bullets style which uses the same glyph at every nesting);
 /// numbered lists render as `1.`, `2.`, `3.` per consecutive same-level run.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
 pub struct ListMarker {
     pub ordered: bool,
     pub level: u8,
 }
 
-#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Debug, Clone, Copy, Default, PartialEq, Eq)]
 pub enum Alignment {
     #[default]
     Left,
@@ -60,31 +63,32 @@ pub enum Alignment {
     Justify,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 pub struct TableRow {
     pub cells: Vec<TableCell>,
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 pub struct TableCell {
     pub blocks: Vec<Block>,
 }
 
 /// Source of bytes for a `Block::Image`. `Arc` so the AST stays cheap to clone
 /// even when image payloads are large (real docs often embed multi-MB PNGs).
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 pub enum ImageSource {
     /// In-memory bytes + IANA mime type (e.g. `image/png`, `image/jpeg`).
     Inline { bytes: Arc<Vec<u8>>, mime: String },
 }
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq)]
 pub struct InlineRun {
     pub text: String,
     pub style: InlineStyle,
 }
 
-#[derive(Debug, Clone, Default, PartialEq, Eq)]
+#[derive(Serialize, Deserialize, Debug, Clone, Default, PartialEq, Eq)]
+#[serde(default)]
 pub struct InlineStyle {
     pub bold: bool,
     pub italic: bool,

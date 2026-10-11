@@ -17,7 +17,8 @@ use std::path::Path;
 /// Refuse recursive document input deeper than this before calling a parser.
 pub(crate) const MAX_NESTING_DEPTH: usize = 256;
 
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+#[derive(serde::Serialize, serde::Deserialize, Debug, Clone, Copy, PartialEq, Eq)]
+#[serde(rename_all = "lowercase")]
 pub enum DocFormat {
     Docx,
     Rtf,
@@ -145,7 +146,7 @@ pub struct RichDocPayload {
     /// `[Content_Types].xml`, rels, etc.). Saving with no edits re-writes this
     /// byte-for-byte; saving with edits opens this as a zip, swaps in a freshly
     /// re-serialized `word/document.xml`, and writes back.
-    pub original_bytes: Vec<u8>,
+    pub original_bytes: std::sync::Arc<Vec<u8>>,
     /// Structured edits applied since open. Empty → save byte-perfect from
     /// `original_bytes`; non-empty → save re-serializes `word/document.xml`
     /// from `ast` and swaps it into the original zip container.
@@ -841,7 +842,7 @@ mod tests {
             format: DocFormat::Doc,
             ast: ast::Document { blocks: vec![] },
             raw_view_text: String::new(),
-            original_bytes: vec![],
+            original_bytes: std::sync::Arc::new(Vec::new()),
             edit_log: vec![],
             active_block: None,
             selection: None,
@@ -880,7 +881,7 @@ mod tests {
                 }],
             },
             raw_view_text: String::new(),
-            original_bytes: vec![],
+            original_bytes: std::sync::Arc::new(Vec::new()),
             edit_log: vec![],
             active_block: None,
             selection: None,

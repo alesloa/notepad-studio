@@ -1178,9 +1178,13 @@ impl Workspace {
     pub(crate) fn apply_session(&mut self, manifest: SessionManifest) {
         let mut restored: Vec<Tab> = Vec::with_capacity(manifest.tabs.len());
         let mut skipped = 0usize;
+        let mut raw_recoveries = 0usize;
         for entry in &manifest.tabs {
             match session::restore_tab(entry) {
-                RestoreOutcome::Restored(tab) => restored.push(tab),
+                RestoreOutcome::Restored(tab) => {
+                    if entry.rich_backup && tab.buffer.rich_doc.is_none() { raw_recoveries += 1; }
+                    restored.push(tab);
+                }
                 RestoreOutcome::Skipped(reason) => {
                     eprintln!("[session] skipped tab: {reason}");
                     skipped += 1;
@@ -1209,7 +1213,9 @@ impl Workspace {
         self.show_whitespace = manifest.show_whitespace;
         self.word_wrap = manifest.word_wrap;
 
-        if skipped > 0 {
+        if raw_recoveries > 0 {
+            self.set_status(format!("Restored {} tab(s); recovered raw source for {raw_recoveries} document(s) because Doc View recovery was damaged; {skipped} couldn't be reopened", self.tabs.len()));
+        } else if skipped > 0 {
             self.set_status(format!(
                 "Restored {} tab(s); {} couldn't be reopened",
                 self.tabs.len(),

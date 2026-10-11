@@ -10,7 +10,7 @@
 
 use super::ast::{Alignment, Block, BlockProps, Document, ListMarker};
 
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(serde::Serialize, serde::Deserialize, Debug, Clone, PartialEq, Eq)]
 pub enum Edit {
     /// Set bold on every run in `block`. `on = false` clears bold.
     SetBlockBold { block: usize, on: bool },

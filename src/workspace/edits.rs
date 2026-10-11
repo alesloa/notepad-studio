@@ -506,7 +506,7 @@ impl Workspace {
         let tab_id = self.tabs[self.active].session_id;
         // Commit any pending cell-edit text before unwinding history
         // so the in-flight value doesn't get silently lost.
-        crate::ui::csv_doc::actions::commit_cell_edit(self, cx);
+        if !crate::ui::csv_doc::actions::commit_cell_edit(self, cx) { return; }
         let did = self
             .csv_models
             .get_mut(&tab_id)
@@ -520,7 +520,7 @@ impl Workspace {
 
     fn csv_redo_active_tab(&mut self, cx: &mut Context<Self>) {
         let tab_id = self.tabs[self.active].session_id;
-        crate::ui::csv_doc::actions::commit_cell_edit(self, cx);
+        if !crate::ui::csv_doc::actions::commit_cell_edit(self, cx) { return; }
         let did = self
             .csv_models
             .get_mut(&tab_id)
@@ -1230,7 +1230,7 @@ impl Workspace {
         }
         // Commit any pending cell edit before switching modes so the
         // pending value doesn't get lost when the cell input goes away.
-        crate::ui::csv_doc::actions::commit_cell_edit(self, cx);
+        if !crate::ui::csv_doc::actions::commit_cell_edit(self, cx) { return; }
         let next = if preview {
             TabViewMode::CsvPreview
         } else {

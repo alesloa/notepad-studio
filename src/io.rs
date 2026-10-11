@@ -437,6 +437,7 @@ impl Workspace {
     }
 
     pub(crate) fn save_active(&mut self, _: &FileSave, window: &mut Window, cx: &mut Context<Self>) {
+        if !crate::ui::csv_doc::actions::commit_cell_edit(self, cx) { return; }
         if self.buffer().file_path.is_none() {
             self.save_active_as(&FileSaveAs, window, cx);
             return;
@@ -467,6 +468,7 @@ impl Workspace {
     }
 
     pub(crate) fn save_active_as(&mut self, _: &FileSaveAs, window: &mut Window, cx: &mut Context<Self>) {
+        if !crate::ui::csv_doc::actions::commit_cell_edit(self, cx) { return; }
         // The dialog is async and the user can switch tabs while it's open:
         // remember which tab asked.
         let Some(tab_id) = self.tabs.get(self.active).map(|t| t.session_id) else {
@@ -510,6 +512,7 @@ impl Workspace {
                 return;
             }
             this.update(cx, |w, cx| {
+                if crate::ui::csv_doc::actions::commit_cell_edit_for_tab(w, tab_id, cx).is_err() { return; }
                 let outcome = w.with_tab_active(tab_id, |w| {
                     w.save_active_to_new_path(path.clone())
                         .map(|()| w.buffer().display_short_name().to_string())
@@ -549,6 +552,7 @@ impl Workspace {
     /// save loop only runs on Yes. The dirty-count is computed up-front so
     /// the prompt body can name a count.
     pub(crate) fn save_all(&mut self, _: &FileSaveAll, window: &mut Window, cx: &mut Context<Self>) {
+        if !self.commit_csv_drafts_for_save_all(cx) { return; }
         let prefs = crate::settings::snapshot();
         if !prefs.save_all_confirm {
             self.run_save_all(cx);
@@ -592,7 +596,16 @@ impl Workspace {
 
     /// The actual save loop — extracted so both the immediate path and the
     /// post-confirm async path call the same code.
+    fn commit_csv_drafts_for_save_all(&mut self, cx: &mut Context<Self>) -> bool {
+        let ids: Vec<_> = self.tabs.iter().map(|tab| tab.session_id).collect();
+        for id in ids {
+            if crate::ui::csv_doc::actions::commit_cell_edit_for_tab(self, id, cx).is_err() { return false; }
+        }
+        true
+    }
+
     fn run_save_all(&mut self, cx: &mut Context<Self>) {
+        if !self.commit_csv_drafts_for_save_all(cx) { return; }
         let mut saved = 0usize;
         let mut failures: Vec<String> = Vec::new();
         let prev_active = self.active;
@@ -965,8 +978,10 @@ pub(crate) async fn save_tab_for_close(
     idx: usize,
 ) -> Result<(), String> {
     let snap = workspace
-        .update(cx, |w, _| {
-            let tab = w.tabs.get(idx)?;
+        .update(cx, |w, cx| {
+            let id = w.tabs.get(idx).map(|tab| tab.session_id).ok_or("tab gone")?;
+            crate::ui::csv_doc::actions::commit_cell_edit_for_tab(w, id, cx)?;
+            let tab = w.tabs.iter().find(|tab| tab.session_id == id).ok_or("tab gone")?;
             let active_dir = tab
                 .buffer
                 .file_path
@@ -978,12 +993,10 @@ pub(crate) async fn save_tab_for_close(
                 .or_else(dirs::document_dir)
                 .or_else(dirs::home_dir);
             let suggested = suggested_save_name(&tab.buffer);
-            Some((tab.session_id, tab.buffer.file_path.is_some(), starting, suggested))
+            Ok::<_, String>((tab.session_id, tab.buffer.file_path.is_some(), starting, suggested))
         })
-        .map_err(|e| e.to_string())?;
-    let Some((tab_id, has_path, starting, suggested)) = snap else {
-        return Err("tab gone".to_string());
-    };
+        .map_err(|e| e.to_string())??;
+    let (tab_id, has_path, starting, suggested) = snap;
 
     let new_path = if has_path {
         None
@@ -1014,6 +1027,7 @@ pub(crate) async fn save_tab_for_close(
                     return Err(crate::workspace::already_open_message());
                 }
             }
+            crate::ui::csv_doc::actions::commit_cell_edit_for_tab(w, tab_id, cx)?;
             let recorded = new_path.clone();
             let r = w
                 .with_tab_active(tab_id, |w| match new_path {
@@ -1647,3 +1661,7 @@ mod tests {
         let _ = std::process::Command::new("attrib").arg("-h").arg(&p).status();
     }
 }
+
+#[cfg(test)]
+#[path = "ui/csv_doc/pending_tests.rs"]
+mod csv_pending_tests;

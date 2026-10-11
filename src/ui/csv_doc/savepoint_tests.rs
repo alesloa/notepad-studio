@@ -12,7 +12,8 @@ impl Drop for Fixture {
     fn drop(&mut self) { let _ = std::fs::remove_dir_all(&self.0); }
 }
 
-fn with_csv(encoding: Encoding, test: impl FnOnce(&mut Workspace, &mut Window, &mut Context<Workspace>, &std::path::Path)) {
+pub(crate) fn with_csv(encoding: Encoding, test: impl FnOnce(&mut Workspace, &mut Window, &mut Context<Workspace>, &std::path::Path)) {
+    let _settings = crate::settings::override_for_test(crate::settings::Settings::default());
     let fixture = Fixture(std::env::temp_dir().join(format!("notepad-studio-csv-savepoint-{}", uuid::Uuid::new_v4())));
     std::fs::create_dir(&fixture.0).expect("neutral fixture directory");
     let path = fixture.0.join("source.csv");
@@ -37,10 +38,11 @@ fn with_csv(encoding: Encoding, test: impl FnOnce(&mut Workspace, &mut Window, &
             test(w, window, cx, &path);
         });
     }
+    cx.run_until_parked();
     cx.quit();
 }
 
-fn focus_grid(w: &mut Workspace, window: &mut Window, cx: &mut Context<Workspace>) {
+pub(crate) fn focus_grid(w: &mut Workspace, window: &mut Window, cx: &mut Context<Workspace>) {
     let model = w.csv_models.get(&w.tabs[w.active].session_id).expect("grid model");
     window.focus(model.grid_focus.as_ref().expect("grid focus"), cx);
 }
@@ -234,7 +236,7 @@ fn csv_delimiter_choice_still_reinterprets_unchanged_source() {
 }
 
 #[test]
-fn csv_refused_cell_commit_keeps_the_source_and_rebuilds_the_grid() {
+fn csv_refused_cell_commit_keeps_the_source_and_editable_draft() {
     with_csv(Encoding::Utf8Bom, |w, window, cx, _| {
         let original = w.buffer().rope.to_string();
         w.active_tab_mut().buffer.read_only = true;
@@ -242,6 +244,8 @@ fn csv_refused_cell_commit_keeps_the_source_and_rebuilds_the_grid() {
         assert_eq!(w.buffer().rope.to_string(), original);
         assert!(!w.buffer().dirty);
         ensure_model(w, window, cx);
-        assert_eq!(w.csv_models.get(&w.tabs[w.active].session_id).expect("model").cell(0, 0), "caf\u{00E9}");
+        let model = w.csv_models.get(&w.tabs[w.active].session_id).expect("model");
+        assert_eq!(model.cell(0, 0), "caf\u{00E9}");
+        assert_eq!(model.cell_input.as_ref().expect("draft retained").buffer, "blocked");
     });
 }

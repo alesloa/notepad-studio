@@ -71,7 +71,7 @@ pub(crate) fn csv_format_bar(
         .child(SharedString::from("+ Row"))
         .on_mouse_down(MouseButton::Left, move |_e, _w, cx| {
             ws_add_row.update(cx, |w, cx| {
-                super::actions::commit_cell_edit(w, cx);
+                if !super::actions::commit_cell_edit(w, cx) { return; }
                 let tab_id = w.tabs[w.active].session_id;
                 if let Some(model) = w.csv_models.get_mut(&tab_id) {
                     let target_row = model
@@ -104,7 +104,7 @@ pub(crate) fn csv_format_bar(
         .child(SharedString::from("+ Column"))
         .on_mouse_down(MouseButton::Left, move |_e, _w, cx| {
             ws_add_col.update(cx, |w, cx| {
-                super::actions::commit_cell_edit(w, cx);
+                if !super::actions::commit_cell_edit(w, cx) { return; }
                 let tab_id = w.tabs[w.active].session_id;
                 if let Some(model) = w.csv_models.get_mut(&tab_id) {
                     let target_col = model
@@ -215,7 +215,7 @@ pub(crate) fn csv_delimiter_menu(
             .on_mouse_down(MouseButton::Left, move |_e, window, cx| {
                 row_ws.update(cx, |w, cx| {
                     w.hide_csv_delimiter_menu(cx);
-                    super::actions::commit_cell_edit(w, cx);
+                    if !super::actions::commit_cell_edit(w, cx) { return; }
                     let tab_id = w.tabs[w.active].session_id;
                     if let Some(model) = w.csv_models.get_mut(&tab_id) {
                         model.set_delimiter(delim);

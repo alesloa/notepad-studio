@@ -220,6 +220,9 @@ v0.0.5 — current
         losing focus or deactivating the window dismisses it immediately.
         Source/Raw actions restore editor focus from Doc View and CSV grids.
 
+    58. CSV Save, Save All, tab changes and close commit unfinished cell text.
+        Refused commits keep the draft editable.
+
   v0.1.0 — syntax & language:
 
     1. Tree-sitter syntax highlighting for 25 modes: Rust, Python, C,

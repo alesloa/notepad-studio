@@ -19,6 +19,7 @@ impl Workspace {
         if idx >= self.tabs.len() || idx == self.active {
             return;
         }
+        if !crate::ui::csv_doc::actions::commit_cell_edit(self, cx) { return; }
         self.close_autocomplete(cx);
         self.active = idx;
         self.touch_mru();
@@ -53,6 +54,7 @@ impl Workspace {
     }
 
     pub(crate) fn new_tab(&mut self, cx: &mut Context<Self>) {
+        if !crate::ui::csv_doc::actions::commit_cell_edit(self, cx) { return; }
         let label = crate::buffer::next_new_label_for(
             self.tabs.iter().map(|t| t.buffer.new_label.as_ref()),
         );
@@ -73,6 +75,8 @@ impl Workspace {
             return;
         }
 
+        let id = self.tabs[idx].session_id;
+        if crate::ui::csv_doc::actions::commit_cell_edit_for_tab(self, id, cx).is_err() { return; }
         if !self.tabs[idx].buffer.dirty {
             self.finish_close(idx, window, cx);
             return;
@@ -233,14 +237,14 @@ impl Workspace {
             // render during the next prompt (or after Cancel) stays in range.
             loop {
                 let next = this
-                    .update(cx, |w, _| {
-                        let tab = w.tabs.last()?;
+                    .update(cx, |w, cx| {
+                        let Some(id) = w.tabs.last().map(|tab| tab.session_id) else { return Ok(None); };
+                        crate::ui::csv_doc::actions::commit_cell_edit_for_tab(w, id, cx)?;
+                        let tab = w.tabs.iter().find(|tab| tab.session_id == id).ok_or("tab gone")?;
                         let name = tab.buffer.display_short_name().to_string();
-                        Some((tab.session_id, tab.buffer.dirty, name))
-                    })
-                    .ok()
-                    .flatten();
-                let Some((id, dirty, name)) = next else { break };
+                        Ok::<_, String>(Some((id, tab.buffer.dirty, name)))
+                    });
+                let Some((id, dirty, name)) = (match next { Ok(Ok(next)) => next, _ => return }) else { break };
 
                 if dirty {
                     match show_dirty_close_dialog(name).await {
@@ -332,14 +336,14 @@ impl Workspace {
         cx.spawn_in(window, async move |this, cx| {
             for id in targets.into_iter().rev() {
                 let next = this
-                    .update(cx, |w, _| {
-                        let tab = w.tabs.get(tab_index_of(&w.tabs, id)?)?;
+                    .update(cx, |w, cx| {
+                        if tab_index_of(&w.tabs, id).is_none() { return Ok(None); }
+                        crate::ui::csv_doc::actions::commit_cell_edit_for_tab(w, id, cx)?;
+                        let tab = w.tabs.iter().find(|tab| tab.session_id == id).ok_or("tab gone")?;
                         let name = tab.buffer.display_short_name().to_string();
-                        Some((tab.buffer.dirty, name))
-                    })
-                    .ok()
-                    .flatten();
-                let Some((dirty, name)) = next else { continue };
+                        Ok::<_, String>(Some((tab.buffer.dirty, name)))
+                    });
+                let Some((dirty, name)) = (match next { Ok(Ok(next)) => next, _ => return }) else { continue };
 
                 if dirty {
                     match show_dirty_close_dialog(name).await {
@@ -756,6 +760,8 @@ impl Workspace {
             cx.notify();
             return;
         }
+        let id = self.tabs[idx].session_id;
+        if crate::ui::csv_doc::actions::commit_cell_edit_for_tab(self, id, cx).is_err() { return; }
         let prev = self.active;
         self.active = idx;
         match self.write_active_to_disk() {
@@ -798,6 +804,7 @@ impl Workspace {
         _w: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        if !crate::ui::csv_doc::actions::commit_cell_edit(self, cx) { return; }
         let Some(closed) = self.closed_tabs.pop() else {
             return;
         };
@@ -875,6 +882,7 @@ impl Workspace {
         if target_idx == self.active {
             return;
         }
+        if !crate::ui::csv_doc::actions::commit_cell_edit(self, cx) { return; }
         self.close_autocomplete(cx);
         self.active = target_idx;
         self.last_lines.clear();

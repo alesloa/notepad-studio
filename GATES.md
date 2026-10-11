@@ -27,11 +27,11 @@ Scope: Continue the requested cross-platform Notepad++ parity audit and fix the 
   EVIDENCE: pending; current native computer-use transport is unavailable and CUA native surfaces are disabled. Headless GPUI tests are not native screenshots.
 
 - [x] G9: The integrated main tree builds and passes its required unit/integration/clippy checks with no new warnings on touched code.
-  CHECK: powershell -NoProfile -Command "Get-Content log/completion-routing-integration-tests.txt -Tail 16"
-  EXPECT: 1312 passed; 0 failed
-  EVIDENCE: completion routing integration; cargo build and clippy all-targets passed; 1312 units + 1 integration passed, 8 ignored. Refresh for each source batch.
+  CHECK: powershell -NoProfile -Command "Get-Content log/csv-pending-integration-tests.txt -Tail 16"
+  EXPECT: 1325 passed; 0 failed
+  EVIDENCE: CSV pending-cell integration; cargo build and clippy all-targets passed; 1325 units + 1 integration passed, 8 ignored. Refresh for each source batch.
 
 - [x] G10: Completed source batches have separate conventional commits and current change.log/devlog entries; the main working tree is clean before beginning a new batch.
   CHECK: git status --porcelain
   EXPECT: /^$/
-  EVIDENCE: main 71d33f5 was clean before this ledger was created; refresh after committing the ledger and every source batch.
+  EVIDENCE: main80596c5 was clean before this CSV batch; 58 current-version release notes and a devlog entry accompany it. Refresh after each source batch.

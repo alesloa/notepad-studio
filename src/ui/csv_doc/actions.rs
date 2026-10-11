@@ -44,7 +44,7 @@ pub(crate) fn on_cell_mousedown(
     cx: &mut Context<Workspace>,
 ) {
     // Commit any in-progress edit BEFORE deciding what this click does.
-    commit_cell_edit(w, cx);
+    if !commit_cell_edit(w, cx) { return; }
     if click_count >= 2 {
         open_cell_editor(w, row, col, window, cx);
         return;
@@ -102,7 +102,7 @@ pub(crate) fn move_active_cell_tab(
     forward: bool,
     cx: &mut Context<Workspace>,
 ) {
-    commit_cell_edit(w, cx);
+    if !commit_cell_edit(w, cx) { return; }
     let tab_id = w.tabs[w.active].session_id;
     let Some(model) = w.csv_models.get_mut(&tab_id) else {
         return;
@@ -142,7 +142,7 @@ pub(crate) fn move_active_cell_enter(
     down: bool,
     cx: &mut Context<Workspace>,
 ) {
-    commit_cell_edit(w, cx);
+    if !commit_cell_edit(w, cx) { return; }
     let tab_id = w.tabs[w.active].session_id;
     let Some(model) = w.csv_models.get_mut(&tab_id) else {
         return;
@@ -217,45 +217,71 @@ pub(crate) fn open_header_editor(
 /// model + source. No-op when no cell is being edited. Used by every
 /// "switch focus away" code path — clicking another cell, dragging a
 /// column, opening the toolbar, etc.
-pub(crate) fn commit_cell_edit(
-    w: &mut Workspace,
-    cx: &mut Context<Workspace>,
-) {
-    let tab_id = w.tabs[w.active].session_id;
-    let (row, col, value) = {
-        let Some(model) = w.csv_models.get_mut(&tab_id) else {
-            return;
-        };
-        let Some((r, c)) = model.editing_cell.take() else {
-            return;
-        };
-        let value = model
-            .cell_input
-            .take()
-            .map(|i| i.buffer)
-            .unwrap_or_default();
-        (r, c, value)
-    };
-
-    // Write back to model. The usize::MAX row sentinel marks a header
-    // rename — commit through set_header rather than set_cell so the
-    // value lands in `model.headers` and round-trips through the csv
-    // writer's header row on the next emit.
-    let changed = {
-        let Some(model) = w.csv_models.get_mut(&tab_id) else {
-            return;
-        };
-        if row == usize::MAX {
-            model.set_header(col, value)
-        } else {
-            model.set_cell(row, col, value)
+pub(crate) fn commit_cell_edit(w: &mut Workspace, cx: &mut Context<Workspace>) -> bool {
+    match try_commit_cell_edit(w, cx) {
+        Ok(()) => true,
+        Err(message) => {
+            w.set_status(format!("Cell edit not committed: {message}"));
+            cx.notify();
+            false
         }
-    };
-    if changed {
-        emit_to_source(w, cx);
-    } else {
-        cx.notify();
     }
+}
+
+/// Commit by UUID when a Save or close flow targets a background tab.
+/// A refusal activates that tab so its draft remains visible.
+pub(crate) fn commit_cell_edit_for_tab(w: &mut Workspace, id: Uuid, cx: &mut Context<Workspace>) -> Result<(), String> {
+    let target = w.tabs.iter().position(|tab| tab.session_id == id).ok_or("tab gone")?;
+    let previous = w.active;
+    w.active = target;
+    match try_commit_cell_edit(w, cx) {
+        Ok(()) => { w.active = previous; Ok(()) }
+        Err(message) => {
+            w.touch_mru();
+            w.set_status(format!("Cell edit not committed: {message}"));
+            cx.notify();
+            Err(message)
+        }
+    }
+}
+
+fn try_commit_cell_edit(w: &mut Workspace, cx: &mut Context<Workspace>) -> Result<(), String> {
+    let tab = w.tabs.get(w.active).ok_or("tab gone")?;
+    let tab_id = tab.session_id;
+    let Some(model) = w.csv_models.get(&tab_id) else { return Ok(()); };
+    let Some((row, col)) = model.editing_cell else { return Ok(()); };
+    let input = model.cell_input.as_ref().ok_or("cell input is missing")?;
+    let original = if row == usize::MAX { model.header(col) } else { model.cell(row, col) };
+    if original == input.buffer {
+        if let Some(model) = w.csv_models.get_mut(&tab_id) {
+            model.editing_cell = None;
+            model.cell_input = None;
+        }
+        cx.notify();
+        return Ok(());
+    }
+    if tab.buffer.read_only { return Err("Buffer is read-only".into()); }
+    if tab.buffer.loading.is_some() { return Err("CSV source is still loading".into()); }
+    if model.source_state.as_ref().is_none_or(|source| source.revision != tab.buffer.raw_revision) {
+        return Err("CSV source changed; cancel the draft before rebuilding the grid".into());
+    }
+    let value = input.buffer.clone();
+    let new_text = model.emit_source_with_cell(row, col, &value).ok_or("the grid could not be written back as CSV text")?;
+    let total = tab.buffer.rope.len_bytes();
+    if tab.buffer.rope != new_text.as_str() {
+        w.replace_byte_range(0..total, &new_text, cx);
+    }
+    if let Some(model) = w.csv_models.get_mut(&tab_id) {
+        if row == usize::MAX { model.set_header(col, value); } else { model.set_cell(row, col, value); }
+        model.editing_cell = None;
+        model.cell_input = None;
+        let buffer = &w.tabs[w.active].buffer;
+        model.bind_source(&buffer.rope, &buffer.raw_revision);
+        model.source_version = w.autosave_generation;
+    }
+    w.tabs[w.active].buffer.refresh_dirty();
+    cx.notify();
+    Ok(())
 }
 
 /// Discard any pending cell edit without writing back. Bound to Esc
@@ -362,6 +388,10 @@ pub(crate) fn ensure_model(
     let needs_rebuild = w.csv_models.get(&tab_id).is_none_or(|model| {
         model.reparse_requested || model.source_state.as_ref().is_none_or(|source| source.revision != buffer.raw_revision)
     });
+    if needs_rebuild && w.csv_models.get(&tab_id).is_some_and(|model| model.cell_input.is_some()) {
+        w.set_status("CSV source changed; commit or cancel the cell draft before rebuilding the grid");
+        return;
+    }
     let needs_grid_focus = w.csv_models.get(&tab_id).is_none_or(|model| model.grid_focus.is_none());
     let grid_focus = if needs_grid_focus { Some(cx.focus_handle()) } else { None };
     if needs_rebuild || grid_focus.is_some() {
@@ -464,7 +494,7 @@ pub(crate) fn click_row_select(
     shift: bool,
     cx: &mut Context<Workspace>,
 ) {
-    commit_cell_edit(w, cx);
+    if !commit_cell_edit(w, cx) { return; }
     let tab_id = w.tabs[w.active].session_id;
     let Some(model) = w.csv_models.get_mut(&tab_id) else {
         return;
@@ -489,7 +519,7 @@ pub(crate) fn click_col_select(
     shift: bool,
     cx: &mut Context<Workspace>,
 ) {
-    commit_cell_edit(w, cx);
+    if !commit_cell_edit(w, cx) { return; }
     let tab_id = w.tabs[w.active].session_id;
     let Some(model) = w.csv_models.get_mut(&tab_id) else {
         return;
@@ -516,7 +546,7 @@ pub(crate) fn open_row_context_menu(
     position: gpui::Point<gpui::Pixels>,
     cx: &mut Context<Workspace>,
 ) {
-    commit_cell_edit(w, cx);
+    if !commit_cell_edit(w, cx) { return; }
     let tab_id = w.tabs[w.active].session_id;
     let selection_count = {
         let Some(model) = w.csv_models.get_mut(&tab_id) else {
@@ -561,7 +591,7 @@ pub(crate) fn clear_grid_selection_and_edit(
     w: &mut Workspace,
     cx: &mut Context<Workspace>,
 ) {
-    commit_cell_edit(w, cx);
+    if !commit_cell_edit(w, cx) { return; }
     let tab_id = w.tabs[w.active].session_id;
     let Some(model) = w.csv_models.get_mut(&tab_id) else {
         return;
@@ -679,7 +709,7 @@ pub(crate) fn open_find_bar(
     let has_cell_edit = model.cell_input.is_some();
     if has_cell_edit {
         // Defer commit to the normal helper.
-        commit_cell_edit(w, cx);
+        if !commit_cell_edit(w, cx) { return; }
     }
     let Some(model) = w.csv_models.get_mut(&tab_id) else {
         return;
@@ -932,7 +962,7 @@ pub(crate) fn handle_grid_escape(
 /// Cmd+A on the grid (no cell being edited): select every row, clear
 /// column selection. Mirrors how a spreadsheet treats "Select All".
 pub(crate) fn select_all_rows(w: &mut Workspace, cx: &mut Context<Workspace>) {
-    commit_cell_edit(w, cx);
+    if !commit_cell_edit(w, cx) { return; }
     let tab_id = w.tabs[w.active].session_id;
     let Some(model) = w.csv_models.get_mut(&tab_id) else {
         return;
@@ -1382,7 +1412,7 @@ pub(crate) fn paste_into_grid(w: &mut Workspace, cx: &mut Context<Workspace>) {
 /// active cell, copies the cell directly above into it (Excel parity).
 /// No-op when there's no selection or active cell.
 pub(crate) fn fill_down_grid(w: &mut Workspace, cx: &mut Context<Workspace>) {
-    commit_cell_edit(w, cx);
+    if !commit_cell_edit(w, cx) { return; }
     let tab_id = w.tabs[w.active].session_id;
     let target = {
         let Some(model) = w.csv_models.get(&tab_id) else {
@@ -1428,7 +1458,7 @@ pub(crate) fn fill_down_grid(w: &mut Workspace, cx: &mut Context<Workspace>) {
 /// range copies into every column to its right within the range. With
 /// only a single active cell, copies the cell directly to the left.
 pub(crate) fn fill_right_grid(w: &mut Workspace, cx: &mut Context<Workspace>) {
-    commit_cell_edit(w, cx);
+    if !commit_cell_edit(w, cx) { return; }
     let tab_id = w.tabs[w.active].session_id;
     let target = {
         let Some(model) = w.csv_models.get(&tab_id) else {
@@ -1567,7 +1597,7 @@ pub(crate) fn open_col_context_menu(
     position: gpui::Point<gpui::Pixels>,
     cx: &mut Context<Workspace>,
 ) {
-    commit_cell_edit(w, cx);
+    if !commit_cell_edit(w, cx) { return; }
     let tab_id = w.tabs[w.active].session_id;
     let (selection_count, col_has_filter, any_filter_active, filters_visible) = {
         let Some(model) = w.csv_models.get_mut(&tab_id) else {
@@ -1808,7 +1838,7 @@ pub(crate) fn open_cell_context_menu(
     position: gpui::Point<gpui::Pixels>,
     cx: &mut Context<Workspace>,
 ) {
-    commit_cell_edit(w, cx);
+    if !commit_cell_edit(w, cx) { return; }
     let tab_id = w.tabs[w.active].session_id;
     let selection_count = {
         let Some(model) = w.csv_models.get_mut(&tab_id) else {
@@ -1872,7 +1902,7 @@ pub(crate) fn open_filter_dropdown(
     anchor: gpui::Point<gpui::Pixels>,
     cx: &mut Context<Workspace>,
 ) {
-    commit_cell_edit(w, cx);
+    if !commit_cell_edit(w, cx) { return; }
     let tab_id = w.tabs[w.active].session_id;
     let Some(model) = w.csv_models.get_mut(&tab_id) else {
         return;
@@ -1948,7 +1978,7 @@ pub(crate) fn begin_fill_drag(
     anchor_window_pos: Point<Pixels>,
     cx: &mut Context<Workspace>,
 ) {
-    commit_cell_edit(w, cx);
+    if !commit_cell_edit(w, cx) { return; }
     let tab_id = w.tabs[w.active].session_id;
     let Some(model) = w.csv_models.get_mut(&tab_id) else {
         return;
@@ -2079,4 +2109,4 @@ mod tests {
 
 #[cfg(test)]
 #[path = "savepoint_tests.rs"]
-mod savepoint_tests;
+pub(crate) mod savepoint_tests;

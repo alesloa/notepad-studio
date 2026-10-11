@@ -505,11 +505,11 @@ fn render_header(
                         // already ran its own mouseup (which selected the
                         // column); the second click upgrades to rename.
                         if click_count >= 2 {
-                            super::actions::commit_cell_edit(w, cx);
+                            if !super::actions::commit_cell_edit(w, cx) { return; }
                             super::actions::open_header_editor(w, col, window, cx);
                             return;
                         }
-                        super::actions::commit_cell_edit(w, cx);
+                        if !super::actions::commit_cell_edit(w, cx) { return; }
                         let tab_id = w.tabs[w.active].session_id;
                         let Some(model) = w.csv_models.get_mut(&tab_id) else {
                             return;
@@ -728,7 +728,7 @@ fn render_body(
                             }
                             return;
                         }
-                        super::actions::commit_cell_edit(w, cx);
+                        if !super::actions::commit_cell_edit(w, cx) { return; }
                         let tab_id = w.tabs[w.active].session_id;
                         let Some(model) = w.csv_models.get_mut(&tab_id) else {
                             return;

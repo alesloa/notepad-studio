@@ -2151,6 +2151,21 @@ impl CsvModel {
     /// buffer. `None` means the writer failed or the output would not be
     /// valid UTF-8; the caller then leaves the document as it is.
     pub(crate) fn emit_source(&self) -> Option<String> {
+        self.emit_source_with_override(None)
+    }
+
+    /// Serialize a draft without changing cells or their undo history.
+    pub(crate) fn emit_source_with_cell(&self, row: usize, col: usize, value: &str) -> Option<String> {
+        let physical_col = *self.col_order.get(col)?;
+        let physical_row = if row == usize::MAX { usize::MAX } else {
+            let physical_row = *self.row_order.get(row)?;
+            self.rows.get(physical_row)?;
+            physical_row
+        };
+        self.emit_source_with_override(Some((physical_row, physical_col, value)))
+    }
+
+    fn emit_source_with_override(&self, draft: Option<(usize, usize, &str)>) -> Option<String> {
         // Empty schema with empty rows = empty file. Skip the csv writer
         // entirely (which would emit a single quoted empty record).
         if self.headers.is_empty() && self.rows.is_empty() {
@@ -2176,11 +2191,25 @@ impl CsvModel {
                 .flexible(true)
                 .from_writer(&mut buf);
             if self.has_header && !self.headers.is_empty() {
-                writer.write_record(self.headers.iter().map(|s| s.as_str())).ok()?;
+                let count = draft.filter(|(row, _, _)| *row == usize::MAX)
+                    .map_or(self.headers.len(), |(_, col, _)| self.headers.len().max(col.saturating_add(1)));
+                writer.write_record((0..count).map(|col| {
+                    if let Some((usize::MAX, target, value)) = draft {
+                        if target == col { return value; }
+                    }
+                    self.headers.get(col).map_or("", String::as_str)
+                })).ok()?;
             }
-            for row in &self.rows {
-                if !row.is_empty() {
-                    writer.write_record(row.iter().map(|s| s.as_str())).ok()?;
+            for (row_index, row) in self.rows.iter().enumerate() {
+                let count = draft.filter(|(target, _, _)| *target == row_index)
+                    .map_or(row.len(), |(_, col, _)| row.len().max(col.saturating_add(1)));
+                if count != 0 {
+                    writer.write_record((0..count).map(|col| {
+                        if let Some((target_row, target_col, value)) = draft {
+                            if target_row == row_index && target_col == col { return value; }
+                        }
+                        row.get(col).map_or("", String::as_str)
+                    })).ok()?;
                 }
             }
             writer.flush().ok()?;

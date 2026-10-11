@@ -69,7 +69,7 @@ fn workspace(cx: &mut TestAppContext, directory: &std::path::Path) -> Entity<Wor
             })
             .collect();
         w.active = 1;
-        w.window_closed = true;
+        w.session_snapshot_sink = Some(std::sync::mpsc::channel().0);
         w.show_tab_context_menu(1, gpui::point(px(20.), px(20.)), cx);
         w
     })

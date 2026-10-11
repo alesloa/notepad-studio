@@ -31,7 +31,7 @@ fn with_grid_mode(vertical: bool, test: impl FnOnce(&Entity<Workspace>, &mut Vis
         w.tabs = vec![Tab::empty(), Tab::empty()];
         w.tabs[0].buffer = csv; w.tabs[0].view_mode = TabViewMode::CsvPreview;
         w.tabs[1].buffer = source; w.active = 0; w.touch_mru();
-        w.window_closed = true;
+        w.session_snapshot_sink = Some(std::sync::mpsc::channel().0);
         w
     });
     visual.update_window_entity(&entity, |w, window, cx| {

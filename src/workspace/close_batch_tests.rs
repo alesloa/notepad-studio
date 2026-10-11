@@ -22,7 +22,7 @@ pub(super) fn with_window(count: usize, test: impl FnOnce(&Entity<Workspace>, &m
             tab
         }).collect();
         w.active = count.saturating_sub(1);
-        w.window_closed = true;
+        w.session_snapshot_sink = Some(std::sync::mpsc::channel().0);
         w.touch_mru();
         w
     });

@@ -8,9 +8,9 @@ pub(super) type PromptSource = Arc<Mutex<VecDeque<futures::channel::oneshot::Rec
 thread_local! { static PROMPTS: RefCell<Option<PromptSource>> = const { RefCell::new(None) }; }
 pub(super) fn prompt_source() -> Option<PromptSource> { PROMPTS.with(|slot| slot.borrow().clone()) }
 
-struct PromptOverride { previous: Option<PromptSource>, _local: PhantomData<Rc<()>> }
+pub(super) struct PromptOverride { previous: Option<PromptSource>, _local: PhantomData<Rc<()>> }
 impl PromptOverride {
-    fn new(receiver: futures::channel::oneshot::Receiver<CloseDecision>) -> Self {
+    pub(super) fn new(receiver: futures::channel::oneshot::Receiver<CloseDecision>) -> Self {
         let source = Arc::new(Mutex::new(VecDeque::from([receiver])));
         Self { previous: PROMPTS.with(|slot| slot.replace(Some(source))), _local: PhantomData }
     }
@@ -25,6 +25,8 @@ fn with_file(extension: &str, source: &[u8], test: impl FnOnce(&Entity<Workspace
     std::fs::write(&path, source).unwrap();
     with_window(3, |entity, visual, ids| {
         visual.update_window_entity(entity, |w, window, cx| {
+            w.window_closed = false;
+            w.session_snapshot_sink = Some(std::sync::mpsc::channel().0);
             w.tabs[2].buffer = crate::io::read_buffer(&path).unwrap();
             w.tabs[2].buffer.dirty = true;
             w.tabs[2].selection.head = w.tabs[2].buffer.rope.len_bytes();

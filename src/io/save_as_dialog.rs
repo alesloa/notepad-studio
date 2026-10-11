@@ -22,13 +22,13 @@ thread_local! {
 }
 
 #[cfg(test)]
-pub(super) struct Override {
+pub(crate) struct Override {
     previous: Option<futures::channel::oneshot::Receiver<Option<PathBuf>>>,
     _local: std::marker::PhantomData<std::rc::Rc<()>>,
 }
 #[cfg(test)]
 impl Override {
-    pub(super) fn new(reply: futures::channel::oneshot::Receiver<Option<PathBuf>>) -> Self {
+    pub(crate) fn new(reply: futures::channel::oneshot::Receiver<Option<PathBuf>>) -> Self {
         Self { previous: REPLY.with(|slot| slot.replace(Some(reply))), _local: std::marker::PhantomData }
     }
 }

@@ -1,5 +1,7 @@
 mod save_as_dialog;
 #[cfg(test)]
+pub(crate) use save_as_dialog::Override as SaveAsDialogOverrideForTest;
+#[cfg(test)]
 mod save_as_identity_tests;
 
 // File I/O — open / save / save-as flows plus the async dialog helpers
@@ -983,6 +985,7 @@ pub(crate) async fn save_tab_for_close(
 ) -> Result<(), String> {
     let snap = workspace
         .update(cx, |w, cx| {
+            if w.window_closed { return Err("window closed".to_string()); }
             let id = w.tabs.get(idx).map(|tab| tab.session_id).ok_or("tab gone")?;
             crate::ui::csv_doc::actions::commit_cell_edit_for_tab(w, id, cx)?;
             let tab = w.tabs.iter().find(|tab| tab.session_id == id).ok_or("tab gone")?;
@@ -997,33 +1000,27 @@ pub(crate) async fn save_tab_for_close(
                 .or_else(dirs::document_dir)
                 .or_else(dirs::home_dir);
             let suggested = suggested_save_name(&tab.buffer);
-            Ok::<_, String>((tab.session_id, tab.buffer.file_path.is_some(), starting, suggested))
+            Ok::<_, String>((tab.session_id, tab.instance.clone(), tab.buffer.file_path.is_some(), starting, suggested))
         })
         .map_err(|e| e.to_string())??;
-    let (tab_id, has_path, starting, suggested) = snap;
+    let (tab_id, tab_instance, has_path, starting, suggested) = snap;
 
     let new_path = if has_path {
         None
     } else {
-        let mut dialog = rfd::AsyncFileDialog::new()
-            .set_title("Save As")
-            .set_file_name(&suggested);
-        if let Some(dir) = starting {
-            dialog = dialog.set_directory(dir);
-        }
-        let Some(handle) = dialog.save_file().await else {
+        let Some(picked) = save_as_dialog::pick(starting, suggested).await else {
             return Err("Save As cancelled".to_string());
         };
-        let picked = handle.path().to_path_buf();
-        crate::settings::record_last_used_directory(&picked);
         Some(picked)
     };
 
     workspace
         .update(cx, |w, cx| {
-            // Found again by id: tabs closed or moved while the dialog was
-            // open shift indices, and `idx` would save another tab's text.
-            let Some(now) = w.tabs.iter().position(|t| t.session_id == tab_id) else {
+            if w.window_closed { return Err("window closed".to_string()); }
+            // Restore keeps a closed tab's UUID but creates a new runtime
+            // incarnation. Only the original requester may use this reply.
+            let Some(now) = w.tabs.iter().position(|t| t.session_id == tab_id
+                && std::sync::Arc::ptr_eq(&t.instance, &tab_instance)) else {
                 return Err("tab gone".to_string());
             };
             if let Some(p) = new_path.as_deref() {
@@ -1032,6 +1029,7 @@ pub(crate) async fn save_tab_for_close(
                 }
             }
             crate::ui::csv_doc::actions::commit_cell_edit_for_tab(w, tab_id, cx)?;
+            if let Some(path) = new_path.as_deref() { crate::settings::record_last_used_directory(path); }
             let recorded = new_path.clone();
             let r = w
                 .with_tab_active(tab_id, |w| match new_path {

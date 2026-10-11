@@ -174,6 +174,7 @@ impl Workspace {
     fn close_confirmation_index(
         &mut self, id: Uuid, snapshot: &DocumentSnapshot, saved: bool, cx: &mut Context<Self>,
     ) -> Result<Option<usize>, ()> {
+        if self.window_closed { return Err(()); }
         let Some(idx) = tab_index_of(&self.tabs, id) else { return Ok(None) };
         let Some(tab) = self.tabs.get(idx) else { return Ok(None) };
         // Cell text can change without advancing the source revision.
@@ -186,7 +187,8 @@ impl Workspace {
         }
         // Save As may legitimately change the path. After a successful save,
         // close only if no further unsaved content has appeared.
-        if if saved { tab.buffer.dirty || tab.buffer.loading.is_some() } else { !snapshot.matches(tab) } {
+        if !std::sync::Arc::ptr_eq(&snapshot.instance, &tab.instance)
+            || if saved { tab.buffer.dirty || tab.buffer.loading.is_some() } else { !snapshot.matches(tab) } {
             self.set_status("Close cancelled: document changed while confirmation was open; close again to confirm the current contents");
             cx.notify();
             return Err(());
@@ -1051,6 +1053,7 @@ fn tab_index_of(tabs: &[Tab], id: Uuid) -> Option<usize> {
 
 // Confirmation applies to the captured document, not to later edits or Save As.
 struct DocumentSnapshot {
+    instance: std::sync::Arc<()>,
     raw: crate::buffer::ContentRevision,
     rich: Option<crate::buffer::ContentRevision>,
     path: Option<std::path::PathBuf>,
@@ -1061,6 +1064,7 @@ struct DocumentSnapshot {
 impl DocumentSnapshot {
     fn capture(tab: &Tab) -> Self {
         Self {
+            instance: tab.instance.clone(),
             raw: tab.buffer.raw_revision.clone(),
             rich: tab.buffer.rich_doc.as_ref().map(|payload| payload.revision.clone()),
             path: tab.buffer.file_path.clone(),
@@ -1344,3 +1348,7 @@ mod close_batch_tests;
 #[cfg(test)]
 #[path = "close_async_tests.rs"]
 mod close_async_tests;
+
+#[cfg(test)]
+#[path = "close_save_identity_tests.rs"]
+mod close_save_identity_tests;

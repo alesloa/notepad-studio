@@ -596,6 +596,9 @@ v0.0.5 — current
          and tab-width behavior and undoes the complete macro in one step.
     152. Spelling and grammar menu checkmarks update immediately when
          either check is switched on or off, including native menus.
+    153. Save-before-close and dirty confirmations discard replies after
+         their tab is closed and restored or their window accepts closure.
+         Live edits to the original tab can still be saved before closing.
 
   v0.1.0 — syntax & language:
 

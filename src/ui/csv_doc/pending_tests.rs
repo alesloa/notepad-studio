@@ -168,6 +168,8 @@ fn csv_pending_async_close_save_targets_uuid_and_keeps_other_tab_active() {
     let completed = std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false));
     let done = completed.clone();
     with_csv(Encoding::Utf16Be, |w, window, cx, path| {
+        w.window_closed = false;
+        w.session_snapshot_sink = Some(std::sync::mpsc::channel().0);
         type_pending(w, window, cx);
         let id = w.tabs[w.active].session_id;
         let path = path.to_path_buf();

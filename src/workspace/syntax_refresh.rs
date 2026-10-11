@@ -285,6 +285,13 @@ impl Workspace {
     }
 
     pub(super) fn request_syntax_refresh(&mut self, delay: Duration, cx: &mut Context<Self>) {
+        if self.window_closed { self.syntax_refresh.close(); return; }
+        let Some(tab) = self.tabs.get(self.active) else { return; };
+        self.request_syntax_refresh_for_tab(tab.session_id, delay, cx);
+    }
+
+    /// File loading can finish after another document becomes active.
+    pub(crate) fn request_syntax_refresh_for_tab(&mut self, id: Uuid, delay: Duration, cx: &mut Context<Self>) {
         if self.window_closed {
             self.syntax_refresh.close();
             return;
@@ -292,23 +299,21 @@ impl Workspace {
         let capture_started = Instant::now();
         self.syntax_refresh.executor = Some(cx.background_executor().clone());
         self.retire_closed_syntax_refresh(cx);
-        let Some(tab) = self.tabs.get(self.active) else {
-            return;
-        };
-        let id = tab.session_id;
+        let Some(index) = self.tabs.iter().position(|tab| tab.session_id == id) else { return; };
+        let Some(tab) = self.tabs.get(index) else { return; };
         let language = tab.buffer.language;
         let policy = Policy::current();
         let size = tab.buffer.rope.len_bytes();
         let skip = tab.buffer.loading.is_some() || language.is_none() || policy.skips(size);
         if skip {
             self.retire_syntax_tab(id, cx);
-            if let Some(tab) = self.tabs.get_mut(self.active) {
+            if let Some(tab) = self.tabs.get_mut(index) {
                 dispose(
                     cx.background_executor(),
                     std::mem::take(&mut tab.buffer.highlights),
                 );
             }
-            if delay.is_zero() && size as u64 > crate::io_stream::HIGHLIGHT_SIZE_LIMIT {
+            if index == self.active && delay.is_zero() && size as u64 > crate::io_stream::HIGHLIGHT_SIZE_LIMIT {
                 self.set_status(HighlightError::SizeLimit.to_string());
             }
             cx.notify();
@@ -318,8 +323,8 @@ impl Workspace {
             && self.syntax_refresh.latest.len() >= MAX_PENDING_TABS
         {
             self.syntax_refresh.refused = Some(id);
-            self.set_status(QUEUE_STATUS);
-            if let Some(tab) = self.tabs.get_mut(self.active) {
+            if index == self.active { self.set_status(QUEUE_STATUS); }
+            if let Some(tab) = self.tabs.get_mut(index) {
                 dispose(
                     cx.background_executor(),
                     std::mem::take(&mut tab.buffer.highlights),
@@ -557,3 +562,11 @@ impl Workspace {
         }
     }
 }
+
+#[cfg(test)]
+#[path = "stream_syntax_tests.rs"]
+mod stream_tests;
+
+#[cfg(test)]
+#[path = "stream_eof_bench.rs"]
+mod stream_bench;

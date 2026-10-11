@@ -455,6 +455,7 @@ pub(crate) fn open_path_streaming(
 /// a remembered index: closing or moving another tab mid-load shifts the
 /// indices, and a stale index would pour the file into the wrong tab.
 fn loading_tab(workspace: &Workspace, cancel: &Arc<AtomicBool>) -> Option<usize> {
+    if workspace.window_closed { return None; }
     workspace.tabs.iter().position(|t| {
         t.buffer
             .loading
@@ -469,6 +470,7 @@ fn start_streaming(
     total_bytes: u64,
     cx: &mut Context<Workspace>,
 ) {
+    if workspace.window_closed { return; }
     let cancel = Arc::new(AtomicBool::new(false));
 
     // Seed the tab with an empty buffer carrying a `LoadProgress`. Routes
@@ -672,47 +674,64 @@ fn start_streaming(
         let line_ending = decoder.line_ending();
         let lossy = decoder.lossy;
         this.update(cx, |w, cx| {
-            let Some(idx) = loading_tab(w, &cancel) else {
-                return;
-            };
-            let Some(tab) = w.tabs.get_mut(idx) else {
-                return;
-            };
-            tab.buffer.invalidate_flat_text();
-            tab.wrap_cache = None;
-            tab.buffer.line_ending = line_ending;
-            tab.buffer.encoding = encoding;
-            tab.buffer.loading = None;
-            tab.buffer.mark_saved();
-            // Malformed UTF-16 can't be saved back as it was read; open
-            // read-only, as the whole-file path does.
-            tab.buffer.read_only = lossy;
-
-            // Late tree-sitter assignment. Skipped entirely for files past
-            // `HIGHLIGHT_SIZE_LIMIT` — running the highlighter on a
-            // multi-hundred-MB file blocks the main thread for seconds.
-            if total_bytes <= HIGHLIGHT_SIZE_LIMIT {
-                let inferred = crate::syntax::language_for_path(&path);
-                tab.buffer.language = inferred;
-                tab.buffer.reparse_highlights();
-            }
-
-            let basename = tab.buffer.display_short_name().to_string();
-            if lossy {
-                w.set_status(crate::io::lossy_decode_status(&basename, encoding));
-            } else {
-                w.set_status(format!("Opened {}", basename));
-            }
-            w.last_lines.clear();
-            w.caret_visible = true;
-            w.save_session(cx);
-            recent::record_opened(path.clone());
-            rebuild_menus(&mut *cx);
-            cx.notify();
+            finish_streaming(w, StreamCompletion {
+                path, total_bytes, cancel, line_ending, encoding, lossy,
+            }, cx);
         })
         .ok();
     })
     .detach();
+}
+
+// The actual end-of-load UI callback. Identity comes from the original load flag.
+pub(crate) struct StreamCompletion {
+    pub(crate) path: PathBuf,
+    pub(crate) total_bytes: u64,
+    pub(crate) cancel: Arc<AtomicBool>,
+    pub(crate) line_ending: LineEnding,
+    pub(crate) encoding: Encoding,
+    pub(crate) lossy: bool,
+}
+
+pub(crate) fn finish_streaming(w: &mut Workspace, completion: StreamCompletion, cx: &mut Context<Workspace>) {
+    let StreamCompletion { path, total_bytes, cancel, line_ending, encoding, lossy } = completion;
+    let Some(idx) = loading_tab(w, &cancel) else {
+        return;
+    };
+    let Some(tab) = w.tabs.get_mut(idx) else {
+        return;
+    };
+    tab.buffer.invalidate_flat_text();
+    tab.wrap_cache = None;
+    tab.buffer.line_ending = line_ending;
+    tab.buffer.encoding = encoding;
+    tab.buffer.loading = None;
+    tab.buffer.mark_saved();
+    // Malformed UTF-16 can't be saved back as it was read; open
+    // read-only, as the whole-file path does.
+    tab.buffer.read_only = lossy;
+
+    // Keep inference for eligible streamed files; parsing uses the bounded
+    // background queue after the load metadata and saved state settle.
+    if total_bytes <= HIGHLIGHT_SIZE_LIMIT {
+        let inferred = crate::syntax::language_for_path(&path);
+        tab.buffer.language = inferred;
+    }
+    let id = tab.session_id;
+
+    let basename = tab.buffer.display_short_name().to_string();
+    if lossy {
+        w.set_status(crate::io::lossy_decode_status(&basename, encoding));
+    } else {
+        w.set_status(format!("Opened {}", basename));
+    }
+    w.request_syntax_refresh_for_tab(id, std::time::Duration::ZERO, cx);
+    w.last_lines.clear();
+    w.caret_visible = true;
+    w.save_session(cx);
+    recent::record_opened(path.clone());
+    rebuild_menus(&mut *cx);
+    cx.notify();
 }
 
 /// End a load that can't finish (cancelled, or a read failed part-way).

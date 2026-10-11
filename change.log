@@ -407,6 +407,9 @@ v0.0.5 — current
     100. Unsupported Linux XIM transport versions now fall back safely instead
          of crashing. Standard ClientMessage/property delivery stays bounded.
 
+    101. Streamed files finish syntax highlighting in background workers, even
+         after switching tabs. Closed windows retire late loading callbacks.
+
   v0.1.0 — syntax & language:
 
     1. Tree-sitter syntax highlighting for 25 modes: Rust, Python, C,

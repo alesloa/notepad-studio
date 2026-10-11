@@ -2358,6 +2358,18 @@ extern "C" fn unmark_text(this: &Object, _: Sel) {
     with_input_handler(this, |input_handler| input_handler.unmark_text());
 }
 
+fn adjusted_range_output(
+    actual_range: *mut c_void,
+    proposed: &Range<usize>,
+    adjusted: Option<Range<usize>>,
+) -> Option<NSRange> {
+    let adjusted = adjusted?;
+    if actual_range.is_null() || adjusted == *proposed || adjusted.start > adjusted.end {
+        return None;
+    }
+    Some(NSRange::from(adjusted))
+}
+
 extern "C" fn attributed_substring_for_proposed_range(
     this: &Object,
     _: Sel,
@@ -2372,10 +2384,10 @@ extern "C" fn attributed_substring_for_proposed_range(
         let mut adjusted: Option<Range<usize>> = None;
 
         let selected_text = input_handler.text_for_range(range.clone(), &mut adjusted)?;
-        if let Some(adjusted) = adjusted
-            && adjusted != range
-        {
-            unsafe { (actual_range as *mut NSRange).write(NSRange::from(adjusted)) };
+        if let Some(adjusted) = adjusted_range_output(actual_range, &range, adjusted) {
+            // SAFETY: Cocoa supplies writable NSRange storage for a nonnull actualRange;
+            // adjusted_range_output rejects the optional null pointer.
+            unsafe { (actual_range as *mut NSRange).write(adjusted) };
         }
         unsafe {
             let string: id = msg_send![class!(NSAttributedString), alloc];
@@ -2726,5 +2738,37 @@ extern "C" fn toggle_tab_bar(this: &Object, _sel: Sel, _id: id) {
             callback();
             window_state.lock().toggle_tab_bar_callback = Some(callback);
         }
+    }
+}
+
+#[cfg(test)]
+mod text_range_output_tests {
+    use super::adjusted_range_output;
+    use std::{ffi::c_void, ptr::NonNull};
+
+    #[test]
+    fn optional_null_output_is_not_selected() {
+        assert!(adjusted_range_output(std::ptr::null_mut(), &(0..10), Some(0..3)).is_none());
+    }
+
+    #[test]
+    fn changed_nonnull_output_preserves_adjustment() {
+        let pointer = NonNull::<c_void>::dangling().as_ptr();
+        let range = adjusted_range_output(pointer, &(0..10), Some(1..3)).unwrap();
+        assert_eq!(range.location, 1);
+        assert_eq!(range.length, 2);
+    }
+
+    #[test]
+    fn unchanged_or_absent_adjustment_is_not_selected() {
+        let pointer = NonNull::<c_void>::dangling().as_ptr();
+        assert!(adjusted_range_output(pointer, &(1..3), Some(1..3)).is_none());
+        assert!(adjusted_range_output(pointer, &(1..3), None).is_none());
+    }
+
+    #[test]
+    fn reversed_adjustment_is_refused() {
+        let pointer = NonNull::<c_void>::dangling().as_ptr();
+        assert!(adjusted_range_output(pointer, &(0..10), Some(std::ops::Range { start: 5, end: 2 })).is_none());
     }
 }

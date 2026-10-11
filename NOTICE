@@ -124,3 +124,5 @@ accepted callbacks publish once before a later filter or ACK error reaches
 existing fallback. Transport negotiation and input-context ownership are unchanged.
 
 Vendored gpui Windows IMM input: Windows IMM composition and attribute reads validate signed results, enforce a 1 MiB per-buffer allocation cap with fallible reservation and actual-capacity checks, honor second-read lengths, decode UTF-16 without alignment casts, and reject invalid cursor positions. Ten helper regressions cover error, size, truncation, Unicode and cursor boundaries.
+
+Vendored gpui Cocoa text input: macOS Cocoa text-input range conversion rejects overflowing endpoints, and attributed-substring replies skip optional null actualRange output storage and reversed adjustments. Seven permanent tests cover available/overflowing ranges, reverse conversion and actual output selection; portable source probes distinguish native compilation from contract coverage.

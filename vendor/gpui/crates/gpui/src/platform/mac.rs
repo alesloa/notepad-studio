@@ -106,7 +106,7 @@ impl NSRange {
     fn to_range(self) -> Option<Range<usize>> {
         if self.is_valid() {
             let start = self.location as usize;
-            let end = start + self.length as usize;
+            let end = start.checked_add(self.length as usize)?;
             Some(start..end)
         } else {
             None
@@ -160,5 +160,39 @@ impl From<NSRect> for Size<DevicePixels> {
     fn from(rect: NSRect) -> Self {
         let NSSize { width, height } = rect.size;
         size(DevicePixels(width as i32), DevicePixels(height as i32))
+    }
+}
+
+#[cfg(test)]
+mod range_tests {
+    use super::NSRange;
+
+    #[test]
+    fn native_ranges_preserve_representable_bounds() {
+        for (location, length, expected) in [
+            (0, 0, 0..0), (2, 5, 2..7),
+            (1, usize::MAX - 1, 1..usize::MAX),
+            (usize::MAX - 2, 2, usize::MAX - 2..usize::MAX),
+        ] {
+            assert_eq!(NSRange { location: location as _, length: length as _ }.to_range(), Some(expected));
+        }
+    }
+
+    #[test]
+    fn native_ranges_refuse_unavailable_and_overflow() {
+        assert_eq!(NSRange::invalid().to_range(), None);
+        for (location, length) in [(usize::MAX - 2, 3), (1, usize::MAX)] {
+            assert_eq!(NSRange { location: location as _, length: length as _ }.to_range(), None);
+        }
+    }
+
+    #[test]
+    fn reverse_conversion_does_not_underflow() {
+        let range = NSRange::from(std::ops::Range { start: 5, end: 2 });
+        assert_eq!(range.location, 5);
+        assert_eq!(range.length, 0);
+        let range = NSRange::from(1..usize::MAX);
+        assert_eq!(range.location, 1);
+        assert_eq!(range.length as usize, usize::MAX - 1);
     }
 }

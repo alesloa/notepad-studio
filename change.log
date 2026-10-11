@@ -464,6 +464,9 @@ v0.0.5 — current
     118. Windows IME input safely handles failed or changing composition reads,
          malformed UTF-16 byte lengths and invalid cursor positions.
 
+    119. macOS text input guards optional output storage and overflowing native
+         text ranges when handling substring requests.
+
   v0.1.0 — syntax & language:
 
     1. Tree-sitter syntax highlighting for 25 modes: Rust, Python, C,

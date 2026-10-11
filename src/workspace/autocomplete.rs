@@ -4,10 +4,9 @@
 //   * Word Completion — buffer-scans for unique identifiers sharing the
 //     prefix at the caret, opens a popup with the candidates.
 //   * Function Completion — pulls from a per-language static keyword +
-//     common-builtin list (`syntax::keywords`). NPP loads these from
-//     per-language `apis/<lang>.xml` registries with full signatures;
-//     Notepad Studio's v1 surfaces just the identifier — the full
-//     signature variant lands when the XML loader does.
+//     common-builtin list (`syntax::keywords`). NPP loads identifiers and
+//     parameter metadata from per-language `autoCompletion/<lang>.xml`.
+//     Notepad Studio's API registry and parameter signatures remain pending.
 //   * Function and Word Completion — merges both candidate pools.
 //   * Function Parameters Hint — toasts a status message. Real call-tip
 //     popup needs signature data that the static lists don't carry.
@@ -20,11 +19,8 @@
 //     `edits.rs::insert_newline`.
 //   * `autocompletion_ignore_numbers` — read in the three `try_open_*`
 //     candidate collectors below.
-//   * `autocompletion_brief` — read in `try_open_function_popup` /
-//     `try_open_combined_popup`. Currently a no-op because every
-//     candidate is already a bare identifier (no signature column yet);
-//     the read is in place so the brief filter activates automatically
-//     when the per-language API XML registry ships signatures.
+//   * `autocompletion_brief` — captured on opening; controls whether rows
+//     shrink or stay visible while the prefix narrows.
 
 use std::collections::BTreeSet;
 
@@ -75,11 +71,9 @@ impl CandidateSource {
     fn collect(&self, rope: &ropey::Rope, prefix: &str, caret: usize) -> Vec<String> {
         match self.kind {
             CandidateKind::Word => collect_word_candidates(rope, prefix, self.ignore_numbers, caret),
-            CandidateKind::Function(lang) => apply_brief_filter(
-                collect_keyword_candidates(prefix, lang, self.ignore_numbers), self.brief,
-            ),
+            CandidateKind::Function(lang) => collect_keyword_candidates(prefix, lang, self.ignore_numbers),
             CandidateKind::Combined(lang) => merge_candidates(
-                apply_brief_filter(collect_keyword_candidates(prefix, lang, self.ignore_numbers), self.brief),
+                collect_keyword_candidates(prefix, lang, self.ignore_numbers),
                 collect_word_candidates(rope, prefix, self.ignore_numbers, caret),
             ),
         }
@@ -197,30 +191,21 @@ pub(crate) fn collect_keyword_candidates(
     out
 }
 
-/// NPP `Auto-Completion ▸ Make auto-completion list brief`. When `brief`
-/// is on, strip the signature column from each candidate label so the
-/// popup shows only the identifier. The keyword pool today carries no
-/// signatures (the per-language API XML registry isn't loaded yet), so
-/// this is currently identity — kept as the single chokepoint so the
-/// toggle starts taking effect the moment signature-bearing entries land.
-fn apply_brief_filter(candidates: Vec<String>, brief: bool) -> Vec<String> {
-    if !brief {
-        return candidates;
+fn matches_prefix(candidate: &str, prefix: &str) -> bool {
+    candidate.len() > prefix.len()
+        && candidate.get(..prefix.len()).is_some_and(|head| head.eq_ignore_ascii_case(prefix))
+}
+
+/// PowerEditor/src/ScintillaComponent/AutoCompletion.cpp:1065–1083 —
+/// the ordinary list keeps its rows. Prefer live matches if the scan cap
+/// discovers new ones, then retain older visible rows within the same cap.
+fn retain_visible_rows(matches: &[String], previous: &[String]) -> Vec<String> {
+    let mut rows: BTreeSet<String> = matches.iter().take(MAX_CANDIDATES).cloned().collect();
+    for candidate in previous {
+        if rows.len() >= MAX_CANDIDATES { break; }
+        rows.insert(candidate.clone());
     }
-    candidates
-        .into_iter()
-        .map(|c| {
-            // NPP brief format strips at the first `(` (function-style
-            // signature) or whitespace following the identifier. If neither
-            // appears the candidate is already brief.
-            let cut = c.find('(').unwrap_or(c.len());
-            let head = &c[..cut];
-            let cut = head
-                .find(|ch: char| ch.is_whitespace())
-                .unwrap_or(head.len());
-            head[..cut].to_string()
-        })
-        .collect()
+    rows.into_iter().collect()
 }
 
 /// Merge two pre-filtered candidate vectors into a deduped, sorted, capped
@@ -324,12 +309,6 @@ impl Workspace {
             lang,
             snap.autocompletion_ignore_numbers,
         );
-        // Brief mode would strip the signature column from each candidate
-        // label. The keyword pool today is identifiers only — no signature
-        // is glued on — so the filter is identity. Keeping the read live so
-        // the moment the API XML loader starts producing "name(args) →ret"
-        // strings, the toggle takes effect with no extra wire-up.
-        let candidates = apply_brief_filter(candidates, snap.autocompletion_brief);
         if candidates.is_empty() {
             self.status_message = Some(if prefix.is_empty() {
                 format!("Function completion: no keywords for {}", lang.label())
@@ -391,10 +370,6 @@ impl Workspace {
             lang,
             snap.autocompletion_ignore_numbers,
         );
-        // Brief filter only matters to the keyword pool (buffer words have
-        // no signatures by definition). Apply before merging so a future
-        // signature-bearing keyword doesn't slip past the toggle.
-        let kws = apply_brief_filter(kws, snap.autocompletion_brief);
         let candidates = merge_candidates(kws, words);
         if candidates.is_empty() {
             self.status_message = Some(if prefix.is_empty() {
@@ -615,23 +590,39 @@ impl Workspace {
         let lower = prefix.to_ascii_lowercase();
         // Requery only when cached matches cannot represent the new prefix.
         // Word collection still visits at most 128 KiB around the caret.
-        let refill = !lower.starts_with(&state.pool_prefix)
+        let broadening = !lower.starts_with(&state.pool_prefix);
+        let refill = broadening
             || (state.candidate_pool.len() == MAX_CANDIDATES && lower != state.pool_prefix);
         let pool = refill.then(|| state.source.collect(&self.buffer().rope, &prefix, caret));
-        let filtered: Vec<String> = pool.as_ref().unwrap_or(&state.candidate_pool).iter().filter(|word| {
-            !word.eq_ignore_ascii_case(&prefix) && word.to_ascii_lowercase().starts_with(&lower)
-        }).cloned().collect();
+        let mut filtered: Vec<String> = pool.as_ref().unwrap_or(&state.candidate_pool).iter()
+            .filter(|word| matches_prefix(word, &prefix)).cloned().collect();
+        // A broader query may cap out before a still-matching selected row.
+        // Retain that row without increasing the existing candidate bound.
+        if let Some(pick) = previous.as_ref().filter(|pick| matches_prefix(pick, &prefix)) {
+            if !filtered.contains(pick) {
+                filtered.truncate(MAX_CANDIDATES.saturating_sub(1));
+                filtered.push(pick.clone());
+                filtered.sort();
+            }
+        }
         if filtered.is_empty() {
             self.close_autocomplete(cx);
             return;
         }
+        let selected = previous.filter(|pick| matches_prefix(pick, &prefix))
+            .unwrap_or_else(|| filtered.first().cloned().unwrap_or_default());
+        let visible = if state.source.brief || broadening {
+            filtered
+        } else {
+            retain_visible_rows(&filtered, &state.candidates)
+        };
         if let Some(state) = self.autocomplete.as_mut() {
             if let Some(pool) = pool {
                 state.candidate_pool = pool;
                 state.pool_prefix = lower;
             }
-            state.selected = previous.and_then(|pick| filtered.iter().position(|word| *word == pick)).unwrap_or(0);
-            state.candidates = filtered;
+            state.selected = visible.iter().position(|word| *word == selected).unwrap_or(0);
+            state.candidates = visible;
             state.caret = caret;
             state.allow_empty_prefix &= prefix.is_empty();
         }
@@ -698,7 +689,7 @@ impl Workspace {
         };
         let Some((_, _, prefix)) = prefix_at(&self.buffer().rope, caret) else { return false; };
         if (prefix.is_empty() && !state.allow_empty_prefix)
-            || !pick.to_ascii_lowercase().starts_with(&prefix.to_ascii_lowercase())
+            || !matches_prefix(pick, &prefix)
         { return false; }
         crate::macros::record(crate::macros::completion_event(&prefix, pick));
         self.replace_byte_range(range, pick, cx);
@@ -827,3 +818,7 @@ mod completion_state_tests;
 #[cfg(test)]
 #[path = "autocomplete_routing_tests.rs"]
 mod completion_routing_tests;
+
+#[cfg(test)]
+#[path = "autocomplete_brief_tests.rs"]
+mod completion_brief_tests;

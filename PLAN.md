@@ -5,7 +5,7 @@ Continue the authorized clean-room Rust/gpui work. The primary acceptance ledger
 ## Current ownership
 
 - Root: review branch commits, integrate exact source hunks, run the full main-tree build/test/clippy gate, update records and commit each batch. Completion macro helper/tests remain root-owned.
-- language_menu: completion and inline input routing. Next leaf: bounded UTF-8 field shaping and portable catalog-derived fixture chords.
+- language_menu: completion and inline input routing. Brief-list behavior integrated; next leaf: optional user API loading and manual Function lists. Root owns the pure registry parser.
 - doc_parser: CSV pending-cell Save/close/tab-switch/recovery correctness. Own CSV model/actions and surgical save/close hooks; retain tab UUID across asynchronous operations.
 - undo_readonly: macro playback context batch ready; next leaf: File menu actions backed by existing tab helpers and safe native external launching.
 
@@ -36,3 +36,5 @@ Shared-file edits are surgical, re-read before integration. Agent branches are a
 - 2026-10-10: reviewed bounded inline4ffcf61 integrated;1358 units+1 integration pass,8 ignored;build/clippy pass with warnings reduced199app/211test,195duplicates. Optimized11.2MB preparation improves14-16ms to6-14us; no native-font/paint claim. G12 File actions and G13 macro Undo leaves recorded; brief autocomplete semantics branch active.
 
 - 2026-10-10: macro Undo batch implemented;1367 units+1 integration pass,8 ignored;build/clippy pass with no new touched warnings. G13 met for editing playback, with legacy persisted Undo/Redo timeline compatibility. CSV recovery, File menu and brief-completion leaves remain active.
+
+- 2026-10-10: reviewed brief02ee135 integrated;1375 units+1 integration pass,8 ignored;build/clippy pass with no new touched warnings. Preferences now control row narrowing, retained nonmatches cannot overwrite new text, capped discovery and matching selection remain bounded. API registry/completion implementation begins separately; CSV recovery and File batches ready for review.

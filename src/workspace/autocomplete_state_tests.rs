@@ -6,7 +6,17 @@ use crate::{actions::*, tab::{InputFocus, Tab}};
 const SAMPLE: &str = "anchor android andromeda\nan";
 
 fn with_workspace(text: &str, test: impl FnOnce(&mut Workspace, &mut Window, &mut Context<Workspace>)) {
-    let _settings = crate::settings::override_for_test(crate::settings::Settings::default());
+    with_workspace_mode(text, false, test);
+}
+
+fn with_brief_workspace(text: &str, test: impl FnOnce(&mut Workspace, &mut Window, &mut Context<Workspace>)) {
+    with_workspace_mode(text, true, test);
+}
+
+fn with_workspace_mode(text: &str, brief: bool, test: impl FnOnce(&mut Workspace, &mut Window, &mut Context<Workspace>)) {
+    let _settings = crate::settings::override_for_test(crate::settings::Settings {
+        autocompletion_brief: brief, ..crate::settings::Settings::default()
+    });
     let mut cx = TestAppContext::single();
     let entity = new_workspace(text, &mut cx);
     {
@@ -48,7 +58,7 @@ fn candidates(w: &Workspace) -> Vec<&str> {
 
 #[test]
 fn typing_filters_and_dismisses_unmatched_completion() {
-    with_workspace(SAMPLE, |w, window, cx| {
+    with_brief_workspace(SAMPLE, |w, window, cx| {
         w.autocomplete_nav(2, cx); // Preserve the selected word as rows disappear.
         w.replace_text_in_range(None, "d", window, cx);
         assert_eq!(candidates(w), ["android", "andromeda"]);
@@ -72,7 +82,7 @@ fn backspace_refilters_the_opened_candidate_pool() {
 
 #[test]
 fn committed_ime_text_filters_and_marked_text_cancels_completion() {
-    with_workspace(SAMPLE, |w, window, cx| {
+    with_brief_workspace(SAMPLE, |w, window, cx| {
         w.replace_text_in_range(None, "drom", window, cx);
         assert_eq!(candidates(w), ["andromeda"]);
         w.replace_and_mark_text_in_range(None, "e", None, window, cx);
@@ -223,7 +233,7 @@ fn blur_subscription_dismisses_without_an_editor_command() {
 #[test]
 fn keyboard_navigation_and_acceptance_use_filtered_rows() {
     for tab_key in [false, true] {
-        with_workspace(SAMPLE, |w, window, cx| {
+        with_brief_workspace(SAMPLE, |w, window, cx| {
             let initial_caret = w.selection().head;
             w.move_down(&MoveDown, window, cx);
             assert_eq!(w.selection().head, initial_caret);
@@ -341,7 +351,7 @@ fn backspace_broadens_beyond_the_opening_prefix() {
 fn narrowing_a_capped_pool_discovers_previously_hidden_matches() {
     let words: Vec<String> = (0..70).map(|i| format!("an{i:03}word")).collect();
     let text = format!("{}\nan", words.join(" "));
-    with_workspace(&text, |w, window, cx| {
+    with_brief_workspace(&text, |w, window, cx| {
         assert_eq!(candidates(w).len(), super::MAX_CANDIDATES);
         w.replace_text_in_range(None, "06", window, cx);
         let expected: Vec<&str> = words.iter().skip(60).map(String::as_str).collect();

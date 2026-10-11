@@ -246,6 +246,10 @@ v0.0.5 — current
        A stopped replay keeps earlier edits in one Undo operation. New
        recordings omit Undo/Redo; older saved history events still replay.
 
+   64. Autocomplete brief mode shrinks the rows as you type; ordinary mode
+       retains its rows and follows the current prefix. Selection survives
+       filtering, and a retained nonmatching row cannot overwrite newer text.
+
   v0.1.0 — syntax & language:
 
     1. Tree-sitter syntax highlighting for 25 modes: Rust, Python, C,

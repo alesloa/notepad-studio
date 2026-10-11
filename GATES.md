@@ -3,7 +3,7 @@
 Scope: Continue the requested cross-platform Notepad++ parity audit and fix the reported completion behavior. These gates distinguish tested code from native runtime evidence; unresolved rows remain open.
 
 - [x] G1: Completion placement uses the current visible caret and stays off its text line, with bounded matches and filtering after edits.
-  EVIDENCE: c88a594, 4cae206 and 66c8a9d; actual deferred GPUI bounds/click/wheel tests and bounded candidate/lifecycle regressions. Native appearance is tracked in G8.
+  EVIDENCE: c88a594, 4cae206 and 66c8a9d; actual deferred GPUI bounds/click/wheel tests and bounded candidate/lifecycle regressions. Brief=true shrinks; false keeps rows and tracks live-prefix selection. Reviewed02ee135 adds eight actual-frame/preference/Unicode/capped-discovery/acceptance regressions in the1375-unit gate. Native appearance is tracked in G8.
 
 - [x] G2: Real key routing, preview transitions, deactivation and stale painted callbacks preserve the current completion session and visible editor context.
   EVIDENCE: reviewed 181087cf source integration; 10 new real-Workspace dispatch/session/focus regressions plus existing bounds/lifecycle tests pass in the 1312-unit main gate. Native validation remains G8.
@@ -27,14 +27,14 @@ Scope: Continue the requested cross-platform Notepad++ parity audit and fix the 
   EVIDENCE: pending; current native computer-use transport is unavailable and CUA native surfaces are disabled. Headless GPUI tests are not native screenshots.
 
 - [x] G9: The integrated main tree builds and passes its required unit/integration/clippy checks with no new warnings on touched code.
-  CHECK: powershell -NoProfile -Command "Get-Content log/macro-undo-integration-tests.txt -Tail 16"
-  EXPECT: 1367 passed; 0 failed
-  EVIDENCE: macro Undo batch; cargo build and clippy all-targets passed; 1367 units + 1 integration passed, 8 ignored. Refresh for each source batch.
+  CHECK: powershell -NoProfile -Command "Get-Content log/brief-integration-tests.txt -Tail 16"
+  EXPECT: 1375 passed; 0 failed
+  EVIDENCE: reviewed02ee135 brief-list batch; cargo build and clippy all-targets passed; 1375 units + 1 integration passed, 8 ignored. Refresh for each source batch.
 
 - [x] G10: Completed source batches have separate conventional commits and current change.log/devlog entries; the main working tree is clean before beginning a new batch.
   CHECK: git status --porcelain
   EXPECT: /^$/
-  EVIDENCE: main8106a10 was clean before this macro Undo batch; 63 current-version release notes and a devlog entry accompany it. Refresh after each source batch.
+  EVIDENCE: main4814e74 was clean before this brief-list batch; 64 current-version release notes and a devlog entry accompany it. Refresh after each source batch.
 
 - [x] G11: View > Tab exposes every oracle Tab command in order with rebindable shortcuts; selection/reordering/color commands preserve document UUID, text, encoding/EOL, saved state and history, with edge and pending-cell refusal coverage.
   EVIDENCE: oracle RC789-817 / Commands1304-1412,3532-3537; red missing-menu contract then 7 new menu/actual-dispatch/refusal/edge tests pass. 1332-unit main gate; existing shortcut parity/collision tests cover added rows. Native appearance remains G8.

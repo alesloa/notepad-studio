@@ -429,6 +429,9 @@ v0.0.5 — current
     107. Find All in Current Document now respects a captured text selection
          and keeps document context for regex anchors and word boundaries.
 
+    108. Linux input-method property messages now validate bounded frames and
+         retain unread appended data safely, including long-running sessions.
+
   v0.1.0 — syntax & language:
 
     1. Tree-sitter syntax highlighting for 25 modes: Rust, Python, C,

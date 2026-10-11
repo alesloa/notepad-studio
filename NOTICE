@@ -72,6 +72,11 @@ The X11 input-method client is patched locally under `vendor/xim/`.
     fallible allocation and final-padding validation. Transport 0.2 and
     PropertyNotify modes remain unsupported. No native composition routing
     or generic server transport contract changed.
+    Client transport 0.0 property input validates announced packet lengths
+    before bounded GetProperty requests, preserves checked offsets across
+    APPEND notifications, and bounds pending atoms/backlog. Reply metadata,
+    header length and decoded request consumption are checked before delivery;
+    related errors retire only their property's pending offset.
     Added actual X11 property-transport/parser tests with an in-memory
     connection, and compound-text decoding regressions. The optional
     parser generator is retained to preserve the original manifests.

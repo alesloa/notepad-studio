@@ -53,6 +53,10 @@ mod client_decode_tests;
 mod client_transport;
 #[cfg(feature = "x11rb-client")]
 use client_transport::ClientTransport;
+#[cfg(feature = "x11rb-client")]
+mod client_property;
+#[cfg(feature = "x11rb-client")]
+use client_property::PropertyReceiver;
 
 macro_rules! convert_error {
     ($($ty:ty,)+) => {
@@ -397,6 +401,7 @@ pub struct X11rbClient<C: HasConnection> {
     atoms: Atoms<Atom>,
     transport_max: usize,
     transport: ClientTransport,
+    properties: PropertyReceiver,
     client_window: u32,
     im_attributes: AHashMap<AttributeName, u16>,
     ic_attributes: AHashMap<AttributeName, u16>,
@@ -483,6 +488,7 @@ impl<C: HasConnection> X11rbClient<C> {
                             im_window: x11rb::NONE,
                             transport_max: 20,
                             transport: ClientTransport::default(),
+                            properties: PropertyReceiver::default(),
                             client_window,
                             sequence: 0,
                             buf: Vec::with_capacity(1024),
@@ -580,6 +586,7 @@ impl<C: HasConnection> X11rbClient<C> {
                         Some(self.conn().intern_atom(false, b"_XIM_MOREDATA")?.reply()?.atom)
                     } else { None };
                     self.transport.reset(more_data);
+                    self.properties.clear();
                     self.im_window = im_window;
                     self.transport_max = (max as usize).min(20);
                     self.send_req(Request::Connect {
@@ -604,6 +611,7 @@ impl<C: HasConnection> X11rbClient<C> {
                     && err.bad_value == self.im_window =>
             {
                 self.transport.clear();
+                self.properties.clear();
                 Err(ClientError::NoXimServer)
             }
             _ => Ok(false),
@@ -618,29 +626,37 @@ impl<C: HasConnection> X11rbClient<C> {
         if self.transport.more_data.is_some() {
             if let Some(data) = self.transport.receive(msg, true)? {
                 let req: Request = xim_parser::read(&data)?;
-                if matches!(req, Request::DisconnectReply {}) { self.transport.clear(); }
+                if matches!(req, Request::DisconnectReply {}) {
+                    self.transport.clear();
+                    self.properties.clear();
+                }
                 client_handle_request(self, handler, req)?;
             }
         } else if msg.format == 32 {
             let [length, atom, ..] = msg.data.as_data32();
-            let reply = self
-                .conn()
-                .get_property(true, msg.window, atom, AtomEnum::ANY, 0, length)?
-                .reply()?;
-            // handle fcitx4 occasionally sending empty reply
-            if reply.value_len == 0 {
-                return Err(ClientError::InvalidReply);
-            }
-            let data = reply.value;
-            let req = xim_parser::read(&data)?;
-            client_handle_request(self, handler, req)?;
+            let result = self.handle_property(msg.window, atom, length, handler);
+            if result.is_err() { self.properties.retire(atom); }
+            result?;
         } else if msg.format == 8 {
             let data = msg.data.as_data8();
             let req: xim_parser::Request = xim_parser::read(&data)?;
+            if matches!(req, Request::DisconnectReply {}) { self.properties.clear(); }
             client_handle_request(self, handler, req)?;
         }
 
         Ok(())
+    }
+
+    fn handle_property(
+        &mut self, window: Window, atom: Atom, length: u32,
+        handler: &mut impl ClientHandler<Self>,
+    ) -> Result<(), ClientError> {
+        let offset = self.properties.prepare(atom, length)?;
+        let reply = self.conn().get_property(true, window, atom, AtomEnum::ANY, offset, length / 4)?.reply()?;
+        let req = client_property::validate_reply(&reply, length)?;
+        self.properties.finish(atom, length, reply.bytes_after)?;
+        if matches!(req, Request::DisconnectReply {}) { self.properties.clear(); }
+        client_handle_request(self, handler, req)
     }
 
     fn xconnect(&mut self) -> Result<(), ClientError> {

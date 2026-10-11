@@ -1,6 +1,7 @@
 // Exercise the production X11 property transport, parser and client dispatcher
 // without a display server. The connection supplies only an encoded reply.
 use super::*;
+use core::convert::TryFrom;
 use std::{cell::RefCell, io::IoSlice, vec};
 use x11rb::{
     connection::{BufWithFds, DiscardMode, RawEventAndSeqNumber, ReplyOrError,
@@ -11,10 +12,18 @@ use x11rb::{
     x11_utils::{ExtensionInformation, Serialize, TryParse, TryParseFd, X11Error},
 };
 
+struct SparseProperty { packet: Vec<u8>, repeats: usize, suffix: Vec<u8> }
+
 #[derive(Default)]
 struct WireConnection {
     setup: Setup,
     property: Vec<u8>,
+    dynamic_property: bool,
+    property_store: RefCell<std::collections::HashMap<u32, Vec<u8>>>,
+    deleted_properties: RefCell<Vec<u32>>,
+    property_metadata: Option<(u8, u32, u32)>,
+    property_value_len: Option<u32>,
+    sparse_properties: RefCell<std::collections::HashMap<u32, SparseProperty>>,
     sent: RefCell<Vec<Vec<u8>>>,
     send_attempts: RefCell<usize>,
     reject_send: bool,
@@ -63,11 +72,59 @@ impl RequestConnection for WireConnection {
             return Ok(ReplyOrError::Reply(bytes));
         }
         if *self.reply_opcode.borrow() != 20 { return Err(ConnectionError::UnsupportedExtension); }
-        let length = self.property.len().saturating_add(3) / 4;
-        let reply = GetPropertyReply { format: 8, sequence: 1, length: length as u32, type_: 1,
-            bytes_after: 0, value_len: self.property.len() as u32,
-            value: self.property.clone() };
+        let (value, format, type_, bytes_after) = if self.dynamic_property {
+            let requests = self.with_reply.borrow();
+            let request = requests.last().ok_or(ConnectionError::UnsupportedExtension)?;
+            let field = |start| -> Result<u32, ConnectionError> {
+                let bytes = request.get(start..start + 4).ok_or(ConnectionError::UnsupportedExtension)?;
+                Ok(u32::from_ne_bytes(bytes.try_into().map_err(|_| ConnectionError::UnsupportedExtension)?))
+            };
+            let atom = field(8)?;
+            let start = usize::try_from(field(16)?).map_err(|_| ConnectionError::UnsupportedExtension)?
+                .checked_mul(4).ok_or(ConnectionError::UnsupportedExtension)?;
+            let count = usize::try_from(field(20)?).map_err(|_| ConnectionError::UnsupportedExtension)?
+                .checked_mul(4).ok_or(ConnectionError::UnsupportedExtension)?;
+            let mut properties = self.property_store.borrow_mut();
+            let mut sparse = self.sparse_properties.borrow_mut();
+            if let Some(SparseProperty { packet, repeats, suffix }) = sparse.get(&atom) {
+                let repeated_len = packet.len().checked_mul(*repeats).ok_or(ConnectionError::UnsupportedExtension)?;
+                let total = repeated_len.checked_add(suffix.len()).ok_or(ConnectionError::UnsupportedExtension)?;
+                if start > total { return Err(ConnectionError::UnsupportedExtension); }
+                let end = start.saturating_add(count).min(total);
+                let mut value = Vec::new();
+                for index in start..end {
+                    let byte = if index < repeated_len {
+                        *packet.get(index % packet.len()).ok_or(ConnectionError::UnsupportedExtension)?
+                    } else { *suffix.get(index - repeated_len).ok_or(ConnectionError::UnsupportedExtension)? };
+                    value.push(byte);
+                }
+                let bytes_after = total.saturating_sub(end) as u32;
+                if request.get(1) == Some(&1) && bytes_after == 0 {
+                    sparse.remove(&atom);
+                    self.deleted_properties.borrow_mut().push(atom);
+                }
+                (value, 8, u32::from(AtomEnum::STRING), bytes_after)
+            } else if let Some(property) = properties.get(&atom) {
+                if start > property.len() { return Err(ConnectionError::UnsupportedExtension); }
+                let end = start.saturating_add(count).min(property.len());
+                let value = property.get(start..end).unwrap_or_default().to_vec();
+                let bytes_after = property.len().saturating_sub(end) as u32;
+                if request.get(1) == Some(&1) && bytes_after == 0 {
+                    properties.remove(&atom);
+                    self.deleted_properties.borrow_mut().push(atom);
+                }
+                (value, 8, u32::from(AtomEnum::STRING), bytes_after)
+            } else { (Vec::new(), 0, 0, 0) }
+        } else { (self.property.clone(), 8, u32::from(AtomEnum::STRING), 0) };
+        let (format, type_, bytes_after) = self.property_metadata.unwrap_or((format, type_, bytes_after));
+        let length = value.len().saturating_add(3) / 4;
+        let value_len = if format == 16 || format == 32 { value.len() / usize::from(format / 8) } else { value.len() };
+        let reply = GetPropertyReply { format, sequence: 1, length: length as u32, type_,
+            bytes_after, value_len: value_len as u32, value };
         let mut bytes = reply.serialize();
+        if let Some(value_len) = self.property_value_len {
+            bytes[16..20].copy_from_slice(&value_len.to_ne_bytes());
+        }
         bytes.resize(32 + length * 4, 0);
         Ok(ReplyOrError::Reply(bytes))
     }
@@ -160,7 +217,7 @@ fn client(property: Vec<u8>) -> X11rbClient<WireConnection> {
         server_owner_window: 2, im_window: 3, server_atom: 4,
         atoms: Atoms { XIM_SERVERS: 5, LOCALES: 6, TRANSPORT: 7,
             XIM_XCONNECT: 8, XIM_PROTOCOL: 9 },
-        transport_max: 20, transport: ClientTransport::default(), client_window: 10, im_attributes: Default::default(),
+        transport_max: 20, transport: ClientTransport::default(), properties: PropertyReceiver::default(), client_window: 10, im_attributes: Default::default(),
         ic_attributes: Default::default(), sequence: 0, buf: Vec::new() }
 }
 
@@ -288,11 +345,14 @@ fn reset_handler_error_is_propagated() {
 fn truncated_wire_returns_protocol_error() {
     let mut client = client(vec![65, 0]);
     let mut handler = Handler::default();
-    assert!(matches!(client.filter_event(&event(2), &mut handler), Err(ClientError::ReadProtocol(_))));
+    assert!(matches!(client.filter_event(&event(2), &mut handler), Err(ClientError::InvalidReply)));
     assert!(handler.delivered.is_empty());
+    assert!(client.has_conn.with_reply.borrow().is_empty());
 }
 
 mod commit_tests;
 mod transport_tests;
 
 mod multicm_tests;
+
+mod property_tests;

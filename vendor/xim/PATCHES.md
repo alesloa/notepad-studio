@@ -79,9 +79,9 @@ reserves its CARD16-declared frame fallibly (at most 262,144 bytes), rejects
 early/extra finals and nonzero final padding, and dispatches once after
 completion. Related framing/decoder/handler errors, successful reconnect,
 and disconnect retire pending bytes; unrelated events and successful
-independent outbound activity preserve them. Existing 0.0 property behavior
-and the generic server sender/error bounds remain unchanged. Native editor
-composition origin and bounded/coalesced property input remain separate work.
+independent outbound activity preserve them. The generic server sender/error
+bounds remain unchanged; the property receiver patch below changes client
+0.0 input framing. Native editor composition origin remains separate work.
 
 Actual negotiated wire regressions cover Unicode fragments, callback-before-
 synchronous-ACK ordering, exact 20/40-byte boundaries, middle/final/flush
@@ -89,3 +89,33 @@ errors, maximum frames, refusal without publication, reconnect and clean
 continuation after failure. The ignored release benchmark times a maximum
 valid transport frame with an intentionally unknown protocol opcode; it
 measures reassembly and parser refusal, not native desktop input latency.
+
+Client transport 0.0 property input now lives in the private
+`src/x11rb/client_property.rs` receiver. It validates announced byte lengths
+(4..262,144, four-byte alignment) before requesting exactly the matching
+four-byte units from GetProperty, with a checked per-atom CARD32 offset.
+APPEND packets retain their next offset until delete=true consumes the last
+property byte; deletion resets the entry for reuse. Only atoms with unread
+tails occupy the bounded 256-entry map, reserved fallibly. Current pending
+tails plus an unknown incoming frame are bounded at 64 MiB; already tracked
+frames can drain their backlog without counting the same bytes twice. A full
+map still accepts a new atom whose property is consumed completely.
+
+STRING/format8 metadata, exact value length, remaining-byte alignment, XIM
+header length and decoded Request.size must agree before a callback. The
+padded request size accepts legitimate protocol padding while rejecting a
+known opcode followed by header-announced trailing garbage. A related reply
+or callback error retires only its own atom; valid reconnect/disconnect and
+a server Window error clear all property offsets. The existing 0.1 fragment
+state stays independent and rejects mixed property input before any fetch.
+Transport 0.2 and PropertyNotify modes remain unsupported. No generic sender,
+server, parser/generator, or GPUI composition routing changes are included.
+
+Tests use dynamic and sparse GetProperty stores with real offset/unit/delete
+semantics. They cover ordered variable packets, 256-atom/64-MiB boundaries,
+reply/header/consumption errors, handler errors, lifecycle resets, and a
+continuously appended stream that advances beyond 64 MiB of historical
+traffic while retaining one small tail. The malformed value_len fixture
+serializes a coherent reply before mutating raw metadata; its old baseline
+already refused that case, so it is a positive control rather than a client
+bug reproduction. These wire tests do not exercise a native X11 desktop.

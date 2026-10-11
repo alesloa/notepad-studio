@@ -523,6 +523,13 @@ impl Workspace {
             }
         };
 
+        // Raw search rows carry rope coordinates, never rendered Doc View positions.
+        if self.tabs.get(tab_idx).is_some_and(super::find_view::uses_rich_text) {
+            self.set_status("This result is from Raw View; switch to Raw View to select it");
+            cx.notify();
+            return;
+        }
+
         // Rebuild `find_state.matches` against the newly-active buffer.
         // Without this, the editor's match-highlight overlay would keep the
         // byte ranges computed for the previously-active buffer and paint

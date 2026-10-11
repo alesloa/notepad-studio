@@ -453,6 +453,10 @@ v0.0.5 — current
     115. Opening, reopening and renaming files schedules syntax highlighting
          in background and rejects results from an older tab or edit.
 
+    116. Searches in rich-document Raw View use the raw selection correctly.
+         Switching views clears captured search scopes and prevents raw results
+         from selecting hidden source text in Doc View.
+
   v0.1.0 — syntax & language:
 
     1. Tree-sitter syntax highlighting for 25 modes: Rust, Python, C,

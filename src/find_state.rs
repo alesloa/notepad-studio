@@ -15,6 +15,13 @@ pub(crate) enum DialogTab {
     Mark,
 }
 
+/// Runtime owner of captured selection coordinates; raw and Doc View ranges differ.
+pub(crate) struct FindScopeOwner {
+    pub(crate) tab: uuid::Uuid,
+    pub(crate) instance: std::sync::Arc<()>,
+    pub(crate) view: crate::tab::TabViewMode,
+}
+
 /// State shared by Find and Replace tabs of the dialog. Borrowed across the
 /// active editor tab — query and toggles persist when switching editor tabs,
 /// matches are recomputed against the current buffer.
@@ -57,7 +64,9 @@ pub(crate) struct FindState {
     /// `in_selection` is off, the selection was empty/block at toggle time,
     /// or the user toggled off — in which case refresh_matches falls back
     /// to a full-buffer scan even with the flag on.
+    /// Retired when its tab incarnation or view changes.
     pub(crate) in_selection_scope: Option<Range<usize>>,
+    pub(crate) in_selection_scope_owner: Option<FindScopeOwner>,
     /// Notepad++'s "`. matches newline`" checkbox under the Regular expression
     /// radio. Maps directly onto `regex::RegexBuilder::dot_matches_new_line`
     /// when `regex` is on. UI-only when `regex` is off (we still record the
@@ -103,6 +112,7 @@ impl FindState {
             backward: false,
             in_selection: false,
             in_selection_scope: None,
+            in_selection_scope_owner: None,
             dot_matches_newline: false,
             matches: Vec::new(),
             rich_doc_block_offsets: None,

@@ -372,7 +372,10 @@ fn result_row(
     let click_idx = idx;
     let click_ws = workspace.clone();
 
-    div()
+    let row = div();
+    #[cfg(test)]
+    let row = row.debug_selector(|| format!("fif-result-{idx}"));
+    row
         .flex()
         .flex_row()
         .items_center()

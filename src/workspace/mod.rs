@@ -15,6 +15,7 @@ mod cursor;
 mod tag_match;
 pub(crate) mod edits;
 mod find;
+mod find_view;
 mod find_replacement;
 mod rich_replacement;
 #[cfg(test)]

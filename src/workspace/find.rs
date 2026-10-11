@@ -127,6 +127,7 @@ impl Workspace {
     /// the active buffer. Sets `error` on regex failure and clears `matches`.
     /// Picks the first match at or after the current cursor as `current`.
     pub(crate) fn refresh_matches(&mut self) {
+        self.retire_find_scope_if_view_changed();
         self.cancel_regex_replacement();
         if self.find_state.query.is_empty() {
             self.find_state.matches.clear();
@@ -153,7 +154,8 @@ impl Workspace {
         // sees). Match ranges become byte offsets into the flat text; the
         // per-block offset map is kept on find_state so navigation/replace/
         // highlight can translate them back into TextPos pairs.
-        if let Some(payload) = &self.tabs[self.active].buffer.rich_doc {
+        let Some(tab) = self.tabs.get(self.active) else { return; };
+        if let Some(payload) = tab.buffer.rich_doc.as_ref().filter(|_| super::find_view::uses_rich_text(tab)) {
             let (flat_text, block_offsets) = payload.flat_search_text();
             // In-selection scoping mirrors the source-view branch — when the
             // flag is on and a scope was captured at toggle time, restrict
@@ -683,12 +685,14 @@ impl Workspace {
         let now_on = !self.find_state.in_selection;
         self.find_state.in_selection = now_on;
         if now_on {
+            self.capture_find_scope_owner();
+            let Some(tab) = self.tabs.get(self.active) else { return; };
             // Rich-doc tabs capture the scope in flat-search-text byte
             // coordinates — `refresh_matches`'s rich-doc branch consumes the
             // scope in the same coordinate system. Empty / collapsed
             // selections capture nothing so the branch falls back to a full
             // scan rather than producing zero matches.
-            if let Some(payload) = self.tabs[self.active].buffer.rich_doc.as_ref() {
+            if let Some(payload) = tab.buffer.rich_doc.as_ref().filter(|_| super::find_view::uses_rich_text(tab)) {
                 self.find_state.in_selection_scope = payload.selection.and_then(|sel| {
                     if sel.is_collapsed() {
                         return None;
@@ -703,8 +707,8 @@ impl Workspace {
                 // Source-view: block selection has its own column-aware
                 // semantics — don't capture a scope from it; refresh_matches
                 // falls back to full-buffer scan in that case anyway.
-                let in_block = self.tabs[self.active].block_selection.is_some();
-                let sel = self.tabs[self.active].selection;
+                let in_block = tab.block_selection.is_some();
+                let sel = tab.selection;
                 self.find_state.in_selection_scope = if !in_block && !sel.is_empty() {
                     Some(sel.ordered())
                 } else {
@@ -713,6 +717,7 @@ impl Workspace {
             }
         } else {
             self.find_state.in_selection_scope = None;
+            self.find_state.in_selection_scope_owner = None;
         }
         self.refresh_matches();
         cx.notify();
@@ -918,6 +923,8 @@ impl Workspace {
         };
         self.close_autocomplete(cx);
         self.close_function_hint(cx);
+        if self.find_state.rich_doc_block_offsets.is_some()
+            && !self.tabs.get(self.active).is_some_and(super::find_view::uses_rich_text) { return; }
         if let Some(offsets) = self.find_state.rich_doc_block_offsets.clone() {
             let payload_opt = self.tabs[self.active].buffer.rich_doc.as_ref();
             let (Some(anchor_pos), Some(cursor_pos)) = (
@@ -1160,7 +1167,8 @@ impl Workspace {
         let Some(tab) = self.tabs.get(self.active) else {
             return 0;
         };
-        if let Some(offsets) = self.find_state.rich_doc_block_offsets.as_ref() {
+        if let Some(offsets) = self.find_state.rich_doc_block_offsets.as_ref()
+            .filter(|_| super::find_view::uses_rich_text(tab)) {
             let Some(payload) = tab.buffer.rich_doc.as_ref() else {
                 return 0;
             };
@@ -1212,6 +1220,7 @@ impl Workspace {
         _w: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        self.retire_find_scope_if_view_changed();
         if self.find_state.query.is_empty() {
             self.find_state.status = Some("Enter a query first".to_string());
             cx.notify();
@@ -1226,7 +1235,7 @@ impl Workspace {
         let Some(tab) = self.tabs.get(tab_idx) else { return; };
         let buffer = &tab.buffer;
         let content = buffer.rope.to_string();
-        let scope = if buffer.rich_doc.is_none() && self.find_state.in_selection
+        let scope = if !super::find_view::uses_rich_text(tab) && self.find_state.in_selection
             && tab.block_selection.is_none()
         {
             self.find_state.in_selection_scope.as_ref()
@@ -2352,3 +2361,7 @@ mod all_opened_tests;
 #[cfg(test)]
 #[path = "find_current_tests.rs"]
 mod current_route_tests;
+
+#[cfg(test)]
+#[path="find_rich_source_tests.rs"]
+mod rich_source_tests;

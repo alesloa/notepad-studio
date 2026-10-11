@@ -1358,6 +1358,7 @@ impl Workspace {
         };
         if tab.view_mode != next {
             tab.view_mode = next;
+            self.retire_find_view_state();
             self.retire_source_input();
             self.close_autocomplete(cx);
             self.close_function_hint(cx);

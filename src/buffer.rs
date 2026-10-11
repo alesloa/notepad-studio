@@ -930,13 +930,6 @@ fn undo_op_on(rope: &mut ropey::Rope, op: &mut EditOp) -> bool {
     true
 }
 
-/// `byte` clamped to the rope and moved back to the start of the character
-/// it lands in.
-pub(crate) fn floor_char_boundary(rope: &ropey::Rope, byte: usize) -> usize {
-    let byte = byte.min(rope.len_bytes());
-    rope.char_to_byte(rope.byte_to_char(byte))
-}
-
 /// First non-empty line of the rope, trimmed and truncated to 30 chars
 /// NPP-style. Returns `None` if the rope has no non-empty line. Used by
 /// `display_short_name` / `title_bar_label` when
@@ -1049,7 +1042,6 @@ mod tests {
             UndoEntry::Single(_) => panic!("expected a group"),
         }
     }
-}
 
     fn undo_header(n_entries: u32) -> Vec<u8> {
         let mut bytes = Vec::new();

@@ -1,5 +1,27 @@
 use super::*;
 
+#[test]
+fn foreground_line_work_has_exact_byte_and_physical_boundary_limits() {
+    let exact = format!("{}\r\n", "x".repeat(MAX_FOREGROUND_LINE_BYTES - 2));
+    let rope = Rope::from_str(&exact);
+    for endpoints in [(0, exact.len()), (exact.len(), 0), (1, 1)] {
+        assert!(foreground_line_work_bounded(&rope, selection(endpoints.0, endpoints.1)));
+    }
+    let over = format!("x{exact}");
+    assert!(!foreground_line_work_bounded(&Rope::from_str(&over), selection(0, over.len())));
+    for separator in ['\u{85}', '\u{b}', '\u{c}', '\u{2028}', '\u{2029}'] {
+        let text = format!("{}{}é😀{}tail\r\n", "x".repeat(MAX_FOREGROUND_LINE_BYTES), separator, separator);
+        let at = MAX_FOREGROUND_LINE_BYTES + separator.len_utf8();
+        assert!(!foreground_line_work_bounded(&Rope::from_str(&text), selection(at, at)), "{separator:?}");
+    }
+    let text = format!("\u{feff}é😀\r\n{}\u{2028}tail", "x".repeat(10 * 1024 * 1024));
+    let rope = Rope::from_str(&text);
+    let end = "\u{feff}é😀\r\n".len();
+    assert!(foreground_line_work_bounded(&rope, selection(0, end)));
+    assert!(foreground_line_work_bounded(&rope, selection(end, 0)));
+    assert!(foreground_line_work_bounded(&Rope::new(), selection(usize::MAX, usize::MAX)));
+}
+
 fn selection(anchor: usize, head: usize) -> Selection {
     Selection {
         anchor,

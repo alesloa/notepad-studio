@@ -18,6 +18,7 @@ const MAX_EDIT_BYTES: usize = 32 * 1024 * 1024;
 // prepare a sealed history entry and metadata on the background executor.
 const MAX_LINE_EDITS: usize = 4096;
 const MAX_FOREGROUND_ANNOTATION_VISITS: usize = 16_384;
+const MAX_FOREGROUND_LINE_BYTES: usize = 256 * 1024;
 const MAX_DUPLICATE_BYTES: usize = 128 * 1024 * 1024;
 
 #[derive(Clone, Copy)]
@@ -148,6 +149,32 @@ fn selected_rows(rope: &Rope, selection: Selection) -> usize {
     else { rows }
 }
 
+fn physical_line_start(rope: &Rope, at: usize) -> bool {
+    at == 0 || at.checked_sub(1).and_then(|previous| rope.get_byte(previous)) == Some(b'\n')
+        || (at.checked_sub(1).and_then(|previous| rope.get_byte(previous)) == Some(b'\r')
+            && rope.get_byte(at) != Some(b'\n'))
+}
+
+// Inspect Rope row boundaries without scanning or copying their contents.
+// A Unicode-only boundary can widen line_at far beyond this cheap row span.
+fn foreground_line_work_bounded(rope: &Rope, selection: Selection) -> bool {
+    let ordered = selection.clamped(rope).ordered();
+    let Ok(first) = rope.try_byte_to_line(ordered.start) else { return false; };
+    let Ok(mut last) = rope.try_byte_to_line(ordered.end) else { return false; };
+    let Ok(start) = rope.try_line_to_byte(first) else { return false; };
+    let Ok(last_start) = rope.try_line_to_byte(last) else { return false; };
+    if ordered.end > ordered.start && last_start == ordered.end && physical_line_start(rope, last_start) {
+        last = last.saturating_sub(1);
+    }
+    let end = if last.saturating_add(1) < rope.len_lines() {
+        let Ok(end) = rope.try_line_to_byte(last.saturating_add(1)) else { return false; };
+        end
+    } else { rope.len_bytes() };
+    physical_line_start(rope, start)
+        && (end == rope.len_bytes() || physical_line_start(rope, end))
+        && end.saturating_sub(start) <= MAX_FOREGROUND_LINE_BYTES
+}
+
 fn indent_plan_bounded(rope: &Rope, selection: Selection, tabs: bool, width: usize,
     increase: bool, max_edits: usize, cancel: Option<&AtomicBool>) -> Result<Plan, &'static str>
 {
@@ -161,7 +188,11 @@ fn indent_plan_bounded(rope: &Rope, selection: Selection, tabs: bool, width: usi
         return Err("Select at most 4096 lines to change their indentation");
     }
     let first = line_at(rope, ordered.start);
-    let last = line_at(rope, ordered.end);
+    // An excluded next-line start needs no lookup of that unselected line.
+    // In particular, its Unicode separators must not trigger a large scan.
+    let last = if ordered.end > ordered.start && physical_line_start(rope, ordered.end) {
+        Line { start: ordered.end, body_end: ordered.end, end: ordered.end }
+    } else { line_at(rope, ordered.end) };
     let multiline = first.start != last.start;
     let end = if multiline && last.start == ordered.end {
         ordered.end
@@ -387,6 +418,7 @@ impl Workspace {
                 let annotations = tab.buffer.bookmarks.len().saturating_add(tab.buffer.marks.len());
                 rows > MAX_LINE_EDITS
                     || rows.saturating_mul(annotations) > MAX_FOREGROUND_ANNOTATION_VISITS
+                    || !foreground_line_work_bounded(&tab.buffer.rope, selection)
             }
         {
             if macros::execution_active() || tab.edit_transaction.is_some() {

@@ -380,6 +380,10 @@ v0.0.5 — current
         Invalid or unsupported character designations report an error instead
         of inserting escape markers or silently changing high-byte text.
 
+    94. Indentation also prepares in the background for a few very long
+        lines. Unicode row separators cannot hide expensive line scans, and
+        a short selection skips scanning the next unselected line.
+
   v0.1.0 — syntax & language:
 
     1. Tree-sitter syntax highlighting for 25 modes: Rust, Python, C,

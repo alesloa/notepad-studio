@@ -918,3 +918,101 @@ fn source_escape_closes_find_in_files_before_cancelling_indentation() {
         });
     });
 }
+
+#[test]
+fn long_prefixes_on_few_rows_prepare_before_changing_source() {
+    let row = format!("{}é😀\r\n", " ".repeat(128 * 1024));
+    let text = row.repeat(96);
+    assert!(text.len() > 10 * 1024 * 1024);
+    with_source(&text, |workspace, visual| {
+        let send = hold_action(workspace, visual, crate::actions::EditIncreaseLineIndent);
+        visual.update(|_, cx| {
+            let w = workspace.read(cx);
+            assert!(w.buffer().rope.chars().eq(text.chars()));
+            assert!(w.tabs[0].undo_stack.is_empty());
+        });
+        send.send(()).unwrap();
+        visual.run_until_parked();
+        let expected = format!("    {row}").repeat(96);
+        visual.update(|_, cx| {
+            let w = workspace.read(cx);
+            assert!(w.buffer().rope.chars().eq(expected.chars()));
+            assert_eq!(w.tabs[0].undo_stack.len(), 1);
+            assert!(matches!(w.tabs[0].undo_stack.last(), Some(crate::buffer::UndoEntry::Prepared(_))));
+        });
+        visual.dispatch_action(crate::actions::EditUndo);
+        visual.run_until_parked();
+        visual.update(|_, cx| assert!(workspace.read(cx).buffer().rope.chars().eq(text.chars())));
+        visual.dispatch_action(crate::actions::EditRedo);
+        visual.run_until_parked();
+        visual.update(|_, cx| assert!(workspace.read(cx).buffer().rope.chars().eq(expected.chars())));
+    });
+}
+
+#[test]
+fn unicode_rope_row_inside_long_physical_line_prepares_before_changing_source() {
+    let before = "x".repeat(512 * 1024);
+    let text = format!("{before}\u{2028}é😀\u{2028}{}\r\n", "y".repeat(512 * 1024));
+    with_source(&text, |workspace, visual| {
+        visual.update_window_entity(workspace, |w, _, _| {
+            w.tabs[0].selection.collapse_to(before.len() + '\u{2028}'.len_utf8());
+        });
+        let send = hold_action(workspace, visual, crate::actions::EditIncreaseLineIndent);
+        visual.update(|_, cx| {
+            let w = workspace.read(cx);
+            assert!(w.buffer().rope.chars().eq(text.chars()));
+            assert!(w.tabs[0].undo_stack.is_empty());
+        });
+        send.send(()).unwrap();
+        visual.run_until_parked();
+        visual.update(|_, cx| assert!(workspace.read(cx).buffer().rope.chars().eq(format!("    {text}").chars())));
+        visual.dispatch_action(crate::actions::EditUndo);
+        visual.run_until_parked();
+        visual.update(|_, cx| assert!(workspace.read(cx).buffer().rope.chars().eq(text.chars())));
+    });
+}
+
+#[test]
+fn small_selected_row_before_large_unicode_line_keeps_foreground_history() {
+    let first = "\u{feff}é😀\r\n";
+    let text = format!("{first}{}\u{2028}tail", "x".repeat(10 * 1024 * 1024));
+    with_source(&text, |workspace, visual| {
+        visual.update_window_entity(workspace, |w, window, cx| {
+            w.tabs[0].selection.head = first.len();
+            w.increase_line_indent(&crate::actions::EditIncreaseLineIndent, window, cx);
+            assert!(w.pending_prepared_edit.is_none());
+            assert_eq!(w.tabs[0].undo_stack.len(), 1);
+            assert!(!matches!(w.tabs[0].undo_stack.last(), Some(crate::buffer::UndoEntry::Prepared(_))));
+            assert!(w.buffer().rope.chars().eq(format!("    {text}").chars()));
+        });
+    });
+}
+
+#[test]
+fn few_row_large_prefix_release_comparison() {
+    let Some(samples) = std::env::var("NOTEPAD_STUDIO_INDENT_BYTE_BENCH").ok()
+        .and_then(|s| s.parse::<usize>().ok()).map(|n| n.clamp(1, 12)) else { return; };
+    let row = format!("{}é😀\r\n", " ".repeat(128 * 1024));
+    let text = row.repeat(96);
+    assert!(text.len() > 10 * 1024 * 1024);
+    for _ in 0..samples {
+        with_source(&text, |workspace, visual| {
+            visual.update_window_entity(workspace, |w, window, cx| {
+                let started = std::time::Instant::now();
+                w.increase_line_indent(&crate::actions::EditIncreaseLineIndent, window, cx);
+                println!("few-row-prefix foreground={:.3}ms prepared={}",
+                    started.elapsed().as_secs_f64() * 1000., w.pending_prepared_edit.is_some());
+            });
+            visual.run_until_parked();
+            visual.update(|_, cx| {
+                let w = workspace.read(cx);
+                assert!(w.buffer().rope.chars().eq(format!("    {row}").repeat(96).chars()));
+                if let Some(timing) = w.prepared_timings.last() {
+                    println!("few-row-prefix capture={:.3}ms worker={:.3}ms publish={:.3}ms",
+                        timing.capture.as_secs_f64() * 1000., timing.worker.as_secs_f64() * 1000.,
+                        timing.publish.as_secs_f64() * 1000.);
+                }
+            });
+        });
+    }
+}

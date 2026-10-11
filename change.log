@@ -144,6 +144,9 @@ v0.0.5 — current
    39. Legacy Word documents reject incomplete text ranges and corrupt FAT
        chains with an error instead of opening a truncated or repeated body.
 
+   40. Legacy Word blank paragraphs survive opening and DOCX conversion.
+       Compressed characters now follow Word's documented Unicode mapping.
+
   v0.1.0 — syntax & language:
 
     1. Tree-sitter syntax highlighting for 25 modes: Rust, Python, C,

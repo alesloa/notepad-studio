@@ -289,16 +289,16 @@ fn find_pcdt(clx: &[u8]) -> Result<&[u8]> {
     Err(RichDocError::Doc("no Pcdt found in Clx".into()))
 }
 
-/// A single piece. Word stores text in either UTF-16LE or windows-1252 — the
+/// A single piece. Word stores text in UTF-16LE or compressed Unicode — the
 /// piece descriptor's fc field's bit 30 encodes which (set = compressed
-/// cp1252, clear = wide UTF-16LE).
+/// Unicode, clear = wide UTF-16LE).
 struct Piece {
     /// Number of characters (NOT bytes) this piece contributes.
     char_count: usize,
     /// Byte offset in the WordDocument stream where this piece's encoded
     /// bytes begin.
     byte_offset: usize,
-    /// Whether to decode as compressed cp1252 (1 byte/char) vs UTF-16LE (2).
+    /// Whether to decode as compressed Unicode (1 byte/char) vs UTF-16LE (2).
     is_compressed: bool,
 }
 
@@ -368,11 +368,9 @@ fn decode_piece(word_bytes: &[u8], piece: &Piece, take: usize, out: &mut String)
     out.try_reserve(capacity)
         .map_err(|e| RichDocError::Doc(format!("cannot allocate decoded text: {e}")))?;
     if piece.is_compressed {
-        // Word uses cp1252 for compressed pieces. encoding_rs handles all the
-        // edge cases (Euro at 0x80, etc.).
-        for chunk in slice.chunks(4096) {
-            let (decoded, _, _) = encoding_rs::WINDOWS_1252.decode(chunk);
-            push_clean(out, &decoded);
+        for &byte in slice {
+            let mut utf8 = [0; 4];
+            push_clean(out, compressed_character(byte).encode_utf8(&mut utf8));
         }
     } else {
         let (pairs, _) = slice.as_chunks::<2>();
@@ -383,6 +381,38 @@ fn decode_piece(word_bytes: &[u8], piece: &Piece, take: usize, out: &mut String)
         }
     }
     Ok(())
+}
+
+// MS-DOC 2.9.73 FcCompressed: unlisted bytes retain their Unicode value.
+// https://learn.microsoft.com/en-us/openspecs/office_file_formats/ms-doc/aa2e55a2-f4f2-4795-bab5-6d9d7a0ed249
+fn compressed_character(byte: u8) -> char {
+    match byte {
+        0x82 => '\u{201A}',
+        0x83 => '\u{0192}',
+        0x84 => '\u{201E}',
+        0x85 => '\u{2026}',
+        0x86 => '\u{2020}',
+        0x87 => '\u{2021}',
+        0x88 => '\u{02C6}',
+        0x89 => '\u{2030}',
+        0x8A => '\u{0160}',
+        0x8B => '\u{2039}',
+        0x8C => '\u{0152}',
+        0x91 => '\u{2018}',
+        0x92 => '\u{2019}',
+        0x93 => '\u{201C}',
+        0x94 => '\u{201D}',
+        0x95 => '\u{2022}',
+        0x96 => '\u{2013}',
+        0x97 => '\u{2014}',
+        0x98 => '\u{02DC}',
+        0x99 => '\u{2122}',
+        0x9A => '\u{0161}',
+        0x9B => '\u{203A}',
+        0x9C => '\u{0153}',
+        0x9F => '\u{0178}',
+        _ => char::from(byte),
+    }
 }
 
 /// Strip Word's body-internal control characters that aren't part of normal
@@ -404,22 +434,10 @@ fn push_clean(out: &mut String, s: &str) {
 }
 
 fn split_paragraphs(text: &str) -> Vec<String> {
-    let mut out = Vec::new();
-    for raw in text.split('\r') {
-        let trimmed_nul = raw.trim_end_matches('\0');
-        // Skip empty trailing paragraph that the last \r produces.
-        if trimmed_nul.is_empty() {
-            continue;
-        }
-        out.push(trimmed_nul.to_string());
-    }
-    if out.is_empty() {
-        // Even a zero-paragraph doc gets one empty paragraph so the renderer
-        // has something to draw — otherwise the Doc View is blank and looks
-        // broken.
-        out.push(String::new());
-    }
-    out
+    // MS-DOC 2.3.1: the final CR terminates the last paragraph. Any empty
+    // paragraphs before it, including the last one, are document content.
+    text.strip_suffix('\r').unwrap_or(text).split('\r')
+        .map(|raw| raw.trim_end_matches('\0').to_string()).collect()
 }
 
 // ---------- minimal-docx package builder ----------
@@ -773,14 +791,14 @@ mod tests {
     #[test]
     fn supported_mixed_text_pieces_keep_their_contents() {
         let mut word = vec![0; 32];
-        word[..3].copy_from_slice(b"A\x80\t");
+        word[..3].copy_from_slice(b"A\x99\t");
         let wide: Vec<u8> = "\u{00e9}\u{1f600}\r".encode_utf16().flat_map(u16::to_le_bytes).collect();
         word[8..8 + wide.len()].copy_from_slice(&wide);
         // The final piece belongs to a non-body story and must not be extracted.
         assert_eq!(extract_fixture(&word, &[0, 3, 7, 8], &[0x4000_0000, 8, 0x4000_0020], 7)
-            .expect("mixed pieces"), "A\u{20ac}\t\u{00e9}\u{1f600}\r");
+            .expect("mixed pieces"), "A\u{2122}\t\u{00e9}\u{1f600}\r");
         assert_eq!(extract_fixture(&word, &[0, 3, 6], &[0x4000_0000; 2], 6)
-            .expect("supported overlap"), "A\u{20ac}\tA\u{20ac}\t");
+            .expect("supported overlap"), "A\u{2122}\tA\u{2122}\t");
     }
 
     fn make_doc_bytes(word_size: usize) -> Vec<u8> {
@@ -848,6 +866,59 @@ mod tests {
     fn split_paragraphs_empty_input_yields_one_empty() {
         let r = split_paragraphs("");
         assert_eq!(r, vec![String::new()]);
+    }
+
+    #[test]
+    fn split_paragraphs_preserves_leading_and_trailing_blank_paragraphs() {
+        assert_eq!(split_paragraphs("\rleading\r\rmiddle\r\r"),
+            vec!["", "leading", "", "middle", ""]);
+        assert_eq!(split_paragraphs("\r\r"), vec!["", ""]);
+        assert_eq!(split_paragraphs("alpha\rbravo"), vec!["alpha", "bravo"]);
+    }
+
+    #[test]
+    fn compressed_text_uses_the_ms_doc_unicode_mapping() {
+        // MS-DOC 2.9.73 differs from Windows-1252 at 80, 8E and 9E.
+        let word = b"A\x80\x8E\x9E\x82\x83\x85\x88\x91\x96\x98\x99\xE9\r";
+        assert_eq!(extract_fixture(word, &[0, word.len() as u32], &[0x4000_0000], word.len() as u32)
+            .expect("compressed Unicode"), "A\u{0080}\u{008E}\u{009E}\u{201A}\u{0192}\u{2026}\u{02C6}\u{2018}\u{2013}\u{02DC}\u{2122}\u{00E9}\r");
+    }
+
+    fn paragraph_texts(document: &ast::Document) -> Vec<String> {
+        document.blocks.iter().map(|block| match block {
+            ast::Block::Paragraph { runs, .. } => runs.iter().map(|run| run.text.as_str()).collect(),
+            _ => panic!("fixture must contain paragraphs"),
+        }).collect()
+    }
+
+    #[test]
+    fn native_utf16_blank_paragraphs_survive_open_and_docx_export() {
+        let body = "\r\u{FEFF}\u{00E9}\r\rUTF-16 \u{1F600}\tline\r\r";
+        let units: Vec<u16> = body.encode_utf16().collect();
+        let encoded: Vec<u8> = units.iter().copied().flat_map(u16::to_le_bytes).collect();
+        let original = make_doc_bytes(4096);
+        let mut word = native_read_stream(&original, WORD_DOCUMENT_STREAM).expect("word stream");
+        let table = piece_table(&[0, units.len() as u32], &[0x500]);
+        word[0x004C..0x0050].copy_from_slice(&(units.len() as u32).to_le_bytes());
+        word[0x01A6..0x01AA].copy_from_slice(&(table.len() as u32).to_le_bytes());
+        word[0x500..].fill(0);
+        word[0x500..0x500 + encoded.len()].copy_from_slice(&encoded);
+        let mut compound = cfb::CompoundFile::open(Cursor::new(original)).expect("container");
+        compound.create_stream(WORD_DOCUMENT_STREAM).expect("word stream").write_all(&word).expect("word data");
+        compound.create_stream(TABLE_STREAM_0).expect("table stream").write_all(&table).expect("table data");
+        let bytes = compound.into_inner().into_inner();
+        let dir = crate::persist::TempDir::new("legacy-doc-paragraphs");
+        let source = dir.join("paragraphs.doc");
+        let target = dir.join("paragraphs.docx");
+        std::fs::write(&source, &bytes).expect("fixture");
+        let payload = open(&source).expect("open legacy Word");
+        assert_eq!(payload.raw_view_text, body);
+        let expected = vec!["", "\u{FEFF}\u{00E9}", "", "UTF-16 \u{1F600}\tline", ""];
+        assert_eq!(paragraph_texts(&payload.ast), expected);
+        save_as_docx(&payload, &target).expect("export");
+        let reopened = docx::open(&target).expect("reopen DOCX");
+        assert_eq!(paragraph_texts(&reopened.ast), expected);
+        assert_eq!(std::fs::read(&source).expect("source unchanged"), bytes);
     }
 
     #[test]

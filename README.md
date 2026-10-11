@@ -37,6 +37,9 @@ A lightweight, cross-platform text editor inspired by Notepad++, written in Rust
 > Local English spelling and grammar checking now marks Normal Text and Markdown
 > Source View with wavy underlines and right-click corrections. Links and code
 > are excluded; see [scope and limits](docs/proofreading.md).
+> Save All now includes modified untitled documents with sequential Save As
+> dialogs and an Always Yes confirmation option. Save and close prompts reject
+> replies after the requesting tab is restored or its window accepts closure.
 
 Optional [API completion definitions](docs/api-completion.md) supply language
 names for Function Completion and signatures for parameter hints, including

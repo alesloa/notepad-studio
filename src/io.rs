@@ -1,8 +1,11 @@
 mod save_as_dialog;
+mod save_all;
 #[cfg(test)]
 pub(crate) use save_as_dialog::Override as SaveAsDialogOverrideForTest;
 #[cfg(test)]
 mod save_as_identity_tests;
+#[cfg(test)]
+mod save_all_tests;
 
 // File I/O — open / save / save-as flows plus the async dialog helpers
 // invoked from the close-tab path.
@@ -549,59 +552,11 @@ impl Workspace {
         .detach();
     }
 
-    /// Notepad++ `Ctrl+Shift+S` (Linux/Win), `Cmd+Opt+S` on macOS to leave
-    /// `Cmd+Shift+S` free for the standard Mac Save As. Skips tabs without a
-    /// path silently — the user invokes Save As individually for those.
-    ///
-    /// When `Settings.save_all_confirm` is true (NPP `MISC. ▸ Enable Save
-    /// All confirm dialog`), an OS-native Yes/No prompt fires first; the
-    /// save loop only runs on Yes. The dirty-count is computed up-front so
-    /// the prompt body can name a count.
     pub(crate) fn save_all(&mut self, _: &FileSaveAll, window: &mut Window, cx: &mut Context<Self>) {
-        if !self.commit_csv_drafts_for_save_all(cx) { return; }
-        let prefs = crate::settings::snapshot();
-        if !prefs.save_all_confirm {
-            self.run_save_all(cx);
-            return;
-        }
-
-        let dirty_with_path = self
-            .tabs
-            .iter()
-            .filter(|t| t.buffer.file_path.is_some() && t.buffer.dirty)
-            .count();
-        if dirty_with_path == 0 {
-            // Nothing to save — skip the prompt entirely; matches NPP.
-            self.run_save_all(cx);
-            return;
-        }
-
-        cx.spawn_in(window, async move |this, cx| {
-            let confirm = rfd::AsyncMessageDialog::new()
-                .set_level(rfd::MessageLevel::Info)
-                .set_title(APP_NAME)
-                .set_description(format!(
-                    "Save {dirty_with_path} unsaved file(s)?"
-                ))
-                .set_buttons(rfd::MessageButtons::YesNo)
-                .show()
-                .await;
-            if !matches!(confirm, rfd::MessageDialogResult::Yes) {
-                let _ = this.update(cx, |w, cx| {
-                    w.set_status("Save All cancelled".to_string());
-                    cx.notify();
-                });
-                return;
-            }
-            let _ = this.update(cx, |w, cx| {
-                w.run_save_all(cx);
-            });
-        })
-        .detach();
+        save_all::start(self, window, cx);
     }
 
-    /// The actual save loop — extracted so both the immediate path and the
-    /// post-confirm async path call the same code.
+    /// Commit every pending CSV cell before choosing the dirty documents.
     fn commit_csv_drafts_for_save_all(&mut self, cx: &mut Context<Self>) -> bool {
         let ids: Vec<_> = self.tabs.iter().map(|tab| tab.session_id).collect();
         for id in ids {

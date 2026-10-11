@@ -70,7 +70,7 @@ sha2 = { workspace = true }
 gpui = { path = "vendor/gpui/crates/gpui" }
 ropey = "1.6"
 harper-core = { version = "=0.33.0", default-features = false, features = ["concurrent"] }
-rfd = "0.14"
+rfd = { version = "0.14", features = ["common-controls-v6"] }
 anyhow = "1"
 dirs = "5"
 serde = { version = "1", features = ["derive", "rc"] }

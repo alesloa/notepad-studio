@@ -599,6 +599,10 @@ v0.0.5 — current
     153. Save-before-close and dirty confirmations discard replies after
          their tab is closed and restored or their window accepts closure.
          Live edits to the original tab can still be saved before closing.
+    154. Save All includes modified untitled documents with sequential
+         Save As dialogs. Cancelling one file continues with the others;
+         clean files are untouched. Its confirmation counts all modified
+         documents and offers Always Yes to disable future confirmations.
 
   v0.1.0 — syntax & language:
 

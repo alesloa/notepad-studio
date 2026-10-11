@@ -525,6 +525,10 @@ v0.0.5 — current
          definitions are loaded. Loaded API case rules remain authoritative;
          typing, Backspace and accepting a suggestion use the same policy.
 
+    134. Rich-document search highlighting locates intersecting paragraphs
+         without scanning every paragraph for each match. Cross-paragraph
+         matches and the current-match order stay unchanged.
+
 
   v0.1.0 — syntax & language:
 

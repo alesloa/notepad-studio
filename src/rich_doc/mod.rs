@@ -9,6 +9,7 @@ pub mod doc;
 pub mod docx;
 pub mod edits;
 pub mod import_html;
+mod match_blocks;
 pub mod odt;
 pub mod rtf;
 
@@ -569,17 +570,7 @@ impl RichDocPayload {
         offsets: &[(usize, usize, usize)],
         matches: &[std::ops::Range<usize>],
     ) -> Vec<(usize, usize, usize, usize)> {
-        let mut out = Vec::new();
-        for (mi, m) in matches.iter().enumerate() {
-            for &(block_idx, b_start, b_end) in offsets {
-                let lo = m.start.max(b_start);
-                let hi = m.end.min(b_end);
-                if hi > lo {
-                    out.push((block_idx, lo - b_start, hi - b_start, mi));
-                }
-            }
-        }
-        out
+        match_blocks::project(offsets, matches)
     }
 
     /// Inverse of `pos_from_global_flat` — map a `TextPos` to the global

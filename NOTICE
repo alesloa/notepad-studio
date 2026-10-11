@@ -30,6 +30,10 @@ Modifications made to the vendored sources (per Apache-2.0 section 4(b)):
       - Removed the `reqwest_client` dev-dependency (a non-vendored Zed crate).
         gpui's test suite is not built when gpui is consumed as a path
         dependency, so this has no effect on the library build.
+      - geometry.rs: expressed the const golden-ratio fraction as consecutive
+        Fibonacci terms, preserving its exact f32 value and avoiding a newer
+        standard-library constant requirement. Added application integration
+        checks for the float value and pixel/rem geometry.
 
 No other source modifications were made; the vendored crate sources are
 otherwise unchanged from upstream.

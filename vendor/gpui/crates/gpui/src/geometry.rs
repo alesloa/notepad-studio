@@ -3580,7 +3580,8 @@ pub const fn relative(fraction: f32) -> DefiniteLength {
 
 /// Returns the Golden Ratio, i.e. `~(1.0 + sqrt(5.0)) / 2.0`.
 pub const fn phi() -> DefiniteLength {
-    relative(1.618_034)
+    // Consecutive Fibonacci terms (10946/6765) round to the original f32 value.
+    relative(10_946.0 / 6_765.0)
 }
 
 /// Constructs a `Rems` value representing a length in rems.

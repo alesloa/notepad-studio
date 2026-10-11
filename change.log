@@ -306,6 +306,9 @@ v0.0.5 — current
       and undo are preserved. Indentation currently accepts up to 4096 lines;
       larger selections are refused before editing to keep the UI responsive.
 
+   77. Portable GPUI geometry builds cleanly with newer Rust compilers while
+       preserving the exact pixel and font-relative sizing.
+
   v0.1.0 — syntax & language:
 
     1. Tree-sitter syntax highlighting for 25 modes: Rust, Python, C,

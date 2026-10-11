@@ -22,6 +22,19 @@ pub(super) fn collect_word_candidates_with_environment(
     caret: usize,
     environment: Option<&crate::api_registry::ApiEnvironment>,
 ) -> Vec<String> {
+    collect_word_candidates_with_case(rope, prefix, ignore_numbers, caret, environment, false)
+}
+
+pub(super) fn collect_word_candidates_case_sensitive(
+    rope: &ropey::Rope, prefix: &str, ignore_numbers: bool, caret: usize,
+) -> Vec<String> {
+    collect_word_candidates_with_case(rope, prefix, ignore_numbers, caret, None, true)
+}
+
+fn collect_word_candidates_with_case(
+    rope: &ropey::Rope, prefix: &str, ignore_numbers: bool, caret: usize,
+    environment: Option<&crate::api_registry::ApiEnvironment>, case_sensitive: bool,
+) -> Vec<String> {
     if prefix.len() > MAX_CANDIDATE_BYTES {
         return Vec::new();
     }
@@ -46,7 +59,7 @@ pub(super) fn collect_word_candidates_with_environment(
         if word.len() >= MIN_CANDIDATE_LEN
             && word.len() > prefix.len()
             && environment.map_or_else(
-                || word.to_ascii_lowercase().starts_with(&lower_prefix),
+                || if case_sensitive { word.starts_with(prefix) } else { word.to_ascii_lowercase().starts_with(&lower_prefix) },
                 |env| env.matches_prefix(word, prefix),
             )
             && !(ignore_numbers && word.chars().next().is_some_and(|c| c.is_ascii_digit()))

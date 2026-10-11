@@ -74,6 +74,8 @@ pub(super) enum CandidateKind {
 #[derive(Clone)]
 struct CandidateSource {
     kind: CandidateKind,
+    // AutoCompletion.cpp:485-486: Normal Text without an API scans exact case.
+    fallback_word_case_sensitive: bool,
     ignore_numbers: bool,
     brief: bool,
     api: Option<ApiSnapshot>,
@@ -89,14 +91,16 @@ impl CandidateSource {
     }
 
     fn prefix_key(&self, prefix: &str) -> String {
-        if self.api.as_ref().is_some_and(|api| !api.registry.environment.ignore_case) {
+        if self.api.as_ref().is_some_and(|api| !api.registry.environment.ignore_case)
+            || (self.api.is_none() && self.fallback_word_case_sensitive) {
             prefix.to_owned()
         } else { prefix.to_ascii_lowercase() }
     }
 
     fn matches_prefix(&self, name: &str, prefix: &str) -> bool {
         name.len() > prefix.len() && self.api.as_ref().map_or_else(
-            || matches_prefix(name, prefix), |api| api.registry.environment.matches_prefix(name, prefix),
+            || if self.fallback_word_case_sensitive { name.starts_with(prefix) } else { matches_prefix(name, prefix) },
+            |api| api.registry.environment.matches_prefix(name, prefix),
         )
     }
 
@@ -126,12 +130,14 @@ impl CandidateSource {
     }
 
     fn collect(&self, rope: &ropey::Rope, prefix: &str, caret: usize) -> Vec<String> {
-        let words = || self.api.as_ref().map_or_else(
+        let words = || if self.api.is_none() && self.fallback_word_case_sensitive {
+            candidates::collect_word_candidates_case_sensitive(rope, prefix, self.ignore_numbers, caret)
+        } else { self.api.as_ref().map_or_else(
             || collect_word_candidates(rope, prefix, self.ignore_numbers, caret),
             |api| candidates::collect_word_candidates_with_environment(
                 rope, prefix, self.ignore_numbers, caret, Some(&api.registry.environment),
             ),
-        );
+        ) };
         match self.kind {
             CandidateKind::Word => words(),
             CandidateKind::Function(lang) => self.functions(prefix, lang),
@@ -322,7 +328,8 @@ impl Workspace {
         let caret = self.selection().head;
         let snap = settings::snapshot();
         let source = CandidateSource {
-            kind, ignore_numbers: snap.autocompletion_ignore_numbers, brief: snap.autocompletion_brief,
+            kind, fallback_word_case_sensitive: self.buffer().language.is_none(),
+            ignore_numbers: snap.autocompletion_ignore_numbers, brief: snap.autocompletion_brief,
             api: self.loaded_api_snapshot(self.buffer().language),
         };
         let Some((prefix_start, _, prefix)) = source.prefix_at(&self.buffer().rope, caret) else { return false; };
@@ -704,7 +711,8 @@ impl Workspace {
             settings::AutocompletionMode::FunctionAndWord => CandidateKind::Combined(self.buffer().language),
         };
         let source = CandidateSource {
-            kind, ignore_numbers: snap.autocompletion_ignore_numbers, brief: snap.autocompletion_brief,
+            kind, fallback_word_case_sensitive: self.buffer().language.is_none(),
+            ignore_numbers: snap.autocompletion_ignore_numbers, brief: snap.autocompletion_brief,
             api: self.loaded_api_snapshot(self.buffer().language),
         };
         let caret = self.selection().head;

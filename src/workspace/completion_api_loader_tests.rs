@@ -621,3 +621,24 @@ fn autocomplete_acceptance_actual_api_worker_refuses_preedit_publication_then_co
     visual.update(|_, cx| assert_eq!(workspace.read(cx).buffer().rope.to_string(), "returnApi\nreturn"));
     cx.quit();
 }
+
+#[test]
+fn autocomplete_normal_text_word_api_case_policy_overrides_fallback_after_real_load() {
+    for (case, expected) in [("yes", vec!["anchor", "Android"]), ("no", vec!["anchor"])] {
+        let _settings=crate::settings::override_for_test(crate::settings::Settings { autocompletion_brief: true, ..preferences() });
+        let temp=crate::persist::TempDir::new("api-normal-word-case");
+        std::fs::write(temp.join("normal.xml"), document(&format!("<Environment ignoreCase='{case}'/><KeyWord name='anchor'/>") )).unwrap();
+        let _directory=override_directory_for_test(temp.path().to_owned());
+        let mut cx=TestAppContext::single(); let (workspace, visual)=fixture(&mut cx, "an\nAndroid anchor");
+        visual.update_window_entity(&workspace, |w, _, cx| {
+            w.active_tab_mut().buffer.language=None; w.active_tab_mut().selection.collapse_to(2); cx.notify();
+        }); visual.run_until_parked();
+        press(visual, "EditAutocompleteFunc"); // Real worker loads normal.xml.
+        visual.update(|_, cx| assert_eq!(workspace.read(cx).loaded_api_snapshot(None).unwrap().registry.environment.ignore_case, case=="yes"));
+        visual.simulate_keystrokes("escape"); press(visual, "EditAutocompleteWord");
+        visual.update(|_, cx| assert_eq!(workspace.read(cx).autocomplete.as_ref().unwrap().candidates, expected));
+        visual.simulate_keystrokes("tab");
+        visual.update(|_, cx| assert_eq!(workspace.read(cx).buffer().rope.to_string(), format!("{}\nAndroid anchor", if case=="yes" { "Android" } else { "anchor" })));
+        cx.quit();
+    }
+}

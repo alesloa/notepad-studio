@@ -577,3 +577,114 @@ fn autocomplete_acceptance_manual_after_unmark_keeps_normal_completion() {
 fn autocomplete_acceptance_manual_after_commit_keeps_normal_completion() {
     autocomplete_acceptance_manual_after_preedit(true);
 }
+
+#[test]
+fn autocomplete_boundary_real_unicode_save_accept_and_undo_preserve_encoding_and_crlf() {
+    use crate::text::encoding::Encoding;
+    let _settings=crate::settings::override_for_test(preferences());
+    for encoding in [Encoding::Utf8Bom, Encoding::Utf16Le, Encoding::Utf16Be] {
+        for accept in ["enter", "tab"] {
+            let temp=crate::persist::TempDir::new("completion-unicode-boundary"); let path=temp.join("neutral.txt");
+            let original=crate::text::encoding::encode("😀 caf\r\ncaféine", encoding);
+            std::fs::write(&path, &original).unwrap(); let buffer=crate::io::read_buffer(&path).unwrap();
+            let mut cx=TestAppContext::single(); let (workspace, visual)=fixture(&mut cx);
+            visual.update_window_entity(&workspace, |w, _, cx| {
+                w.close_autocomplete(cx); w.active_tab_mut().buffer=buffer; w.active_tab_mut().selection.collapse_to(8); cx.notify();
+            }); visual.run_until_parked(); press(visual, &["EditAutocompleteWord"]);
+            visual.simulate_input("é");
+            visual.update(|_, cx| { let w=workspace.read(cx); let state=w.autocomplete.as_ref().unwrap(); assert_eq!(state.replace_start, 5); assert_eq!(state.caret, 10); });
+            visual.simulate_keystrokes(accept); press(visual, &["FileSave"]);
+            assert_eq!(std::fs::read(&path).unwrap(), crate::text::encoding::encode("😀 caféine\r\ncaféine", encoding));
+            press(visual, &["EditUndo"]);
+            visual.update(|_, cx| assert_eq!(workspace.read(cx).buffer().rope.to_string(), "😀 café\ncaféine"));
+            press(visual, &["EditUndo", "FileSave"]);
+            assert_eq!(std::fs::read(&path).unwrap(), original); cx.quit();
+        }
+    }
+}
+
+#[test]
+fn autocomplete_boundary_real_unicode_selection_and_tab_switch_refuse_old_row_coordinates() {
+    let _settings=crate::settings::override_for_test(preferences());
+    for action in ["SelectLeft", "TabGoto2"] {
+        let mut cx=TestAppContext::single(); let (workspace, visual)=fixture(&mut cx);
+        visual.update_window_entity(&workspace, |w, _, cx| {
+            w.close_autocomplete(cx); w.active_tab_mut().buffer.rope=ropey::Rope::from_str("😀 café\ncaféine");
+            w.active_tab_mut().selection.collapse_to(10); w.tabs.push(crate::tab::Tab::empty()); cx.notify();
+        }); visual.run_until_parked(); press(visual, &["EditAutocompleteWord"]);
+        let menu=visual.debug_bounds("autocomplete-menu").unwrap();
+        press(visual, &[action]);
+        visual.update(|_, cx| {
+            let w=workspace.read(cx); assert!(w.autocomplete.is_none());
+            if action=="SelectLeft" { assert_eq!(w.selection().ordered(), 8..10); }
+            else { assert_eq!(w.active, 1); }
+        });
+        // Actual click at the old painted position; this does not inject a captured callback.
+        visual.simulate_click(menu.origin+gpui::point(gpui::px(12.),gpui::px(12.)), gpui::Modifiers::none());
+        visual.update(|_, cx| {
+            let w=workspace.read(cx); assert_eq!(w.tabs[0].buffer.rope.to_string(), "😀 café\ncaféine");
+            assert_eq!(w.tabs[1].buffer.rope.to_string(), ""); assert!(w.autocomplete.is_none());
+            assert!(w.tabs.iter().all(|tab| tab.undo_stack.is_empty()));
+        }); cx.quit();
+    }
+}
+
+fn autocomplete_boundary_word_case_scope(language: Option<crate::syntax::LanguageId>, expected: &[&str]) {
+    let _settings=crate::settings::override_for_test(preferences());
+    let mut cx=TestAppContext::single(); let (workspace, visual)=fixture(&mut cx);
+    visual.update_window_entity(&workspace, |w, _, cx| {
+        w.close_autocomplete(cx); w.active_tab_mut().buffer.rope=ropey::Rope::from_str("an\nAndroid anchor");
+        w.active_tab_mut().buffer.language=language; w.active_tab_mut().selection.collapse_to(2); cx.notify();
+    }); visual.run_until_parked(); press(visual, &["EditAutocompleteWord"]);
+    visual.update(|_, cx| {
+        let w=workspace.read(cx); assert!(w.loaded_api_snapshot(language).is_none());
+        assert_eq!(w.autocomplete.as_ref().unwrap().candidates, expected);
+    }); cx.quit();
+}
+#[test]
+fn autocomplete_boundary_normal_text_word_scan_matches_exact_prefix_case_without_api() {
+    // AutoCompletion.cpp:485-486: Normal Text without an active API uses MATCHCASE.
+    autocomplete_boundary_word_case_scope(None, &["anchor"]);
+}
+#[test]
+fn autocomplete_boundary_rust_word_scan_keeps_insensitive_prefix_without_api() {
+    autocomplete_boundary_word_case_scope(Some(crate::syntax::LanguageId::Rust), &["Android", "anchor"]);
+}
+
+#[test]
+fn autocomplete_boundary_normal_text_case_refilter_accept_and_undo() {
+    for (prefix, suffix, expected) in [("an", "c", "anchor"), ("An", "d", "Android")] {
+        let _settings=crate::settings::override_for_test(Settings { autocompletion_brief: true, ..preferences() });
+        let mut cx=TestAppContext::single(); let (workspace, visual)=fixture(&mut cx);
+        let source=format!("{prefix}\nAndroid anchor");
+        visual.update_window_entity(&workspace, |w, _, cx| {
+            w.close_autocomplete(cx); w.active_tab_mut().buffer.rope=ropey::Rope::from_str(&source);
+            w.active_tab_mut().buffer.language=None; w.active_tab_mut().selection.collapse_to(prefix.len()); cx.notify();
+        }); visual.run_until_parked(); press(visual, &["EditAutocompleteWord"]);
+        visual.simulate_input(suffix);
+        visual.update(|_, cx| assert_eq!(workspace.read(cx).autocomplete.as_ref().unwrap().candidates, [expected]));
+        visual.simulate_keystrokes("enter");
+        visual.update(|_, cx| assert_eq!(workspace.read(cx).buffer().rope.to_string(), format!("{expected}\nAndroid anchor")));
+        press(visual, &["EditUndo"]);
+        visual.update(|_, cx| assert_eq!(workspace.read(cx).buffer().rope.to_string(), format!("{prefix}{suffix}\nAndroid anchor")));
+        cx.quit();
+    }
+}
+
+#[test]
+fn autocomplete_boundary_backspace_then_case_change_rechecks_same_opening() {
+    for language in [None, Some(crate::syntax::LanguageId::Rust)] {
+        let _settings=crate::settings::override_for_test(Settings { autocompletion_brief: true, ..preferences() });
+        let mut cx=TestAppContext::single(); let (workspace, visual)=fixture(&mut cx);
+        visual.update_window_entity(&workspace, |w, _, cx| {
+            w.close_autocomplete(cx); w.active_tab_mut().buffer.rope=ropey::Rope::from_str("an\nAndroid anchor");
+            w.active_tab_mut().buffer.language=language; w.active_tab_mut().selection.collapse_to(2); cx.notify();
+        }); visual.run_until_parked(); press(visual, &["EditAutocompleteWord"]);
+        visual.simulate_keystrokes("backspace"); visual.simulate_input("N");
+        visual.update(|_, cx| {
+            let w=workspace.read(cx); assert_eq!(w.buffer().rope.to_string(), "aN\nAndroid anchor");
+            if language.is_none() { assert!(w.autocomplete.is_none()); }
+            else { assert_eq!(w.autocomplete.as_ref().unwrap().candidates, ["Android", "anchor"]); }
+        }); cx.quit();
+    }
+}

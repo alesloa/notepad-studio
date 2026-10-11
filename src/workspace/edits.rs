@@ -1225,16 +1225,16 @@ impl Workspace {
     /// editor (the rope already holds the delimited text). No-ops when the
     /// active tab isn't a CSV file.
     pub(crate) fn set_csv_view_mode(&mut self, preview: bool, cx: &mut Context<Self>) {
-        let path_is_csv = {
-            let tab = &self.tabs[self.active];
-            crate::ui::csv_doc::is_csv_path(tab.buffer.file_path.as_deref())
-        };
-        if !path_is_csv {
+        let Some(tab) = self.tabs.get(self.active) else { return };
+        let recovering = preview && tab.csv_draft.is_some();
+        if !crate::ui::csv_doc::is_csv_path(tab.buffer.file_path.as_deref()) && !recovering {
             return;
         }
         // Commit any pending cell edit before switching modes so the
         // pending value doesn't get lost when the cell input goes away.
-        if !crate::ui::csv_doc::actions::commit_cell_edit(self, cx) { return; }
+        // Opening the grid exposes a lazy recovery draft; it cannot be
+        // committed until ensure_model has restored its editable input.
+        if !recovering && !crate::ui::csv_doc::actions::commit_cell_edit(self, cx) { return; }
         let next = if preview {
             TabViewMode::CsvPreview
         } else {

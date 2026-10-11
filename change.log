@@ -275,6 +275,10 @@ v0.0.5 — current
       during confirmation. Tab-menu commands follow their original document
       after reordering and ignore clicks from closed or replaced menus.
 
+  70. Close confirmations preserve text, document changes and CSV drafts
+      created while the prompt was open. Save refuses unopened recovery drafts
+      without losing them; opening the CSV grid still exposes their text.
+
   v0.1.0 — syntax & language:
 
     1. Tree-sitter syntax highlighting for 25 modes: Rust, Python, C,

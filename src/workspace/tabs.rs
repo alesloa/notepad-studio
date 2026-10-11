@@ -14,6 +14,34 @@ use crate::tab::{CLOSED_TAB_LIMIT, ClosedTab, CloseDecision, Tab};
 use crate::workspace::Workspace;
 use crate::io::{save_tab_for_close, show_dirty_close_dialog};
 
+struct ClosePrompts {
+    #[cfg(test)]
+    responses: Option<close_async_tests::PromptSource>,
+}
+
+impl ClosePrompts {
+    fn capture() -> Self {
+        Self { #[cfg(test)] responses: close_async_tests::prompt_source() }
+    }
+
+    fn confirm(&self, name: String) -> impl std::future::Future<Output = CloseDecision> {
+        #[cfg(test)]
+        let response = self.responses.as_ref().map(|source| {
+            source.lock().ok().and_then(|mut queue| queue.pop_front())
+        });
+        async move {
+            #[cfg(test)]
+            if let Some(response) = response {
+                return match response {
+                    Some(response) => response.await.unwrap_or(CloseDecision::Cancel),
+                    None => CloseDecision::Cancel,
+                };
+            }
+            show_dirty_close_dialog(name).await
+        }
+    }
+}
+
 impl Workspace {
     pub(crate) fn set_active_tab(&mut self, idx: usize, cx: &mut Context<Self>) {
         if idx >= self.tabs.len() || idx == self.active {
@@ -90,27 +118,39 @@ impl Workspace {
 
         // The prompt is not modal: tabs can close or move while it is up, so
         // `idx` goes stale across the await. Re-find the tab by its id.
-        let id = self.tabs[idx].session_id;
-        let name = self.tabs[idx].buffer.display_short_name().to_string();
+        let Some(tab) = self.tabs.get(idx) else { return };
+        let id = tab.session_id;
+        let name = tab.buffer.display_short_name().to_string();
+        let snapshot = DocumentSnapshot::capture(tab);
+        let confirmation = ClosePrompts::capture().confirm(name);
         cx.spawn_in(window, async move |this, cx| {
-            let decision = show_dirty_close_dialog(name).await;
+            let decision = confirmation.await;
             match decision {
                 CloseDecision::Cancel => {}
                 CloseDecision::DontSave => {
-                    this.update_in(cx, |w, window, cx| w.finish_close_id(id, window, cx))
+                    this.update_in(cx, |w, window, cx| {
+                        if let Ok(Some(idx)) = w.close_confirmation_index(id, &snapshot, false, cx) {
+                            w.finish_close(idx, window, cx);
+                        }
+                    })
                         .ok();
                 }
                 CloseDecision::Save => {
                     let Some(idx) = this
-                        .update(cx, |w, _| tab_index_of(&w.tabs, id))
+                        .update(cx, |w, cx| w.close_confirmation_index(id, &snapshot, false, cx))
                         .ok()
+                        .and_then(Result::ok)
                         .flatten()
                     else {
                         return;
                     };
                     let saved = save_tab_for_close(&this, cx, idx).await;
                     this.update_in(cx, |w, window, cx| match saved {
-                        Ok(()) => w.finish_close_id(id, window, cx),
+                        Ok(()) => {
+                            if let Ok(Some(idx)) = w.close_confirmation_index(id, &snapshot, true, cx) {
+                                w.finish_close(idx, window, cx);
+                            }
+                        }
                         Err(err) => {
                             w.set_status(format!("Save failed, keeping tab open: {err}"));
                             cx.notify();
@@ -123,12 +163,27 @@ impl Workspace {
         .detach();
     }
 
-    /// `finish_close` for the tab whose `session_id` is `id`. A no-op when
-    /// that tab is already gone (closed while the dirty prompt was up).
-    fn finish_close_id(&mut self, id: Uuid, window: &mut Window, cx: &mut Context<Self>) {
-        if let Some(idx) = tab_index_of(&self.tabs, id) {
-            self.finish_close(idx, window, cx);
+    fn close_confirmation_index(
+        &mut self, id: Uuid, snapshot: &DocumentSnapshot, saved: bool, cx: &mut Context<Self>,
+    ) -> Result<Option<usize>, ()> {
+        let Some(idx) = tab_index_of(&self.tabs, id) else { return Ok(None) };
+        let Some(tab) = self.tabs.get(idx) else { return Ok(None) };
+        // Cell text can change without advancing the source revision.
+        if tab.csv_draft.is_some() || self.csv_models.get(&id).is_some_and(|model| {
+            model.cell_input.is_some() || model.detached_draft.is_some()
+        }) {
+            self.set_status("Close cancelled: a CSV cell edit started while confirmation was open; commit or cancel it before closing");
+            cx.notify();
+            return Err(());
         }
+        // Save As may legitimately change the path. After a successful save,
+        // close only if no further unsaved content has appeared.
+        if if saved { tab.buffer.dirty || tab.buffer.loading.is_some() } else { !snapshot.matches(tab) } {
+            self.set_status("Close cancelled: document changed while confirmation was open; close again to confirm the current contents");
+            cx.notify();
+            return Err(());
+        }
+        Ok(Some(idx))
     }
 
     /// Remove the tab at `idx`, push it onto the closed-tab stack, and adjust
@@ -257,6 +312,7 @@ impl Workspace {
             return;
         }
         self.close_autocomplete(cx);
+        let prompts = ClosePrompts::capture();
         cx.spawn_in(window, async move |this, cx| {
             for id in targets.into_iter().rev() {
                 let next = this
@@ -265,12 +321,13 @@ impl Workspace {
                         crate::ui::csv_doc::actions::commit_cell_edit_for_tab(w, id, cx)?;
                         let tab = w.tabs.iter().find(|tab| tab.session_id == id).ok_or("tab gone")?;
                         let name = tab.buffer.display_short_name().to_string();
-                        Ok::<_, String>(Some((tab.buffer.dirty, name)))
+                        Ok::<_, String>(Some((tab.buffer.dirty, name, DocumentSnapshot::capture(tab))))
                     });
-                let Some((dirty, name)) = (match next { Ok(Ok(next)) => next, _ => return }) else { continue };
+                let Some((dirty, name, snapshot)) = (match next { Ok(Ok(next)) => next, _ => return }) else { continue };
+                let mut saved = false;
 
                 if dirty {
-                    match show_dirty_close_dialog(name).await {
+                    match prompts.confirm(name).await {
                         CloseDecision::Cancel => {
                             this.update(cx, |w, cx| {
                                 w.set_status("Close cancelled");
@@ -284,12 +341,10 @@ impl Workspace {
                             // Re-find the tab: the strip may have changed
                             // while the (non-modal) prompt was up.
                             let Some(idx) = this
-                                .update(cx, |w, _| tab_index_of(&w.tabs, id))
+                                .update(cx, |w, cx| w.close_confirmation_index(id, &snapshot, false, cx))
                                 .ok()
-                                .flatten()
-                            else {
-                                continue;
-                            };
+                            else { return };
+                            let idx = match idx { Ok(Some(idx)) => idx, Ok(None) => continue, Err(()) => return };
                             if let Err(err) = save_tab_for_close(&this, cx, idx).await {
                                 this.update(cx, |w, cx| {
                                     w.set_status(format!("Close aborted — save failed: {err}"));
@@ -298,13 +353,16 @@ impl Workspace {
                                 .ok();
                                 return;
                             }
+                            saved = true;
                         }
                     }
                 }
 
-                this.update_in(cx, |w, window, cx| {
-                    let Some(idx) = tab_index_of(&w.tabs, id) else {
-                        return;
+                let closed = this.update_in(cx, |w, window, cx| {
+                    let idx = match w.close_confirmation_index(id, &snapshot, saved, cx) {
+                        Ok(Some(idx)) => idx,
+                        Ok(None) => return true,
+                        Err(()) => return false,
                     };
                     let removed = w.tabs.remove(idx);
                     w.remember_closed(removed);
@@ -319,8 +377,10 @@ impl Workspace {
                         w.last_lines.clear();
                         cx.notify();
                     }
+                    true
                 })
-                .ok();
+                .unwrap_or(false);
+                if !closed { return; }
             }
 
             this.update_in(cx, |w, window, cx| {
@@ -540,7 +600,7 @@ impl Workspace {
             return;
         }
         let name = tab.buffer.display_short_name().to_string();
-        let snapshot = ReloadSnapshot::capture(tab);
+        let snapshot = DocumentSnapshot::capture(tab);
         let confirmation = super::file_tab_actions::confirm_reload(name);
         cx.spawn_in(window, async move |this, cx| {
             if confirmation.await {
@@ -558,7 +618,7 @@ impl Workspace {
     fn reload_confirmation_is_current(
         &mut self,
         id: Uuid,
-        snapshot: &ReloadSnapshot,
+        snapshot: &DocumentSnapshot,
         cx: &mut Context<Self>,
     ) -> bool {
         let Some(tab) = self.tabs.iter().find(|tab| tab.session_id == id) else {
@@ -966,7 +1026,7 @@ fn tab_index_of(tabs: &[Tab], id: Uuid) -> Option<usize> {
 }
 
 // Confirmation applies to the captured document, not to later edits or Save As.
-struct ReloadSnapshot {
+struct DocumentSnapshot {
     raw: crate::buffer::ContentRevision,
     rich: Option<crate::buffer::ContentRevision>,
     path: Option<std::path::PathBuf>,
@@ -974,7 +1034,7 @@ struct ReloadSnapshot {
     line_ending: crate::text::line_ending::LineEnding,
 }
 
-impl ReloadSnapshot {
+impl DocumentSnapshot {
     fn capture(tab: &Tab) -> Self {
         Self {
             raw: tab.buffer.raw_revision.clone(),
@@ -1254,3 +1314,7 @@ mod tests {
 #[cfg(test)]
 #[path = "close_batch_tests.rs"]
 mod close_batch_tests;
+
+#[cfg(test)]
+#[path = "close_async_tests.rs"]
+mod close_async_tests;

@@ -5,8 +5,8 @@ Continue the authorized clean-room Rust/gpui work. The primary acceptance ledger
 ## Current ownership
 
 - Root: review branch commits, integrate exact source hunks, run the full main-tree build/test/clippy gate, update records and commit each batch. Pure API registry and call-context helpers remain root-owned.
-- language_menu: completion and inline input routing. Brief-list behavior integrated; next leaf: optional user API loading and manual Function lists. Root owns the pure registry parser.
-- doc_parser: CSV draft recovery integrated; next leaf: clean-grid tab/new/close focus with real rendered keyboard/mouse routes. Own CSV helper/test seams, preserve tabUUID and newer focus.
+- language_menu: completion and inline input routing. Brief-list behavior integrated; API loading/manual Function lists ready for integration; next leaf: parameter hint UI. Root owns the pure registry parser.
+- doc_parser: CSV draft recovery integrated; clean-grid focus integrated and first-character input ready; next leaf: Source/CSV IME composition. Own CSV helper/test seams, preserve tabUUID and newer focus.
 - undo_readonly: File menu commands integrated; context Reload integrated; next leaf: submenu/hover/Rename UUID targets and collision-safe rename.
 
 Shared-file edits are surgical, re-read before integration. Agent branches are applied by commit, excluding conflicting changelog numbering; root gates the combined tree before committing. Rust text changes preserve encoding/EOL, Unicode and read-only behavior. Native runtime evidence is recorded separately from headless TestWindow evidence.
@@ -48,3 +48,5 @@ Shared-file edits are surgical, re-read before integration. Agent branches are a
 - 2026-10-10: reviewed CSV grid focus ed51dbb integrated;1448 units+1 integration pass,8ignored;build/clippy pass with no new touched warnings.22 rendered cases include same-UUID nonCSV SaveAs, inactive/newer-field handoff and refused drafts. Ubuntu24.04/WSL8a1a353 build and1425units+1integration pass separately; native GUI/macOS and later Linux batches remain G8. CSV first-character bridge, context Reload and API completion active.
 
 - 2026-10-10: reviewed context Reload c615c929 integrated;1466 units+1 integration pass,8ignored;build/clippy pass with no new touched warnings.18 actual-handler cases prove recovered/late CSV and rich/source/metadata changes cannot be discarded under an earlier Reload confirmation, and main tab-menu callbacks resolve original tab and popup UUID. Submenu/Rename, CSV grid input, API and async Close guards continue.
+
+- 2026-10-10: async Close batch;1476 units+1 integration pass,8ignored;build/clippy pass with no new touched warnings. Six red data-loss cases now preserve late source/rich/live/lazy/detached CSV and metadata/loading changes; post-save dirty input refuses close. Recovery drafts refuse Save/Close before model construction while Preview can expose them. API/cache and grid-input leaves ready, IME and parameter hints underway; G7/G8 remain open.

@@ -1,12 +1,12 @@
 use gpui::{Entity, TestAppContext, VisualContext, VisualTestContext};
 use crate::{actions::*, settings::Settings, tab::Tab, workspace::Workspace};
 
-fn press(visual: &mut VisualTestContext, id: &str) {
+pub(super) fn press(visual: &mut VisualTestContext, id: &str) {
     let entry = crate::shortcuts::catalog().iter().find(|entry| entry.id == id).unwrap();
     visual.simulate_keystrokes(crate::shortcuts::platform_default_keys(entry)[0]);
 }
 
-fn with_window(count: usize, test: impl FnOnce(&Entity<Workspace>, &mut VisualTestContext, &[uuid::Uuid])) {
+pub(super) fn with_window(count: usize, test: impl FnOnce(&Entity<Workspace>, &mut VisualTestContext, &[uuid::Uuid])) {
     let _settings = crate::settings::override_for_test(Settings {
         toolbar_hidden: true, folder_panel_visible: false, tab_exit_on_last_close: false,
         ..Default::default()

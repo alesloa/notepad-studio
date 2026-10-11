@@ -120,6 +120,7 @@ tree-sitter-xml = "0.7.0"
 tree-sitter-sequel = "0.3.11"
 
 [dev-dependencies]
+futures = { workspace = true }
 gpui = { path = "vendor/gpui/crates/gpui", features = ["test-support"] }
 
 # macOS-only NSPasteboard bridge for reading public.html / public.rtf flavors

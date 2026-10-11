@@ -247,6 +247,9 @@ pub(crate) fn commit_cell_edit_for_tab(w: &mut Workspace, id: Uuid, cx: &mut Con
 
 fn try_commit_cell_edit(w: &mut Workspace, cx: &mut Context<Workspace>) -> Result<(), String> {
     let tab = w.tabs.get(w.active).ok_or("tab gone")?;
+    if tab.csv_draft.is_some() {
+        return Err("Open the recovered CSV grid, copy any needed cell text, then commit or cancel the edit before saving or closing".into());
+    }
     let tab_id = tab.session_id;
     let Some(model) = w.csv_models.get(&tab_id) else { return Ok(()); };
     if let Some(draft) = &model.detached_draft {

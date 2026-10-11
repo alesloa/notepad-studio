@@ -1102,10 +1102,42 @@ impl Workspace {
         replacement: &str,
         cx: &mut Context<Self>,
     ) -> usize {
-        if !self.rich_doc_edit_allowed(cx) {
-            return 0;
+        match self.try_replace_rich_doc_ranges(ranges, replacement, cx) {
+            Ok(count) => count,
+            Err(reason) => { self.report_rich_replace_refusal(reason, cx); 0 }
         }
-        self.with_rich_doc_edit_group(cx, |w, cx| {
+    }
+
+    fn try_replace_rich_doc_ranges(
+        &mut self,
+        ranges: &[Range<usize>],
+        replacement: &str,
+        cx: &mut Context<Self>,
+    ) -> Result<usize, &'static str> {
+        if !self.rich_doc_edit_allowed(cx) {
+            return Ok(0);
+        }
+        // Search omits nontext blocks. Reject their hidden spans before any
+        // edit can remove an intervening table/image or create an Undo entry.
+        if let (Some(payload), Some(offsets)) = (
+            self.tabs.get(self.active).and_then(|tab| tab.buffer.rich_doc.as_ref()),
+            self.find_state.rich_doc_block_offsets.as_ref(),
+        ) {
+            let crosses_barrier = ranges.iter().any(|range| {
+                let (Some(lo), Some(hi)) = (
+                    payload.pos_from_global_flat(offsets.as_slice(), range.start, true),
+                    payload.pos_from_global_flat(offsets.as_slice(), range.end, true),
+                ) else { return false; };
+                payload.ast.blocks.get(lo.block..=hi.block).is_some_and(|blocks| {
+                    blocks.iter().any(|block| matches!(block,
+                        crate::rich_doc::ast::Block::Table { .. } | crate::rich_doc::ast::Block::Image { .. }))
+                })
+            });
+            if crosses_barrier {
+                return Err("A match crosses a table or image; replace within individual paragraphs");
+            }
+        }
+        Ok(self.with_rich_doc_edit_group(cx, |w, cx| {
             let mut replaced = 0usize;
             for range in ranges {
                 if w.replace_rich_doc_range(range.clone(), replacement) {
@@ -1116,7 +1148,14 @@ impl Workspace {
                 w.after_rich_doc_edit(cx);
             }
             replaced
-        })
+        }))
+    }
+
+    fn report_rich_replace_refusal(&mut self, reason: &str, cx: &mut Context<Self>) {
+        let status = format!("Replacement refused: {reason}");
+        self.find_state.status = Some(status.clone());
+        self.set_status(status);
+        cx.notify();
     }
 
     fn step_match(&mut self, forward: bool, cx: &mut Context<Self>) {
@@ -1747,6 +1786,8 @@ impl Workspace {
         let original_active = self.active;
         let mut total_replacements: usize = 0;
         let mut docs_changed: usize = 0;
+        let mut refused_docs = 0usize;
+        let mut refusal = None;
 
         // PowerEditor/src/Notepad_plus.cpp:1277,1313 -- skip read-only buffers.
         for tab_idx in 0..self.tabs.len() {
@@ -1785,7 +1826,14 @@ impl Workspace {
             self.active = tab_idx;
             let replaced = if let Some(offsets) = rich_offsets {
                 self.find_state.rich_doc_block_offsets = Some(crate::find_block_map::FindBlockMap::legacy(offsets));
-                self.replace_rich_doc_ranges(&ranges, &replacement, cx)
+                match self.try_replace_rich_doc_ranges(&ranges, &replacement, cx) {
+                    Ok(count) => count,
+                    Err(reason) => {
+                        refused_docs = refused_docs.saturating_add(1);
+                        refusal = Some(reason);
+                        0
+                    }
+                }
             } else {
                 self.find_state.rich_doc_block_offsets = None;
                 self.begin_edit_group();
@@ -1811,7 +1859,17 @@ impl Workspace {
         // / Replace land on the post-edit state of *this* buffer.
         self.refresh_matches();
 
-        let status = if total_replacements == 0 {
+        let status = if let Some(reason) = refusal {
+            let prefix = if total_replacements == 0 {
+                "No document was changed".to_string()
+            } else {
+                format!("Replaced {total_replacements} occurrence{} across {docs_changed} document{}",
+                    if total_replacements == 1 { "" } else { "s" },
+                    if docs_changed == 1 { "" } else { "s" })
+            };
+            format!("{prefix}; replacement refused in {refused_docs} document{}: {reason}",
+                if refused_docs == 1 { "" } else { "s" })
+        } else if total_replacements == 0 {
             "No matches in any open document".to_string()
         } else {
             format!(
@@ -2429,3 +2487,7 @@ mod result_owner_tests;
 #[cfg(test)]
 #[path = "find_all_opened_rich_tests.rs"]
 mod all_opened_rich_tests;
+
+#[cfg(test)]
+#[path = "find_rich_barrier_tests.rs"]
+mod rich_barrier_tests;

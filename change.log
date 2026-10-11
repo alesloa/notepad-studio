@@ -550,6 +550,10 @@ v0.0.5 — current
          prefixes and manually selected function names, even without the
          original API file. Changed text or editor context still refuses.
 
+    140. Rich-document replacement refuses matches spanning tables or images
+         before changing the document. Valid open siblings still replace;
+         status reports skipped documents and actual replacement counts.
+
   v0.1.0 — syntax & language:
 
     1. Tree-sitter syntax highlighting for 25 modes: Rust, Python, C,

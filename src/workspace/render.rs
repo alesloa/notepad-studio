@@ -30,6 +30,7 @@ use crate::workspace::Workspace;
 
 impl Render for Workspace {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        csv_actions::restore_committed_cell_focus(self, window, cx);
         let theme = self.theme();
         let prefs = crate::settings::snapshot();
         // Sync the OS title bar with the active tab's path (or "new N" label).
@@ -62,7 +63,8 @@ impl Render for Workspace {
         let active_is_rich_doc = active_tab.buffer.is_rich_doc();
         let active_in_rich_doc_view =
             matches!(active_tab.view_mode, crate::tab::TabViewMode::RichDocView);
-        let active_is_csv = is_csv_path(active_tab.buffer.file_path.as_deref());
+        let active_is_csv = is_csv_path(active_tab.buffer.file_path.as_deref()) || active_tab.csv_draft.is_some()
+            || self.csv_models.get(&active_tab.session_id).is_some_and(|model| model.cell_input.is_some());
         let active_in_csv_preview =
             matches!(active_tab.view_mode, crate::tab::TabViewMode::CsvPreview);
         let (

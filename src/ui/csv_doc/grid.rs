@@ -43,6 +43,7 @@ pub(crate) struct CsvGridSnapshot {
     pub(crate) active_cell: Option<(usize, usize)>,
     pub(crate) editing_cell: Option<(usize, usize)>,
     pub(crate) cell_input_handle: Option<FocusHandle>,
+    pub(crate) detached_draft: bool,
     pub(crate) grid_focus: Option<FocusHandle>,
     pub(crate) col_drag: Option<ColDragState>,
     pub(crate) row_drag: Option<RowDragState>,
@@ -97,7 +98,8 @@ impl CsvGridSnapshot {
             headers,
             cells,
             active_cell: model.active_cell,
-            editing_cell: model.editing_cell,
+            editing_cell: if model.draft_needs_strip() { None } else { model.editing_cell },
+            detached_draft: model.draft_needs_strip(),
             cell_input_handle,
             grid_focus,
             col_drag: model.col_drag.clone(),
@@ -150,6 +152,7 @@ pub(crate) fn csv_preview_pane(
     workspace: Entity<Workspace>,
 ) -> AnyElement {
     let grid_focus = snapshot.grid_focus.clone();
+    let draft_strip = recovered_draft_strip(theme, snapshot, workspace.clone());
     if snapshot.col_count == 0 {
         // Empty-schema placeholder. Still tracks the grid focus so
         // Cmd-A / arrows / typed chars don't fall through to the rope
@@ -167,6 +170,7 @@ pub(crate) fn csv_preview_pane(
             wrapper = wrapper.track_focus(handle);
         }
         return wrapper
+            .when_some(draft_strip, |pane, strip| pane.child(strip))
             .child(
                 div()
                     .flex_grow()
@@ -230,7 +234,7 @@ pub(crate) fn csv_preview_pane(
                 .child(header),
         );
 
-    pane.child(header_strip)
+    pane.when_some(draft_strip, |pane, strip| pane.child(strip)).child(header_strip)
         .child(
             div()
                 .id("csv-grid-body")
@@ -268,6 +272,29 @@ pub(crate) fn csv_preview_pane(
         .when_some(find_bar, |p, bar| p.child(bar))
         .child(super::status_bar::csv_status_bar(theme, snapshot))
         .into_any_element()
+}
+
+fn recovered_draft_strip(theme: &Theme, snapshot: &CsvGridSnapshot, workspace: Entity<Workspace>) -> Option<AnyElement> {
+    if !snapshot.detached_draft { return None; }
+    let handle = snapshot.cell_input_handle.clone()?;
+    let cancel = workspace.clone();
+    Some(div().id("csv-recovered-draft").debug_selector(|| "csv-recovered-draft".to_string()).flex().flex_col().flex_shrink_0().w_full()
+        .text_color(rgb(theme.text)).text_size(rems(13. / 16.))
+        .child(div().flex().items_center().justify_between().px(rems(0.5))
+            .child("Recovered cell draft — copy or edit the text before cancelling")
+            .child(div().id("csv-cancel-recovered-draft").cursor(CursorStyle::PointingHand).px(rems(0.5))
+                .child("Cancel draft").on_mouse_down(MouseButton::Left, move |_, window, cx| {
+                    cx.stop_propagation();
+                    cancel.update(cx, |w, cx| {
+                        super::actions::cancel_cell_edit(w, cx);
+                        if let Some(handle) = w.csv_models.get(&w.tabs[w.active].session_id).and_then(|model| model.grid_focus.as_ref()) {
+                            window.focus(handle, cx);
+                        }
+                    });
+                })))
+        .child(div().h(rems(1.75)).w_full().child(cell_input_wrapper(theme, workspace.downgrade(), handle,
+            usize::MAX, usize::MAX, px(0.), px(0.))))
+        .into_any_element())
 }
 
 fn render_header(

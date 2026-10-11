@@ -1022,6 +1022,7 @@ impl EntityInputHandler for Workspace {
                         cx.notify();
                     }
                 }
+                self.schedule_autosave(cx);
             }
             InputFocus::CsvFindBar => {
                 // Find-bar query input — strip newlines / tabs so typed

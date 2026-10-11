@@ -122,10 +122,12 @@ pub(crate) fn cell_input_wrapper(
     // h_full / w_full matches the static cell's sizing.
     div()
         .id(id)
+        .debug_selector(|| "csv-cell-input".to_string())
         .track_focus(&focus_handle)
         .cursor(CursorStyle::IBeam)
         .w_full()
         .h_full()
+        .overflow_hidden()
         .bg(rgb(theme.chrome))
         .border_2()
         .border_color(rgb(theme.link))
@@ -153,6 +155,7 @@ pub(crate) struct CellPrepaint {
     pub(crate) buffer: String,
     pub(crate) cursor: usize,
     pub(crate) anchor: usize,
+    pub(crate) start: usize,
     pub(crate) shaped: Option<gpui::ShapedLine>,
 }
 
@@ -192,7 +195,7 @@ impl gpui::Element for CsvCellInputElement {
     ) -> Self::PrepaintState {
         let workspace = self.workspace.upgrade()?;
         let target = self.target;
-        let (buffer, cursor, anchor) = workspace.read_with(cx, |w, _cx| {
+        let (buffer, cursor, anchor, start) = workspace.read_with(cx, |w, _cx| {
             let tab = &w.tabs[w.active];
             let model = w.csv_models.get(&tab.session_id)?;
             let input = match target {
@@ -200,10 +203,12 @@ impl gpui::Element for CsvCellInputElement {
                 CellInputTarget::FindBar => model.find_input.as_ref()?,
                 CellInputTarget::ReplaceBar => model.replace_input.as_ref()?,
             };
+            let range = cell_display_range(&input.buffer, input.cursor);
             Some((
-                input.buffer.clone(),
-                input.cursor.min(input.buffer.len()),
-                input.anchor.min(input.buffer.len()),
+                input.buffer.get(range.clone()).unwrap_or_default().to_string(),
+                cell_char_boundary(&input.buffer, input.cursor).clamp(range.start, range.end).saturating_sub(range.start),
+                cell_char_boundary(&input.buffer, input.anchor).clamp(range.start, range.end).saturating_sub(range.start),
+                range.start,
             ))
         })?;
 
@@ -234,6 +239,7 @@ impl gpui::Element for CsvCellInputElement {
             buffer,
             cursor,
             anchor,
+            start,
             shaped,
         })
     }
@@ -255,6 +261,7 @@ impl gpui::Element for CsvCellInputElement {
             buffer,
             cursor,
             anchor,
+            start,
             shaped,
         }) = prepaint.as_mut()
         else {
@@ -266,7 +273,11 @@ impl gpui::Element for CsvCellInputElement {
         window.paint_quad(fill(bounds, bg));
 
         let line_height = window.line_height();
-        let text_left = bounds.left() + px(CELL_TEXT_PADDING_X);
+        let caret_x = shaped.as_ref().map_or(px(0.), |line| line.x_for_index((*cursor).min(line.len)));
+        let available = (bounds.size.width - px(CELL_TEXT_PADDING_X * 2.)).max(px(0.));
+        let text_left = bounds.left() + px(CELL_TEXT_PADDING_X) - (caret_x - available).max(px(0.));
+        let display_start = *start;
+        let display_end = display_start.saturating_add(buffer.len());
         let baseline_y = bounds.top() + (bounds.size.height - line_height).max(px(0.)) / 2.0;
 
         let lo = (*cursor).min(*anchor);
@@ -353,7 +364,7 @@ impl gpui::Element for CsvCellInputElement {
             cx.stop_propagation();
             let click_count = event.click_count;
             window.focus(&focus_for_down, cx);
-            let click_x_local = event.position.x - bounds.left() - px(CELL_TEXT_PADDING_X);
+            let click_x_local = event.position.x - text_left;
             ws_for_down.update(cx, |w, cx| {
                 let tab_id = w.tabs[w.active].session_id;
                 let Some(model) = w.csv_models.get_mut(&tab_id) else {
@@ -371,7 +382,7 @@ impl gpui::Element for CsvCellInputElement {
                     input.cursor = input.buffer.len();
                     input.drag_active = false;
                 } else {
-                    let buf_byte = byte_for_x_in_text(&input.buffer, click_x_local, window);
+                    let buf_byte = byte_for_x_in_text(&input.buffer, click_x_local, display_start, display_end, window);
                     input.cursor = buf_byte;
                     input.anchor = buf_byte;
                     input.drag_active = true;
@@ -406,8 +417,8 @@ impl gpui::Element for CsvCellInputElement {
                     return;
                 }
                 let click_x_local =
-                    event.position.x - bounds.left() - px(CELL_TEXT_PADDING_X);
-                let buf_byte = byte_for_x_in_text(&input.buffer, click_x_local, window);
+                    event.position.x - text_left;
+                let buf_byte = byte_for_x_in_text(&input.buffer, click_x_local, display_start, display_end, window);
                 if input.cursor != buf_byte {
                     input.cursor = buf_byte;
                     cx.notify();
@@ -441,12 +452,13 @@ impl gpui::Element for CsvCellInputElement {
 }
 
 /// Map a click x-offset (relative to the text baseline left) to a byte
-/// position inside `text`. Returns 0 on click before the first char,
-/// `len` on click past the end.
-fn byte_for_x_in_text(text: &str, x: Pixels, window: &mut Window) -> usize {
-    if text.is_empty() || x <= px(0.) {
-        return 0;
-    }
+/// position inside the full `text`. Clicks outside the displayed excerpt
+/// land on its start or end.
+fn byte_for_x_in_text(text: &str, x: Pixels, start: usize, end: usize, window: &mut Window) -> usize {
+    let start = cell_char_boundary(text, start);
+    let end = cell_char_boundary(text, end.min(start.saturating_add(MAX_CELL_DISPLAY_BYTES))).max(start);
+    let text = text.get(start..end).unwrap_or_default();
+    if text.is_empty() || x <= px(0.) { return start; }
     let style = window.text_style();
     let font_size = style.font_size.to_pixels(window.rem_size());
     let runs = vec![TextRun {
@@ -464,9 +476,26 @@ fn byte_for_x_in_text(text: &str, x: Pixels, window: &mut Window) -> usize {
         None,
     );
     if x >= line.width {
-        return text.len();
+        return start.saturating_add(text.len());
     }
-    line.index_for_x(x).unwrap_or(text.len())
+    start.saturating_add(line.index_for_x(x).unwrap_or(text.len()))
+}
+
+const MAX_CELL_DISPLAY_BYTES: usize = 4096;
+
+fn cell_char_boundary(text: &str, byte: usize) -> usize {
+    let mut byte = byte.min(text.len());
+    while !text.is_char_boundary(byte) { byte = byte.saturating_sub(1); }
+    byte
+}
+
+/// Keep the entire editable value in the model, shaping only a bounded
+/// excerpt around its caret. IME and copy still use the full value.
+fn cell_display_range(text: &str, cursor: usize) -> std::ops::Range<usize> {
+    let cursor = cell_char_boundary(text, cursor);
+    let start = cell_char_boundary(text, cursor.saturating_sub(MAX_CELL_DISPLAY_BYTES / 2));
+    let end = cell_char_boundary(text, start.saturating_add(MAX_CELL_DISPLAY_BYTES));
+    start..end
 }
 
 /// `shape_line` takes a single line and debug-asserts it holds no `\n`,
@@ -491,6 +520,21 @@ pub(crate) fn default_wrapper_style(theme: &Theme) -> StyleRefinement {
 #[cfg(test)]
 mod tests {
     use super::single_line_display;
+
+    #[test]
+    fn oversized_cell_viewport_is_bounded_and_preserves_unicode_offsets() {
+        let text = "a中😀\r\n".repeat(200_000);
+        for cursor in [0, 1, 2, 4, text.len() / 2, text.len(), usize::MAX] {
+            let range = super::cell_display_range(&text, cursor);
+            assert!(range.len() <= super::MAX_CELL_DISPLAY_BYTES);
+            let clamped = super::cell_char_boundary(&text, cursor);
+            assert!(range.start <= clamped && clamped <= range.end);
+            let slice = text.get(range.clone()).unwrap();
+            assert_eq!(single_line_display(slice).len(), slice.len());
+            assert!(!single_line_display(slice).contains(['\r', '\n']));
+        }
+        assert_eq!(text.len(), "a中😀\r\n".len() * 200_000);
+    }
 
     #[test]
     fn single_line_display_drops_line_breaks_and_keeps_offsets() {

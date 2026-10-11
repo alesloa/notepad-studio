@@ -39,6 +39,8 @@ mod persistence;
 mod rich_backup;
 use persistence::Backup;
 pub(crate) use persistence::{prepare_save, write_prepared};
+#[cfg(test)]
+pub(crate) use persistence::write_csv_fixture;
 pub(crate) use windows::{register_workspace, release_workspace};
 
 // ---- Manifest types --------------------------------------------------------
@@ -71,6 +73,75 @@ pub(crate) struct SessionManifest {
     /// Captured buffers travel with a pending write, never into the TOML file.
     #[serde(skip)]
     pub(super) backups: Vec<std::sync::Arc<Backup>>,
+}
+
+/// An unfinished CSV editor, kept separately from the unmodified raw source.
+#[derive(Default, Serialize, Deserialize, Debug, Clone)]
+pub(crate) struct CsvDraft {
+    #[serde(default, deserialize_with = "draft_coordinate")]
+    pub(crate) row: Option<usize>,
+    #[serde(default, deserialize_with = "draft_coordinate")]
+    pub(crate) col: Option<usize>,
+    #[serde(default)]
+    pub(crate) is_header: bool,
+    #[serde(default)]
+    pub(crate) value: String,
+    #[serde(default)]
+    pub(crate) cursor: usize,
+    #[serde(default)]
+    pub(crate) anchor: usize,
+    #[serde(default)]
+    pub(crate) delimiter: Option<u8>,
+    #[serde(default)]
+    pub(crate) has_header: bool,
+    #[serde(default)]
+    pub(crate) source_matches: bool,
+    #[serde(default, deserialize_with = "draft_backup_id")]
+    pub(crate) backup_id: Option<Uuid>,
+    #[serde(default)]
+    pub(crate) source_digest: Option<String>,
+    #[serde(skip)]
+    pub(crate) refusal: Option<String>,
+}
+
+fn draft_coordinate<'de, D: serde::Deserializer<'de>>(deserializer: D) -> Result<Option<usize>, D::Error> {
+    let value = toml::Value::deserialize(deserializer)?;
+    Ok(value.as_integer().and_then(|value| usize::try_from(value).ok()))
+}
+
+fn draft_backup_id<'de, D: serde::Deserializer<'de>>(deserializer: D) -> Result<Option<Uuid>, D::Error> {
+    let value = toml::Value::deserialize(deserializer)?;
+    Ok(value.as_str().and_then(|value| Uuid::parse_str(value).ok()))
+}
+
+fn draft_entry<'de, D: serde::Deserializer<'de>>(deserializer: D) -> Result<Option<CsvDraft>, D::Error> {
+    let value = toml::Value::deserialize(deserializer)?;
+    let Some(mut table) = value.as_table().cloned() else {
+        return Err(serde::de::Error::custom("CSV recovery draft must be a table"));
+    };
+    let mut invalid = false;
+    for (key, valid) in [
+        ("is_header", table.get("is_header").is_none_or(|v| v.as_bool().is_some())),
+        ("has_header", table.get("has_header").is_none_or(|v| v.as_bool().is_some())),
+        ("source_matches", table.get("source_matches").is_none_or(|v| v.as_bool().is_some())),
+        ("cursor", table.get("cursor").is_none_or(|v| v.as_integer().is_some_and(|v| usize::try_from(v).is_ok()))),
+        ("anchor", table.get("anchor").is_none_or(|v| v.as_integer().is_some_and(|v| usize::try_from(v).is_ok()))),
+        ("delimiter", table.get("delimiter").is_none_or(|v| v.as_integer().is_some_and(|v| u8::try_from(v).is_ok()))),
+        ("source_digest", table.get("source_digest").is_none_or(|v| v.as_str().is_some())),
+    ] {
+        if !valid { table.remove(key); invalid = true; }
+    }
+    if invalid { table.insert("source_matches".into(), toml::Value::Boolean(false)); }
+    toml::Value::Table(table).try_into().map(Some).map_err(serde::de::Error::custom)
+}
+
+pub(crate) fn csv_basis_path_in(dir: &Path, id: Uuid) -> PathBuf {
+    dir.join(format!("{id}.csv-basis"))
+}
+
+pub(crate) fn csv_source_digest(source: &str) -> String {
+    use sha2::Digest;
+    format!("{:x}", sha2::Sha256::digest(source.as_bytes()))
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -137,6 +208,8 @@ pub(crate) struct SessionTab {
     /// manifests don't suddenly all flip into preview.
     #[serde(default)]
     pub(crate) markdown_preview: bool,
+    #[serde(default, deserialize_with = "draft_entry")]
+    pub(crate) csv_draft: Option<CsvDraft>,
 }
 
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -356,6 +429,7 @@ fn recover_unreferenced_baks(mut manifest: SessionManifest, bak_dir: &Path) -> S
             tab_color: None,
             is_changelog: false,
             markdown_preview: false,
+            csv_draft: None,
         });
         labels.push(label);
     }
@@ -450,6 +524,7 @@ pub(crate) fn snapshot_tab_with_policy(tab: &Tab, bak_policy: BakPolicy) -> Sess
         tab_color: buffer.tab_color,
         is_changelog: buffer.is_changelog,
         markdown_preview: matches!(tab.view_mode, crate::tab::TabViewMode::MarkdownPreview),
+        csv_draft: tab.csv_draft.clone(),
     }
 }
 
@@ -548,7 +623,35 @@ fn restore_tab_in(entry: &SessionTab, bak_dir: &Path) -> RestoreOutcome {
     let mut line_ending = entry.line_ending.into_line_ending();
     let mut encoding = entry.encoding.into_encoding();
     let mut lossy = false;
-    let (rope, dirty) = if entry.rich_backup {
+    let mut csv_draft = entry.csv_draft.clone();
+    if let Some(draft) = csv_draft.as_mut() {
+        if entry.rich_backup || file_path.as_deref().is_some_and(|path| !crate::ui::csv_doc::is_csv_path(Some(path))) {
+            draft.source_matches = false;
+            draft.refusal = Some("CSV recovery has an unsupported destination; copy the draft or cancel it, then use Save As for a new file".into());
+            new_label = Some(raw_recovery_label(file_path.as_deref()));
+            file_path = None;
+        }
+    }
+    let csv_source = csv_draft.as_mut().map(|draft| {
+        let verified = draft.backup_id.and_then(|id| fs::read_to_string(csv_basis_path_in(bak_dir, id)).ok())
+            .filter(|source| draft.source_digest.as_ref().is_some_and(|digest| *digest == csv_source_digest(source)));
+        if let Some(source) = verified { return source; }
+        draft.source_matches = false;
+        let reason = "CSV draft source backup is missing or damaged; copy the draft or cancel it before editing the source";
+        draft.refusal = Some(draft.refusal.take().map_or_else(|| reason.into(), |previous| format!("{previous}; {reason}")));
+        if let Some(source) = read_bak_in(bak_dir, entry.id) { return source; }
+        if let Some(file) = entry.path.as_deref().filter(|path| crate::ui::csv_doc::is_csv_path(Some(path)))
+            .and_then(|path| read_clean_file(path).ok()) {
+            line_ending = file.line_ending;
+            encoding = file.encoding;
+            lossy = file.lossy;
+            return file.rope.to_string();
+        }
+        String::new()
+    });
+    let (rope, dirty) = if let Some(source) = csv_source {
+        (ropey::Rope::from_str(&source), true)
+    } else if entry.rich_backup {
         match rich_backup::read(&rich_backup::path_in(bak_dir, entry.id)) {
             Ok((mut payload, mut source)) => {
                 // A damaged manifest must not attach one native format to
@@ -669,6 +772,10 @@ fn restore_tab_in(entry: &SessionTab, bak_dir: &Path) -> RestoreOutcome {
     // Preserve the tab's identity across launches so autosave keeps writing
     // to the same `.bak` after restore.
     tab.session_id = entry.id;
+    if csv_draft.is_some() {
+        tab.view_mode = crate::tab::TabViewMode::CsvPreview;
+        tab.csv_draft = csv_draft;
+    }
 
     // The file may be shorter, or different, than when the caret was saved.
     let rope = &tab.buffer.rope;
@@ -695,6 +802,9 @@ fn restore_tab_in(entry: &SessionTab, bak_dir: &Path) -> RestoreOutcome {
 
     RestoreOutcome::Restored(tab)
 }
+
+#[cfg(test)]
+pub(crate) fn restore_csv_fixture(entry: &SessionTab, dir: &Path) -> RestoreOutcome { restore_tab_in(entry, dir) }
 
 /// A saved scroll offset, or 0 for a negative, NaN or infinite one from a
 /// damaged or hand-edited manifest.
@@ -868,6 +978,7 @@ fn tab_is_persistable(tab: &Tab) -> bool {
 
 /// Capture the workspace's full state into a `SessionManifest`. Pure read —
 /// caller decides whether to write it to disk.
+#[cfg(test)]
 pub(crate) fn snapshot_workspace_with_policy(
     tabs: &[Tab],
     active: usize,
@@ -878,20 +989,43 @@ pub(crate) fn snapshot_workspace_with_policy(
     mru: &[Uuid],
     bak_policy: BakPolicy,
 ) -> SessionManifest {
+    snapshot_workspace_with_csv_drafts(tabs, active, closed_tabs, SessionView { theme, show_whitespace, word_wrap }, mru, bak_policy, std::collections::HashMap::new())
+}
+
+pub(crate) struct SessionView {
+    pub(crate) theme: ThemeMode,
+    pub(crate) show_whitespace: bool,
+    pub(crate) word_wrap: bool,
+}
+
+pub(crate) fn snapshot_workspace_with_csv_drafts(
+    tabs: &[Tab], active: usize, closed_tabs: &[ClosedTab], view: SessionView,
+    mru: &[Uuid], bak_policy: BakPolicy, mut drafts: std::collections::HashMap<Uuid, CsvDraft>,
+) -> SessionManifest {
     // Find which tabs we'll keep AND remap `active` so it still points at the
     // user's current tab after the filter drops untitled-and-clean ones.
     let mut tab_entries: Vec<SessionTab> = Vec::with_capacity(tabs.len());
     let mut new_active = 0usize;
     let mut backups = Vec::new();
     for (idx, tab) in tabs.iter().enumerate() {
-        if !tab_is_persistable(tab) {
+        let draft = drafts.remove(&tab.session_id).or_else(|| tab.csv_draft.clone());
+        if !tab_is_persistable(tab) && draft.is_none() {
             continue;
         }
         if idx == active {
             new_active = tab_entries.len();
         }
-        tab_entries.push(snapshot_tab_with_policy(tab, bak_policy));
-        backups.push(std::sync::Arc::new(Backup::capture(tab, bak_policy)));
+        let mut entry = snapshot_tab_with_policy(tab, bak_policy);
+        if let Some(mut draft) = draft {
+            draft.backup_id = Some(Uuid::new_v4());
+            draft.source_digest = None; // Filled by the background writer.
+            entry.csv_draft = Some(draft);
+            entry.dirty = true;
+            backups.push(std::sync::Arc::new(Backup::raw(tab)));
+        } else {
+            backups.push(std::sync::Arc::new(Backup::capture(tab, bak_policy)));
+        }
+        tab_entries.push(entry);
     }
 
     // Filter the MRU to only ids that survived the persistability filter,
@@ -908,9 +1042,9 @@ pub(crate) fn snapshot_workspace_with_policy(
 
     backups.extend(closed_tabs.iter().map(|closed| std::sync::Arc::new(Backup::closed(closed))));
     SessionManifest {
-        theme: Some(theme),
-        show_whitespace,
-        word_wrap,
+        theme: Some(view.theme),
+        show_whitespace: view.show_whitespace,
+        word_wrap: view.word_wrap,
         active: new_active,
         tabs: tab_entries,
         closed_tabs: closed_tabs.iter().map(snapshot_closed_tab).collect(),
@@ -1075,6 +1209,7 @@ mod tests {
             tab_color: None,
             is_changelog: false,
             markdown_preview: false,
+            csv_draft: None,
         }
     }
 

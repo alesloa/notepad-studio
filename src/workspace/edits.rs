@@ -286,6 +286,7 @@ impl Workspace {
                     crate::clipboard_history::record_copy(&text);
                     cx.write_to_clipboard(ClipboardItem::new_string(text));
                     self.input_replace_selection(window, "");
+                    if focus == InputFocus::CsvCell { self.schedule_autosave(cx); }
                     cx.notify();
                 }
             }
@@ -375,6 +376,7 @@ impl Workspace {
             // clipboard payload doesn't break the dialog layout.
             let single_line: String = text.chars().filter(|c| *c != '\n' && *c != '\r').collect();
             self.input_replace_selection(window, &single_line);
+            if focus == InputFocus::CsvCell { self.schedule_autosave(cx); }
             cx.notify();
             return;
         }
@@ -544,6 +546,7 @@ impl Workspace {
         }
         if focus != InputFocus::Editor {
             self.input_backspace(window);
+            if focus == InputFocus::CsvCell { self.schedule_autosave(cx); }
             cx.notify();
             return;
         }
@@ -591,6 +594,7 @@ impl Workspace {
         }
         if focus != InputFocus::Editor {
             self.input_delete(window);
+            if focus == InputFocus::CsvCell { self.schedule_autosave(cx); }
             cx.notify();
             return;
         }

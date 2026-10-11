@@ -42,6 +42,8 @@ pub(crate) struct Tab {
     /// `MarkdownPreview` swaps in the rendered markdown view (toolbar
     /// toggle, only enabled when the tab's file extension is `.md`).
     pub(crate) view_mode: TabViewMode,
+    /// Recovered inline text awaiting the grid's lazy construction.
+    pub(crate) csv_draft: Option<crate::session::CsvDraft>,
 }
 
 /// How a tab is currently being displayed. Per-tab so toggling preview on
@@ -75,6 +77,7 @@ impl Tab {
             wrap_cache: None,
             begin_select_marker: None,
             view_mode: TabViewMode::Edit,
+            csv_draft: None,
         }
     }
 
@@ -108,6 +111,7 @@ impl Tab {
             wrap_cache: None,
             begin_select_marker: None,
             view_mode: TabViewMode::Edit,
+            csv_draft: None,
         }
     }
 }

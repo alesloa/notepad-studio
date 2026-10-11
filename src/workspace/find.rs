@@ -503,6 +503,13 @@ impl Workspace {
             crate::ui::csv_doc::actions::close_find_bar(self, window, cx);
             return;
         }
+        if self.input_focus(window) == InputFocus::CsvCell {
+            crate::ui::csv_doc::actions::cancel_cell_edit(self, cx);
+            if let Some(handle) = self.csv_models.get(&self.tabs[self.active].session_id).and_then(|model| model.grid_focus.as_ref()) {
+                window.focus(handle, cx);
+            }
+            return;
+        }
         // CSV grid focus: cancel in-flight drag / resize first, then
         // clear axis selection, then the active-cell highlight. Each
         // tier consumes the Esc on its own so the user can dismiss the

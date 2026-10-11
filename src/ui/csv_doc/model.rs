@@ -231,6 +231,10 @@ impl CsvCellInput {
 }
 
 pub(crate) struct CsvModel {
+    /// A recovered editor whose coordinates or source cannot be trusted.
+    pub(crate) detached_draft: Option<crate::session::CsvDraft>,
+    /// Hold a committed editor until render can hand its focus to the visible view.
+    pub(crate) retired_cell_focus: Option<gpui::FocusHandle>,
     /// Header row — extracted from row 0 when `has_header` is true, or an
     /// empty vec (column count derived from the first data row) otherwise.
     pub(crate) headers: Vec<String>,
@@ -380,6 +384,8 @@ pub(crate) struct CsvModel {
 impl CsvModel {
     pub(crate) fn empty(delimiter: u8) -> Self {
         Self {
+            detached_draft: None,
+            retired_cell_focus: None,
             headers: Vec::new(),
             rows: Vec::new(),
             col_widths: Vec::new(),
@@ -1930,8 +1936,6 @@ impl CsvModel {
         self.source_version = self.source_version.wrapping_add(1).max(1);
     }
 
-    /// Serialize the model back to a CSV string using the current
-    /// delimiter and the detected line terminator. Preserves BOM and the
     // ---- AutoFilter ------------------------------------------------------
     //
     // Filtering is purely a render-time concern. `rows` keeps the full
@@ -2145,6 +2149,34 @@ impl CsvModel {
         self.col_filters = new_map;
     }
 
+    /// Capture editor text separately from the raw source.
+    pub(crate) fn pending_draft(&self, revision: &crate::buffer::ContentRevision) -> Option<crate::session::CsvDraft> {
+        let input = self.cell_input.as_ref()?;
+        let mut draft = if let Some(draft) = &self.detached_draft { draft.clone() } else {
+            let (row, col) = self.editing_cell.unwrap_or((usize::MAX, usize::MAX));
+            let value = if row == usize::MAX { self.header(col) } else { self.cell(row, col) };
+            if !self.draft_needs_strip() && value == input.buffer { return None; }
+            crate::session::CsvDraft {
+                row: if row == usize::MAX { None } else { self.row_order.get(row).copied() },
+                col: self.col_order.get(col).copied(), is_header: row == usize::MAX,
+                delimiter: Some(self.delimiter), has_header: self.has_header,
+                source_matches: self.source_state.as_ref().is_some_and(|source| source.revision == *revision),
+                ..Default::default()
+            }
+        };
+        draft.value = input.buffer.clone();
+        draft.cursor = input.cursor;
+        draft.anchor = input.anchor;
+        Some(draft)
+    }
+
+    pub(crate) fn draft_needs_strip(&self) -> bool {
+        self.cell_input.is_some() && (self.detached_draft.is_some() || self.editing_cell.is_none_or(|(row, col)| {
+            col >= self.col_count() || (row != usize::MAX && row >= self.row_count()) || (row == usize::MAX && !self.has_header)
+        }))
+    }
+
+    /// Serialize the current grid using the delimiter, quoting and
     /// trailing-newline convention from the original source. Called on
     /// every cell commit / reorder / structural edit; the result is fed
     /// into a single `replace_byte_range(0..len, …)` against the active

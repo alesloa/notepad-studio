@@ -1665,3 +1665,7 @@ mod tests {
 #[cfg(test)]
 #[path = "ui/csv_doc/pending_tests.rs"]
 mod csv_pending_tests;
+
+#[cfg(test)]
+#[path = "ui/csv_doc/recovery_tests.rs"]
+mod csv_recovery_tests;

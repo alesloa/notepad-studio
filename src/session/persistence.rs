@@ -36,6 +36,10 @@ impl Backup {
         }
     }
 
+    pub(super) fn raw(tab: &Tab) -> Self {
+        Self::Write { id: tab.session_id, rope: tab.buffer.rope.clone(), undo: tab.undo_stack.clone(), rich: None }
+    }
+
     pub(super) fn closed(tab: &ClosedTab) -> Self {
         Self::Write { id: tab.session_id, rope: tab.buffer.rope.clone(), undo: Vec::new(),
             rich: tab.buffer.rich_doc.as_ref().map(super::rich_backup::Capture::new) }
@@ -90,10 +94,12 @@ pub(crate) fn prepare_save(window_id: Uuid, manifest: SessionManifest, policy: B
 struct Writer {
     committed: u128,
     written_backups: BTreeMap<Uuid, Arc<Backup>>,
+    #[cfg(test)]
+    fail_before_publish: bool,
 }
 
 impl Writer {
-    fn write_at(&mut self, pending: PendingSave, path: &Path, dir: &Path) -> io::Result<()> {
+    fn write_at(&mut self, mut pending: PendingSave, path: &Path, dir: &Path) -> io::Result<()> {
         // Every job contains all windows' captured backups. A newer job may
         // finish first; an older one must then leave both bytes and metadata alone.
         if pending.generation < self.committed { return Ok(()); }
@@ -110,8 +116,29 @@ impl Writer {
             backup.write_at(dir)?;
             self.written_backups.insert(id, backup.clone());
         }
+        for tab in &mut pending.manifest.tabs {
+            let Some(draft) = tab.csv_draft.as_mut() else { continue; };
+            let id = draft.backup_id.ok_or_else(|| io::Error::other("CSV recovery is missing its source backup identity"))?;
+            let backup = pending.manifest.backups.iter().find(|backup| backup.id() == tab.id)
+                .ok_or_else(|| io::Error::other("CSV recovery is missing its captured source"))?;
+            let Backup::Write { rope, .. } = backup.as_ref() else {
+                return Err(io::Error::other("CSV recovery source was not captured"));
+            };
+            let source = rope.to_string();
+            let digest = super::csv_source_digest(&source);
+            let basis_path = super::csv_basis_path_in(dir, id);
+            match std::fs::read(&basis_path) {
+                Ok(previous) if previous == source.as_bytes() => {}
+                Ok(_) => return Err(io::Error::other("CSV recovery source identity already holds different bytes")),
+                Err(err) if err.kind() == io::ErrorKind::NotFound => crate::persist::atomic_write(&basis_path, source.as_bytes())?,
+                Err(err) => return Err(err),
+            }
+            draft.source_digest = Some(digest);
+        }
         // Publishing the manifest first ensures a failed write cannot prune
         // files still owned by the preceding on-disk session.
+        #[cfg(test)]
+        if self.fail_before_publish { return Err(io::Error::other("injected manifest publication failure")); }
         super::write_manifest_at(&pending.manifest, path)?;
         self.committed = pending.generation;
         for backup in &pending.manifest.backups {
@@ -125,6 +152,16 @@ impl Writer {
             }
         }
         if pending.reap {
+            let bases: std::collections::BTreeSet<Uuid> = pending.manifest.tabs.iter()
+                .filter_map(|tab| tab.csv_draft.as_ref().and_then(|draft| draft.backup_id)).collect();
+            if let Ok(entries) = std::fs::read_dir(dir) {
+                for entry in entries.flatten() {
+                    let path = entry.path();
+                    if path.extension().and_then(|ext| ext.to_str()) != Some("csv-basis") { continue; }
+                    let Some(id) = path.file_stem().and_then(|stem| stem.to_str()).and_then(|stem| Uuid::parse_str(stem).ok()) else { continue; };
+                    if !bases.contains(&id) { remove_if_present(&path)?; }
+                }
+            }
             super::reap_orphan_baks_at(&pending.manifest, dir);
             let referenced: std::collections::BTreeSet<Uuid> = pending.manifest.tabs.iter().map(|tab| tab.id)
                 .chain(pending.manifest.closed_tabs.iter().map(|tab| tab.id)).collect();
@@ -134,7 +171,11 @@ impl Writer {
     }
 }
 
-static WRITER: Mutex<Writer> = Mutex::new(Writer { committed: 0, written_backups: BTreeMap::new() });
+static WRITER: Mutex<Writer> = Mutex::new(Writer {
+    committed: 0, written_backups: BTreeMap::new(),
+    #[cfg(test)]
+    fail_before_publish: false,
+});
 
 pub(crate) fn write_prepared(pending: PendingSave) -> io::Result<()> {
     let (Some(path), Some(dir)) = (manifest_path(), bak_dir()) else {
@@ -142,6 +183,11 @@ pub(crate) fn write_prepared(pending: PendingSave) -> io::Result<()> {
     };
     let mut writer = WRITER.lock().map_err(|_| io::Error::other("session writer lock is poisoned"))?;
     writer.write_at(pending, &path, &dir)
+}
+
+#[cfg(test)]
+pub(crate) fn write_csv_fixture(manifest: SessionManifest, path: &Path, dir: &Path) -> io::Result<()> {
+    Writer::default().write_at(PendingSave { generation: 1, manifest, reap: true }, path, dir)
 }
 
 #[cfg(test)]
@@ -166,6 +212,44 @@ mod tests {
     }
 
     #[test]
+    fn csv_basis_survives_raw_replacement_then_backup_or_manifest_failure() {
+        for fail_manifest in [false, true] {
+            let dir = TempDir::new("csv-basis-failure");
+            let path = dir.join("session.toml");
+            let mut tab = draft("h\noriginal\n");
+            tab.csv_draft = Some(super::super::CsvDraft {
+                row: Some(0), col: Some(0), value: "old draft 中😀".into(),
+                delimiter: Some(b','), has_header: true, source_matches: true, ..Default::default()
+            });
+            let id = tab.session_id;
+            let mut writer = Writer::default();
+            writer.write_at(pending(1, std::slice::from_ref(&tab)), &path, dir.path()).unwrap();
+            let previous = std::fs::read(&path).unwrap();
+            let manifest: SessionManifest = toml::from_str(std::str::from_utf8(&previous).unwrap()).unwrap();
+            let entry = &manifest.tabs[0];
+            let basis = super::super::csv_basis_path_in(dir.path(), entry.csv_draft.as_ref().unwrap().backup_id.unwrap());
+            let old_basis = std::fs::read(&basis).unwrap();
+            tab.buffer.rope = ropey::Rope::from_str("h\nnewer raw source\n");
+            tab.csv_draft.as_mut().unwrap().value = "newer draft".into();
+            let mut next = vec![tab];
+            if fail_manifest { writer.fail_before_publish = true; }
+            else {
+                next.push(draft("blocked backup"));
+                std::fs::create_dir(bak_path_in(dir.path(), next[1].session_id)).unwrap();
+            }
+            assert!(writer.write_at(pending(2, &next), &path, dir.path()).is_err());
+            assert_eq!(std::fs::read(&path).unwrap(), previous);
+            assert_eq!(std::fs::read(&basis).unwrap(), old_basis);
+            assert_eq!(std::fs::read_to_string(bak_path_in(dir.path(), id)).unwrap(), "h\nnewer raw source\n");
+            let super::super::RestoreOutcome::Restored(restored) = super::super::restore_tab_in(entry, dir.path()) else { panic!("lost draft"); };
+            assert_eq!(restored.buffer.rope.to_string(), "h\noriginal\n");
+            assert_eq!(restored.csv_draft.as_ref().unwrap().value, "old draft 中😀");
+            assert!(restored.csv_draft.as_ref().unwrap().source_matches);
+            assert_eq!(writer.committed, 1);
+        }
+    }
+
+    #[test]
     #[ignore = "release timing on a draft above the streaming threshold"]
     fn large_session_capture_timing() {
         let dir = TempDir::new("session-capture-timing");
@@ -182,6 +266,20 @@ mod tests {
         let capture = started.elapsed();
         for job in jobs { writer.write_at(job, &path, dir.path()).expect("worker write"); }
         println!("11 MiB draft, five full synchronous captures/writes: {synchronous:?}; five UI captures: {capture:?}");
+        let mut csv = draft(&"x".repeat(11 * 1024 * 1024));
+        let source_path = dir.join("large.csv");
+        std::fs::write(&source_path, csv.buffer.rope.to_string()).unwrap();
+        csv.buffer.file_path = Some(source_path);
+        csv.csv_draft = Some(super::super::CsvDraft {
+            row: Some(0), col: Some(0), value: "draft 中😀".into(), delimiter: Some(b','),
+            source_matches: true, ..Default::default()
+        });
+        let started = std::time::Instant::now();
+        let jobs: Vec<_> = (11..=15).map(|generation| pending(generation, std::slice::from_ref(&csv))).collect();
+        let capture = started.elapsed();
+        let started = std::time::Instant::now();
+        for job in jobs { writer.write_at(job, &path, dir.path()).unwrap(); }
+        println!("11 MiB CSV source with unfinished cell: five UI captures {capture:?}; five worker hashes/basis writes {elapsed:?}", elapsed = started.elapsed());
     }
 
     #[test]

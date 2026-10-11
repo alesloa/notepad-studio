@@ -249,14 +249,23 @@ fn try_commit_cell_edit(w: &mut Workspace, cx: &mut Context<Workspace>) -> Resul
     let tab = w.tabs.get(w.active).ok_or("tab gone")?;
     let tab_id = tab.session_id;
     let Some(model) = w.csv_models.get(&tab_id) else { return Ok(()); };
-    let Some((row, col)) = model.editing_cell else { return Ok(()); };
+    if let Some(draft) = &model.detached_draft {
+        return Err(draft.refusal.clone().unwrap_or_else(|| "CSV draft coordinates or source are unknown; copy the text or cancel the draft".into()));
+    }
+    let Some((row, col)) = model.editing_cell else {
+        return if model.cell_input.is_some() { Err("CSV draft has no cell coordinates; copy the text or cancel the draft".into()) } else { Ok(()) };
+    };
+    if col >= model.col_count() || (row != usize::MAX && row >= model.row_count()) || (row == usize::MAX && !model.has_header) {
+        return Err("CSV draft coordinates are outside the grid; copy the text or cancel the draft".into());
+    }
     let input = model.cell_input.as_ref().ok_or("cell input is missing")?;
     let original = if row == usize::MAX { model.header(col) } else { model.cell(row, col) };
     if original == input.buffer {
         if let Some(model) = w.csv_models.get_mut(&tab_id) {
             model.editing_cell = None;
-            model.cell_input = None;
+            model.retired_cell_focus = model.cell_input.take().map(|input| input.focus_handle);
         }
+        w.schedule_autosave(cx);
         cx.notify();
         return Ok(());
     }
@@ -274,12 +283,13 @@ fn try_commit_cell_edit(w: &mut Workspace, cx: &mut Context<Workspace>) -> Resul
     if let Some(model) = w.csv_models.get_mut(&tab_id) {
         if row == usize::MAX { model.set_header(col, value); } else { model.set_cell(row, col, value); }
         model.editing_cell = None;
-        model.cell_input = None;
+        model.retired_cell_focus = model.cell_input.take().map(|input| input.focus_handle);
         let buffer = &w.tabs[w.active].buffer;
         model.bind_source(&buffer.rope, &buffer.raw_revision);
         model.source_version = w.autosave_generation;
     }
     w.tabs[w.active].buffer.refresh_dirty();
+    w.schedule_autosave(cx);
     cx.notify();
     Ok(())
 }
@@ -296,6 +306,9 @@ pub(crate) fn cancel_cell_edit(
     };
     model.editing_cell = None;
     model.cell_input = None;
+    model.detached_draft = None;
+    w.tabs[w.active].csv_draft = None;
+    w.schedule_autosave(cx);
     cx.notify();
 }
 
@@ -360,6 +373,35 @@ pub(crate) fn emit_to_source(
     cx.notify();
 }
 
+/// Reclaim only focus left on a committed CSV input. A dialog or another
+/// editor focused since the commit keeps its focus.
+pub(crate) fn restore_committed_cell_focus(w: &mut Workspace, window: &mut Window, cx: &mut Context<Workspace>) {
+    if !window.is_window_active() { return; }
+    let mut reclaim = false;
+    for model in w.csv_models.values_mut() {
+        if let Some(handle) = model.retired_cell_focus.take() { reclaim |= handle.is_focused(window); }
+    }
+    if !reclaim { return; }
+    let Some(tab) = w.tabs.get(w.active) else { return; };
+    let mode = tab.view_mode;
+    let rich = tab.buffer.is_rich_doc();
+    let id = tab.session_id;
+    let focus = if mode == crate::tab::TabViewMode::CsvPreview {
+        ensure_model(w, window, cx);
+        w.csv_models.get(&id).and_then(|model| model.cell_input.as_ref().map(|input| input.focus_handle.clone())
+            .or_else(|| model.grid_focus.clone())).unwrap_or_else(|| w.focus_handle.clone())
+    } else if rich && mode == crate::tab::TabViewMode::RichDocView {
+        w.ensure_rich_doc_body_focus(cx)
+    } else { w.focus_handle.clone() };
+    window.focus(&focus, cx);
+}
+
+fn draft_char_boundary(text: &str, byte: usize) -> usize {
+    let mut byte = byte.min(text.len());
+    while !text.is_char_boundary(byte) { byte = byte.saturating_sub(1); }
+    byte
+}
+
 /// Ensure a `CsvModel` exists and follows the active tab's raw revision.
 /// Metadata changes and edits in another tab leave grid history intact.
 pub(crate) fn ensure_model(
@@ -370,15 +412,43 @@ pub(crate) fn ensure_model(
     let tab_id = w.tabs[w.active].session_id;
     let generation = w.autosave_generation;
     if !w.csv_models.contains_key(&tab_id) {
+        let focus_recovered = window.is_window_active()
+            && (w.focus_handle.is_focused(window) || window.focused(cx).is_none());
+        let recovered = w.tabs[w.active].csv_draft.take();
         let buffer = &w.tabs[w.active].buffer;
         let source = buffer.rope.to_string();
         let default_delim = super::default_delimiter_for_path(buffer.file_path.as_deref());
-        let delim = super::detect_delimiter(&source, default_delim);
+        let delim = recovered.as_ref().and_then(|draft| draft.delimiter)
+            .filter(|delim| delim.is_ascii() && !matches!(delim, b'\n' | b'\r' | b'"'))
+            .unwrap_or_else(|| super::detect_delimiter(&source, default_delim));
         let grid_focus = cx.focus_handle();
         let mut model = super::CsvModel::empty(delim);
+        if let Some(draft) = &recovered { model.has_header = draft.has_header; }
         model.rebuild_from_source(&source, generation);
         model.bind_source(&buffer.rope, &buffer.raw_revision);
         model.grid_focus = Some(grid_focus.clone());
+        if let Some(mut draft) = recovered {
+            let value = std::mem::take(&mut draft.value);
+            let coordinates = draft.col.and_then(|col| {
+                if col >= model.col_count() { return None; }
+                if draft.is_header { return model.has_header.then_some((usize::MAX, col)); }
+                draft.row.filter(|row| *row < model.row_count()).map(|row| (row, col))
+            });
+            if !draft.source_matches || coordinates.is_none() || draft.delimiter != Some(delim) {
+                draft.refusal = Some(draft.refusal.clone().unwrap_or_else(|| "Recovered CSV draft cannot be applied safely; copy its text or cancel it before editing the source".into()));
+                model.source_state = None;
+                w.set_status(draft.refusal.as_deref().unwrap_or("CSV draft could not be applied"));
+                model.detached_draft = Some(draft.clone());
+            }
+            model.editing_cell = coordinates;
+            model.active_cell = coordinates.filter(|(row, _)| *row != usize::MAX);
+            let handle = cx.focus_handle();
+            let mut input = CsvCellInput::new(handle.clone(), value);
+            input.cursor = draft_char_boundary(&input.buffer, draft.cursor);
+            input.anchor = draft_char_boundary(&input.buffer, draft.anchor);
+            model.cell_input = Some(input);
+            if focus_recovered { window.focus(&handle, cx); }
+        }
         w.csv_models.insert(tab_id, model);
         register_grid_blur_listener(w, tab_id, &grid_focus, window, cx);
         cx.notify();

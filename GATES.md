@@ -8,8 +8,8 @@ Scope: Continue the requested cross-platform Notepad++ parity audit and fix the 
 - [x] G2: Real key routing, preview transitions, deactivation and stale painted callbacks preserve the current completion session and visible editor context.
   EVIDENCE: reviewed 181087cf source integration; 10 new real-Workspace dispatch/session/focus regressions plus existing bounds/lifecycle tests pass in the 1312-unit main gate. Native validation remains G8.
 
-- [ ] G3: Pending CSV cell text survives successful Save/close/tab switch and recovery; refused commits preserve editable text and the source.
-  EVIDENCE: reviewed fec4d0c/e257957 Save/close/navigation batch; 13 new handler regressions pass in the 1325-unit main gate. Recovery leaf remains open.
+- [x] G3: Pending CSV cell text survives successful Save/close/tab switch and recovery; refused commits preserve editable text and the source.
+  EVIDENCE: reviewed fec4d0c/e257957 Save/close/navigation plus bab3c30 recovery;1422-unit main gate includes25 new recovery/bounded-input/publication regressions. Exact immutable source basis is verified before apply; interrupted writes keep preceding basis/manifest, invalid/stale/read-only/native-target drafts retain full editable text, UTF8 caret/focus/debounce and older sessions covered. Native visual evidence remainsG8; clean-grid and legacy-context focus/data guards remain separateG7leaves.
 
 - [x] G4: Rich typing, Enter and Tab preserve Unicode and undo selected replacements in one action, with no-op/read-only Redo preserved.
   EVIDENCE: 78af329 plus reviewed 003146fc source integration; selected-Tab actual handler, nested/no-op/read-only tests pass in the 1302-unit main gate.
@@ -27,14 +27,14 @@ Scope: Continue the requested cross-platform Notepad++ parity audit and fix the 
   EVIDENCE: pending; current native computer-use transport is unavailable and CUA native surfaces are disabled. Headless GPUI tests are not native screenshots.
 
 - [x] G9: The integrated main tree builds and passes its required unit/integration/clippy checks with no new warnings on touched code.
-  CHECK: powershell -NoProfile -Command "Get-Content log/file-menu-integration-tests.txt -Tail 16"
-  EXPECT: 1397 passed; 0 failed
-  EVIDENCE: reviewed5e6efe0 File batch; cargo build and clippy all-targets passed;1397 units + 1 integration passed,8 ignored. Refresh for each source batch.
+  CHECK: powershell -NoProfile -Command "Get-Content log/csv-recovery-integration-tests.txt -Tail 16"
+  EXPECT: 1422 passed; 0 failed
+  EVIDENCE: reviewedbab3c30 recovery batch; cargo build and clippy all-targets passed;1422 units + 1 integration passed,8 ignored. Refresh for each source batch.
 
 - [x] G10: Completed source batches have separate conventional commits and current change.log/devlog entries; the main working tree is clean before beginning a new batch.
   CHECK: git status --porcelain
   EXPECT: /^$/
-  EVIDENCE: main8ca427c was clean before this File batch;65 current-version release notes and a devlog entry accompany it. Refresh after each source batch.
+  EVIDENCE: maind38afbc was clean before this recovery batch;66 current-version release notes and a devlog entry accompany it. Refresh after each source batch.
 
 - [x] G11: View > Tab exposes every oracle Tab command in order with rebindable shortcuts; selection/reordering/color commands preserve document UUID, text, encoding/EOL, saved state and history, with edge and pending-cell refusal coverage.
   EVIDENCE: oracle RC789-817 / Commands1304-1412,3532-3537; red missing-menu contract then 7 new menu/actual-dispatch/refusal/edge tests pass. 1332-unit main gate; existing shortcut parity/collision tests cover added rows. Native appearance remains G8.

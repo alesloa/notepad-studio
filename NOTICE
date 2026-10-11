@@ -49,3 +49,8 @@ Windows ShellExecute feature (no command-shell wrapper).
     Source: https://gitlab.com/kornelski/dunce
     License: CC0-1.0 OR MIT-0 OR Apache-2.0; distributed CC0 text is in
     licenses/dunce-LICENSE.txt.
+
+CSV draft recovery verifies immutable source snapshots with SHA-256.
+    sha2 0.10.9 — RustCrypto Developers
+    Source: https://github.com/RustCrypto/hashes
+    License: MIT OR Apache-2.0; the MIT notice is in licenses/sha2-MIT.txt.

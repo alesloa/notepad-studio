@@ -256,6 +256,12 @@ v0.0.5 — current
        uses Cmd+Alt+R, leaving Cmd+R for Reload. Windows viewer paths go through
        the native shell, preserving literal spaces and special characters.
 
+   66. Unfinished CSV cells recover separately from their verified source.
+       Interrupted writes, damaged metadata, stale or read-only source and
+       invalid cells retain the full editable draft with a recovery message.
+       Grid Save/Enter/Tab keep keyboard focus; very large values render in a
+       bounded viewport while copy, edit and recovery retain all text.
+
   v0.1.0 — syntax & language:
 
     1. Tree-sitter syntax highlighting for 25 modes: Rust, Python, C,

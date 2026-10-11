@@ -222,6 +222,8 @@ pub(crate) struct Workspace {
     /// matches when the timer fires — drops noop writes when the user
     /// keeps typing.
     pub(crate) autosave_generation: u64,
+    #[cfg(test)]
+    pub(crate) session_snapshot_sink: Option<std::sync::mpsc::Sender<SessionManifest>>,
     /// Generation guard for the debounced post-edit reparse + eager-persist
     /// task (`schedule_reparse`). Mirrors `autosave_generation`: each edit
     /// bumps it, and only the latest scheduled task does the heavyweight
@@ -682,6 +684,8 @@ impl Workspace {
             zoom_level: clamp_zoom(zoom_level),
             context_menu: None,
             autosave_generation: 0,
+            #[cfg(test)]
+            session_snapshot_sink: None,
             post_edit_generation: 0,
             window_closed: false,
             session_window_id: Uuid::new_v4(),
@@ -1070,6 +1074,11 @@ impl Workspace {
     }
 
     fn save_session_background(&mut self, policy: session::BakPolicy, cx: &mut Context<Self>) {
+        #[cfg(test)]
+        if let Some(sink) = &self.session_snapshot_sink {
+            let _ = sink.send(self.session_snapshot(policy));
+            return;
+        }
         if self.window_closed { return; }
         let pending = match session::prepare_save(self.session_window_id, self.session_snapshot(policy), policy) {
             Ok(pending) => pending,
@@ -1109,11 +1118,15 @@ impl Workspace {
         true
     }
 
-    fn session_snapshot(&self, policy: session::BakPolicy) -> SessionManifest {
+    pub(crate) fn session_snapshot(&self, policy: session::BakPolicy) -> SessionManifest {
         let mru: Vec<Uuid> = self.tab_mru.iter().copied().collect();
-        session::snapshot_workspace_with_policy(
-            &self.tabs, self.active, &self.closed_tabs, self.theme_mode,
-            self.show_whitespace, self.word_wrap, &mru, policy,
+        let drafts = self.tabs.iter().filter_map(|tab| self.csv_models.get(&tab.session_id)
+            .and_then(|model| model.pending_draft(&tab.buffer.raw_revision)).map(|draft| (tab.session_id, draft)))
+            .collect();
+        session::snapshot_workspace_with_csv_drafts(
+            &self.tabs, self.active, &self.closed_tabs,
+            session::SessionView { theme: self.theme_mode, show_whitespace: self.show_whitespace, word_wrap: self.word_wrap },
+            &mru, policy, drafts,
         )
     }
 

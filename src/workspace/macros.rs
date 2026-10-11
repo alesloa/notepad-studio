@@ -36,6 +36,17 @@ use crate::workspace::Workspace;
 #[path = "completion_macro.rs"]
 mod completion_macro;
 
+fn unsupported_macro_operation(event: &MacroEvent) -> Option<&'static str> {
+    match event {
+        MacroEvent::FindNext => Some("Find Next"),
+        MacroEvent::FindPrev => Some("Find Previous"),
+        MacroEvent::ReplaceCurrent => Some("Replace Current"),
+        MacroEvent::ReplaceAll => Some("Replace All"),
+        MacroEvent::Save => Some("Save"),
+        _ => None,
+    }
+}
+
 impl Workspace {
     /// Replay `events` `times` times against the active editor. Recording is
     /// suspended for the duration so a replay-while-recording session
@@ -72,6 +83,13 @@ impl Workspace {
         };
         if let Some(message) = refusal {
             self.set_status(message);
+            cx.notify();
+            return false;
+        }
+        // Legacy unit events contain no captured search/save parameters. Refuse
+        // the entire macro instead of silently skipping an operation after edits.
+        if let Some(operation) = events.iter().find_map(unsupported_macro_operation) {
+            self.set_status(format!("Macro playback does not support {operation} yet"));
             cx.notify();
             return false;
         }
@@ -177,14 +195,13 @@ impl Workspace {
             MacroEvent::MoveWordRight => self.move_word_right(&MoveWordRight, window, cx),
             MacroEvent::SelectWordLeft => self.select_word_left(&SelectWordLeft, window, cx),
             MacroEvent::SelectWordRight => self.select_word_right(&SelectWordRight, window, cx),
-            // Find/Replace/Save aren't replayed in v1 — recording skips them
-            // too, so these arms are only reached for macros loaded from
-            // disk that predate the field. Treat them as no-ops.
+            // Checked before any edit by replay_macro; never report a skipped
+            // legacy operation as successful playback.
             MacroEvent::FindNext
             | MacroEvent::FindPrev
             | MacroEvent::ReplaceCurrent
             | MacroEvent::ReplaceAll
-            | MacroEvent::Save => {}
+            | MacroEvent::Save => return false,
             MacroEvent::InsertDateTimeShort => {
                 self.insert_datetime_short(&EditInsertDateTimeShort, window, cx)
             }
@@ -418,3 +435,7 @@ mod macro_context_tests;
 #[cfg(test)]
 #[path = "macro_undo_tests.rs"]
 mod macro_undo_tests;
+
+#[cfg(test)]
+#[path = "legacy_macro_tests.rs"]
+mod legacy_macro_tests;

@@ -416,6 +416,9 @@ v0.0.5 — current
     103. Retire delayed regex replacement results after caret movement, including
          moving away and back; preserve fresh requests and no-op movement.
 
+    104. Refuse saved macros containing unsupported search, replace or save
+         events before editing, instead of silently skipping those operations.
+
   v0.1.0 — syntax & language:
 
     1. Tree-sitter syntax highlighting for 25 modes: Rust, Python, C,

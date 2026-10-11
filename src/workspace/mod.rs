@@ -16,6 +16,15 @@ mod tag_match;
 pub(crate) mod edits;
 mod find;
 mod find_view;
+// Phase-one runtime controls are tested before the FindAll action is wired.
+#[allow(dead_code)]
+mod find_current_budget;
+#[allow(dead_code)]
+mod find_current_controller;
+#[allow(dead_code)]
+mod find_current_projection;
+#[allow(dead_code)]
+mod find_current_pipe;
 mod find_replacement;
 mod rich_replacement;
 #[cfg(test)]

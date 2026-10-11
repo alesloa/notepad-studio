@@ -4,19 +4,20 @@
 
 use super::util::floor_char_boundary;
 use crate::actions::{EditDecreaseLineIndent, EditDuplicateCurrentLine, EditIncreaseLineIndent};
-use crate::buffer::Selection;
+use crate::buffer::{Selection, ContentRevision, prepared::{PrefixEdit, PreparedGroup}};
 use crate::macros::{self, MacroEvent};
 use crate::tab::{InputFocus, TabViewMode};
 use crate::workspace::Workspace;
 use gpui::{Context, Window};
 use ropey::Rope;
-use std::ops::Range;
+use std::sync::atomic::{AtomicBool, Ordering};
 
 const MAX_PREFIX_BYTES: usize = 1024 * 1024;
 const MAX_EDIT_BYTES: usize = 32 * 1024 * 1024;
-// Prefix application is foreground work. Refuse larger batches atomically
-// until a background operation can preserve all selection/history metadata.
+// Small commands keep the synchronous macro path; larger manual commands
+// prepare a sealed history entry and metadata on the background executor.
 const MAX_LINE_EDITS: usize = 4096;
+const MAX_FOREGROUND_ANNOTATION_VISITS: usize = 16_384;
 const MAX_DUPLICATE_BYTES: usize = 128 * 1024 * 1024;
 
 #[derive(Clone, Copy)]
@@ -36,10 +37,7 @@ impl MenuLineCommand {
     }
 }
 
-struct Replacement {
-    range: Range<usize>,
-    text: String,
-}
+type Replacement = PrefixEdit;
 struct Plan {
     edits: Vec<Replacement>,
     selection: Selection,
@@ -138,18 +136,28 @@ fn indent_plan(
     width: usize,
     increase: bool,
 ) -> Result<Plan, &'static str> {
+    indent_plan_bounded(rope, selection, tabs, width, increase, MAX_LINE_EDITS, None)
+}
+
+fn selected_rows(rope: &Rope, selection: Selection) -> usize {
+    let ordered = selection.clamped(rope).ordered();
+    let first = rope.byte_to_line(ordered.start);
+    let last = rope.byte_to_line(ordered.end);
+    let rows = last.saturating_sub(first).saturating_add(1);
+    if ordered.end > ordered.start && rope.line_to_byte(last) == ordered.end { rows.saturating_sub(1) }
+    else { rows }
+}
+
+fn indent_plan_bounded(rope: &Rope, selection: Selection, tabs: bool, width: usize,
+    increase: bool, max_edits: usize, cancel: Option<&AtomicBool>) -> Result<Plan, &'static str>
+{
     if !(1..=32).contains(&width) {
         return Err("Choose a tab width between 1 and 32 before changing line indent");
     }
     let selection = selection.clamped(rope);
     let ordered = selection.ordered();
-    let first_row = rope.byte_to_line(ordered.start);
-    let last_row = rope.byte_to_line(ordered.end);
-    let mut rows = last_row.saturating_sub(first_row).saturating_add(1);
-    if ordered.end > ordered.start && rope.line_to_byte(last_row) == ordered.end {
-        rows = rows.saturating_sub(1);
-    }
-    if rows > MAX_LINE_EDITS {
+    let rows = selected_rows(rope, selection);
+    if rows > max_edits {
         return Err("Select at most 4096 lines to change their indentation");
     }
     let first = line_at(rope, ordered.start);
@@ -164,6 +172,7 @@ fn indent_plan(
     let mut edits = Vec::new();
     let mut allocated = 0usize;
     loop {
+        if cancel.is_some_and(|cancel| cancel.load(Ordering::Relaxed)) { return Err("Line indentation cancelled"); }
         let line = line_at(rope, at);
         let mut prefix_end = line.start;
         let mut columns = 0usize;
@@ -197,8 +206,13 @@ fn indent_plan(
             };
             let length = tab_count.saturating_add(spaces);
             allocated = allocated.saturating_add(length);
-            if allocated > MAX_EDIT_BYTES || edits.len() >= MAX_LINE_EDITS {
+            if allocated > MAX_EDIT_BYTES || edits.len() >= max_edits {
                 return Err("Select fewer lines to change their indentation");
+            }
+            // The worker's legacy history and both offset maps also cost
+            // memory. Bound the plan before allocating millions of records.
+            if cancel.is_some() {
+                crate::buffer::prepared::history_record_budget(edits.len().saturating_add(1), edits.capacity())?;
             }
             let mut text = String::new();
             text.try_reserve_exact(length)
@@ -209,9 +223,14 @@ fn indent_plan(
                 .get_byte_slice(line.start..prefix_end)
                 .is_some_and(|prefix| prefix.bytes().eq(text.bytes()));
             if !unchanged {
-                edits
-                    .try_reserve(1)
-                    .map_err(|_| "Not enough memory to change line indentation")?;
+                if cancel.is_some() && edits.len() == edits.capacity() {
+                    let capacity = edits.capacity().checked_mul(2).ok_or("Not enough memory to change line indentation")?.max(4);
+                    crate::buffer::prepared::history_record_budget(edits.len().saturating_add(1), capacity)?;
+                    edits.try_reserve_exact(capacity.saturating_sub(edits.len()))
+                        .map_err(|_| "Not enough memory to change line indentation")?;
+                } else {
+                    edits.try_reserve(1).map_err(|_| "Not enough memory to change line indentation")?;
+                }
                 edits.push(Replacement {
                     range: line.start..prefix_end,
                     text,
@@ -250,6 +269,13 @@ fn indent_plan(
         edits,
         selection: next_selection,
     })
+}
+
+pub(crate) fn prepare_indentation(rope: Rope, revision: ContentRevision, selection: Selection,
+    tabs: bool, width: usize, increase: bool, cancel: &AtomicBool) -> Result<PreparedGroup, &'static str>
+{
+    let plan = indent_plan_bounded(&rope, selection, tabs, width, increase, usize::MAX, Some(cancel))?;
+    PreparedGroup::build(rope, revision, selection, plan.selection, plan.edits, cancel)
 }
 
 fn duplicate_plan(rope: &Rope, selection: Selection, eol: &str) -> Result<Plan, &'static str> {
@@ -355,6 +381,21 @@ impl Workspace {
             return false;
         }
         let selection = self.selection();
+        if matches!(command, MenuLineCommand::Increase | MenuLineCommand::Decrease)
+            && {
+                let rows = selected_rows(&tab.buffer.rope, selection);
+                let annotations = tab.buffer.bookmarks.len().saturating_add(tab.buffer.marks.len());
+                rows > MAX_LINE_EDITS
+                    || rows.saturating_mul(annotations) > MAX_FOREGROUND_ANNOTATION_VISITS
+            }
+        {
+            if macros::execution_active() || tab.edit_transaction.is_some() {
+                self.set_status("Large line indentation is unavailable during macro recording, playback or an open edit group");
+                cx.notify();
+                return false;
+            }
+            return self.start_prepared_indent(matches!(command, MenuLineCommand::Increase), window, cx);
+        }
         let result = match command {
             MenuLineCommand::Duplicate => {
                 duplicate_plan(&tab.buffer.rope, selection, tab.buffer.line_ending.as_str())

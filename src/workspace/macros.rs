@@ -107,6 +107,16 @@ impl Workspace {
     }
 
     fn replay_event(&mut self, event: &MacroEvent, window: &mut Window, cx: &mut Context<Self>) -> bool {
+        let prepared = match event {
+            MacroEvent::Undo => self.tabs.get(self.active).and_then(|tab| tab.undo_stack.last()),
+            MacroEvent::Redo => self.tabs.get(self.active).and_then(|tab| tab.redo_stack.last()),
+            _ => None,
+        };
+        if matches!(prepared, Some(crate::buffer::UndoEntry::Prepared(_))) {
+            self.set_status("Large indentation Undo/Redo is unavailable during macro playback");
+            cx.notify();
+            return false;
+        }
         match event {
             MacroEvent::InsertText(text) => {
                 let r = self.selection().ordered();

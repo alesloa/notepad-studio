@@ -16,6 +16,8 @@ A lightweight, cross-platform text editor inspired by Notepad++, written in Rust
 > completion and IME edge cases, focus bugs, large-edit performance, search
 > macro replay, and menu gaps. Regex capture replacement has landed with
 > bounded background planning; see its documented syntax and limits.
+> Manual large line indentation and its Undo/Redo also prepare in the
+> background, with Escape cancellation and one Undo per completed edit.
 
 Optional [API completion definitions](docs/api-completion.md) supply language
 names for Function Completion and signatures for parameter hints, including
@@ -209,6 +211,7 @@ icons from new source art → [`docs/icons.md`](docs/icons.md).
 - [x] Language menu — select any of the 25 installed syntax modes or None (Normal Text), with per-tab checkmarks, session persistence and rebindable actions. Highlighting runs in the background.
 - [x] Bracket matching — depth-aware pair lookup, skips brackets inside strings/comments via tree-sitter span filter; falls back to dumb scan when no language
 - [x] Auto-indent — Enter inherits leading whitespace; extra indent after `{`, `[`, `(`
+- [x] Line indentation - Edit menu commands prepare larger or annotation-costly selections in the background; Escape cancels and Undo/Redo preserve text, marks and bookmarks. Large macro batches and block selections remain open.
 - [x] Comment toggle (syntax-aware) — per-language tokens for all 24 grammars (HTML/XML/Markdown wrap line ranges in `<!-- -->`; JSON no-op)
 
 ### Settings ✅

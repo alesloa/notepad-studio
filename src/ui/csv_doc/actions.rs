@@ -358,6 +358,7 @@ pub(crate) fn emit_to_source(
                 if let Some(op) = transaction.ops.last_mut() { op.after_revision = source.revision.clone(); }
             } else if let Some(entry) = tab.undo_stack.last_mut() {
                 match entry {
+                    crate::buffer::UndoEntry::Prepared(group) => std::sync::Arc::make_mut(group).rebind_after(source.revision.clone()),
                     crate::buffer::UndoEntry::Single(op) => op.after_revision = source.revision.clone(),
                     crate::buffer::UndoEntry::Group { ops, .. } => {
                         if let Some(op) = ops.last_mut() { op.after_revision = source.revision.clone(); }

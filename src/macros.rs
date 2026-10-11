@@ -27,6 +27,8 @@ use crate::consts::APP_NAME;
 mod playback_fixture;
 #[cfg(test)]
 pub(crate) use playback_fixture::override_for_test as override_playback_for_test;
+#[cfg(test)]
+pub(crate) use playback_fixture::override_execution_for_test;
 
 /// Events captured during recording. Each variant maps onto a single
 /// keyboard-driven editor action. Replay dispatches these by calling the
@@ -234,6 +236,8 @@ fn global() -> &'static Mutex<MacroRecorder> {
 /// five separate single-char events from the OS input handler, but stores
 /// as one `InsertText("hello")` so the recorded macro stays compact.
 pub(crate) fn record(event: MacroEvent) {
+    #[cfg(test)]
+    if playback_fixture::record(&event) { return; }
     let Ok(mut g) = global().lock() else { return; };
     g.record_event(event);
 }
@@ -267,6 +271,8 @@ pub(crate) fn completion_event(prefix: &str, candidate: &str) -> MacroEvent {
 /// engine to suspend recording while it dispatches events; pair every call
 /// with a restoring call using the returned previous value.
 pub(crate) fn set_replaying(value: bool) -> bool {
+    #[cfg(test)]
+    if let Some(previous) = playback_fixture::set_replaying(value) { return previous; }
     let Ok(mut g) = global().lock() else {
         return false;
     };
@@ -278,13 +284,23 @@ pub(crate) fn set_replaying(value: bool) -> bool {
 /// True iff a recording is currently in progress and not paused by a replay.
 #[allow(dead_code)]
 pub(crate) fn is_recording() -> bool {
+    #[cfg(test)]
+    if let Some(recording) = playback_fixture::recording() { return recording; }
     global().lock().map(|g| g.recording).unwrap_or(false)
+}
+
+pub(crate) fn execution_active() -> bool {
+    #[cfg(test)]
+    if let Some(active) = playback_fixture::execution_active() { return active; }
+    global().lock().map(|g| g.recording || g.replaying).unwrap_or(true)
 }
 
 /// Toggle the recording flag. Starting a fresh recording clears the previous
 /// in-progress buffer; stopping flushes the in-progress buffer into `current`
 /// so the next Playback runs the just-recorded macro.
 pub(crate) fn toggle_recording() -> bool {
+    #[cfg(test)]
+    if let Some(recording) = playback_fixture::toggle_recording() { return recording; }
     let Ok(mut g) = global().lock() else {
         return false;
     };
@@ -303,6 +319,8 @@ pub(crate) fn toggle_recording() -> bool {
 /// separate Start Recording toolbar button, which is disabled while
 /// recording is in flight but stays a safe call).
 pub(crate) fn start_recording() -> bool {
+    #[cfg(test)]
+    if let Some(recording) = playback_fixture::start_recording() { return recording; }
     let Ok(mut g) = global().lock() else {
         return false;
     };
@@ -316,6 +334,8 @@ pub(crate) fn start_recording() -> bool {
 /// Stop an in-progress recording and flush its captured events into
 /// `current`. No-op if not recording.
 pub(crate) fn stop_recording() -> bool {
+    #[cfg(test)]
+    if let Some(recording) = playback_fixture::stop_recording() { return recording; }
     let Ok(mut g) = global().lock() else {
         return false;
     };
@@ -333,6 +353,8 @@ pub(crate) fn current() -> Vec<MacroEvent> {
     if let Some(events) = playback_fixture::current() {
         return events;
     }
+    #[cfg(test)]
+    if let Some(events) = playback_fixture::execution_current() { return events; }
     global().lock().map(|g| g.current.clone()).unwrap_or_default()
 }
 

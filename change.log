@@ -370,6 +370,12 @@ v0.0.5 — current
         Invalid Reset, Commit and Preedit replies now return protocol errors,
         including Chinese/Korean bytes that previously overflowed or wrapped.
 
+    92. Large line indentation and its Undo/Redo now prepare off the UI
+        thread and publish one complete edit only if the editor is unchanged.
+        Escape cancels; marks, bookmarks, encoding and saved history survive.
+        Costly annotation work also uses the background path. Large macro
+        batches and block selections still report their current limits.
+
   v0.1.0 — syntax & language:
 
     1. Tree-sitter syntax highlighting for 25 modes: Rust, Python, C,

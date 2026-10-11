@@ -576,6 +576,17 @@ impl Workspace {
             self.find_in_files.open = false;
             window.focus(&self.focus_handle, cx);
             cx.notify();
+            return;
+        }
+        if self.pending_prepared_edit.is_some()
+            && window.is_window_active()
+            && self.focus_handle.is_focused(window)
+            && self.input_focus(window) == InputFocus::Editor
+            && self.tabs.get(self.active).is_some_and(|tab| tab.view_mode == crate::tab::TabViewMode::Edit)
+        {
+            self.cancel_prepared_edit(cx);
+            self.set_status("Line indentation cancelled; no changes applied");
+            cx.notify();
         }
     }
 

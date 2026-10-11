@@ -33,6 +33,7 @@ impl Render for Workspace {
         self.normalize_saved_csv_source_view(cx);
         csv_actions::restore_committed_cell_focus(self, window, cx);
         self.retire_ime_composition(window, cx);
+        self.retire_prepared_edit(window, cx);
         let theme = self.theme();
         let prefs = crate::settings::snapshot();
         self.refresh_function_hint_for_frame(window, cx);

@@ -445,6 +445,7 @@ impl Workspace {
             HistoryTarget::Ignored => return,
             HistoryTarget::Editor => {}
         }
+        if self.start_prepared_replay(HistoryDirection::Undo, window, cx) { return; }
         crate::macros::record(crate::macros::MacroEvent::Undo);
         self.close_function_hint(cx);
         let Some(entry) = self.active_tab_mut().undo_stack.pop() else {
@@ -478,6 +479,7 @@ impl Workspace {
             HistoryTarget::Ignored => return,
             HistoryTarget::Editor => {}
         }
+        if self.start_prepared_replay(HistoryDirection::Redo, window, cx) { return; }
         crate::macros::record(crate::macros::MacroEvent::Redo);
         self.close_function_hint(cx);
         let Some(entry) = self.active_tab_mut().redo_stack.pop() else {

@@ -80,6 +80,10 @@ pub(super) fn text_history_matches(buffer: &Buffer, entry: &UndoEntry, direction
     let mut rope = buffer.rope.clone();
     let mut revision = buffer.raw_revision.clone();
     match entry {
+        UndoEntry::Prepared(group) => {
+            let undo = matches!(direction, HistoryDirection::Undo);
+            buffer.raw_revision == *group.expected(undo) && buffer.rope.is_instance(group.expected_rope(undo))
+        }
         UndoEntry::Single(op) => apply(&mut rope, &mut revision, op, direction),
         UndoEntry::Group { ops, .. } => match direction {
             HistoryDirection::Undo => ops.iter().rev().all(|op| apply(&mut rope, &mut revision, op, direction)),

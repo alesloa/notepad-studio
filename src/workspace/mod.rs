@@ -24,6 +24,7 @@ mod find_in_files;
 mod folder_panel;
 mod format;
 mod history;
+mod prepared_edits;
 mod ime;
 mod input_handler;
 mod language;
@@ -86,6 +87,15 @@ pub(crate) struct Workspace {
     pub(crate) focus_handle: FocusHandle,
     pub(crate) source_input_context: source_input::SourceInputContext,
     pub(crate) ime_composition: Option<ime::ImeComposition>,
+    pub(crate) pending_prepared_edit: Option<prepared_edits::PendingPreparedEdit>,
+    #[cfg(test)]
+    pub(crate) prepared_test_gate: Option<futures::channel::oneshot::Receiver<()>>,
+    #[cfg(test)]
+    pub(crate) prepared_test_publish_gate: Option<futures::channel::oneshot::Receiver<()>>,
+    #[cfg(test)]
+    pub(crate) prepared_fail_reserve: bool,
+    #[cfg(test)]
+    pub(crate) prepared_timings: Vec<prepared_edits::Timing>,
     #[cfg(test)]
     pub(crate) ime_record_sink: Option<std::sync::mpsc::Sender<crate::macros::MacroEvent>>,
     /// Focus held by the find-query input. When focused, typed text routes
@@ -669,6 +679,15 @@ impl Workspace {
             focus_handle,
             source_input_context: source_input::SourceInputContext::new(welcome_id),
             ime_composition: None,
+            pending_prepared_edit: None,
+            #[cfg(test)]
+            prepared_test_gate: None,
+            #[cfg(test)]
+            prepared_test_publish_gate: None,
+            #[cfg(test)]
+            prepared_fail_reserve: false,
+            #[cfg(test)]
+            prepared_timings: Vec::new(),
             #[cfg(test)]
             ime_record_sink: None,
             find_focus,
@@ -1910,3 +1929,6 @@ impl crate::ui::style_configurator::hsv_surface::HsvHost for Workspace {
         self.apply_rich_doc_color_buffer(cx);
     }
 }
+
+#[cfg(test)]
+mod prepared_edit_tests;

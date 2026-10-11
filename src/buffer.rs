@@ -6,6 +6,8 @@ use std::sync::atomic::AtomicBool;
 
 use gpui::{Bounds, Pixels, ShapedLine, SharedString};
 
+pub(crate) mod prepared;
+
 /// Compute the smallest unused "new N" number from the labels currently in
 /// use. Walks `existing_labels` (typically every open tab's `new_label`),
 /// pulls out integers from `"new N"` strings, and returns the lowest
@@ -55,7 +57,7 @@ impl PartialEq for ContentRevision {
 
 impl Eq for ContentRevision {}
 
-#[derive(Clone)]
+#[derive(Clone, PartialEq, Eq)]
 pub(crate) struct SavePoint {
     raw: ContentRevision,
     rich: Option<ContentRevision>,
@@ -674,6 +676,7 @@ pub(crate) struct EditOp {
 #[derive(Clone)]
 pub(crate) enum UndoEntry {
     Single(EditOp),
+    Prepared(Arc<prepared::PreparedGroup>),
     /// Ordered list of the individual edits that made up the group, in
     /// application order. `sel_before_anchor` / `sel_before_head` snapshot
     /// the caret right before the group opened so undo restores it there.
@@ -697,6 +700,7 @@ pub(crate) fn rebind_undo_revisions(stack: &mut [UndoEntry], current: &ContentRe
     for entry in stack.iter_mut().rev() {
         match entry {
             UndoEntry::Single(op) => bind(op, &mut current),
+            UndoEntry::Prepared(group) => Arc::make_mut(group).rebind(&mut current),
             UndoEntry::Group { ops, .. } => {
                 for op in ops.iter_mut().rev() { bind(op, &mut current); }
             }
@@ -793,6 +797,14 @@ pub(crate) fn serialize_undo_stack(stack: &[UndoEntry]) -> Vec<u8> {
             UndoEntry::Single(op) => {
                 out.push(0u8);
                 write_edit_op(&mut out, op);
+            }
+            UndoEntry::Prepared(group) => {
+                out.push(1u8);
+                let selection = group.before_selection();
+                write_u64_le(&mut out, selection.anchor as u64);
+                write_u64_le(&mut out, selection.head as u64);
+                write_u32_le(&mut out, group.ops().len() as u32);
+                for op in group.ops() { write_edit_op(&mut out, op); }
             }
             UndoEntry::Group {
                 ops,
@@ -976,6 +988,14 @@ pub(crate) fn retain_replayable_undo(
 fn undo_entry_on(rope: &mut ropey::Rope, entry: &mut UndoEntry) -> bool {
     match entry {
         UndoEntry::Single(op) => undo_op_on(rope, op),
+        UndoEntry::Prepared(group) => {
+            // This recovery helper validates bytes, not runtime tokens.
+            for op in group.ops().iter().rev() {
+                let mut op = op.clone();
+                if !undo_op_on(rope, &mut op) { return false; }
+            }
+            true
+        }
         UndoEntry::Group {
             ops,
             sel_before_anchor,
@@ -1125,7 +1145,7 @@ mod tests {
         assert_eq!(back.len(), 2);
         match &back[1] {
             UndoEntry::Group { ops, .. } => assert_eq!(ops.len(), 2),
-            UndoEntry::Single(_) => panic!("expected a group"),
+            _ => panic!("expected a group"),
         }
     }
 
@@ -1169,6 +1189,7 @@ mod tests {
     fn undo_like_the_editor(rope: &mut ropey::Rope, entry: &UndoEntry) {
         let ops: Vec<&EditOp> = match entry {
             UndoEntry::Single(op) => vec![op],
+            UndoEntry::Prepared(group) => group.ops().iter().rev().collect(),
             UndoEntry::Group { ops, .. } => ops.iter().rev().collect(),
         };
         for op in ops {

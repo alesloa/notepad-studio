@@ -120,6 +120,7 @@ impl Workspace {
     /// per-edit hot loop is what makes batched edits fast.
     pub(crate) fn after_edit_flush(&mut self, cx: &mut Context<Self>) {
         self.retire_source_input();
+        self.cancel_prepared_edit(cx);
         // The synchronous edit-commit path stays CHEAP so the edit, caret, and
         // repaint land this frame and the UI thread never stalls. The two
         // heavyweight post-edit jobs — a full syntax reparse and session
@@ -288,6 +289,10 @@ impl Workspace {
         entry: &UndoEntry,
         cx: &mut Context<Self>,
     ) -> bool {
+        if matches!(entry, UndoEntry::Prepared(_)) {
+            self.set_status("Use the Undo action to prepare this large indentation change");
+            return false;
+        }
         if !text_history_matches(self.buffer(), entry, HistoryDirection::Undo) {
             self.active_tab_mut().buffer.forget_savepoint();
             self.set_status("Undo history no longer matches this document; no changes applied");
@@ -295,6 +300,7 @@ impl Workspace {
             return false;
         }
         match entry {
+            UndoEntry::Prepared(_) => return false,
             UndoEntry::Single(op) => {
                 self.replay_undo_op(op, cx);
                 let tab = self.active_tab_mut();
@@ -336,6 +342,10 @@ impl Workspace {
         entry: &UndoEntry,
         cx: &mut Context<Self>,
     ) -> bool {
+        if matches!(entry, UndoEntry::Prepared(_)) {
+            self.set_status("Use the Redo action to prepare this large indentation change");
+            return false;
+        }
         if !text_history_matches(self.buffer(), entry, HistoryDirection::Redo) {
             self.active_tab_mut().buffer.forget_savepoint();
             self.set_status("Redo history no longer matches this document; no changes applied");
@@ -343,6 +353,7 @@ impl Workspace {
             return false;
         }
         match entry {
+            UndoEntry::Prepared(_) => return false,
             UndoEntry::Single(op) => {
                 self.replay_redo_op(op, cx);
             }

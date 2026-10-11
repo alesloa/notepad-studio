@@ -486,6 +486,9 @@ v0.0.5 — current
     124. Replace in Projects counts failed roots even when another root
          replaces files successfully. Its report keeps completed writes,
          the total failure count and the first failed path.
+    125. Find All in current/open documents preserves the result panel
+         while a directory search or replacement owns it. Finish or cancel
+         that operation before starting another search.
 
 
   v0.1.0 — syntax & language:

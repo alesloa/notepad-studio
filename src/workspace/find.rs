@@ -1220,6 +1220,10 @@ impl Workspace {
         _w: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        if self.directory_operations.busy() {
+            self.find_state.status = Some("A directory operation is in progress; finish or cancel it first".into());
+            cx.notify(); return;
+        }
         self.retire_find_scope_if_view_changed();
         if self.find_state.query.is_empty() {
             self.find_state.status = Some("Enter a query first".to_string());
@@ -1536,6 +1540,10 @@ impl Workspace {
         _w: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        if self.directory_operations.busy() {
+            self.find_state.status = Some("A directory operation is in progress; finish or cancel it first".into());
+            cx.notify(); return;
+        }
         if self.find_state.query.is_empty() {
             self.find_state.status = Some("Enter a query first".to_string());
             cx.notify();

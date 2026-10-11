@@ -491,3 +491,33 @@ fn projects_overlapping_roots_do_not_replace_one_file_twice() {
 #[test] fn projects_no_replaced_editor_root_retires_silently() { replaced_editor_root(Route::Projects, true); }
 #[test] fn files_no_replaced_dialog_root_retires_silently() { replaced_dialog_root(Route::Files, true); }
 #[test] fn projects_no_replaced_dialog_root_retires_silently() { replaced_dialog_root(Route::Projects, true); }
+
+fn pending_directory_owner_preserves_panel(route: Route, all_opened: bool) {
+    let dir = tempfile::tempdir().unwrap(); let _file = neutral(dir.path());
+    let _settings = settings(dir.path()); let mut cx = TestAppContext::single();
+    let (entity, _, mut dialog) = fixture(&mut cx, dir.path(), route);
+    dialog.update(|_, cx| entity.update(cx, |w, _| {
+        w.tabs[0].buffer.rope = ropey::Rope::from_str("hit\n"); w.find_state.query = "hit".into();
+    }));
+    let no = request(&entity, &mut dialog, route);
+    dialog.update(|window, cx| entity.update(cx, |w, cx| {
+        let status = w.find_in_files.status.clone();
+        assert!(w.directory_operations.busy()); assert!(w.find_in_files.results.is_empty());
+        if all_opened { w.find_all_in_all_opened(&EditFindAllOpened, window, cx); }
+        else { w.find_all_current(&EditFindAllCurrent, window, cx); }
+        assert!(w.find_in_files.searching, "open-document search must preserve directory busy state");
+        assert_eq!(w.find_in_files.status, status);
+        assert!(w.find_in_files.results.is_empty(), "pending directory owner keeps its panel");
+    }));
+    no.send(rfd::MessageDialogResult::No).unwrap(); dialog.run_until_parked();
+    dialog.update(|window, cx| entity.update(cx, |w, cx| {
+        if all_opened { w.find_all_in_all_opened(&EditFindAllOpened, window, cx); }
+        else { w.find_all_current(&EditFindAllCurrent, window, cx); }
+        assert!(!w.find_in_files.searching); assert_eq!(w.find_in_files.results.len(), 1);
+    })); cx.quit();
+}
+
+#[test] fn files_pending_owner_preserves_panel_on_find_all_current() { pending_directory_owner_preserves_panel(Route::Files, false); }
+#[test] fn projects_pending_owner_preserves_panel_on_find_all_current() { pending_directory_owner_preserves_panel(Route::Projects, false); }
+#[test] fn files_pending_owner_preserves_panel_on_find_all_opened() { pending_directory_owner_preserves_panel(Route::Files, true); }
+#[test] fn projects_pending_owner_preserves_panel_on_find_all_opened() { pending_directory_owner_preserves_panel(Route::Projects, true); }

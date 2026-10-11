@@ -14,6 +14,10 @@ use crate::workspace::Workspace;
 #[path = "autocomplete_popup_narrow_tests.rs"]
 mod narrow_tests;
 
+#[cfg(test)]
+#[path = "autocomplete_popup_page_font_tests.rs"]
+mod page_font_tests;
+
 const MAX_VISIBLE_ROWS: usize = 8;
 const ROW_HEIGHT_REM: f32 = 22. / 16.;
 const ROW_PADDING_REM: f32 = 8. / 16.;

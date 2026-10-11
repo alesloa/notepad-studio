@@ -117,6 +117,7 @@ impl Runtime {
     pub(super) fn wake_for_test(&self) {
         if let Some(notices) = &self.notices { let _ = send(notices, Notice::Wake); }
     }
+    pub(super) fn waiting_for_retirement_for_test(&self) -> bool { self.pending.is_some() && self.current.is_none() }
     pub(super) fn owned_bytes(&self) -> usize { self.ledger.used() }
     pub(super) fn owned_peak(&self) -> usize { self.ledger.peak() }
     pub(super) fn control_bytes(&self) -> usize {
@@ -348,12 +349,20 @@ impl Workspace {
         }
         cx.notify();
     }
+    fn stop_stale_rich_find_current(&mut self, cx: &mut Context<Self>) {
+        self.cancel_rich_find_current();
+        self.find_in_files.searching = false;
+        let status = "Document or search changed; run the search again";
+        self.find_state.status = Some(status.into());
+        self.find_in_files.status = Some(status.into());
+        cx.notify();
+    }
     fn step_rich_find_current(&mut self, cx: &mut Context<Self>) {
         let Some(actor) = self.rich_find_current.actor.clone() else { return; };
         if self.rich_find_current.pending.is_some() {
             if !actor.retire_using(|| Retired { _caches: self.take_rich_find_caches(), ..Default::default() }) { return; }
             let Some(job) = self.rich_find_current.pending.take() else { return; };
-            if !job.guard.matches(self, true) { self.cancel_rich_find_current(); return; }
+            if !job.guard.matches(self, true) { self.stop_stale_rich_find_current(cx); return; }
             let guard = Arc::clone(&job.guard);
             self.rich_find_current.current = actor.request(job).map(|id| (id, guard));
             if self.rich_find_current.current.is_none() {
@@ -364,10 +373,7 @@ impl Workspace {
         }
         let Some((id, guard)) = self.rich_find_current.current.clone() else { return; };
         if !guard.matches(self, true) {
-            actor.reject(id); self.cancel_rich_find_current();
-            self.find_in_files.searching = false;
-            self.find_state.status = Some("Document or search changed; run the search again".into());
-            cx.notify(); return;
+            actor.reject(id); self.stop_stale_rich_find_current(cx); return;
         }
         if let Some(mut producer) = self.rich_find_current.capture.take() {
             let Some(payload) = self.tabs.get(self.active).and_then(|tab| tab.buffer.rich_doc.as_ref()) else { actor.reject(id); self.cancel_rich_find_current(); cx.notify(); return; };

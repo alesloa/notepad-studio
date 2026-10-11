@@ -500,6 +500,10 @@ v0.0.5 — current
          hidden or normally excluded roots remain eligible for replacement.
          File-identity limits stop further work and report completed writes.
 
+    128. Current-document Doc View search clears its busy state and both
+         search messages when the document or query changes while waiting
+         for an earlier worker to finish.
+
 
   v0.1.0 — syntax & language:
 

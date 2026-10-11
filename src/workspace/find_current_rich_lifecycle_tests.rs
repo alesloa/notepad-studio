@@ -14,6 +14,13 @@ fn held(
     exercise: impl FnOnce(&Entity<Workspace>, &mut VisualTestContext, &mut VisualTestContext),
     expect_publication: bool,
 ) {
+    held_status(exercise, expect_publication, None);
+}
+fn held_status(
+    exercise: impl FnOnce(&Entity<Workspace>, &mut VisualTestContext, &mut VisualTestContext),
+    expect_publication: bool,
+    expected_stale_status: Option<&str>,
+) {
     let _recent = crate::recent::override_snapshot_for_test(Vec::new());
     let _settings = crate::settings::override_for_test(Settings {
         toolbar_hidden: true, folder_panel_visible: false,
@@ -74,6 +81,10 @@ fn held(
     visual.update(|_, cx| {
         let workspace = entity.read(cx);
         assert_eq!(workspace.find_in_files.results.len(), usize::from(expect_publication));
+        if let Some(status) = expected_stale_status {
+            assert_eq!((workspace.find_in_files.searching, workspace.find_state.status.as_deref(), workspace.find_in_files.status.as_deref()),
+                (false, Some(status), Some(status)), "invalidated search must stop with an actionable status");
+        }
         assert!(workspace.rich_find_current.owned_peak() <= 192 * 1024 * 1024);
     });
     visual.update(|_, cx| entity.update(cx, |workspace, _| workspace.release_session_window()));
@@ -217,6 +228,59 @@ fn actual_close_button_preserves_held_document_search() {
             assert!(workspace.find_dialog_window.is_none());
             assert!(!workspace.find_state.open);
             assert!(workspace.find_in_files.searching, "closing an idle directory dialog must preserve the document search owner");
+        });
+    }, true);
+}
+
+#[test]
+fn actual_pending_search_flag_change_stops_busy_after_queued_retirement() {
+    held_status(|entity, visual, dialog| {
+        let button = dialog.debug_bounds("dialog-button-Find All in Current Document").unwrap();
+        // A's actual worker is held. B fills the real retirement slot; C must
+        // wait in Runtime.pending until A exits and that cleanup is drained.
+        dialog.simulate_click(button.center(), gpui::Modifiers::none());
+        dialog.simulate_click(button.center(), gpui::Modifiers::none());
+        visual.update(|_, cx| {
+            let workspace = entity.read(cx);
+            assert!(workspace.rich_find_current.waiting_for_retirement_for_test());
+            assert!(workspace.find_in_files.searching);
+        });
+        let checkbox = dialog.debug_bounds("dialog-checkbox-Match case").unwrap();
+        dialog.simulate_click(checkbox.center(), gpui::Modifiers::none());
+        frames(visual, 2);
+        visual.update(|_, cx| {
+            let workspace = entity.read(cx);
+            assert!(workspace.rich_find_current.waiting_for_retirement_for_test());
+            assert!(workspace.find_state.match_case);
+            assert!(workspace.find_in_files.searching);
+        });
+    }, false, Some("Document or search changed; run the search again"));
+}
+
+#[test]
+fn actual_held_current_query_change_clears_both_search_statuses() {
+    held_status(|entity, visual, dialog| {
+        dialog.update(|window, cx| {
+            window.activate_window(); window.focus(&entity.read(cx).find_focus.clone(), cx);
+        });
+        dialog.run_until_parked();
+        let mut input = dialog.update(|window, _| window.take_registered_input_handler().unwrap());
+        dialog.update(|window, cx| input.replace_text_in_range(Some(0..6), "missing", window, cx));
+        dialog.run_until_parked();
+        visual.update(|_, cx| assert_eq!(entity.read(cx).find_state.query, "missing"));
+    }, false, Some("Document or search changed; run the search again"));
+}
+
+#[test]
+fn actual_pending_search_publishes_after_queued_retirement_without_invalidation() {
+    held(|entity, visual, dialog| {
+        let button = dialog.debug_bounds("dialog-button-Find All in Current Document").unwrap();
+        dialog.simulate_click(button.center(), gpui::Modifiers::none());
+        dialog.simulate_click(button.center(), gpui::Modifiers::none());
+        visual.update(|_, cx| {
+            let workspace = entity.read(cx);
+            assert!(workspace.rich_find_current.waiting_for_retirement_for_test());
+            assert!(workspace.find_in_files.searching);
         });
     }, true);
 }

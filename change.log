@@ -168,6 +168,10 @@ v0.0.5 — current
        legacy DOC conversion to DOCX. Invalid XML characters in source or
        edited text/links report an error before changing a file.
 
+   46. HTML paste preserves visible Unicode text and quoted links while
+       keeping script/style bodies hidden, even with malformed end tags.
+       Oversized or excessively nested HTML falls back to plain-text paste.
+
   v0.1.0 — syntax & language:
 
     1. Tree-sitter syntax highlighting for 25 modes: Rust, Python, C,

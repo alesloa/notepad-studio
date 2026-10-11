@@ -13,15 +13,28 @@
 
 use super::ast::{Alignment, Block, BlockProps, InlineRun, InlineStyle, ListMarker};
 
+const MAX_HTML_BYTES: usize = 16 * 1024 * 1024;
+const MAX_HTML_TAG_BYTES: usize = 16 * 1024;
+const MAX_HTML_TOKENS: usize = 100_000;
+const MAX_HTML_NESTING: usize = 256;
+
 /// Public entry point — parse `html` and return the blocks to splice. Returns
-/// an empty `Vec` when the input has no textual content, so callers can fall
-/// back to plain-text paste without a separate emptiness check.
+/// an empty `Vec` when the input has no textual content or exceeds the parser's
+/// size/complexity limits, so callers can fall back to plain-text paste.
 pub fn html_to_blocks(html: &str) -> Vec<Block> {
+    if html.len() > MAX_HTML_BYTES {
+        return Vec::new();
+    }
     let trimmed = slice_to_fragment(html);
-    let tokens = tokenize(trimmed);
+    let Some(tokens) = tokenize(trimmed) else { return Vec::new() };
     let mut parser = Parser::new();
     for tok in tokens {
         parser.feed(tok);
+        if parser.style_stack.len() > MAX_HTML_NESTING
+            || parser.list_stack.len() > MAX_HTML_NESTING
+            || parser.pre_depth > MAX_HTML_NESTING as u32 {
+            return Vec::new();
+        }
     }
     parser.finish()
 }
@@ -34,7 +47,7 @@ fn slice_to_fragment(html: &str) -> &str {
     if let (Some(s), Some(e)) = (html.find("<!--StartFragment-->"), html.find("<!--EndFragment-->")) {
         if s < e {
             let start = s + "<!--StartFragment-->".len();
-            return &html[start..e];
+            return html.get(start..e).unwrap_or(html);
         }
     }
     html
@@ -58,15 +71,18 @@ enum Token {
 
 // ---- Tokenizer ------------------------------------------------------------
 
-fn tokenize(html: &str) -> Vec<Token> {
+fn tokenize(html: &str) -> Option<Vec<Token>> {
     let bytes = html.as_bytes();
     let mut out = Vec::new();
     let mut i = 0;
     while i < bytes.len() {
-        let b = bytes[i];
+        if out.len() >= MAX_HTML_TOKENS {
+            return None;
+        }
+        let b = *bytes.get(i)?;
         if b == b'<' {
             // Comment: <!-- ... -->
-            if bytes[i..].starts_with(b"<!--") {
+            if bytes.get(i..)?.starts_with(b"<!--") {
                 if let Some(end) = find_subslice(bytes, i + 4, b"-->") {
                     i = end + 3;
                     continue;
@@ -93,29 +109,35 @@ fn tokenize(html: &str) -> Vec<Token> {
             // Close tag </name>
             if bytes.get(i + 1) == Some(&b'/') {
                 if let Some(end) = find_byte(bytes, i + 2, b'>') {
-                    let raw = std::str::from_utf8(&bytes[i + 2..end])
-                        .unwrap_or("")
-                        .trim();
+                    let raw = html.get(i + 2..end)?.trim();
                     out.push(Token::CloseTag { name: raw.to_ascii_lowercase() });
                     i = end + 1;
                     continue;
                 }
                 break;
             }
+            // HTML treats '<' followed by a non-ASCII-letter as literal text.
+            if !bytes.get(i + 1).is_some_and(u8::is_ascii_alphabetic) {
+                out.push(Token::Text("<".into()));
+                i += 1;
+                continue;
+            }
             // Open tag <name ...>
-            if let Some(end) = find_byte(bytes, i + 1, b'>') {
-                let raw = std::str::from_utf8(&bytes[i + 1..end]).unwrap_or("");
+            if let Some(end) = find_tag_end(bytes, i + 1) {
+                if end.saturating_sub(i) > MAX_HTML_TAG_BYTES {
+                    return None;
+                }
+                let raw = html.get(i + 1..end)?;
                 let (name, attrs, self_closing) = parse_open_tag(raw);
                 // <script> / <style> bodies: skip to the matching close tag —
                 // their contents aren't user text.
-                let is_raw_text = matches!(name.as_str(), "script" | "style");
-                out.push(Token::OpenTag { name: name.clone(), attrs, self_closing });
                 i = end + 1;
-                if is_raw_text && !self_closing {
-                    let close_marker = format!("</{}>", name);
-                    if let Some(close) = find_subslice_ignore_case(bytes, i, close_marker.as_bytes()) {
-                        i = close;
-                    }
+                if matches!(name.as_str(), "script" | "style") {
+                    // HTML ignores '/>' on these elements. With no end tag,
+                    // raw text continues to EOF; never rescan it as markup.
+                    i = find_raw_text_end(bytes, i, &name).unwrap_or(bytes.len());
+                } else {
+                    out.push(Token::OpenTag { name, attrs, self_closing });
                 }
                 continue;
             }
@@ -123,43 +145,93 @@ fn tokenize(html: &str) -> Vec<Token> {
         }
         // Text run — gather up to the next '<'.
         let next = find_byte(bytes, i, b'<').unwrap_or(bytes.len());
-        let raw = std::str::from_utf8(&bytes[i..next]).unwrap_or("");
+        let raw = html.get(i..next)?;
         if !raw.is_empty() {
             out.push(Token::Text(decode_entities(raw)));
         }
         i = next;
     }
-    out
+    Some(out)
 }
 
 fn find_byte(bytes: &[u8], start: usize, needle: u8) -> Option<usize> {
-    bytes[start..].iter().position(|b| *b == needle).map(|p| p + start)
+    bytes.get(start..)?.iter().position(|b| *b == needle).map(|p| p + start)
+}
+
+// Quoted attribute values can contain '>'. Quotes in an unquoted value are
+// ordinary characters, so title=don't must not hide the end of the tag.
+fn find_tag_end(bytes: &[u8], start: usize) -> Option<usize> {
+    enum Value { Other, Start, Unquoted, Quoted(u8) }
+    let mut value = Value::Other;
+    for (offset, &byte) in bytes.get(start..)?.iter().enumerate() {
+        match value {
+            Value::Quoted(quote) if byte == quote => value = Value::Other,
+            Value::Quoted(_) => {},
+            _ if byte == b'>' => return Some(start + offset),
+            Value::Start if byte.is_ascii_whitespace() => {},
+            Value::Start if matches!(byte, b'\'' | b'"') => value = Value::Quoted(byte),
+            Value::Start => value = Value::Unquoted,
+            Value::Unquoted if byte.is_ascii_whitespace() => value = Value::Other,
+            Value::Unquoted => {},
+            Value::Other if byte == b'=' => value = Value::Start,
+            Value::Other => {},
+        }
+    }
+    None
 }
 
 fn find_subslice(bytes: &[u8], start: usize, needle: &[u8]) -> Option<usize> {
     if needle.is_empty() || start >= bytes.len() {
         return None;
     }
-    let slice = &bytes[start..];
+    let slice = bytes.get(start..)?;
     slice
         .windows(needle.len())
         .position(|w| w == needle)
         .map(|p| p + start)
 }
 
-fn find_subslice_ignore_case(bytes: &[u8], start: usize, needle: &[u8]) -> Option<usize> {
-    if needle.is_empty() || start >= bytes.len() {
-        return None;
+// WHATWG HTML 13.2.5.14/17: the matching end-tag name must be followed by
+// whitespace, '/' or '>'; a prefix such as </stylesheet> is still raw text.
+// Script comment escape states (13.2.5.18–31) can hide an inner </script>.
+// https://html.spec.whatwg.org/multipage/parsing.html#rawtext-end-tag-name-state
+fn find_raw_text_end(bytes: &[u8], start: usize, name: &str) -> Option<usize> {
+    let marker = format!("</{name}");
+    let mut escaped = false;
+    let mut double_escaped = false;
+    for (offset, &byte) in bytes.get(start..)?.iter().enumerate() {
+        let tail = bytes.get(start + offset..)?;
+        if escaped && byte == b'-' && tail.starts_with(b"-->") {
+            escaped = false;
+            double_escaped = false;
+        }
+        if byte != b'<' {
+            continue;
+        }
+        if name == "script" {
+            if !escaped && tail.starts_with(b"<!--") {
+                escaped = true;
+                continue;
+            }
+            if escaped && !double_escaped && matches_raw_tag(tail, b"<script") {
+                double_escaped = true;
+                continue;
+            }
+        }
+        if matches_raw_tag(tail, marker.as_bytes()) {
+            if double_escaped {
+                double_escaped = false;
+                continue;
+            }
+            return find_tag_end(bytes, start + offset + marker.len()).map(|end| end + 1);
+        }
     }
-    let slice = &bytes[start..];
-    slice
-        .windows(needle.len())
-        .position(|w| {
-            w.iter()
-                .zip(needle.iter())
-                .all(|(a, b)| a.eq_ignore_ascii_case(b))
-        })
-        .map(|p| p + start)
+    None
+}
+
+fn matches_raw_tag(bytes: &[u8], marker: &[u8]) -> bool {
+    bytes.get(marker.len()).is_some_and(|byte| byte.is_ascii_whitespace() || matches!(byte, b'/' | b'>'))
+        && bytes.get(..marker.len()).is_some_and(|prefix| prefix.eq_ignore_ascii_case(marker))
 }
 
 /// Split a `<...>` body into (lowercase_name, attrs, self_closing). Quoted
@@ -247,7 +319,7 @@ fn parse_open_tag(raw: &str) -> (String, Vec<(String, String)>, bool) {
                 }
                 _ => {
                     while let Some(&(_, c)) = chars.peek() {
-                        if c.is_whitespace() || c == '>' || c == '/' {
+                        if c.is_whitespace() || c == '>' {
                             break;
                         }
                         attr_value.push(c);
@@ -497,7 +569,7 @@ impl Parser {
                 self.flush_block_if_dirty();
                 self.current_heading_level = None;
                 self.current_props = BlockProps::default();
-                self.pre_depth += 1;
+                self.pre_depth = self.pre_depth.saturating_add(1);
                 self.at_block_start = true;
                 self.last_was_whitespace = false;
             }
@@ -953,6 +1025,124 @@ mod tests {
         assert_eq!(out.len(), 2);
         assert_eq!(paragraph_text(&out[0]), "before");
         assert_eq!(paragraph_text(&out[1]), "after");
+    }
+
+    #[test]
+    fn unclosed_raw_text_does_not_become_document_content() {
+        for tag in ["script", "STYLE"] {
+            let html = format!("<p>\u{FEFF}\u{00E9}\u{1F600}</p><{tag}>hidden<b>also hidden");
+            let out = html_to_blocks(&html);
+            assert_eq!(out.len(), 1, "{tag}");
+            assert_eq!(paragraph_text(&out[0]), "\u{FEFF}\u{00E9}\u{1F600}");
+        }
+    }
+
+    #[test]
+    fn repeated_unclosed_scripts_are_one_hidden_body() {
+        let html = format!("<p>kept</p>{}<p>hidden</p>", "<script>".repeat(2048));
+        assert_eq!(html_to_blocks(&html).iter().map(paragraph_text).collect::<Vec<_>>(), vec!["kept"]);
+    }
+
+    #[test]
+    fn script_comment_escape_states_keep_the_body_hidden() {
+        for body in [
+            "<!--<ScRiPt></script><p>hidden</p>",
+            "<!--<script/>hidden</script >",
+            "<!--<script>-->hidden",
+            "<!--<scriptx>hidden",
+        ] {
+            let html = format!("<p>before</p><script>{body}</script><p>after</p>");
+            assert_eq!(html_to_blocks(&html).iter().map(paragraph_text).collect::<Vec<_>>(),
+                vec!["before", "after"], "{body}");
+        }
+        let out = html_to_blocks("<p>kept</p><script><!--<script></script><p>hidden at EOF</p>");
+        assert_eq!(out.iter().map(paragraph_text).collect::<Vec<_>>(), vec!["kept"]);
+        // CSS has no script escape states; its first matching end tag closes it.
+        let out = html_to_blocks("<style><!--<script></style><p>shown</p>");
+        assert_eq!(out.iter().map(paragraph_text).collect::<Vec<_>>(), vec!["shown"]);
+    }
+
+    #[test]
+    fn raw_text_close_tags_accept_html_delimiters() {
+        for close in ["</ScRiPt \r\n>", "</script/>", "</script data-x='>'>"] {
+            let html = format!("<p>before</p><script>hidden{close}<p>\u{00E9}after</p>");
+            let out = html_to_blocks(&html);
+            assert_eq!(out.iter().map(paragraph_text).collect::<Vec<_>>(),
+                vec!["before", "\u{00E9}after"], "{close}");
+        }
+        let out = html_to_blocks("<style>hidden</stylesheet><p>hidden</p></STYLE \t><p>shown</p>");
+        assert_eq!(out.iter().map(paragraph_text).collect::<Vec<_>>(), vec!["shown"]);
+    }
+
+    #[test]
+    fn raw_text_html_elements_ignore_the_self_closing_flag() {
+        for tag in ["script", "style"] {
+            let html = format!("<p>before</p><{tag}/>hidden<b>hidden</b></{tag}><p>after</p>");
+            assert_eq!(html_to_blocks(&html).iter().map(paragraph_text).collect::<Vec<_>>(),
+                vec!["before", "after"]);
+        }
+    }
+
+    #[test]
+    fn quoted_attribute_delimiters_preserve_text_and_links() {
+        let out = html_to_blocks("<p><a href='https://example.test/?q=\u{00E9}>x&amp;y=1'>\u{1F600} &amp; \u{4E2D}</a></p>");
+        assert_eq!(out.len(), 1);
+        assert_eq!(paragraph_text(&out[0]), "\u{1F600} & \u{4E2D}");
+        let Block::Paragraph { runs, .. } = &out[0] else { panic!("paragraph") };
+        assert_eq!(runs[0].style.link.as_deref(), Some("https://example.test/?q=\u{00E9}>x&y=1"));
+        let out = html_to_blocks("<p><span title=don't>x</span></p>");
+        assert_eq!(paragraph_text(&out[0]), "x");
+    }
+
+    #[test]
+    fn unquoted_link_slashes_are_attribute_content() {
+        let out = html_to_blocks("<a href=https://example.test/path?q=1&amp;b=2>link</a>");
+        let Block::Paragraph { runs, .. } = &out[0] else { panic!("paragraph") };
+        assert_eq!(runs[0].style.link.as_deref(), Some("https://example.test/path?q=1&b=2"));
+    }
+
+    #[test]
+    fn invalid_tag_starts_remain_literal_utf8_text() {
+        let out = html_to_blocks("<pre>\u{FEFF}5 < 7 \u{00E9}\u{1F600}\r\n<\u{4E2D}> <</pre>");
+        assert_eq!(out.len(), 1);
+        assert_eq!(paragraph_text(&out[0]), "\u{FEFF}5 < 7 \u{00E9}\u{1F600}\r\n<\u{4E2D}> <");
+        let out = html_to_blocks("tail <");
+        assert_eq!(paragraph_text(&out[0]), "tail <");
+    }
+
+    #[test]
+    fn nested_formatting_preserves_outer_styles_around_raw_text() {
+        let html = format!("<p><b>{}before<style>hidden</style>after{}</b> plain</p>",
+            "<i>".repeat(64), "</i>".repeat(64));
+        let out = html_to_blocks(&html);
+        assert_eq!(paragraph_text(&out[0]), "beforeafter plain");
+        let Block::Paragraph { runs, .. } = &out[0] else { panic!("paragraph") };
+        assert!(runs[0].style.bold && runs[0].style.italic);
+        assert_eq!(runs.last().expect("plain run").style, InlineStyle::default());
+    }
+
+    #[test]
+    fn excessive_html_nesting_uses_the_plain_paste_fallback() {
+        for (open, close) in [("<b>", "</b>"), ("<ul>", "</ul>"), ("<pre>", "</pre>")] {
+            let html = format!("{}x{}", open.repeat(300), close.repeat(300));
+            assert!(html_to_blocks(&html).is_empty(), "{open}");
+        }
+    }
+
+    #[test]
+    fn excessive_html_attributes_use_the_plain_paste_fallback() {
+        let html = format!("<a href='{}'>text</a>", "x".repeat(64 * 1024));
+        assert!(html_to_blocks(&html).is_empty());
+    }
+
+    #[test]
+    fn excessive_html_token_counts_use_the_plain_paste_fallback() {
+        assert!(html_to_blocks(&"<p>x</p>".repeat(50_001)).is_empty());
+    }
+
+    #[test]
+    fn oversized_html_uses_the_plain_paste_fallback() {
+        assert!(html_to_blocks(&"x".repeat(17 * 1024 * 1024)).is_empty());
     }
 
     #[test]

@@ -498,3 +498,82 @@ fn autocomplete_current_list_navigation_does_not_record_editor_macros() {
     assert!(matches!(crate::macros::current().as_slice(), [crate::macros::MacroEvent::MoveLineStart]));
     cx.quit();
 }
+
+fn autocomplete_acceptance_manual_during_preedit(action: &str) {
+    use gpui::{ElementInputHandler, InputHandler};
+    let _settings = crate::settings::override_for_test(preferences());
+    let mut cx = TestAppContext::single(); let (workspace, visual) = fixture(&mut cx);
+    visual.update_window_entity(&workspace, |w, _, cx| {
+        w.close_autocomplete(cx); w.active_tab_mut().buffer.rope=ropey::Rope::from_str("ret\nreturn");
+        w.active_tab_mut().buffer.language=Some(crate::syntax::LanguageId::Rust);
+        w.active_tab_mut().selection.collapse_to(3); cx.notify();
+    }); visual.run_until_parked();
+    visual.update(|window, cx| {
+        let mut handler=ElementInputHandler::new(window.bounds(), workspace.clone());
+        handler.replace_and_mark_text_in_range(None, "u", Some(1..1), window, cx);
+        assert_eq!(handler.marked_text_range(window, cx), Some(3..4));
+        assert!(workspace.read(cx).autocomplete.is_none());
+    });
+    if action=="EditAutocompleteFuncAndWord" { visual.dispatch_action(EditAutocompleteFuncAndWord); visual.run_until_parked(); } else { press(visual, &[action]); }
+    visual.update(|window, cx| {
+        let w=workspace.read(cx); assert!(w.is_composing_text(window), "manual completion must preserve the marked session");
+        assert_eq!(w.buffer().rope.to_string(), "retu\nreturn");
+        assert_eq!(w.tabs[w.active].undo_stack.len(), 1); assert!(w.tabs[w.active].redo_stack.is_empty());
+        assert!(w.autocomplete.is_none(), "manual completion must not reopen over an active preedit: {action}");
+    });
+    visual.update(|window, cx| {
+        let mut handler=ElementInputHandler::new(window.bounds(), workspace.clone());
+        assert_eq!(handler.marked_text_range(window, cx), Some(3..4));
+    }); cx.quit();
+}
+
+#[test]
+fn autocomplete_acceptance_manual_word_refuses_active_preedit() {
+    autocomplete_acceptance_manual_during_preedit("EditAutocompleteWord");
+}
+#[test]
+fn autocomplete_acceptance_manual_function_refuses_active_preedit() {
+    autocomplete_acceptance_manual_during_preedit("EditAutocompleteFunc");
+}
+
+fn autocomplete_acceptance_manual_after_preedit(committed: bool) {
+    use gpui::{ElementInputHandler, InputHandler};
+    let _settings = crate::settings::override_for_test(preferences());
+    for action in ["EditAutocompleteWord", "EditAutocompleteFunc", "EditAutocompleteFuncAndWord"] {
+        let mut cx=TestAppContext::single(); let (workspace, visual)=fixture(&mut cx);
+        visual.update_window_entity(&workspace, |w, _, cx| {
+            w.close_autocomplete(cx); w.active_tab_mut().buffer.rope=ropey::Rope::from_str("ret\nreturn");
+            w.active_tab_mut().buffer.language=Some(crate::syntax::LanguageId::Rust);
+            w.active_tab_mut().selection.collapse_to(3); cx.notify();
+        }); visual.run_until_parked();
+        visual.update(|window, cx| {
+            let mut handler=ElementInputHandler::new(window.bounds(), workspace.clone());
+            handler.replace_and_mark_text_in_range(None, "u", Some(1..1), window, cx);
+            if committed { handler.replace_text_in_range(None, "u", window, cx); } else { handler.unmark_text(window, cx); }
+            assert_eq!(handler.marked_text_range(window, cx), None);
+        });
+        if action=="EditAutocompleteFuncAndWord" { visual.dispatch_action(EditAutocompleteFuncAndWord); visual.run_until_parked(); } else { press(visual, &[action]); }
+        visual.update(|window, cx| { let w=workspace.read(cx); assert!(!w.is_composing_text(window)); assert!(w.autocomplete.is_some()); });
+        visual.simulate_keystrokes("enter");
+        visual.update(|_, cx| assert_eq!(workspace.read(cx).buffer().rope.to_string(), "return\nreturn"));
+        press(visual, &["EditUndo"]);
+        visual.update(|_, cx| assert_eq!(workspace.read(cx).buffer().rope.to_string(), "retu\nreturn"));
+        press(visual, &["EditUndo"]);
+        visual.update(|_, cx| assert_eq!(workspace.read(cx).buffer().rope.to_string(), "ret\nreturn"));
+        cx.quit();
+    }
+}
+
+#[test]
+fn autocomplete_acceptance_manual_combined_refuses_active_preedit() {
+    autocomplete_acceptance_manual_during_preedit("EditAutocompleteFuncAndWord");
+}
+
+#[test]
+fn autocomplete_acceptance_manual_after_unmark_keeps_normal_completion() {
+    autocomplete_acceptance_manual_after_preedit(false);
+}
+#[test]
+fn autocomplete_acceptance_manual_after_commit_keeps_normal_completion() {
+    autocomplete_acceptance_manual_after_preedit(true);
+}

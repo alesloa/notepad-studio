@@ -287,7 +287,8 @@ impl Workspace {
     fn api_request_context_valid(&self, request: &ApiRequest, window: &Window) -> bool {
         (match request.purpose {
             ApiPurpose::Completion => self.completion_api.epoch == request.epoch
-                && self.autocomplete.as_ref().map(|state| state.session_id) == request.popup,
+                && self.autocomplete.as_ref().map(|state| state.session_id) == request.popup
+                && !self.is_composing_text(window),
             ApiPurpose::FunctionHint => self.function_hint_epoch() == request.epoch && !self.is_composing_text(window),
         })
             && window.is_window_active()

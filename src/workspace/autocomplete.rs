@@ -387,7 +387,8 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if !window.is_window_active() || !self.focus_handle.is_focused(window) || self.input_focus(window) != InputFocus::Editor {
+        if !window.is_window_active() || !self.focus_handle.is_focused(window) || self.input_focus(window) != InputFocus::Editor
+            || self.is_composing_text(window) {
             self.close_autocomplete(cx);
             return;
         }
@@ -407,7 +408,8 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if !window.is_window_active() || !self.focus_handle.is_focused(window) || self.input_focus(window) != InputFocus::Editor {
+        if !window.is_window_active() || !self.focus_handle.is_focused(window) || self.input_focus(window) != InputFocus::Editor
+            || self.is_composing_text(window) {
             self.close_autocomplete(cx);
             return;
         }
@@ -426,7 +428,8 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if !window.is_window_active() || !self.focus_handle.is_focused(window) || self.input_focus(window) != InputFocus::Editor {
+        if !window.is_window_active() || !self.focus_handle.is_focused(window) || self.input_focus(window) != InputFocus::Editor
+            || self.is_composing_text(window) {
             self.close_autocomplete(cx);
             return;
         }
@@ -488,7 +491,7 @@ impl Workspace {
 
     pub(crate) fn autocomplete_context_valid(&self, window: &Window) -> bool {
         let Some(state) = self.autocomplete.as_ref() else { return false; };
-        window.is_window_active() && self.focus_handle.is_focused(window)
+        window.is_window_active() && !self.is_composing_text(window) && self.focus_handle.is_focused(window)
             && state.input_context.as_ref().is_some_and(|token| *token == window.input_context_token())
             && self.input_focus(window) == InputFocus::Editor
             && self.autocomplete_editable()

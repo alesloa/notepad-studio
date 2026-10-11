@@ -582,3 +582,42 @@ fn known_languages_use_safe_explicit_api_filenames() {
         );
     }
 }
+
+#[test]
+fn autocomplete_acceptance_actual_api_worker_refuses_preedit_publication_then_completes_after_unmark() {
+    use gpui::{ElementInputHandler, InputHandler};
+    let _settings=crate::settings::override_for_test(preferences());
+    let temp=crate::persist::TempDir::new("completion-preedit-worker");
+    let _directory=override_directory_for_test(temp.path().to_owned());
+    std::fs::write(temp.join("rust.xml"), "<NotepadPlus><AutoComplete><KeyWord name='returnApi'/></AutoComplete></NotepadPlus>").unwrap();
+    let mut cx=TestAppContext::single(); let (workspace, visual)=fixture(&mut cx, "ret");
+    visual.update_window_entity(&workspace, |w, _, cx| {
+        w.close_autocomplete(cx); w.active_tab_mut().buffer.rope=ropey::Rope::from_str("ret\nreturn");
+        w.active_tab_mut().buffer.language=Some(crate::syntax::LanguageId::Rust);
+        w.active_tab_mut().selection.collapse_to(3); cx.notify();
+    }); visual.run_until_parked();
+    visual.update(|window, cx| {
+        workspace.update(cx, |w, cx| {
+            w.autocomplete_function(&EditAutocompleteFunc, window, cx);
+            assert!(w.completion_api.pending.is_some());
+        });
+        let mut handler=ElementInputHandler::new(window.bounds(), workspace.clone());
+        handler.replace_and_mark_text_in_range(None, "u", Some(1..1), window, cx);
+        assert_eq!(handler.marked_text_range(window, cx), Some(3..4));
+    }); visual.run_until_parked();
+    visual.update(|window, cx| {
+        let w=workspace.read(cx); assert!(w.is_composing_text(window));
+        assert!(w.completion_api.pending.is_none()); assert!(w.autocomplete.is_none());
+        assert!(w.loaded_api_snapshot(Some(crate::syntax::LanguageId::Rust)).unwrap().registry.find("returnApi").is_some(), "real worker completed and warmed the cache without publishing a list");
+        assert_eq!(w.buffer().rope.to_string(), "retu\nreturn");
+        assert_eq!(w.tabs[w.active].undo_stack.len(), 1);
+    });
+    visual.update(|window, cx| {
+        let mut handler=ElementInputHandler::new(window.bounds(), workspace.clone());
+        handler.unmark_text(window, cx);
+    }); press(visual, "EditAutocompleteFunc");
+    visual.update(|window, cx| { let w=workspace.read(cx); assert!(!w.is_composing_text(window)); assert_eq!(w.autocomplete.as_ref().unwrap().candidates, ["returnApi"]); });
+    visual.simulate_keystrokes("enter");
+    visual.update(|_, cx| assert_eq!(workspace.read(cx).buffer().rope.to_string(), "returnApi\nreturn"));
+    cx.quit();
+}

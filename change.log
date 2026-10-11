@@ -508,6 +508,10 @@ v0.0.5 — current
          End and Page Up/Down navigate suggestions without moving the
          editor caret; Shift-selection retains normal editor behavior.
 
+    130. Manual completion waits until IME preedit is committed or unmarked.
+         Word, Function and Combined completion preserve marked text and
+         its Undo history; loaded API definitions remain available afterward.
+
 
   v0.1.0 — syntax & language:
 

@@ -560,3 +560,70 @@ fn successful_manual_hint_closes_quietly_and_initial_failure_stays_actionable() 
     });
     cx.quit();
 }
+
+#[test]
+fn same_frame_focus_round_trip_cannot_publish_a_held_hint_scan() {
+    let _settings = crate::settings::override_for_test(preferences());
+    let (_temp, _directory) = registry_directory();
+    let mut cx = gpui::TestAppContext::single();
+    let (workspace, visual) = fixture(&mut cx, "draw(");
+    press(visual, "EditAutocompleteFuncParams");
+    visual.update_window_entity(&workspace, |w, window, cx| {
+        let request = held_scan(w, window, cx);
+        let other = cx.focus_handle();
+        window.focus(&other, cx);
+        window.focus(&w.focus_handle, cx);
+        let context = call_context::find_call("draw(", 5,
+            &request.api.registry.environment, CallLanguage::Rust).unwrap();
+        // Deliver before deferred blur observers can run. The caret, Rope
+        // and visible focus now match, but this is a different input context.
+        w.finish_function_hint(request, Ok(context), window, cx);
+        assert!(w.function_hint_snapshot(window).is_none());
+        assert_eq!(w.buffer().rope.to_string(), "draw(");
+        assert!(w.tabs[w.active].undo_stack.is_empty());
+    });
+    cx.quit();
+}
+
+#[test]
+fn fresh_manual_hint_after_focus_return_survives_noop_focus_and_repaint() {
+    let _settings = crate::settings::override_for_test(preferences());
+    let (_temp, _directory) = registry_directory();
+    let mut cx = gpui::TestAppContext::single();
+    let (workspace, visual) = fixture(&mut cx, "draw(");
+    press(visual, "EditAutocompleteFuncParams");
+    visual.update_window_entity(&workspace, |w, window, cx| {
+        let old = held_scan(w, window, cx);
+        let other = cx.focus_handle();
+        window.focus(&other, cx);
+        window.focus(&w.focus_handle, cx);
+        w.show_function_hint(window, cx);
+        w.function_hint.task = None;
+        let fresh = w.function_hint.request.clone().unwrap();
+        let focus = window.input_context_token();
+        window.focus(&w.focus_handle, cx);
+        window.activate_window();
+        assert_eq!(window.input_context_token(), focus);
+        assert!(!w.hint_position_valid(&old.position, window));
+        assert!(w.hint_position_valid(&fresh.position, window));
+        let context = call_context::find_call("draw(", 5,
+            &fresh.api.registry.environment, CallLanguage::Rust).unwrap();
+        w.finish_function_hint(fresh, Ok(context.clone()), window, cx);
+        let session = w.function_hint_snapshot(window).unwrap().session;
+        w.finish_function_hint(old, Ok(context), window, cx);
+        assert_eq!(w.function_hint_snapshot(window).unwrap().session, session);
+    });
+    visual.run_until_parked();
+    visual.update(|window, cx| { let _ = window.draw(cx); });
+    visual.run_until_parked();
+    assert!(visual.debug_bounds("function-hint").is_some());
+    visual.update(|window, cx| {
+        let w = workspace.read(cx);
+        assert!(w.function_hint_snapshot(window).is_some());
+        assert_eq!(w.buffer().rope.to_string(), "draw(");
+        assert!(w.tabs[w.active].undo_stack.is_empty());
+        assert!(w.tabs[w.active].redo_stack.is_empty());
+        assert!(w.autocomplete.is_none());
+    });
+    cx.quit();
+}

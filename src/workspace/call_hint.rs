@@ -15,6 +15,7 @@ use super::Workspace;
 #[derive(Clone)]
 struct HintPosition {
     window: WindowId,
+    input_context: gpui::InputContextToken,
     tab: Uuid,
     language: Option<LanguageId>,
     caret: usize,
@@ -37,6 +38,7 @@ struct HintRequest {
 struct HintIntent {
     tab: Uuid,
     language: Option<LanguageId>,
+    input_context: gpui::InputContextToken,
     manual: bool,
     status: Option<String>,
 }
@@ -146,6 +148,7 @@ impl Workspace {
         let caret = super::edits::floor_rope_char_boundary(&tab.buffer.rope, tab.selection.head);
         Some(HintPosition {
             window: window.window_handle().window_id(),
+            input_context: window.input_context_token(),
             tab: tab.session_id,
             language: tab.buffer.language,
             caret,
@@ -163,6 +166,7 @@ impl Workspace {
     fn hint_position_valid(&self, position: &HintPosition, window: &Window) -> bool {
         self.hint_position(window).is_some_and(|current| {
             current.window == position.window
+                && current.input_context == position.input_context
                 && current.tab == position.tab
                 && current.language == position.language
                 && current.caret == position.caret
@@ -199,9 +203,17 @@ impl Workspace {
             self.close_function_hint(cx);
             return false;
         };
+        // A fresh invocation can arrive before deferred blur observers.
+        // Retire the old intent before arming the new focus context.
+        if self.function_hint.intent.as_ref().is_some_and(|intent| {
+            intent.input_context != position.input_context
+        }) {
+            self.close_function_hint(cx);
+        }
         self.function_hint.intent = Some(HintIntent {
             tab: position.tab,
             language: position.language,
+            input_context: position.input_context,
             manual,
             status: self.status_message.clone(),
         });
@@ -288,7 +300,9 @@ impl Workspace {
             self.close_function_hint(cx);
             return;
         };
-        if position.tab != intent.tab || position.language != intent.language {
+        if position.tab != intent.tab || position.language != intent.language
+            || position.input_context != intent.input_context
+        {
             self.close_function_hint(cx);
             return;
         }
@@ -356,18 +370,22 @@ impl Workspace {
         };
         self.function_hint.request = Some(request.clone());
         self.function_hint.task = None;
-        let snapshot = request.clone();
+        // Input-context tokens stay on the UI thread. Only immutable scan
+        // data crosses to the background executor.
+        let source = request.position.rope.clone();
+        let caret = request.position.caret;
+        let language = request.position.language;
+        let registry = request.api.registry.clone();
         let scan = cx.background_spawn(async move {
-            let rope = &snapshot.position.rope;
-            let prefix = rope
-                .get_byte_slice(..snapshot.position.caret)
+            let prefix = source
+                .get_byte_slice(..caret)
                 .map(|prefix| prefix.to_string());
             prefix.map_or(Ok(None), |prefix| {
                 call_context::find_call(
                     &prefix,
                     prefix.len(),
-                    &snapshot.api.registry.environment,
-                    lexical_mode(snapshot.position.language),
+                    &registry.environment,
+                    lexical_mode(language),
                 )
             })
         });

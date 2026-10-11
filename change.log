@@ -342,6 +342,10 @@ v0.0.5 — current
        typing and composition still work; saving a clean CSV grid as text
        restores Source input, including IME.
 
+   86. Delayed completion and parameter hints cannot reopen after editor
+       focus leaves and returns, even within one frame. Fresh manual hints
+       still work; refocusing the editor or repainting keeps current requests.
+
   v0.1.0 — syntax & language:
 
     1. Tree-sitter syntax highlighting for 25 modes: Rust, Python, C,

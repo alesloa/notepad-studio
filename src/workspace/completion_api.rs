@@ -35,6 +35,7 @@ enum ApiPurpose { Completion, FunctionHint }
 struct ApiRequest {
     id: Uuid,
     window: WindowId,
+    input_context: gpui::InputContextToken,
     epoch: Uuid,
     language: Option<LanguageId>,
     kind: CandidateKind,
@@ -217,6 +218,7 @@ impl Workspace {
         let mut request = ApiRequest {
             id: Uuid::new_v4(),
             window: window.window_handle().window_id(),
+            input_context: window.input_context_token(),
             epoch: if matches!(purpose, ApiPurpose::FunctionHint) { self.function_hint_epoch() } else { self.completion_api.epoch },
             language,
             kind,
@@ -287,6 +289,7 @@ impl Workspace {
         })
             && window.is_window_active()
             && window.window_handle().window_id() == request.window
+            && window.input_context_token() == request.input_context
             && self.focus_handle.is_focused(window)
             && self.input_focus(window) == InputFocus::Editor
             && self.autocomplete_editable()

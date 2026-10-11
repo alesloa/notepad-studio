@@ -14,6 +14,117 @@ fn held_request(w: &mut Workspace, window: &mut Window, cx: &mut Context<Workspa
 }
 
 #[test]
+fn same_frame_focus_round_trip_retires_hint_and_completion_api_invocations() {
+    for hint in [false, true] {
+        let _settings = crate::settings::override_for_test(preferences());
+        let temp = crate::persist::TempDir::new("api-focus-aba");
+        let _directory = override_directory_for_test(temp.path().to_owned());
+        let mut cx = TestAppContext::single();
+        let (workspace, visual) = fixture(&mut cx, "draw(");
+        visual.update_window_entity(&workspace, |w, window, cx| {
+            let request = if hint {
+                held_request(w, window, cx)
+            } else {
+                w.request_completion_api(CandidateKind::Function(Some(LanguageId::Rust)),
+                    true, window, cx);
+                w.completion_api.task = None;
+                w.completion_api.pending.clone().unwrap()
+            };
+            let other = cx.focus_handle();
+            window.focus(&other, cx);
+            window.focus(&w.focus_handle, cx);
+            assert!(!w.api_request_context_valid(&request, window));
+            w.set_status("A newer independent status");
+            w.finish_completion_api(request, temp.join("rust.xml"),
+                Ok(Some(ApiRegistry::parse(&definitions("cached only")).unwrap())),
+                window, cx);
+            assert!(w.loaded_api_snapshot(Some(LanguageId::Rust)).is_some());
+            assert!(w.autocomplete.is_none());
+            assert!(!w.function_hint_visible());
+            assert_eq!(w.status_message.as_deref(), Some("A newer independent status"));
+            assert_eq!(w.buffer().rope.to_string(), "draw(");
+            assert!(w.tabs[w.active].undo_stack.is_empty());
+        });
+        cx.quit();
+    }
+}
+
+#[test]
+fn cold_hint_intent_cannot_restart_after_a_same_frame_focus_round_trip() {
+    let _settings = crate::settings::override_for_test(preferences());
+    let temp = crate::persist::TempDir::new("cold-hint-focus-aba");
+    let _directory = override_directory_for_test(temp.path().to_owned());
+    let mut cx = TestAppContext::single();
+    let (workspace, visual) = fixture(&mut cx, "draw(");
+    visual.update_window_entity(&workspace, |w, window, cx| {
+        let request = held_request(w, window, cx);
+        let other = cx.focus_handle();
+        window.focus(&other, cx);
+        window.focus(&w.focus_handle, cx);
+        w.set_status("A newer independent status");
+        // A cache-only reply must not start a new scan for the old manual
+        // intent while its deferred blur notification is still pending.
+        w.finish_completion_api(request, temp.join("rust.xml"),
+            Ok(Some(ApiRegistry::parse(&definitions("cached only")).unwrap())),
+            window, cx);
+        assert!(w.loaded_api_snapshot(Some(LanguageId::Rust)).is_some());
+        assert!(!w.function_hint_active());
+        assert!(w.function_hint_snapshot(window).is_none());
+        assert!(w.autocomplete.is_none());
+        assert_eq!(w.status_message.as_deref(), Some("A newer independent status"));
+        assert_eq!(w.buffer().rope.to_string(), "draw(");
+        assert!(w.tabs[w.active].undo_stack.is_empty());
+    });
+    cx.quit();
+}
+
+#[test]
+fn current_hint_and_completion_api_requests_survive_noop_focus_and_repaint() {
+    for hint in [false, true] {
+        let _settings = crate::settings::override_for_test(preferences());
+        let temp = crate::persist::TempDir::new("api-noop-focus");
+        let _directory = override_directory_for_test(temp.path().to_owned());
+        let mut cx = TestAppContext::single();
+        let (workspace, visual) = fixture(&mut cx, "draw(");
+        let request = visual.update_window_entity(&workspace, |w, window, cx| {
+            let request = if hint { held_request(w, window, cx) } else {
+                w.request_completion_api(CandidateKind::Function(Some(LanguageId::Rust)),
+                    true, window, cx);
+                w.completion_api.task = None;
+                w.completion_api.pending.clone().unwrap()
+            };
+            let focus = window.input_context_token();
+            window.focus(&w.focus_handle, cx);
+            window.activate_window();
+            assert_eq!(window.input_context_token(), focus);
+            request
+        });
+        visual.run_until_parked();
+        visual.update(|window, cx| { let _ = window.draw(cx); });
+        visual.update_window_entity(&workspace, |w, window, cx| {
+            assert!(w.api_request_context_valid(&request, window));
+            w.finish_completion_api(request, temp.join("rust.xml"),
+                Ok(Some(ApiRegistry::parse(&definitions("current parameter")).unwrap())),
+                window, cx);
+        });
+        visual.run_until_parked();
+        visual.update(|window, cx| {
+            let w = workspace.read(cx);
+            if hint {
+                assert!(w.function_hint_snapshot(window).is_some());
+                assert!(w.autocomplete.is_none());
+            } else {
+                assert!(w.autocomplete.as_ref().unwrap().candidates.iter().any(|name| name == "draw"));
+            }
+            assert_eq!(w.buffer().rope.to_string(), "draw(");
+            assert!(w.tabs[w.active].undo_stack.is_empty());
+            assert!(w.tabs[w.active].redo_stack.is_empty());
+        });
+        cx.quit();
+    }
+}
+
+#[test]
 fn hint_only_api_replies_never_open_completion_and_older_reads_cannot_replace_newer_definitions() {
     let _settings = crate::settings::override_for_test(preferences());
     let temp = crate::persist::TempDir::new("hint-api-held");

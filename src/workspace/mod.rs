@@ -484,6 +484,8 @@ pub(crate) struct PreviewPaneState {
 #[derive(Clone, Copy)]
 pub(crate) struct TabContextMenuState {
     pub(crate) target_tab_idx: usize,
+    pub(crate) target_tab_id: Uuid,
+    pub(crate) popup_id: Uuid,
     pub(crate) position: Point<Pixels>,
     /// Currently-expanded submenu, if any.
     pub(crate) open_submenu: Option<TabSubmenu>,
@@ -976,8 +978,11 @@ impl Workspace {
         position: Point<Pixels>,
         cx: &mut Context<Self>,
     ) {
+        let Some(tab) = self.tabs.get(tab_idx) else { return };
         self.tab_context_menu = Some(TabContextMenuState {
             target_tab_idx: tab_idx,
+            target_tab_id: tab.session_id,
+            popup_id: Uuid::new_v4(),
             position,
             open_submenu: None,
             submenu_anchor: position,

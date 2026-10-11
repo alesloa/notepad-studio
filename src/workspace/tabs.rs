@@ -509,16 +509,6 @@ impl Workspace {
 
     // PowerEditor/src/NppIO.cpp:588 — doReload confirms discarding dirty edits.
     pub(crate) fn reload_tab(&mut self, idx: usize, window: &mut Window, cx: &mut Context<Self>) {
-        self.reload_tab_with_csv_focus(idx, None, window, cx);
-    }
-
-    pub(super) fn reload_tab_with_csv_focus(
-        &mut self,
-        idx: usize,
-        csv_focus: Option<FocusHandle>,
-        window: &mut Window,
-        cx: &mut Context<Self>,
-    ) {
         let Some(tab) = self.tabs.get(idx) else {
             return;
         };
@@ -532,22 +522,62 @@ impl Workspace {
             cx.notify();
             return;
         }
+        if tab.csv_draft.is_some() {
+            self.set_status("Open the recovered CSV grid, copy any needed cell text, then commit or cancel the edit before reloading");
+            cx.notify();
+            return;
+        }
         let id = tab.session_id;
+        let csv_focus = self.csv_focus_for_reload(idx, window);
+        if crate::ui::csv_doc::actions::commit_cell_edit_for_tab(self, id, cx).is_err() {
+            return;
+        }
+        let Some(idx) = tab_index_of(&self.tabs, id) else { return };
+        if idx == self.active { self.close_autocomplete(cx); }
+        let Some(tab) = self.tabs.get(idx) else { return };
         if !tab.buffer.dirty {
             self.finish_reload(id, false, csv_focus, window, cx);
             return;
         }
         let name = tab.buffer.display_short_name().to_string();
+        let snapshot = ReloadSnapshot::capture(tab);
         let confirmation = super::file_tab_actions::confirm_reload(name);
         cx.spawn_in(window, async move |this, cx| {
             if confirmation.await {
                 this.update_in(cx, |w, window, cx| {
-                    w.finish_reload(id, true, csv_focus, window, cx);
+                    if w.reload_confirmation_is_current(id, &snapshot, cx) {
+                        w.finish_reload(id, true, csv_focus, window, cx);
+                    }
                 })
                 .ok();
             }
         })
         .detach();
+    }
+
+    fn reload_confirmation_is_current(
+        &mut self,
+        id: Uuid,
+        snapshot: &ReloadSnapshot,
+        cx: &mut Context<Self>,
+    ) -> bool {
+        let Some(tab) = self.tabs.iter().find(|tab| tab.session_id == id) else {
+            return false;
+        };
+        // A pending cell's text does not advance the source revision until commit.
+        if tab.csv_draft.is_some() || self.csv_models.get(&id).is_some_and(|model| {
+            model.cell_input.is_some() || model.detached_draft.is_some()
+        }) {
+            self.set_status("Reload cancelled: a CSV cell edit started while confirmation was open; commit or cancel it before reloading");
+            cx.notify();
+            return false;
+        }
+        if !snapshot.matches(tab) {
+            self.set_status("Reload cancelled: document changed while confirmation was open; reload again to confirm the current contents");
+            cx.notify();
+            return false;
+        }
+        true
     }
 
     fn finish_reload(
@@ -933,6 +963,36 @@ impl Workspace {
 /// Position of the tab whose `session_id` is `id`, if it is still open.
 fn tab_index_of(tabs: &[Tab], id: Uuid) -> Option<usize> {
     tabs.iter().position(|t| t.session_id == id)
+}
+
+// Confirmation applies to the captured document, not to later edits or Save As.
+struct ReloadSnapshot {
+    raw: crate::buffer::ContentRevision,
+    rich: Option<crate::buffer::ContentRevision>,
+    path: Option<std::path::PathBuf>,
+    encoding: crate::text::encoding::Encoding,
+    line_ending: crate::text::line_ending::LineEnding,
+}
+
+impl ReloadSnapshot {
+    fn capture(tab: &Tab) -> Self {
+        Self {
+            raw: tab.buffer.raw_revision.clone(),
+            rich: tab.buffer.rich_doc.as_ref().map(|payload| payload.revision.clone()),
+            path: tab.buffer.file_path.clone(),
+            encoding: tab.buffer.encoding,
+            line_ending: tab.buffer.line_ending,
+        }
+    }
+
+    fn matches(&self, tab: &Tab) -> bool {
+        tab.buffer.loading.is_none()
+            && self.raw == tab.buffer.raw_revision
+            && self.rich.as_ref() == tab.buffer.rich_doc.as_ref().map(|payload| &payload.revision)
+            && self.path == tab.buffer.file_path
+            && self.encoding == tab.buffer.encoding
+            && self.line_ending == tab.buffer.line_ending
+    }
 }
 
 fn reload_tab_by_id(tabs: &mut [Tab], id: Uuid, confirmed: bool) -> Result<Option<usize>, String> {

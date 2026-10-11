@@ -52,8 +52,9 @@ fn launch_file(kind: FileLaunch, path: &Path) -> Result<(), String> {
 }
 
 impl Workspace {
-    fn current_csv_focus(&self, window: &Window) -> Option<FocusHandle> {
-        let tab = self.tabs.get(self.active)?;
+    pub(super) fn csv_focus_for_reload(&self, index: usize, window: &Window) -> Option<FocusHandle> {
+        if index != self.active { return None; }
+        let tab = self.tabs.get(index)?;
         if tab.view_mode != crate::tab::TabViewMode::CsvPreview {
             return None;
         }
@@ -173,18 +174,7 @@ impl Workspace {
         let Some(index) = self.file_action_tab_index(cx) else {
             return;
         };
-        let csv_focus = self.current_csv_focus(window);
-        let Some(tab) = self.tabs.get(index) else {
-            return;
-        };
-        if tab.buffer.loading.is_none() && tab.buffer.file_path.is_some() {
-            let id = tab.session_id;
-            if crate::ui::csv_doc::actions::commit_cell_edit_for_tab(self, id, cx).is_err() {
-                return;
-            }
-            self.close_autocomplete(cx);
-        }
-        self.reload_tab_with_csv_focus(index, csv_focus, window, cx);
+        self.reload_tab(index, window, cx);
     }
 
     pub(crate) fn file_close_all_but_active(

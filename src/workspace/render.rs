@@ -751,9 +751,17 @@ impl Render for Workspace {
             })
             .when_some(self.tab_context_menu, |this, state| {
                 // Pre-compute flags from `self` so the menu doesn't double-
-                // lease the entity. If the target tab vanished (race with
-                // close), drop the menu silently — next click dismisses.
-                match tab_context_flags_for(self, state.target_tab_idx) {
+                // lease the entity. Resolve the captured UUID after reordering;
+                // dismiss this popup if its target tab has closed.
+                let Some(index) = self.tabs.iter().position(|tab| tab.session_id == state.target_tab_id) else {
+                    if self.tab_context_menu.is_some_and(|current| current.popup_id == state.popup_id) {
+                        self.hide_tab_context_menu(cx);
+                    }
+                    return this;
+                };
+                let mut state = state;
+                state.target_tab_idx = index;
+                match tab_context_flags_for(self, index) {
                     Some(flags) => this.child(tab_context_menu(
                         &theme,
                         state,

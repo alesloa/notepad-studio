@@ -330,9 +330,9 @@ fn main_menu_panel(
                     checkmark,
                     {
                         let ws = workspace.clone();
-                        let target = state.target_tab_idx;
+                        let painted = *state;
                         move |window, cx| {
-                            run_leaf_action(action, target, &ws, window, cx);
+                            run_leaf_action(action, painted, &ws, window, cx);
                         }
                     },
                     {
@@ -812,12 +812,20 @@ fn apply_color_panel(
 
 fn run_leaf_action(
     action: LeafAction,
-    target: usize,
+    painted: TabContextMenuState,
     workspace: &Entity<Workspace>,
     window: &mut gpui::Window,
     cx: &mut gpui::App,
 ) {
     workspace.update(cx, |w, cx| {
+        let Some(current) = w.tab_context_menu else { return };
+        if current.popup_id != painted.popup_id || current.target_tab_id != painted.target_tab_id {
+            return;
+        }
+        let Some(target) = w.tabs.iter().position(|tab| tab.session_id == painted.target_tab_id) else {
+            w.hide_tab_context_menu(cx);
+            return;
+        };
         w.hide_tab_context_menu(cx);
         match action {
             LeafAction::Close => w.close_tab_at(target, window, cx),
@@ -973,6 +981,10 @@ pub(crate) fn leaf_row(
     }
     row
 }
+
+#[cfg(test)]
+#[path = "tab_reload_tests.rs"]
+mod tab_reload_tests;
 
 fn color_row(
     theme: &Theme,

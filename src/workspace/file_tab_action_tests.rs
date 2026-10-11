@@ -5,7 +5,7 @@ use crate::{
     settings::{override_for_test, Settings},
     tab::{InputFocus, Tab, TabViewMode},
 };
-use gpui::{AppContext, TestAppContext, VisualContext, WindowAppearance};
+use gpui::{AppContext, EntityInputHandler, TestAppContext, VisualContext, WindowAppearance};
 use std::{
     cell::RefCell,
     marker::PhantomData,
@@ -397,6 +397,214 @@ fn confirmed_reload_ignores_a_closed_target_uuid() {
             assert!(w.focus_handle.is_focused(window));
         },
     );
+}
+
+#[test]
+fn confirmed_reload_preserves_source_edits_made_after_the_prompt_opened() {
+    for file in [false, true] {
+        let fixture = crate::persist::TempDir::new("reload-late-source");
+        let path = fixture.join("neutral.txt");
+        std::fs::write(&path, "disk\n").expect("fixture disk");
+        let revision = RefCell::new(None);
+        with_workspace(
+            |w, window, cx| {
+                w.tabs[1].buffer.file_path = Some(path.clone());
+                w.tabs[1].buffer.rope = ropey::Rope::from_str("old\n");
+                w.tabs[1].buffer.dirty = true;
+                let _response = override_reload_response(true);
+                if file {
+                    w.file_reload_from_disk(&FileReloadFromDisk, window, cx);
+                } else {
+                    w.reload_tab(1, window, cx);
+                }
+                w.replace_text_in_range(None, "new café😀 ", window, cx);
+                assert_eq!(w.tabs[1].buffer.rope.to_string(), "new café😀 old\n");
+                revision.replace(Some(w.tabs[1].buffer.raw_revision.clone()));
+                w.focus_input(InputFocus::FindQuery, window, cx);
+            },
+            |w, window, _| {
+                assert_eq!(w.tabs[1].buffer.rope.to_string(), "new café😀 old\n");
+                assert_eq!(Some(&w.tabs[1].buffer.raw_revision), revision.borrow().as_ref());
+                assert_eq!(w.tabs[1].undo_stack.len(), 1);
+                assert!(w.tabs[1].buffer.dirty);
+                assert!(w.find_focus.is_focused(window));
+                assert_eq!(w.status_message.as_deref(), Some("Reload cancelled: document changed while confirmation was open; reload again to confirm the current contents"));
+            },
+        );
+        assert_eq!(std::fs::read_to_string(&path).expect("disk unchanged"), "disk\n");
+    }
+}
+
+#[test]
+fn confirmed_reload_preserves_a_new_csv_cell_editor_and_its_text() {
+    for file in [false, true] {
+        let fixture = crate::persist::TempDir::new("reload-late-cell");
+        let path = fixture.join("neutral.csv");
+        std::fs::write(&path, "disk\n").expect("fixture disk");
+        let focus = RefCell::new(None);
+        let revision = RefCell::new(None);
+        with_workspace(
+            |w, window, cx| {
+                focus_csv_grid(w, window, cx);
+                w.tabs[1].buffer.file_path = Some(path.clone());
+                w.tabs[1].buffer.dirty = true;
+                revision.replace(Some(w.tabs[1].buffer.raw_revision.clone()));
+                let _response = override_reload_response(true);
+                if file {
+                    w.file_reload_from_disk(&FileReloadFromDisk, window, cx);
+                } else {
+                    w.reload_tab(1, window, cx);
+                }
+                crate::ui::csv_doc::actions::open_cell_editor(w, 0, 0, window, cx);
+                w.replace_text_in_range(None, " late 中😀", window, cx);
+                let model = w.csv_models.get(&w.tabs[1].session_id).expect("model");
+                let input = model.cell_input.as_ref().expect("new cell editor");
+                assert_eq!(input.buffer, "cell late 中😀");
+                focus.replace(Some(input.focus_handle.clone()));
+            },
+            |w, window, _| {
+                assert_eq!(w.tabs[1].buffer.rope.to_string(), "cell\n");
+                assert_eq!(Some(&w.tabs[1].buffer.raw_revision), revision.borrow().as_ref());
+                let model = w.csv_models.get(&w.tabs[1].session_id).expect("model survives");
+                let input = model.cell_input.as_ref().expect("draft survives");
+                assert_eq!(input.buffer, "cell late 中😀");
+                assert_eq!((input.cursor, input.anchor), (input.buffer.len(), input.buffer.len()));
+                assert_eq!(model.editing_cell, Some((0, 0)));
+                assert!(focus.borrow().as_ref().expect("new editor focus").is_focused(window));
+                assert!(w.tabs[1].buffer.dirty);
+                assert_eq!(w.status_message.as_deref(), Some("Reload cancelled: a CSV cell edit started while confirmation was open; commit or cancel it before reloading"));
+            },
+        );
+    }
+}
+
+#[test]
+fn confirmed_reload_preserves_late_lazy_and_detached_csv_drafts() {
+    for detached in [false, true] {
+        let fixture = crate::persist::TempDir::new("reload-late-recovery");
+        let path = fixture.join("neutral.csv");
+        std::fs::write(&path, "disk\n").expect("fixture disk");
+        with_workspace(
+            |w, window, cx| {
+                focus_csv_grid(w, window, cx);
+                w.tabs[1].buffer.file_path = Some(path.clone());
+                w.tabs[1].buffer.dirty = true;
+                let _response = override_reload_response(true);
+                w.reload_tab(1, window, cx);
+                let draft = crate::session::CsvDraft {
+                    value: "late recovered café😀".into(),
+                    cursor: 5,
+                    anchor: 0,
+                    refusal: Some("Recover this value".into()),
+                    ..Default::default()
+                };
+                if detached {
+                    w.csv_models.get_mut(&w.tabs[1].session_id).expect("model").detached_draft = Some(draft);
+                } else {
+                    w.tabs[1].csv_draft = Some(draft);
+                }
+                w.focus_input(InputFocus::FindQuery, window, cx);
+            },
+            |w, window, _| {
+                assert_eq!(w.tabs[1].buffer.rope.to_string(), "cell\n");
+                let draft = if detached {
+                    w.csv_models.get(&w.tabs[1].session_id).expect("model survives").detached_draft.as_ref()
+                } else {
+                    w.tabs[1].csv_draft.as_ref()
+                }.expect("draft survives");
+                assert_eq!(draft.value, "late recovered café😀");
+                assert_eq!((draft.cursor, draft.anchor), (5, 0));
+                assert_eq!(draft.refusal.as_deref(), Some("Recover this value"));
+                assert!(w.find_focus.is_focused(window));
+                assert_eq!(w.status_message.as_deref(), Some("Reload cancelled: a CSV cell edit started while confirmation was open; commit or cancel it before reloading"));
+            },
+        );
+    }
+}
+
+#[test]
+fn confirmed_reload_preserves_rich_edits_when_raw_source_is_unchanged() {
+    let fixture = crate::persist::TempDir::new("reload-late-rich");
+    let path = fixture.join("neutral.rtf");
+    std::fs::write(&path, br"{\rtf1\ansi seed}").expect("fixture disk");
+    let raw = RefCell::new(String::new());
+    let revision = RefCell::new(None);
+    with_workspace(
+        |w, window, cx| {
+            w.tabs[1].buffer = crate::io::read_buffer(&path).expect("rich fixture");
+            w.tabs[1].view_mode = TabViewMode::RichDocView;
+            let payload = w.tabs[1].buffer.rich_doc.as_mut().expect("rich payload");
+            let pos = crate::rich_doc::TextPos { block: 0, run: 0, byte: 0 };
+            payload.selection = Some(crate::rich_doc::TextSelection { anchor: pos, cursor: pos });
+            payload.active_block = Some(0);
+            raw.replace(w.tabs[1].buffer.rope.to_string());
+            w.tabs[1].buffer.dirty = true;
+            w.rich_doc_body_focus = Some(cx.focus_handle());
+            window.focus(w.rich_doc_body_focus.as_ref().expect("body focus"), cx);
+            let _response = override_reload_response(true);
+            w.reload_tab(1, window, cx);
+            w.replace_text_in_range(None, "new 中😀 ", window, cx);
+            let payload = w.tabs[1].buffer.rich_doc.as_ref().expect("rich edit");
+            assert_eq!(payload.flat_search_text().0, "new 中😀 seed");
+            revision.replace(Some(payload.revision.clone()));
+        },
+        |w, window, _| {
+            assert_eq!(w.tabs[1].buffer.rope.to_string(), *raw.borrow());
+            let payload = w.tabs[1].buffer.rich_doc.as_ref().expect("rich edit survives");
+            assert_eq!(payload.flat_search_text().0, "new 中😀 seed");
+            assert_eq!(Some(&payload.revision), revision.borrow().as_ref());
+            assert_eq!(payload.undo_stack.len(), 1);
+            assert_eq!(payload.edit_log.len(), 1);
+            assert!(w.tabs[1].buffer.dirty);
+            assert!(w.rich_doc_body_focus.as_ref().expect("body focus").is_focused(window));
+            assert_eq!(w.status_message.as_deref(), Some("Reload cancelled: document changed while confirmation was open; reload again to confirm the current contents"));
+        },
+    );
+}
+
+#[test]
+fn confirmed_reload_rejects_new_path_encoding_eol_loading_and_restored_identity() {
+    for change in 0..5 {
+        let fixture = crate::persist::TempDir::new("reload-late-metadata");
+        let path = fixture.join("neutral.txt");
+        let other = fixture.join("other.txt");
+        std::fs::write(&path, "disk\n").expect("fixture disk");
+        std::fs::write(&other, "other disk\n").expect("fixture other disk");
+        with_workspace(
+            |w, window, cx| {
+                w.tabs[1].buffer.file_path = Some(path.clone());
+                w.tabs[1].buffer.rope = ropey::Rope::from_str("old\n");
+                w.tabs[1].buffer.dirty = true;
+                let _response = override_reload_response(true);
+                w.reload_tab(1, window, cx);
+                match change {
+                    0 => w.tabs[1].buffer.file_path = Some(other.clone()),
+                    1 => w.tabs[1].buffer.encoding = crate::text::encoding::Encoding::Utf16Le,
+                    2 => w.tabs[1].buffer.line_ending = crate::text::line_ending::LineEnding::Cr,
+                    3 => w.tabs[1].buffer.loading = Some(LoadProgress {
+                        bytes_read: 1, total_bytes: 2, cancel: Arc::new(AtomicBool::new(false)),
+                    }),
+                    _ => {
+                        let id = w.tabs[1].session_id;
+                        w.tabs[1] = Tab::empty();
+                        w.tabs[1].session_id = id;
+                        w.tabs[1].buffer.file_path = Some(path.clone());
+                        w.tabs[1].buffer.rope = ropey::Rope::from_str("restored\n");
+                    }
+                }
+                w.focus_input(InputFocus::FindQuery, window, cx);
+            },
+            |w, window, _| {
+                assert_eq!(w.tabs[1].buffer.rope.to_string(), if change == 4 { "restored\n" } else { "old\n" });
+                assert_eq!(w.tabs[1].buffer.file_path.as_ref(), Some(if change == 0 { &other } else { &path }));
+                if change == 1 { assert_eq!(w.tabs[1].buffer.encoding, crate::text::encoding::Encoding::Utf16Le); }
+                if change == 2 { assert_eq!(w.tabs[1].buffer.line_ending, crate::text::line_ending::LineEnding::Cr); }
+                assert_eq!(w.tabs[1].buffer.loading.is_some(), change == 3);
+                assert!(w.find_focus.is_focused(window));
+                assert_eq!(w.status_message.as_deref(), Some("Reload cancelled: document changed while confirmation was open; reload again to confirm the current contents"));
+            },
+        );
+    }
 }
 
 #[test]

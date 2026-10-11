@@ -19,63 +19,74 @@
 // through verbatim — Notepad++ behaves the same way.
 
 pub(crate) fn interpret_extended(input: &str) -> String {
-    let bytes = input.as_bytes();
     let mut out = String::with_capacity(input.len());
+    let _ = for_each_extended(input, |ch| {
+        out.push(ch);
+        Ok::<_, std::convert::Infallible>(())
+    });
+    out
+}
+
+/// Stream the same escape interpretation into a fallible, bounded sink.
+pub(crate) fn for_each_extended<E>(
+    input: &str, mut emit: impl FnMut(char) -> Result<(), E>,
+) -> Result<(), E> {
+    let bytes = input.as_bytes();
     let mut i = 0;
     while i < bytes.len() {
-        let c = bytes[i];
+        let Some(&c) = bytes.get(i) else { break; };
         if c != b'\\' {
             // Multi-byte UTF-8 char outside an escape — copy whole codepoint.
             // `i` only ever lands on a char boundary, so this always yields.
             let Some(ch) = input.get(i..).and_then(|rest| rest.chars().next()) else {
                 break;
             };
-            out.push(ch);
+            emit(ch)?;
             i += ch.len_utf8();
             continue;
         }
         let next = match bytes.get(i + 1) {
             Some(b) => *b,
             None => {
-                out.push('\\');
+                emit('\\')?;
                 i += 1;
                 continue;
             }
         };
         match next {
-            b'n' => { out.push('\n'); i += 2; }
-            b'r' => { out.push('\r'); i += 2; }
-            b't' => { out.push('\t'); i += 2; }
-            b'0' => { out.push('\0'); i += 2; }
-            b'b' => { out.push('\u{08}'); i += 2; }
-            b'\\' => { out.push('\\'); i += 2; }
+            b'n' => { emit('\n')?; i += 2; }
+            b'r' => { emit('\r')?; i += 2; }
+            b't' => { emit('\t')?; i += 2; }
+            b'0' => { emit('\0')?; i += 2; }
+            b'b' => { emit('\u{08}')?; i += 2; }
+            b'\\' => { emit('\\')?; i += 2; }
             b'x' => {
                 if let Some(byte) = parse_hex_byte(bytes, i + 2) {
-                    out.push(byte as char);
+                    emit(byte as char)?;
                     i += 4;
                 } else {
-                    out.push('\\');
-                    out.push('x');
+                    emit('\\')?;
+                    emit('x')?;
                     i += 2;
                 }
             }
             b'd' => {
                 if let Some(byte) = parse_dec_byte(bytes, i + 2) {
-                    out.push(byte as char);
+                    emit(byte as char)?;
                     i += 5;
                 } else {
-                    out.push('\\');
-                    out.push('d');
+                    emit('\\')?;
+                    emit('d')?;
                     i += 2;
                 }
             }
             b'o' => {
                 if let Some(byte) = parse_oct_byte(bytes, i + 2) {
-                    out.push(byte as char);
+                    emit(byte as char)?;
                     i += 5;
                 } else {
-                    out.push('\\');
-                    out.push('o');
+                    emit('\\')?;
+                    emit('o')?;
                     i += 2;
                 }
             }
@@ -83,12 +94,12 @@ pub(crate) fn interpret_extended(input: &str) -> String {
                 // Unknown escape: keep the backslash and let the next pass
                 // copy whatever follows as a whole char. Stepping over one
                 // byte here split `\é` mid-codepoint and panicked.
-                out.push('\\');
+                emit('\\')?;
                 i += 1;
             }
         }
     }
-    out
+    Ok(())
 }
 
 fn parse_hex_byte(bytes: &[u8], at: usize) -> Option<u8> {

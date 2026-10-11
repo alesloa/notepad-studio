@@ -57,6 +57,7 @@ impl<R: Send + 'static, O: Send + 'static, D: Send + 'static> Controller<R, O, D
         self.signal();
         Some(id)
     }
+    #[cfg(test)]
     pub(super) fn retire(&self, batch: D) -> Result<(), D> {
         {
             let Ok(mut state) = self.state.lock() else { return Err(batch); };
@@ -65,6 +66,26 @@ impl<R: Send + 'static, O: Send + 'static, D: Send + 'static> Controller<R, O, D
         }
         self.signal();
         Ok(())
+    }
+    /// Reserve the sole retirement slot before moving any UI-owned buffers.
+    /// The closure only transfers ownership and must not reenter this controller.
+    pub(super) fn retire_using(&self, take: impl FnOnce() -> D) -> bool {
+        {
+            let Ok(mut state) = self.state.lock() else { return false; };
+            if state.closed || state.retired.is_some() { return false; }
+            state.retired = Some(take());
+        }
+        self.signal();
+        true
+    }
+    pub(super) fn cancel(&self) {
+        if let Ok(mut state) = self.state.lock() {
+            state.latest = None;
+            if let Some(active) = state.active.as_ref() {
+                active.cancel.store(true, Ordering::Release);
+            }
+        }
+        self.signal();
     }
     pub(super) fn close(&self) {
         if let Ok(mut state) = self.state.lock() {
@@ -109,6 +130,7 @@ impl<R: Send + 'static, O: Send + 'static, D: Send + 'static> Controller<R, O, D
         let (owner, output) = state.output.as_mut()?;
         (*owner == id).then(|| update(output))
     }
+    #[cfg(test)]
     pub(super) fn accept(&self, id: Uuid) -> Option<O> {
         let output = {
             let Ok(mut state) = self.state.lock() else { return None; };
@@ -122,6 +144,42 @@ impl<R: Send + 'static, O: Send + 'static, D: Send + 'static> Controller<R, O, D
         };
         self.signal();
         output
+    }
+    /// Partition accepted publication from worker cleanup while reserving the
+    /// sole retirement slot. Neither closure may reenter the controller.
+    pub(super) fn accept_retiring<T>(
+        &self, id: Uuid, split: impl FnOnce(O) -> (T, D),
+    ) -> Option<T> {
+        let accepted = {
+            let Ok(mut state) = self.state.lock() else { return None; };
+            if state.closed || state.latest.is_some() || state.retired.is_some()
+                || state.active.as_ref().is_none_or(|a| a.id != id || a.cancel.load(Ordering::Acquire))
+                || state.output.as_ref().is_none_or(|(owner, _)| *owner != id) {
+                return None;
+            }
+            let (_, output) = state.output.take()?;
+            let (accepted, cleanup) = split(output);
+            state.retired = Some(cleanup);
+            state.active = None;
+            accepted
+        };
+        self.signal();
+        Some(accepted)
+    }
+    /// Shutdown may join bounded completion scratch and the visible buffers into
+    /// one retirement envelope. Admission occurs before either buffer is moved.
+    pub(super) fn retire_or_extend_using(
+        &self, eligible: impl FnOnce(Option<&D>) -> bool, take: impl FnOnce(Option<D>) -> D,
+    ) -> bool {
+        {
+            let Ok(mut state) = self.state.lock() else { return false; };
+            if state.closed { return false; }
+            if !eligible(state.retired.as_ref()) { return false; }
+            let previous = state.retired.take();
+            state.retired = Some(take(previous));
+        }
+        self.signal();
+        true
     }
     pub(super) fn reject(&self, id: Uuid) {
         if let Ok(state) = self.state.lock() {
@@ -249,6 +307,50 @@ mod tests {
         assert_eq!(ledger.used(), 0); cx.quit();
     }
     #[test]
+    fn accepted_output_cannot_escape_before_cleanup_slot_is_reserved() {
+        let (controller, _) = Controller::<usize, Vec<usize>, Vec<usize>>::new(&Ledger::default().pool(1024 * 1024)).unwrap();
+        let id = controller.request(1).unwrap();
+        assert!(matches!(controller.next(), Work::Request(_)));
+        controller.complete(id, vec![2, 3]).unwrap();
+        assert!(controller.retire_using(|| vec![4]));
+        let mut called = false;
+        assert!(controller.accept_retiring(id, |output| { called = true; (output, vec![]) }).is_none());
+        assert!(!called);
+        assert!(matches!(controller.next(), Work::Retire(_)));
+        assert_eq!(controller.accept_retiring(id, |output| (output, vec![5])), Some(vec![2, 3]));
+        assert!(matches!(controller.next(), Work::Retire(values) if values == vec![5]));
+        assert!(controller.accept_retiring(id, |output| (output, vec![])).is_none());
+    }
+    #[test]
+    fn retirement_admission_does_not_take_ui_data_when_slot_is_occupied() {
+        let (controller, _) = Controller::<usize, usize, Vec<usize>>::new(&Ledger::default().pool(1024 * 1024)).unwrap();
+        let mut visible = vec![1, 2, 3];
+        assert!(controller.retire_using(|| std::mem::take(&mut visible)));
+        assert!(visible.is_empty());
+        visible.push(4);
+        assert!(!controller.retire_using(|| std::mem::take(&mut visible)));
+        assert_eq!(visible, vec![4]);
+        controller.close();
+        assert!(!controller.retire_using(|| std::mem::take(&mut visible)));
+        assert_eq!(visible, vec![4]);
+    }
+    #[test]
+    fn cancel_removes_latest_metadata_and_invalidates_a_waiting_output() {
+        let (controller, _) = Controller::<usize, usize, usize>::new(&Ledger::default().pool(1024 * 1024)).unwrap();
+        let old = controller.request(1).unwrap();
+        let Work::Request(request) = controller.next() else { panic!("request must activate"); };
+        assert_eq!(request.id, old);
+        controller.request(2).unwrap();
+        controller.cancel();
+        assert!(request.cancel.load(Ordering::Acquire));
+        assert_eq!(controller.complete(old, 42), Err(42));
+        assert!(matches!(controller.next(), Work::Park));
+        let next = controller.request(3).unwrap();
+        let Work::Request(request) = controller.next() else { panic!("replacement must activate"); };
+        assert_eq!(request.id, next);
+        assert!(!request.cancel.load(Ordering::Acquire));
+    }
+    #[test]
     fn window_close_keeps_held_job_cleanup_off_the_ui_thread() {
         let (controller, wakes) = fixture();
         let (started_tx, started_rx) = std::sync::mpsc::channel();
@@ -268,4 +370,54 @@ mod tests {
         assert_eq!(drop_rx.recv_timeout(Duration::from_secs(5)).unwrap(), worker.thread().id());
         worker.join().unwrap();
     }
+    #[test]
+    fn held_destructor_keeps_running_and_queued_retirement_credits_until_worker_drop() {
+        use super::super::find_current_budget::Owned;
+        struct Cleanup {
+            hold: Option<std::sync::mpsc::Receiver<()>>,
+            started: std::sync::mpsc::Sender<thread::ThreadId>,
+            _data: Owned<String>,
+        }
+        impl Drop for Cleanup {
+            fn drop(&mut self) {
+                self.started.send(thread::current().id()).unwrap();
+                if let Some(hold) = self.hold.take() { hold.recv_timeout(Duration::from_secs(5)).unwrap(); }
+            }
+        }
+        let ledger = Ledger::default();
+        let pool = ledger.pool(8 * 1024 * 1024);
+        let (controller, wakes) = Controller::<usize, usize, Cleanup>::new(&pool).unwrap();
+        let fixed = ledger.used();
+        let (drops, observed) = std::sync::mpsc::channel();
+        let (release, hold) = std::sync::mpsc::channel();
+        let (completed, completion) = std::sync::mpsc::channel();
+        let actor = Arc::clone(&controller);
+        let worker = thread::spawn(move || futures::executor::block_on(actor.run(wakes,
+            |request| async move { request.value }, move |id| { completed.send(id).unwrap(); })));
+        assert!(controller.retire_using(|| {
+            let mut data = Owned::<String>::new(&pool).unwrap(); data.reserve(1024 * 1024).unwrap();
+            Cleanup { hold: Some(hold), started: drops.clone(), _data: data }
+        }));
+        assert_eq!(observed.recv_timeout(Duration::from_secs(5)).unwrap(), worker.thread().id());
+        assert!(controller.retire_using(|| {
+            let mut data = Owned::<String>::new(&pool).unwrap(); data.reserve(2 * 1024 * 1024).unwrap();
+            Cleanup { hold: None, started: drops.clone(), _data: data }
+        }));
+        let mut called = false;
+        assert!(!controller.retire_using(|| { called = true; panic!("full slot must not construct cleanup") }));
+        assert!(!called);
+        assert_eq!(ledger.used(), fixed + 3 * 1024 * 1024);
+        let mut latest = Uuid::nil();
+        for value in 1..=1000 { latest = controller.request(value).unwrap(); }
+        assert!(completion.try_recv().is_err());
+        release.send(()).unwrap();
+        assert_eq!(observed.recv_timeout(Duration::from_secs(5)).unwrap(), worker.thread().id());
+        assert_eq!(completion.recv_timeout(Duration::from_secs(5)).unwrap(), latest);
+        assert_eq!(controller.accept(latest), Some(1000));
+        assert_eq!(ledger.used(), fixed);
+        assert!(ledger.peak() <= super::super::find_current_budget::OWNED_BYTES);
+        controller.close(); worker.join().unwrap(); drop(controller);
+        assert_eq!(ledger.used(), 0);
+    }
+
 }

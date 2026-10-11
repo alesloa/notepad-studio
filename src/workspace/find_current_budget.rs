@@ -7,20 +7,30 @@ pub(super) const OWNED_BYTES: usize = 192 * 1024 * 1024;
 
 #[derive(Clone)]
 pub(super) struct Ledger(Arc<Counters>);
-struct Counters { used: AtomicUsize, peak: AtomicUsize, limit: usize }
+struct Counters {
+    used: AtomicUsize, peak: AtomicUsize, limit: usize,
+    #[cfg(test)] drops: Option<std::sync::mpsc::Sender<(usize, std::thread::ThreadId)>>,
+}
 impl Default for Ledger {
     fn default() -> Self { Self::with_limit(OWNED_BYTES) }
 }
 impl Ledger {
     fn with_limit(limit: usize) -> Self {
-        Self(Arc::new(Counters { used: AtomicUsize::new(0), peak: AtomicUsize::new(0), limit }))
+        Self(Arc::new(Counters { used: AtomicUsize::new(0), peak: AtomicUsize::new(0), limit, #[cfg(test)] drops: None }))
+    }
+    #[cfg(test)]
+    pub(super) fn observe_drops(sender: std::sync::mpsc::Sender<(usize, std::thread::ThreadId)>) -> Self {
+        Self(Arc::new(Counters { used: AtomicUsize::new(0), peak: AtomicUsize::new(0),
+            limit: OWNED_BYTES, drops: Some(sender) }))
     }
     pub(super) fn pool(&self, limit: usize) -> Pool {
         Pool { ledger: self.clone(), local: Arc::new(Counters {
-            used: AtomicUsize::new(0), peak: AtomicUsize::new(0), limit,
+            used: AtomicUsize::new(0), peak: AtomicUsize::new(0), limit, #[cfg(test)] drops: None,
         }) }
     }
+    #[cfg(test)]
     pub(super) fn used(&self) -> usize { self.0.used.load(Ordering::Acquire) }
+    #[cfg(test)]
     pub(super) fn peak(&self) -> usize { self.0.peak.load(Ordering::Acquire) }
 }
 fn admit(counters: &Counters, bytes: usize) -> Result<(), ProjectionError> {
@@ -54,6 +64,8 @@ impl Pool {
 pub(super) struct Credit { pool: Pool, bytes: usize, local_bytes: usize }
 impl Drop for Credit {
     fn drop(&mut self) {
+        #[cfg(test)]
+        if let Some(sender) = &self.pool.ledger.0.drops { let _ = sender.send((self.bytes, std::thread::current().id())); }
         self.pool.local.used.fetch_sub(self.local_bytes, Ordering::AcqRel);
         self.pool.ledger.0.used.fetch_sub(self.bytes, Ordering::AcqRel);
     }
@@ -67,6 +79,12 @@ impl Capacity for String {
     fn capacity_bytes(&self) -> Option<usize> { Some(self.capacity()) }
     fn reserve_bytes(&mut self, bytes: usize) -> Result<(), ProjectionError> {
         self.try_reserve_exact(bytes.saturating_sub(self.len())).map_err(|_| ProjectionError::Allocation)
+    }
+}
+impl Capacity for std::path::PathBuf {
+    fn capacity_bytes(&self) -> Option<usize> { Some(self.capacity()) }
+    fn reserve_bytes(&mut self, bytes: usize) -> Result<(), ProjectionError> {
+        self.try_reserve_exact(bytes.saturating_sub(self.as_os_str().len())).map_err(|_| ProjectionError::Allocation)
     }
 }
 impl<T> Capacity for Vec<T> {

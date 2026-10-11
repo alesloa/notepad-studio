@@ -490,6 +490,11 @@ v0.0.5 — current
          while a directory search or replacement owns it. Finish or cancel
          that operation before starting another search.
 
+    126. Find All in the current Doc View searches current formatted edits
+         in background and selects visible text from its result rows.
+         Changed or closed documents reject stale results. Closing the
+         Find dialog preserves an ongoing document search.
+
 
   v0.1.0 — syntax & language:
 

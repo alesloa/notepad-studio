@@ -231,6 +231,7 @@ impl Workspace {
 
     pub(crate) fn cancel_dialog_directory_operations(&mut self, handle: AnyWindowHandle) {
         let was_busy = self.directory_operations.busy();
+        if !was_busy { return; }
         self.directory_operations.cancel(Some(handle));
         self.find_in_files.searching = self.directory_operations.busy();
         if was_busy && !self.find_in_files.searching {
@@ -247,6 +248,9 @@ impl Workspace {
         let dialog = matches!(root, OriginRoot::Dialog(_));
         if matches!(root, OriginRoot::Editor(id) if id != workspace_id)
             || (dialog && !self.find_dialog_window.is_some_and(|h| AnyWindowHandle::from(h) == origin)) { return; }
+        if !self.cancel_rich_find_current() {
+            self.set_status("Search cleanup is in progress; try again"); cx.notify(); return;
+        }
         if self.find_in_files.directory_text.len() > STRING_LIMIT {
             self.find_in_files.error = Some("Directory path exceeds 1 MiB".into()); cx.notify(); return;
         }

@@ -458,7 +458,7 @@ fn line_break_len(bytes: &[u8], i: usize) -> usize {
 /// result's line number is the rope line it lands on once the file is
 /// open. Offsets must come in non-decreasing order, as `find_iter` yields
 /// them; the whole walk is O(text) with no per-line allocation.
-struct LineWalker<'a> {
+pub(crate) struct LineWalker<'a> {
     bytes: &'a [u8],
     line: usize,
     start: usize,
@@ -467,7 +467,7 @@ struct LineWalker<'a> {
 }
 
 impl<'a> LineWalker<'a> {
-    fn new(text: &'a str) -> Self {
+    pub(crate) fn new(text: &'a str) -> Self {
         Self {
             bytes: text.as_bytes(),
             line: 0,
@@ -479,7 +479,7 @@ impl<'a> LineWalker<'a> {
 
     /// Line index and line start byte of the line holding byte `to`. A byte
     /// inside a line break belongs to the line the break ends.
-    fn seek(&mut self, to: usize) -> (usize, usize) {
+    pub(crate) fn seek(&mut self, to: usize) -> (usize, usize) {
         let to = to.min(self.bytes.len());
         while self.pos < to {
             let brk = line_break_len(self.bytes, self.pos);
@@ -499,7 +499,7 @@ impl<'a> LineWalker<'a> {
     }
 
     /// Byte where the current line's content ends (its break excluded).
-    fn content_end(&mut self) -> usize {
+    pub(crate) fn content_end(&mut self) -> usize {
         if let Some(end) = self.end {
             return end;
         }

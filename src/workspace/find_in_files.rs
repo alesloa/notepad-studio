@@ -78,6 +78,9 @@ impl Workspace {
         if !self.find_in_files.open {
             return;
         }
+        if !self.directory_operations.busy() && !self.cancel_rich_find_current() {
+            self.set_status("Search cleanup is in progress; try again"); cx.notify(); return;
+        }
         self.find_in_files.open = false;
         window.focus(&self.focus_handle, cx);
         cx.notify();
@@ -299,6 +302,7 @@ impl Workspace {
     /// Open-buffer results resolve their original runtime document identity;
     /// stored indices and paths cannot identify a moved, closed or reopened tab.
     pub(crate) fn jump_to_find_result(&mut self, idx: usize, cx: &mut Context<Self>) {
+        if self.jump_to_rich_find_result(idx, cx) { return; }
         let Some(result) = self.find_in_files.results.get(idx).cloned() else {
             return;
         };

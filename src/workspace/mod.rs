@@ -16,15 +16,18 @@ mod tag_match;
 pub(crate) mod edits;
 mod find;
 mod find_view;
-// Phase-one runtime controls are tested before the FindAll action is wired.
-#[allow(dead_code)]
+#[cfg(test)]
+mod find_current_rich_tests;
+#[cfg(test)]
+mod find_current_rich_lifecycle_tests;
 mod find_current_budget;
-#[allow(dead_code)]
 mod find_current_controller;
-#[allow(dead_code)]
 mod find_current_projection;
-#[allow(dead_code)]
 mod find_current_pipe;
+mod find_current_endpoints;
+mod find_current_pattern;
+mod find_current_worker;
+mod find_current_rich;
 mod find_replacement;
 mod rich_replacement;
 #[cfg(test)]
@@ -437,6 +440,7 @@ pub(crate) struct Workspace {
     completion_api: completion_api::CompletionApiCache,
     function_hint: call_hint::FunctionHintRuntime,
     regex_replacement: find_replacement::Runtime,
+    rich_find_current: find_current_rich::Runtime,
     /// Per-tab CSV preview model. Built lazily the first time a `.csv` /
     /// `.tsv` tab enters preview mode and re-parsed only when the
     /// buffer's edit generation has changed. See
@@ -803,6 +807,7 @@ impl Workspace {
             completion_api: completion_api::CompletionApiCache::default(),
             function_hint: call_hint::FunctionHintRuntime::default(),
             regex_replacement: find_replacement::Runtime::default(),
+            rich_find_current: find_current_rich::Runtime::default(),
             csv_models: std::collections::HashMap::new(),
             csv_grid_blur_subscriptions: std::collections::HashMap::new(),
             csv_context_menu: None,
@@ -1231,6 +1236,7 @@ impl Workspace {
     }
 
     pub(crate) fn release_session_window(&mut self) {
+        self.close_rich_find_current();
         self.window_closed = true;
         self.cancel_directory_operations();
         self.cancel_regex_replacement();

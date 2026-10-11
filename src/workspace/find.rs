@@ -36,11 +36,11 @@ fn is_word_byte(b: u8) -> bool {
 /// Search options shared by the Find, Replace and Mark tabs.
 #[derive(Clone, PartialEq, Eq)]
 pub(super) struct SearchFlags {
-    regex: bool,
-    extended: bool,
-    whole_word: bool,
-    match_case: bool,
-    dot_matches_newline: bool,
+    pub(super) regex: bool,
+    pub(super) extended: bool,
+    pub(super) whole_word: bool,
+    pub(super) match_case: bool,
+    pub(super) dot_matches_newline: bool,
 }
 
 /// Compile `query` the way the Find / Replace / Mark tabs search: Extended
@@ -49,18 +49,11 @@ pub(super) struct SearchFlags {
 /// backreferences are unsupported by the `regex` crate and come back as
 /// `Err`, which callers report as "Invalid regex".
 pub(super) fn search_regex(query: &str, flags: &SearchFlags) -> Result<regex::Regex, regex::Error> {
-    let raw_query = if flags.extended && !flags.regex {
-        interpret_extended(query)
-    } else {
-        query.to_string()
-    };
-    let pattern = if flags.regex {
-        raw_query
-    } else if flags.whole_word {
-        format!(r"\b{}\b", regex::escape(&raw_query))
-    } else {
-        regex::escape(&raw_query)
-    };
+    let mut pattern = String::new();
+    let _ = search_pattern_chars(query, flags, |ch| {
+        pattern.push(ch);
+        Ok::<_, std::convert::Infallible>(())
+    });
     regex::RegexBuilder::new(&pattern)
         .case_insensitive(!flags.match_case)
         .multi_line(true)
@@ -68,6 +61,30 @@ pub(super) fn search_regex(query: &str, flags: &SearchFlags) -> Result<regex::Re
         // have their dots escaped.
         .dot_matches_new_line(flags.regex && flags.dot_matches_newline)
         .build()
+}
+
+/// Shared pattern semantics; the background route supplies a capacity-checked sink.
+pub(super) fn search_pattern_chars<E>(
+    query: &str, flags: &SearchFlags, mut emit: impl FnMut(char) -> Result<(), E>,
+) -> Result<(), E> {
+    if flags.regex {
+        for ch in query.chars() { emit(ch)?; }
+        return Ok(());
+    }
+    if flags.whole_word { emit('\\')?; emit('b')?; }
+    let mut literal = |ch| {
+        if matches!(ch, '\\' | '.' | '+' | '*' | '?' | '(' | ')' | '|' | '[' | ']' | '{' | '}' | '^' | '$' | '#' | '&' | '-' | '~') {
+            emit('\\')?;
+        }
+        emit(ch)
+    };
+    if flags.extended {
+        crate::text::extended_escape::for_each_extended(query, &mut literal)?;
+    } else {
+        for ch in query.chars() { literal(ch)?; }
+    }
+    if flags.whole_word { emit('\\')?; emit('b')?; }
+    Ok(())
 }
 
 /// Every non-empty match of `re` in `text`, optionally restricted to the
@@ -1224,10 +1241,17 @@ impl Workspace {
             self.find_state.status = Some("A directory operation is in progress; finish or cancel it first".into());
             cx.notify(); return;
         }
+        if !self.cancel_rich_find_current() {
+            self.find_state.status = Some("Search cleanup is in progress; try again".into()); cx.notify(); return;
+        }
         self.retire_find_scope_if_view_changed();
         if self.find_state.query.is_empty() {
             self.find_state.status = Some("Enter a query first".to_string());
             cx.notify();
+            return;
+        }
+        if self.tabs.get(self.active).is_some_and(super::find_view::uses_rich_text) {
+            self.start_rich_find_current(cx);
             return;
         }
         let Some(re) = self.build_find_regex() else {
@@ -1543,6 +1567,9 @@ impl Workspace {
         if self.directory_operations.busy() {
             self.find_state.status = Some("A directory operation is in progress; finish or cancel it first".into());
             cx.notify(); return;
+        }
+        if !self.cancel_rich_find_current() {
+            self.find_state.status = Some("Search cleanup is in progress; try again".into()); cx.notify(); return;
         }
         if self.find_state.query.is_empty() {
             self.find_state.status = Some("Enter a query first".to_string());

@@ -20,6 +20,7 @@ impl Workspace {
         if stale { self.retire_find_view_state(); }
     }
     pub(super) fn retire_find_view_state(&mut self) {
+        let _ = self.cancel_rich_find_current();
         self.find_state.in_selection = false;
         self.find_state.in_selection_scope = None;
         self.find_state.in_selection_scope_owner = None;

@@ -62,6 +62,7 @@ impl ProjectionChunk {
         Ok(Self { text, boundaries, _permit: permit, complete: false })
     }
     pub(super) fn text_bytes(&self) -> usize { self.text.data.len() }
+    #[cfg(test)]
     pub(super) fn retained_bytes(&self) -> usize {
         self.text.data.capacity().saturating_add(self.boundaries.data.capacity()
             .saturating_mul(std::mem::size_of::<Boundary>()))

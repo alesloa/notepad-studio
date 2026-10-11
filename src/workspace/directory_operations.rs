@@ -449,10 +449,14 @@ fn replace_scope(snapshot: &Snapshot, cancelled: &AtomicBool) -> Result<super::f
 fn replace_scope_with_reader(snapshot: &Snapshot, cancelled: &AtomicBool,
     mut read: impl FnMut(&Path, u64) -> std::io::Result<Option<Vec<u8>>>) -> Result<super::find_in_files::ReplaceInFilesReport, String>
 {
-    let mut total = super::find_in_files::ReplaceInFilesReport::default(); let mut last_error = None;
+    let mut total = super::find_in_files::ReplaceInFilesReport::default();
     for root in &snapshot.roots {
         if cancelled.load(Ordering::Acquire) { total.cancelled = true; break; }
-        let query = snapshot.query_for(root)?;
+        let query = match snapshot.query_for(root) {
+            Ok(query) => query,
+            Err(error) if snapshot.route == Route::Files => return Err(error),
+            Err(error) => { record_root_failure(&mut total, root, error); break; }
+        };
         match super::find_in_files::run_replace_in_files_with_reader_cancelled(&query, &snapshot.replacement, &mut read, cancelled) {
             Ok(report) => {
                 total.files_changed = total.files_changed.saturating_add(report.files_changed);
@@ -461,14 +465,17 @@ fn replace_scope_with_reader(snapshot: &Snapshot, cancelled: &AtomicBool,
                 total.cancelled |= report.cancelled;
                 if total.first_failure.is_none() { total.first_failure = report.first_failure; }
             }
-            Err(error) => last_error = Some(error),
+            Err(error) if snapshot.route == Route::Files => return Err(error),
+            Err(error) => record_root_failure(&mut total, root, error),
         }
     }
     total.cancelled |= cancelled.load(Ordering::Acquire);
-    match last_error {
-        Some(error) if total.files_changed == 0 && total.failures == 0 && !total.cancelled => Err(error),
-        _ => Ok(total),
-    }
+    Ok(total)
+}
+
+fn record_root_failure(report: &mut super::find_in_files::ReplaceInFilesReport, root: &Path, error: String) {
+    report.failures = report.failures.saturating_add(1);
+    if report.first_failure.is_none() { report.first_failure = Some(format!("{}: {error}", root.display())); }
 }
 
 fn publish_search(w: &mut Workspace, outcome: FindInFilesOutcome) {
@@ -557,5 +564,51 @@ mod tests {
         assert!(report.cancelled); assert_eq!(reads, 1);
         assert_eq!((report.files_changed, report.replacements, report.failures), (0, 0, 0));
         assert_eq!(std::fs::read(second.join("neutral.txt")).unwrap(), b"hit\r\n");
+    }
+
+    fn root_failure_report(missing_first: bool) {
+        let dir = tempfile::tempdir().unwrap();
+        let valid = dir.path().join("valid"); let missing = dir.path().join("missing");
+        std::fs::create_dir(&valid).unwrap();
+        let file = valid.join("neutral.txt"); std::fs::write(&file, b"hit\r\n").unwrap();
+        let roots = if missing_first { vec![missing.clone(), valid] } else { vec![valid, missing.clone()] };
+        let report = replace_scope(&project_snapshot(roots), &AtomicBool::new(false)).unwrap();
+        assert_eq!(std::fs::read(file).unwrap(), b"done\r\n");
+        assert_eq!((report.files_changed, report.replacements, report.failures), (1, 1, 1));
+        assert!(report.first_failure.as_deref().unwrap().contains(&missing.display().to_string()));
+        assert!(report.first_failure.as_deref().unwrap().contains("Directory not found"));
+    }
+
+    #[test] fn project_root_failure_before_success_is_reported() { root_failure_report(true); }
+    #[test] fn project_root_failure_after_success_is_reported() { root_failure_report(false); }
+
+    #[test]
+    fn project_all_missing_roots_keep_total_and_first_failure() {
+        let dir = tempfile::tempdir().unwrap();
+        let first = dir.path().join("missing-one"); let second = dir.path().join("missing-two");
+        let report = replace_scope(&project_snapshot(vec![first.clone(), second]), &AtomicBool::new(false))
+            .unwrap_or_else(|error| panic!("missing roots must produce counted failures: {error}"));
+        assert_eq!((report.files_changed, report.replacements, report.failures), (0, 0, 2));
+        assert!(report.first_failure.as_deref().unwrap().contains(&first.display().to_string()));
+    }
+
+    #[test]
+    fn files_missing_directory_keeps_the_direct_error() {
+        let dir = tempfile::tempdir().unwrap();
+        let mut snapshot = project_snapshot(vec![dir.path().join("missing")]); snapshot.route = Route::Files;
+        assert_eq!(replace_scope(&snapshot, &AtomicBool::new(false)).err().as_deref(), Some("Directory not found"));
+    }
+
+    #[test]
+    fn project_root_failure_keeps_prior_file_failure_and_counts_both() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("neutral.txt"); std::fs::write(&file, b"hit\r\n").unwrap();
+        let snapshot = project_snapshot(vec![dir.path().to_path_buf(), dir.path().join("missing")]);
+        let report = replace_scope_with_reader(&snapshot, &AtomicBool::new(false), |_, _|
+            Err(std::io::Error::new(std::io::ErrorKind::PermissionDenied, "synthetic read refusal"))).unwrap();
+        assert_eq!((report.files_changed, report.replacements, report.failures), (0, 0, 2));
+        let failure = report.first_failure.as_deref().unwrap();
+        assert!(failure.contains(&file.display().to_string())); assert!(failure.contains("synthetic read refusal"));
+        assert_eq!(std::fs::read(file).unwrap(), b"hit\r\n");
     }
 }

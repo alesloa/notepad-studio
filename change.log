@@ -483,6 +483,9 @@ v0.0.5 — current
          Closing the originating Find dialog/editor cancels upcoming file
          work; completed writes remain counted. Directory requests cannot
          overlap, and project search results share a 1,000-row limit.
+    124. Replace in Projects counts failed roots even when another root
+         replaces files successfully. Its report keeps completed writes,
+         the total failure count and the first failed path.
 
 
   v0.1.0 — syntax & language:

@@ -218,6 +218,7 @@ impl Workspace {
     }
 
     pub(crate) fn copy(&mut self, _: &EditCopy, window: &mut Window, cx: &mut Context<Self>) {
+        crate::clipboard_ownership::supersede();
         self.cancel_bookmark_copy(cx);
         let focus = self.input_focus(window);
         if focus == InputFocus::RichDocBody {
@@ -232,7 +233,7 @@ impl Workspace {
             if let Some(text) = self.input_selection_text(window) {
                 if !text.is_empty() {
                     crate::clipboard_history::record_copy(&text);
-                    cx.write_to_clipboard(ClipboardItem::new_string(text));
+                    crate::clipboard_ownership::write_now(cx, ClipboardItem::new_string(text));
                 }
             }
             return;
@@ -269,10 +270,11 @@ impl Workspace {
     fn write_editor_clipboard(&self, text: &str, cx: &mut Context<Self>) {
         let text = crate::text::eol_convert::to_doc_eols(text, self.buffer().line_ending);
         crate::clipboard_history::record_copy(&text);
-        cx.write_to_clipboard(ClipboardItem::new_string(text.into_owned()));
+        crate::clipboard_ownership::write_now(cx, ClipboardItem::new_string(text.into_owned()));
     }
 
     pub(crate) fn cut(&mut self, _: &EditCut, window: &mut Window, cx: &mut Context<Self>) {
+        crate::clipboard_ownership::supersede();
         self.cancel_bookmark_copy(cx);
         let focus = self.input_focus(window);
         if focus == InputFocus::RichDocBody {
@@ -287,7 +289,7 @@ impl Workspace {
             if let Some(text) = self.input_selection_text(window) {
                 if !text.is_empty() {
                     crate::clipboard_history::record_copy(&text);
-                    cx.write_to_clipboard(ClipboardItem::new_string(text));
+                    crate::clipboard_ownership::write_now(cx, ClipboardItem::new_string(text));
                     self.input_replace_selection(window, "");
                     if focus == InputFocus::CsvCell { self.schedule_autosave(cx); }
                     cx.notify();
@@ -2366,7 +2368,7 @@ impl Workspace {
         };
         let text = payload.selected_text();
         if !text.is_empty() {
-            cx.write_to_clipboard(gpui::ClipboardItem::new_string(text));
+            crate::clipboard_ownership::write_now(cx, gpui::ClipboardItem::new_string(text));
         }
     }
 

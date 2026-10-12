@@ -204,7 +204,7 @@ fn build_panel(
             let p = p.clone();
             ws.update(cx, |w, cx| {
                 w.hide_folder_panel_context_menu(cx);
-                cx.write_to_clipboard(gpui::ClipboardItem::new_string(
+                crate::clipboard_ownership::write_now(cx, gpui::ClipboardItem::new_string(
                     p.display().to_string(),
                 ));
                 w.set_status("Copied full path");
@@ -224,7 +224,7 @@ fn build_panel(
             ws.update(cx, |w, cx| {
                 w.hide_folder_panel_context_menu(cx);
                 if let Some(name) = p.file_name() {
-                    cx.write_to_clipboard(gpui::ClipboardItem::new_string(
+                    crate::clipboard_ownership::write_now(cx, gpui::ClipboardItem::new_string(
                         name.to_string_lossy().into_owned(),
                     ));
                     w.set_status("Copied filename");

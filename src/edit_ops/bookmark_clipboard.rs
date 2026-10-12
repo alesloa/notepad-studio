@@ -135,6 +135,7 @@ impl Workspace {
     }
 
     pub(crate) fn run_copy_bookmarked_lines(&mut self, window: &mut Window, cx: &mut Context<Self>) -> bool {
+        crate::clipboard_ownership::supersede();
         self.cancel_bookmark_copy(cx);
         self.settle_source_input_edit_caret();
         self.sync_source_input_caret();
@@ -171,7 +172,7 @@ impl Workspace {
             match bookmarked_text(&rope, &snapshot.bookmarks, snapshot.ending, MAX_COPY_BYTES, &AtomicBool::new(false)) {
                 Ok(text) => {
                     crate::clipboard_history::record_copy(&text);
-                    cx.write_to_clipboard(ClipboardItem::new_string(text));
+                    crate::clipboard_ownership::write_now(cx, ClipboardItem::new_string(text));
                     macros::record(MacroEvent::CopyBookmarkedLines);
                     return true;
                 }
@@ -180,6 +181,7 @@ impl Workspace {
         }
         let id = Uuid::new_v4();
         let cancel = Arc::new(AtomicBool::new(false));
+        let request = crate::clipboard_ownership::claim(cancel.clone());
         let worker_cancel = cancel.clone();
         let bookmarks = snapshot.bookmarks.clone();
         let ending = snapshot.ending;
@@ -208,7 +210,7 @@ impl Workspace {
                 let preparing = w.status_message.as_deref() == Some(PREPARING);
                 w.pending_bookmark_copy = None;
                 if preparing { w.status_message = None; }
-                if !snapshot.valid(w, window) {
+                if !snapshot.valid(w, window) || !crate::clipboard_ownership::is_current(&request) {
                     if playback.is_some() && playback == w.active_macro_playback_id() { w.stop_prepared_macro("the editor changed; clipboard unchanged"); }
                     if preparing {
                         w.set_status("Copy Bookmarked Lines cancelled because the editor changed; clipboard unchanged");
@@ -220,7 +222,7 @@ impl Workspace {
                     Some(Ok((text, history))) => {
                         let evicted = crate::clipboard_history::record_copy_owned(history);
                         cx.background_spawn(async move { drop(evicted); }).detach();
-                        cx.write_to_clipboard(ClipboardItem::new_string(text));
+                        crate::clipboard_ownership::publish(&request, cx, ClipboardItem::new_string(text));
                         w.set_status("Copied bookmarked lines");
                         w.resume_prepared_macro(playback, window, cx);
                     }

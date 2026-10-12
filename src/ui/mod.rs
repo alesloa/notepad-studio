@@ -31,3 +31,5 @@ pub(crate) mod tab_strip;
 pub(crate) mod text_tools;
 pub(crate) mod text_tools_preview_panel;
 pub(crate) mod toolbar;
+
+pub(crate) mod hash_tools;

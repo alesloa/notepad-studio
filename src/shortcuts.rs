@@ -416,6 +416,20 @@ static CATALOG: &[ActionEntry] = &[
     row!(LanguageXml, "Language: XML", Some("IDM_LANG_XML"), W, [], []),
     row!(LanguageYaml, "Language: YAML", Some("IDM_LANG_YAML"), W, [], []),
 
+    // --- Tools ---
+    row!(ToolsMd5Generate, "MD5: Generate...", Some("IDM_TOOL_MD5_GENERATE"), GLOBAL, [], []),
+    row!(ToolsMd5GenerateFromFiles, "MD5: Generate from files...", Some("IDM_TOOL_MD5_GENERATEFROMFILE"), GLOBAL, [], []),
+    row!(ToolsMd5GenerateSelection, "MD5: Generate from selection into clipboard", Some("IDM_TOOL_MD5_GENERATEINTOCLIPBOARD"), GLOBAL, [], []),
+    row!(ToolsSha1Generate, "SHA-1: Generate...", Some("IDM_TOOL_SHA1_GENERATE"), GLOBAL, [], []),
+    row!(ToolsSha1GenerateFromFiles, "SHA-1: Generate from files...", Some("IDM_TOOL_SHA1_GENERATEFROMFILE"), GLOBAL, [], []),
+    row!(ToolsSha1GenerateSelection, "SHA-1: Generate from selection into clipboard", Some("IDM_TOOL_SHA1_GENERATEINTOCLIPBOARD"), GLOBAL, [], []),
+    row!(ToolsSha256Generate, "SHA-256: Generate...", Some("IDM_TOOL_SHA256_GENERATE"), GLOBAL, [], []),
+    row!(ToolsSha256GenerateFromFiles, "SHA-256: Generate from files...", Some("IDM_TOOL_SHA256_GENERATEFROMFILE"), GLOBAL, [], []),
+    row!(ToolsSha256GenerateSelection, "SHA-256: Generate from selection into clipboard", Some("IDM_TOOL_SHA256_GENERATEINTOCLIPBOARD"), GLOBAL, [], []),
+    row!(ToolsSha512Generate, "SHA-512: Generate...", Some("IDM_TOOL_SHA512_GENERATE"), GLOBAL, [], []),
+    row!(ToolsSha512GenerateFromFiles, "SHA-512: Generate from files...", Some("IDM_TOOL_SHA512_GENERATEFROMFILE"), GLOBAL, [], []),
+    row!(ToolsSha512GenerateSelection, "SHA-512: Generate from selection into clipboard", Some("IDM_TOOL_SHA512_GENERATEINTOCLIPBOARD"), GLOBAL, [], []),
+
     // --- Macros ---
     row!(MacroStartStopRecording, "Start/Stop Recording",          Some("IDC_EDIT_TOGGLEMACRORECORDING"),  W, ["ctrl-shift-r"], ["cmd-shift-r"]),
     row!(MacroPlayback,           "Playback",                      Some("IDM_MACRO_PLAYBACKRECORDEDMACRO"), W, ["ctrl-shift-p"], ["cmd-shift-p"]),

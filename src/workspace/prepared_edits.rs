@@ -127,6 +127,7 @@ pub(crate) struct PendingPreparedEdit {
     executor: gpui::BackgroundExecutor,
     status: &'static str,
     clipboard: bool,
+    clipboard_request: Option<crate::clipboard_ownership::Request>,
     playback: Option<Uuid>,
     #[cfg(test)]
     capture: std::time::Duration,
@@ -306,6 +307,7 @@ impl Workspace {
         let encoding = stamp.encoding;
         let (tabs, width) = stamp.indent;
         let clipboard = matches!(operation, Operation::Bookmarks { command: BookmarkCommand::Cut, .. });
+        let clipboard_request = clipboard.then(|| crate::clipboard_ownership::claim(cancel.clone()));
         let status = if matches!(operation, Operation::Indent)
             || matches!(&operation, Operation::Replay { group, .. } if !group.is_line_edit()) {
             "Preparing line indentation; Escape cancels"
@@ -376,7 +378,7 @@ impl Workspace {
                 #[cfg(test)] worker: worker_start.elapsed(),
                 #[cfg(test)] worker_main_thread }))
         });
-        self.pending_prepared_edit = Some(PendingPreparedEdit { id, stamp: Some(stamp), cancel, executor: cx.background_executor().clone(), status, clipboard, playback,
+        self.pending_prepared_edit = Some(PendingPreparedEdit { id, stamp: Some(stamp), cancel, executor: cx.background_executor().clone(), status, clipboard, clipboard_request, playback,
             #[cfg(test)] capture: std::time::Duration::ZERO,
             #[cfg(test)] capture_main_thread: cx.background_executor().is_main_thread() });
         self.close_autocomplete(cx);
@@ -409,7 +411,9 @@ impl Workspace {
         if pending.id != id { drop_on_worker(result, cx); return; }
         let playback_id = pending.playback;
         let status = pending.status;
-        let valid = pending.stamp.as_ref().is_some_and(|stamp| stamp.valid(self, window))
+        let clipboard_request = pending.clipboard_request.clone();
+        let valid = clipboard_request.as_ref().is_none_or(crate::clipboard_ownership::is_current)
+            && pending.stamp.as_ref().is_some_and(|stamp| stamp.valid(self, window))
             && playback_id.is_none_or(|id| self.regex_replacement.macro_playback.as_ref().is_some_and(|playback| playback.id == id && playback.valid(self, window)));
         #[cfg(test)]
         let capture = pending.capture;
@@ -451,7 +455,7 @@ impl Workspace {
         if !changed && !metadata_changed {
             if let Some(text) = state.clipboard {
                 if let Some(history) = state.clipboard_history { drop_on_worker(crate::clipboard_history::record_copy_owned(history), cx); }
-                cx.write_to_clipboard(gpui::ClipboardItem::new_string(text));
+                if let Some(request) = clipboard_request.as_ref() { crate::clipboard_ownership::publish(request, cx, gpui::ClipboardItem::new_string(text)); }
             }
             let selection = state.group.target(false).2;
             if let Some(tab) = self.tabs.get_mut(self.active) {
@@ -515,7 +519,7 @@ impl Workspace {
         let has_clipboard = state.clipboard.is_some();
         if let Some(text) = state.clipboard {
             if let Some(history) = state.clipboard_history { drop_on_worker(crate::clipboard_history::record_copy_owned(history), cx); }
-            cx.write_to_clipboard(gpui::ClipboardItem::new_string(text));
+            if let Some(request) = clipboard_request.as_ref() { crate::clipboard_ownership::publish(request, cx, gpui::ClipboardItem::new_string(text)); }
         }
         #[cfg(test)]
         let clipboard_time = if has_clipboard { clipboard_start.elapsed() } else { std::time::Duration::ZERO };

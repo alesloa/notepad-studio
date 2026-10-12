@@ -37,18 +37,36 @@ rows, with 36 actions, 36 saved macros and 144 held refusals; harness unwind dif
 from shipping abort. Root verified all77 final evidence and nine release
 provenance entries. Native rectangle/input/visual proof remains open.
 
-Book's final Hash Tools delivery is frozen at 55 files; root verified the 54-file
-production/test/license predecessor,63 hash plus three clipboard controls,
-build/full tests (2,718 unit+three integration/30 ignored) and unchanged
-app-target JSON diagnostics: 404 occurrences/114 pairs. The actual registered
-prepaint IME regression is fixed with per-field generations while Copy retains
-its dialog-wide guard. All 45 standalone opt3/Thin-LTO/codegen1/abort controls
-passed with 90 empty competitor checks and no restart; final metrics/doc suffix
-review and main composition remain. Engine/file-worker timers and whole-process
-peaks are qualified; native UI/IME/paste/ACP/external clipboard remain open.
-The accurate SHA-512 title deliberately corrects the default upstream caption.
-Book now conducts a separate read-only typing Undo grouping audit; no product
-failure is inferred merely from the earlier per-character test fixtures.
+All twelve Hash Tools commands and the clipboard coordinator are now integrated
+with brace/legacy behavior preserved. Main build (41.150 s), 2,875 unit plus
+three integration tests/32 ignored (74.59 s unit / 190.338 s total), Clippy
+(24.562 s, exactly unchanged 331 occurrences/193 pairs), twelve inventory tests
+and generation check pass. All 993 frozen entries stayed unchanged during gates;
+32 of 38 Rust files match the final leaf after newline normalization, six retain
+only newer main additions. Root verified the final 55-file delivery, helper
+compile, all 45 optimized standalone results/90 empty inventories, independent
+hashlib vectors, every output/progress/refusal value and medians. See
+[Hash validation](hash-tools-validation-20261011.md). The 353 production Rust
+files hash to `2f32e1e531367e6f6f706967db2c0cb8d55039a83691d32b00b8a58031098cb9`;
+static inventory is 196 routed/271 missing unique IDs and 289 CATALOG rows.
+The earlier isolated app-target JSON warning counts (404/114) use a different
+extraction from main's rendered vendor-inclusive comparison. Native UI/IME/
+paste/ACP/external clipboard remain open; the byte/caption/budget limits are
+explicit. Source/leaf evidence stays frozen; inspect Git log for this batch's
+resulting commit. The legacy checkpoint is committed as `4a5dad8`.
+
+Book now owns test-only `windows-typing-undo`, based at `4a5dad8`. Five actual
+painted installed-source callback controls give three PASS/two genuine RED:
+separate a/b/c and Unicode commits require separate Undo slots rather than the
+oracle's coalesced insertion. Single-callback, explicit model-savepoint and
+registered Paste boundaries pass. Registered Redo and unchanged metadata were
+checked before the deciding assertions. First compilation/fixtures succeeded;
+no native proof or production typing change exists. Receipt `7753d2f3` and
+retained EXE `c8582597` await full root review/proposal. Preserve IME's dedicated
+slot, explicit completion/macro/prepared groups and captured asynchronous Save
+boundaries; no timer/movement/Undo heuristic or global replace auto-coalescing
+is approved. Source-count-only delayed ownership guards need revision/activity
+checks when a Group grows without changing stack length.
 
 File's `windows-normal-save-background` leaf is based at `6be0a4d`. Root
 verified separate G3 Save All/popup: 42 positive functions plus the remaining Full
@@ -58,6 +76,10 @@ functions/one genuine close-settlement RED; all104 evidence entries). Counts
 are not additive across packets. The registered close callback accepts while
 an authorized Save remains held; the test releases/settles it before failing.
 The bounded native cursor/Builder is reviewed, but not registered in Full yet.
+File also reports G6 Rename/close settlement fixes passing eight registered
+controls (normal jobs only; synchronous final recovery still remains), and G7
+bounded raw Undo helper passing four controls with actual Writer/codec equality.
+Their final packets await root review; do not aggregate counts or claim Full ready.
 Actual Writer/readback, raw Undo/CSV/metadata/cache/tickets/aliases and close/Exit
 settlement still require integration under the unchanged Full contract.
 App-owned gates share destructive admission across windows without blocking
@@ -69,8 +91,10 @@ refusal; metadata identities cover changes not scheduling autosave.
 Sort now owns `windows-automatic-title`, detached at `19e26d5`. Corrected G1
 has three PASS/ten RED: nine real naming-contract failures and one getter-work
 failure. Compile-only and welcome-text/EOL fixture runs remain excluded and
-preserved. Pure bounded normalization passes six focused controls; registered
-scalar/prepared/history/consumer work is still in progress. The approved
+preserved. Sort reports phase 1 with 25 naming/parser/summary controls plus one actual
+typed-source control green; all thirteen original G1 controls pass. Root has
+not reviewed the final phase-1 packet yet. Long-prefix/prepared/history/consumer
+integration is still in progress. The approved
 fixed-collision summary preserves admitted intermediate names. Capacity
 exhaustion may suspend title metadata visibly, retain the accepted name and
 leave text/IME/history/Save/recovery available; never refuse a document edit

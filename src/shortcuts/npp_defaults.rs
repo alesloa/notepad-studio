@@ -308,6 +308,19 @@ pub(super) const NPP_NO_DEFAULT: &[(&str, u32)] = &[
     ("IDM_SETTING_SHORTCUT_MAPPER", 475),
     // Absent from winKeyDefs[]; label reference in Notepad_plus.rc.
     ("IDM_SETTING_OPENPLUGINSDIR", 1327),
+    // Tools hash commands have no winKeyDefs[] entry; Notepad_plus.rc label lines.
+    ("IDM_TOOL_MD5_GENERATE", 1285),
+    ("IDM_TOOL_MD5_GENERATEFROMFILE", 1286),
+    ("IDM_TOOL_MD5_GENERATEINTOCLIPBOARD", 1287),
+    ("IDM_TOOL_SHA1_GENERATE", 1291),
+    ("IDM_TOOL_SHA1_GENERATEFROMFILE", 1292),
+    ("IDM_TOOL_SHA1_GENERATEINTOCLIPBOARD", 1293),
+    ("IDM_TOOL_SHA256_GENERATE", 1297),
+    ("IDM_TOOL_SHA256_GENERATEFROMFILE", 1298),
+    ("IDM_TOOL_SHA256_GENERATEINTOCLIPBOARD", 1299),
+    ("IDM_TOOL_SHA512_GENERATE", 1303),
+    ("IDM_TOOL_SHA512_GENERATEFROMFILE", 1304),
+    ("IDM_TOOL_SHA512_GENERATEINTOCLIPBOARD", 1305),
     // Language commands are absent from Parameters.cpp winKeyDefs[].
     // These line references identify their labels in Notepad_plus.rc.
     ("IDM_LANG_TEXT", 1000),

@@ -123,6 +123,7 @@ pub(crate) struct Workspace {
     pub(crate) ime_composition: Option<ime::ImeComposition>,
     pub(crate) brace_navigation: brace_navigation::State,
     pub(crate) pending_prepared_edit: Option<prepared_edits::PendingPreparedEdit>,
+    pub(crate) pending_hash_selection: Option<crate::ui::hash_tools::selection::Pending>,
     pub(crate) pending_bookmark_copy: Option<crate::edit_ops::bookmark_clipboard::PendingBookmarkCopy>,
     #[cfg(test)]
     pub(crate) bookmark_copy_test_gate: Option<futures::channel::oneshot::Receiver<()>>,
@@ -751,6 +752,7 @@ impl Workspace {
             brace_navigation: Default::default(),
             pending_prepared_edit: None,
             pending_bookmark_copy: None,
+            pending_hash_selection: None,
             #[cfg(test)]
             bookmark_copy_test_gate: None,
             #[cfg(test)]

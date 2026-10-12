@@ -800,7 +800,7 @@ impl StyleConfiguratorDialog {
                 let hi = self.picker_cursor.max(self.picker_anchor);
                 if hi > lo {
                     let sel = self.picker_buffer[lo..hi].to_string();
-                    cx.write_to_clipboard(gpui::ClipboardItem::new_string(sel));
+                    crate::clipboard_ownership::write_now(cx, gpui::ClipboardItem::new_string(sel));
                 }
                 return;
             }
@@ -809,7 +809,7 @@ impl StyleConfiguratorDialog {
                 let hi = self.picker_cursor.max(self.picker_anchor);
                 if hi > lo {
                     let sel = self.picker_buffer[lo..hi].to_string();
-                    cx.write_to_clipboard(gpui::ClipboardItem::new_string(sel));
+                    crate::clipboard_ownership::write_now(cx, gpui::ClipboardItem::new_string(sel));
                     self.picker_buffer.replace_range(lo..hi, "");
                     self.picker_cursor = lo;
                     self.picker_anchor = lo;
@@ -921,7 +921,7 @@ impl StyleConfiguratorDialog {
                     self.user_ext_cursor,
                     self.user_ext_anchor,
                 ) {
-                    cx.write_to_clipboard(gpui::ClipboardItem::new_string(sel));
+                    crate::clipboard_ownership::write_now(cx, gpui::ClipboardItem::new_string(sel));
                 }
                 return;
             }
@@ -931,7 +931,7 @@ impl StyleConfiguratorDialog {
                     &mut self.user_ext_cursor,
                     &mut self.user_ext_anchor,
                 ) {
-                    cx.write_to_clipboard(gpui::ClipboardItem::new_string(sel));
+                    crate::clipboard_ownership::write_now(cx, gpui::ClipboardItem::new_string(sel));
                     mutated = true;
                     text_changed = true;
                 }

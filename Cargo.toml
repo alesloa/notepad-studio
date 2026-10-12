@@ -67,6 +67,8 @@ short_description = "Lightweight cross-platform text editor inspired by Notepad+
 futures = { workspace = true }
 tempfile = { workspace = true }
 sha2 = { workspace = true }
+md-5 = "=0.10.6"
+sha1 = "=0.10.6"
 gpui = { path = "vendor/gpui/crates/gpui" }
 ropey = { version = "1.6", default-features = false, features = ["cr_lines", "simd"] }
 harper-core = { version = "=0.33.0", default-features = false, features = ["concurrent"] }

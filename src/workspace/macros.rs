@@ -242,11 +242,11 @@ impl Workspace {
             MacroEvent::SpaceToTabAll => self.space_to_tab_all(&EditSpaceToTabAll, window, cx),
             MacroEvent::SpaceToTabLeading => self.space_to_tab_leading(&EditSpaceToTabLeading, window, cx),
             MacroEvent::Cut => {
-                if self.has_block_selection() { self.cancel_bookmark_copy(cx); return self.block_cut(cx); }
+                if self.has_block_selection() { crate::clipboard_ownership::supersede(); self.cancel_bookmark_copy(cx); return self.block_cut(cx); }
                 self.cut(&EditCut, window, cx);
             },
             MacroEvent::Copy => {
-                if self.has_block_selection() { self.cancel_bookmark_copy(cx); return self.block_copy(cx); }
+                if self.has_block_selection() { crate::clipboard_ownership::supersede(); self.cancel_bookmark_copy(cx); return self.block_copy(cx); }
                 self.copy(&EditCopy, window, cx);
             },
             MacroEvent::CopyAllFilenames => return self.copy_all_tab_labels(false, cx),

@@ -14,11 +14,14 @@ mod plugins;
 mod run;
 mod search;
 mod settings;
+mod tools;
 mod state;
 mod view;
 
 #[cfg(test)]
 mod catalog_tests;
+#[cfg(test)]
+pub(crate) mod hash_tools_tests;
 #[cfg(test)]
 pub(crate) mod publication_fixture;
 
@@ -56,6 +59,7 @@ fn build_menus(state: &MenuState, file_menu: Menu, macos: bool) -> Vec<Menu> {
         encoding::build(state),
         language::build(state),
         settings::build(state),
+        tools::build(),
         macros::build(state),
         run::build(state),
         plugins::build(state),
@@ -139,6 +143,20 @@ pub(crate) fn install_global_actions(cx: &mut App) {
     cx.on_action(|_: &EditOpenCharacterPanel, cx: &mut App| {
         cx.defer(crate::ui::character_panel::open_or_focus);
     });
+
+    cx.on_action(|_: &ToolsMd5Generate, cx: &mut App| { cx.defer(|cx| crate::ui::hash_tools::open(crate::hash_tools::Algorithm::Md5, crate::ui::hash_tools::Kind::Text, cx)); });
+    cx.on_action(|_: &ToolsMd5GenerateFromFiles, cx: &mut App| { cx.defer(|cx| crate::ui::hash_tools::open(crate::hash_tools::Algorithm::Md5, crate::ui::hash_tools::Kind::Files, cx)); });
+    cx.on_action(|_: &ToolsSha1Generate, cx: &mut App| { cx.defer(|cx| crate::ui::hash_tools::open(crate::hash_tools::Algorithm::Sha1, crate::ui::hash_tools::Kind::Text, cx)); });
+    cx.on_action(|_: &ToolsSha1GenerateFromFiles, cx: &mut App| { cx.defer(|cx| crate::ui::hash_tools::open(crate::hash_tools::Algorithm::Sha1, crate::ui::hash_tools::Kind::Files, cx)); });
+    cx.on_action(|_: &ToolsSha256Generate, cx: &mut App| { cx.defer(|cx| crate::ui::hash_tools::open(crate::hash_tools::Algorithm::Sha256, crate::ui::hash_tools::Kind::Text, cx)); });
+    cx.on_action(|_: &ToolsSha256GenerateFromFiles, cx: &mut App| { cx.defer(|cx| crate::ui::hash_tools::open(crate::hash_tools::Algorithm::Sha256, crate::ui::hash_tools::Kind::Files, cx)); });
+    cx.on_action(|_: &ToolsSha512Generate, cx: &mut App| { cx.defer(|cx| crate::ui::hash_tools::open(crate::hash_tools::Algorithm::Sha512, crate::ui::hash_tools::Kind::Text, cx)); });
+    cx.on_action(|_: &ToolsSha512GenerateFromFiles, cx: &mut App| { cx.defer(|cx| crate::ui::hash_tools::open(crate::hash_tools::Algorithm::Sha512, crate::ui::hash_tools::Kind::Files, cx)); });
+
+    cx.on_action(|_: &ToolsMd5GenerateSelection, cx: &mut App| crate::ui::hash_tools::selection::route(crate::hash_tools::Algorithm::Md5, cx));
+    cx.on_action(|_: &ToolsSha1GenerateSelection, cx: &mut App| crate::ui::hash_tools::selection::route(crate::hash_tools::Algorithm::Sha1, cx));
+    cx.on_action(|_: &ToolsSha256GenerateSelection, cx: &mut App| crate::ui::hash_tools::selection::route(crate::hash_tools::Algorithm::Sha256, cx));
+    cx.on_action(|_: &ToolsSha512GenerateSelection, cx: &mut App| crate::ui::hash_tools::selection::route(crate::hash_tools::Algorithm::Sha512, cx));
 
     // Open Recent: dispatch into the focused window's Workspace via
     // `open_editor_window_with_path` so a click on a recents item opens the

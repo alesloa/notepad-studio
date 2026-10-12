@@ -1366,7 +1366,7 @@ pub(crate) fn copy_grid_selection(w: &mut Workspace, cx: &mut Context<Workspace>
         return;
     }
     crate::clipboard_history::record_copy(&text);
-    cx.write_to_clipboard(gpui::ClipboardItem::new_string(text));
+    crate::clipboard_ownership::write_now(cx, gpui::ClipboardItem::new_string(text));
 }
 
 /// Cmd+X — same selection serialisation as copy, then blanks the
@@ -1392,7 +1392,7 @@ pub(crate) fn cut_grid_selection(w: &mut Workspace, cx: &mut Context<Workspace>)
     };
     if !text.is_empty() {
         crate::clipboard_history::record_copy(&text);
-        cx.write_to_clipboard(gpui::ClipboardItem::new_string(text));
+        crate::clipboard_ownership::write_now(cx, gpui::ClipboardItem::new_string(text));
     }
 
     let mut changed = false;

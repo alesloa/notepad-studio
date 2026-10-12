@@ -142,7 +142,7 @@ impl CommandInput {
             "c" | "x" if command => {
                 let text = self.selected().to_string();
                 if !text.is_empty() {
-                    cx.write_to_clipboard(gpui::ClipboardItem::new_string(text));
+                    crate::clipboard_ownership::write_now(cx, gpui::ClipboardItem::new_string(text));
                 }
                 if key == "x" {
                     self.replace(None, "")?;

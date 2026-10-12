@@ -23,13 +23,14 @@ impl Workspace {
         _window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        crate::clipboard_ownership::supersede();
         self.cancel_bookmark_copy(cx);
         let buffer = self.buffer();
         let payload = match buffer.file_path.as_ref() {
             Some(p) => p.display().to_string(),
             None => buffer.display_short_name().to_string(),
         };
-        cx.write_to_clipboard(ClipboardItem::new_string(payload));
+        crate::clipboard_ownership::write_now(cx, ClipboardItem::new_string(payload));
         self.set_status("Copied full path");
     }
 
@@ -39,6 +40,7 @@ impl Workspace {
         _window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        crate::clipboard_ownership::supersede();
         self.cancel_bookmark_copy(cx);
         let buffer = self.buffer();
         let payload = match buffer
@@ -49,7 +51,7 @@ impl Workspace {
             Some(name) => name.to_string_lossy().into_owned(),
             None => buffer.display_short_name().to_string(),
         };
-        cx.write_to_clipboard(ClipboardItem::new_string(payload));
+        crate::clipboard_ownership::write_now(cx, ClipboardItem::new_string(payload));
         self.set_status("Copied filename");
     }
 
@@ -59,6 +61,7 @@ impl Workspace {
         _window: &mut Window,
         cx: &mut Context<Self>,
     ) {
+        crate::clipboard_ownership::supersede();
         self.cancel_bookmark_copy(cx);
         let buffer = self.buffer();
         let payload = buffer
@@ -67,7 +70,7 @@ impl Workspace {
             .and_then(|p| p.parent())
             .map(|p| p.display().to_string())
             .unwrap_or_default();
-        cx.write_to_clipboard(ClipboardItem::new_string(payload));
+        crate::clipboard_ownership::write_now(cx, ClipboardItem::new_string(payload));
         self.set_status("Copied directory path");
     }
 }

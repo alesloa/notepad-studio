@@ -28,6 +28,8 @@ mod find_in_files;
 mod find_state;
 mod fonts;
 mod gutter;
+mod hash_tools;
+mod clipboard_ownership;
 mod input_field;
 mod io;
 mod io_stream;

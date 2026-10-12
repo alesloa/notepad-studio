@@ -78,6 +78,9 @@ A lightweight, cross-platform text editor inspired by Notepad++, written in Rust
 > Column edit paths now preflight hostile geometry and cumulative allocations.
 > Their temporary foreground limits and remaining parity gaps are recorded in
 > [column operation limits](docs/column-safety.md).
+> [Hash Tools](docs/hash-tools.md) supplies MD5, SHA-1, SHA-256 and SHA-512 for
+> dialog text, streamed files and read-only editor selections. Hash work uses
+> background workers, progress and Cancel, with explicit input/memory limits.
 
 Optional [API completion definitions](docs/api-completion.md) supply language
 names for Function Completion and signatures for parameter hints, including

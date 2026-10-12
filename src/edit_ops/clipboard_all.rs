@@ -60,6 +60,7 @@ impl Workspace {
     }
 
     pub(crate) fn copy_all_tab_labels(&mut self, full_paths: bool, cx: &mut Context<Self>) -> bool {
+        crate::clipboard_ownership::supersede();
         self.cancel_bookmark_copy(cx);
         crate::macros::record(if full_paths {
             MacroEvent::CopyAllFilePaths
@@ -68,7 +69,7 @@ impl Workspace {
         });
         match tab_labels(&self.tabs, full_paths) {
             Ok(Some(payload)) => {
-                cx.write_to_clipboard(ClipboardItem::new_string(payload));
+                crate::clipboard_ownership::write_now(cx, ClipboardItem::new_string(payload));
                 self.set_status(if full_paths {
                     "Copied all file paths"
                 } else {

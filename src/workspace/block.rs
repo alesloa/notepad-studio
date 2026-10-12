@@ -242,7 +242,7 @@ impl Workspace {
         if let Some(cut) = plan.cut { if !self.apply_column_plan(cut, cx) { return false; } }
         let evicted = crate::clipboard_history::record_copy_owned(plan.history);
         cx.background_spawn(async move { drop(evicted); }).detach();
-        cx.write_to_clipboard(ClipboardItem::new_string(plan.payload)); true
+        crate::clipboard_ownership::write_now(cx, ClipboardItem::new_string(plan.payload)); true
     }
 
     pub(crate) fn block_cut(&mut self, cx: &mut Context<Self>) -> bool { self.column_clipboard(true, cx) }

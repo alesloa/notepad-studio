@@ -1661,7 +1661,7 @@ impl PreferencesDialog {
             "c" if cmd_or_ctrl => {
                 let sel = f.text[f.ordered()].to_string();
                 if !sel.is_empty() {
-                    cx.write_to_clipboard(gpui::ClipboardItem::new_string(sel));
+                    crate::clipboard_ownership::write_now(cx, gpui::ClipboardItem::new_string(sel));
                 }
                 return;
             }
@@ -1669,7 +1669,7 @@ impl PreferencesDialog {
                 let r = f.ordered();
                 if !r.is_empty() {
                     let sel = f.text[r.clone()].to_string();
-                    cx.write_to_clipboard(gpui::ClipboardItem::new_string(sel));
+                    crate::clipboard_ownership::write_now(cx, gpui::ClipboardItem::new_string(sel));
                     f.text.replace_range(r.clone(), "");
                     f.cursor = r.start;
                     f.anchor = r.start;
@@ -1765,7 +1765,7 @@ impl PreferencesDialog {
             "c" if cmd_or_ctrl => {
                 let sel = f.text[f.ordered()].to_string();
                 if !sel.is_empty() {
-                    cx.write_to_clipboard(gpui::ClipboardItem::new_string(sel));
+                    crate::clipboard_ownership::write_now(cx, gpui::ClipboardItem::new_string(sel));
                 }
                 return;
             }
@@ -1773,7 +1773,7 @@ impl PreferencesDialog {
                 let r = f.ordered();
                 if !r.is_empty() {
                     let sel = f.text[r.clone()].to_string();
-                    cx.write_to_clipboard(gpui::ClipboardItem::new_string(sel));
+                    crate::clipboard_ownership::write_now(cx, gpui::ClipboardItem::new_string(sel));
                     f.text.replace_range(r.clone(), "");
                     f.cursor = r.start;
                     f.anchor = r.start;
@@ -1858,7 +1858,7 @@ impl PreferencesDialog {
             "c" if cmd_or_ctrl => {
                 let sel = f.text[f.ordered()].to_string();
                 if !sel.is_empty() {
-                    cx.write_to_clipboard(gpui::ClipboardItem::new_string(sel));
+                    crate::clipboard_ownership::write_now(cx, gpui::ClipboardItem::new_string(sel));
                 }
                 return;
             }
@@ -1866,7 +1866,7 @@ impl PreferencesDialog {
                 let r = f.ordered();
                 if !r.is_empty() {
                     let sel = f.text[r.clone()].to_string();
-                    cx.write_to_clipboard(gpui::ClipboardItem::new_string(sel));
+                    crate::clipboard_ownership::write_now(cx, gpui::ClipboardItem::new_string(sel));
                     f.text.replace_range(r.clone(), "");
                     f.cursor = r.start;
                     f.anchor = r.start;

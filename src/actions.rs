@@ -19,6 +19,7 @@ pub mod run;
 pub mod search;
 pub mod settings;
 pub mod tabs;
+pub mod tools;
 pub mod view;
 
 pub use bookmarks::*;
@@ -38,4 +39,5 @@ pub use run::*;
 pub use search::*;
 pub use settings::*;
 pub use tabs::*;
+pub use tools::*;
 pub use view::*;

@@ -10,6 +10,10 @@ Notepad++, written in Rust on GPUI. Apache-2.0.
 
 v0.0.5 — current
 
+  Tools now includes MD5, SHA-1, SHA-256 and SHA-512 for text, each line, files
+  and selected editor text. Hashing and large clipboard output use cancellable
+  background work, with stale-result guards and explicit input/output limits.
+
   Sort, Reverse, Randomize and duplicate-line removal now prepare in background
   with Escape cancellation, guarded publication and saved macro support.
   Numeric conversion errors leave the whole document and its Undo history intact.

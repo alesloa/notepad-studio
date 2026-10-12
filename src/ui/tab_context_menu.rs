@@ -627,7 +627,7 @@ fn copy_panel(
                         .and_then(|t| t.buffer.file_path.clone())
                     {
                         w.cancel_bookmark_copy(cx);
-                        cx.write_to_clipboard(gpui::ClipboardItem::new_string(
+                        crate::clipboard_ownership::write_now(cx, gpui::ClipboardItem::new_string(
                             p.display().to_string(),
                         ));
                         w.set_status("Copied full path");
@@ -655,7 +655,7 @@ fn copy_panel(
                     {
                         if let Some(name) = p.file_name() {
                             w.cancel_bookmark_copy(cx);
-                            cx.write_to_clipboard(gpui::ClipboardItem::new_string(
+                            crate::clipboard_ownership::write_now(cx, gpui::ClipboardItem::new_string(
                                 name.to_string_lossy().into_owned(),
                             ));
                             w.set_status("Copied filename");
@@ -684,7 +684,7 @@ fn copy_panel(
                     {
                         if let Some(parent) = p.parent() {
                             w.cancel_bookmark_copy(cx);
-                            cx.write_to_clipboard(gpui::ClipboardItem::new_string(
+                            crate::clipboard_ownership::write_now(cx, gpui::ClipboardItem::new_string(
                                 parent.display().to_string(),
                             ));
                             w.set_status("Copied directory path");

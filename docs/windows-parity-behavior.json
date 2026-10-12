@@ -7302,7 +7302,17 @@
       ],
       "route_at_baseline": "missing",
       "behavior": "pending",
-      "evidence": []
+      "evidence": [
+        "docs/hash-tools.md",
+        "docs/hash-tools-validation-20261011.md",
+        "docs/hash-tools-oracle-exceptions-20261011.md"
+      ],
+      "implementation": "integrated; registered callers, combined Windows build/full tests/Clippy and exact optimized standalone engine/file-worker controls passed; native verification pending",
+      "remaining": [
+        "Native Windows visual/IME/picker and external OS clipboard observation",
+        "Exact Win32 mixed-EOL Paste conversion and arbitrary ACP/detected-codepage fidelity",
+        "Documented byte, caption, input/output/queue/budget policies and limits remain explicit"
+      ]
     },
     {
       "id": "IDM_TOOL_MD5_GENERATEFROMFILE",
@@ -7317,7 +7327,17 @@
       ],
       "route_at_baseline": "missing",
       "behavior": "pending",
-      "evidence": []
+      "evidence": [
+        "docs/hash-tools.md",
+        "docs/hash-tools-validation-20261011.md",
+        "docs/hash-tools-oracle-exceptions-20261011.md"
+      ],
+      "implementation": "integrated; registered callers, combined Windows build/full tests/Clippy and exact optimized standalone engine/file-worker controls passed; native verification pending",
+      "remaining": [
+        "Native Windows visual/IME/picker and external OS clipboard observation",
+        "Exact Win32 mixed-EOL Paste conversion and arbitrary ACP/detected-codepage fidelity",
+        "Documented byte, caption, input/output/queue/budget policies and limits remain explicit"
+      ]
     },
     {
       "id": "IDM_TOOL_MD5_GENERATEINTOCLIPBOARD",
@@ -7332,7 +7352,17 @@
       ],
       "route_at_baseline": "missing",
       "behavior": "pending",
-      "evidence": []
+      "evidence": [
+        "docs/hash-tools.md",
+        "docs/hash-tools-validation-20261011.md",
+        "docs/hash-tools-oracle-exceptions-20261011.md"
+      ],
+      "implementation": "integrated; registered callers, combined Windows build/full tests/Clippy and exact optimized standalone engine/file-worker controls passed; native verification pending",
+      "remaining": [
+        "Native Windows visual/IME/picker and external OS clipboard observation",
+        "Exact Win32 mixed-EOL Paste conversion and arbitrary ACP/detected-codepage fidelity",
+        "Documented byte, caption, input/output/queue/budget policies and limits remain explicit"
+      ]
     },
     {
       "id": "IDM_TOOL_SHA1_GENERATE",
@@ -7347,7 +7377,17 @@
       ],
       "route_at_baseline": "missing",
       "behavior": "pending",
-      "evidence": []
+      "evidence": [
+        "docs/hash-tools.md",
+        "docs/hash-tools-validation-20261011.md",
+        "docs/hash-tools-oracle-exceptions-20261011.md"
+      ],
+      "implementation": "integrated; registered callers, combined Windows build/full tests/Clippy and exact optimized standalone engine/file-worker controls passed; native verification pending",
+      "remaining": [
+        "Native Windows visual/IME/picker and external OS clipboard observation",
+        "Exact Win32 mixed-EOL Paste conversion and arbitrary ACP/detected-codepage fidelity",
+        "Documented byte, caption, input/output/queue/budget policies and limits remain explicit"
+      ]
     },
     {
       "id": "IDM_TOOL_SHA1_GENERATEFROMFILE",
@@ -7362,7 +7402,17 @@
       ],
       "route_at_baseline": "missing",
       "behavior": "pending",
-      "evidence": []
+      "evidence": [
+        "docs/hash-tools.md",
+        "docs/hash-tools-validation-20261011.md",
+        "docs/hash-tools-oracle-exceptions-20261011.md"
+      ],
+      "implementation": "integrated; registered callers, combined Windows build/full tests/Clippy and exact optimized standalone engine/file-worker controls passed; native verification pending",
+      "remaining": [
+        "Native Windows visual/IME/picker and external OS clipboard observation",
+        "Exact Win32 mixed-EOL Paste conversion and arbitrary ACP/detected-codepage fidelity",
+        "Documented byte, caption, input/output/queue/budget policies and limits remain explicit"
+      ]
     },
     {
       "id": "IDM_TOOL_SHA1_GENERATEINTOCLIPBOARD",
@@ -7378,7 +7428,17 @@
       ],
       "route_at_baseline": "missing",
       "behavior": "pending",
-      "evidence": []
+      "evidence": [
+        "docs/hash-tools.md",
+        "docs/hash-tools-validation-20261011.md",
+        "docs/hash-tools-oracle-exceptions-20261011.md"
+      ],
+      "implementation": "integrated; registered callers, combined Windows build/full tests/Clippy and exact optimized standalone engine/file-worker controls passed; native verification pending",
+      "remaining": [
+        "Native Windows visual/IME/picker and external OS clipboard observation",
+        "Exact Win32 mixed-EOL Paste conversion and arbitrary ACP/detected-codepage fidelity",
+        "Documented byte, caption, input/output/queue/budget policies and limits remain explicit"
+      ]
     },
     {
       "id": "IDM_TOOL_SHA256_GENERATE",
@@ -7393,7 +7453,17 @@
       ],
       "route_at_baseline": "missing",
       "behavior": "pending",
-      "evidence": []
+      "evidence": [
+        "docs/hash-tools.md",
+        "docs/hash-tools-validation-20261011.md",
+        "docs/hash-tools-oracle-exceptions-20261011.md"
+      ],
+      "implementation": "integrated; registered callers, combined Windows build/full tests/Clippy and exact optimized standalone engine/file-worker controls passed; native verification pending",
+      "remaining": [
+        "Native Windows visual/IME/picker and external OS clipboard observation",
+        "Exact Win32 mixed-EOL Paste conversion and arbitrary ACP/detected-codepage fidelity",
+        "Documented byte, caption, input/output/queue/budget policies and limits remain explicit"
+      ]
     },
     {
       "id": "IDM_TOOL_SHA256_GENERATEFROMFILE",
@@ -7408,7 +7478,17 @@
       ],
       "route_at_baseline": "missing",
       "behavior": "pending",
-      "evidence": []
+      "evidence": [
+        "docs/hash-tools.md",
+        "docs/hash-tools-validation-20261011.md",
+        "docs/hash-tools-oracle-exceptions-20261011.md"
+      ],
+      "implementation": "integrated; registered callers, combined Windows build/full tests/Clippy and exact optimized standalone engine/file-worker controls passed; native verification pending",
+      "remaining": [
+        "Native Windows visual/IME/picker and external OS clipboard observation",
+        "Exact Win32 mixed-EOL Paste conversion and arbitrary ACP/detected-codepage fidelity",
+        "Documented byte, caption, input/output/queue/budget policies and limits remain explicit"
+      ]
     },
     {
       "id": "IDM_TOOL_SHA256_GENERATEINTOCLIPBOARD",
@@ -7424,7 +7504,17 @@
       ],
       "route_at_baseline": "missing",
       "behavior": "pending",
-      "evidence": []
+      "evidence": [
+        "docs/hash-tools.md",
+        "docs/hash-tools-validation-20261011.md",
+        "docs/hash-tools-oracle-exceptions-20261011.md"
+      ],
+      "implementation": "integrated; registered callers, combined Windows build/full tests/Clippy and exact optimized standalone engine/file-worker controls passed; native verification pending",
+      "remaining": [
+        "Native Windows visual/IME/picker and external OS clipboard observation",
+        "Exact Win32 mixed-EOL Paste conversion and arbitrary ACP/detected-codepage fidelity",
+        "Documented byte, caption, input/output/queue/budget policies and limits remain explicit"
+      ]
     },
     {
       "id": "IDM_TOOL_SHA512_GENERATE",
@@ -7439,7 +7529,17 @@
       ],
       "route_at_baseline": "missing",
       "behavior": "pending",
-      "evidence": []
+      "evidence": [
+        "docs/hash-tools.md",
+        "docs/hash-tools-validation-20261011.md",
+        "docs/hash-tools-oracle-exceptions-20261011.md"
+      ],
+      "implementation": "integrated; registered callers, combined Windows build/full tests/Clippy and exact optimized standalone engine/file-worker controls passed; native verification pending",
+      "remaining": [
+        "Native Windows visual/IME/picker and external OS clipboard observation",
+        "Exact Win32 mixed-EOL Paste conversion and arbitrary ACP/detected-codepage fidelity",
+        "Documented byte, caption, input/output/queue/budget policies and limits remain explicit"
+      ]
     },
     {
       "id": "IDM_TOOL_SHA512_GENERATEFROMFILE",
@@ -7454,7 +7554,17 @@
       ],
       "route_at_baseline": "missing",
       "behavior": "pending",
-      "evidence": []
+      "evidence": [
+        "docs/hash-tools.md",
+        "docs/hash-tools-validation-20261011.md",
+        "docs/hash-tools-oracle-exceptions-20261011.md"
+      ],
+      "implementation": "integrated; registered callers, combined Windows build/full tests/Clippy and exact optimized standalone engine/file-worker controls passed; native verification pending",
+      "remaining": [
+        "Native Windows visual/IME/picker and external OS clipboard observation",
+        "Exact Win32 mixed-EOL Paste conversion and arbitrary ACP/detected-codepage fidelity",
+        "Documented byte, caption, input/output/queue/budget policies and limits remain explicit"
+      ]
     },
     {
       "id": "IDM_TOOL_SHA512_GENERATEINTOCLIPBOARD",
@@ -7470,7 +7580,17 @@
       ],
       "route_at_baseline": "missing",
       "behavior": "pending",
-      "evidence": []
+      "evidence": [
+        "docs/hash-tools.md",
+        "docs/hash-tools-validation-20261011.md",
+        "docs/hash-tools-oracle-exceptions-20261011.md"
+      ],
+      "implementation": "integrated; registered callers, combined Windows build/full tests/Clippy and exact optimized standalone engine/file-worker controls passed; native verification pending",
+      "remaining": [
+        "Native Windows visual/IME/picker and external OS clipboard observation",
+        "Exact Win32 mixed-EOL Paste conversion and arbitrary ACP/detected-codepage fidelity",
+        "Documented byte, caption, input/output/queue/budget policies and limits remain explicit"
+      ]
     },
     {
       "id": "IDM_MACRO_STARTRECORDINGMACRO",
@@ -7976,15 +8096,15 @@
       "evidence": []
     }
   ],
-  "current_source_sha256": "6286ae5df89da0b2fb13d767939948d65210c9c2695ff5f7dd36ba8ee08dc08d",
+  "current_source_sha256": "2f32e1e531367e6f6f706967db2c0cb8d55039a83691d32b00b8a58031098cb9",
   "current_route_counts": {
     "action-only": 2,
     "alternate-only": 2,
-    "missing": 283,
+    "missing": 271,
     "partial": 8,
-    "routed": 184,
+    "routed": 196,
     "status-only": 1,
     "stub": 1
   },
-  "current_manifest_sha256": "fb072656ef80cb3fdf6d5fb858003562f941c031ea5ab9dcd802aa294991e67a"
+  "current_manifest_sha256": "1b224d8c6c259a479d79d9a26f05b5e531b81dd1cd4f783fdecb276467233526"
 }

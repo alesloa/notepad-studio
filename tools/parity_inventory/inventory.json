@@ -1,5 +1,5 @@
 {
-  "studio_source_sha256": "6286ae5df89da0b2fb13d767939948d65210c9c2695ff5f7dd36ba8ee08dc08d",
+  "studio_source_sha256": "2f32e1e531367e6f6f706967db2c0cb8d55039a83691d32b00b8a58031098cb9",
   "studio_sources": {
     "src/actions/bookmarks.rs": "eeaf95badc144e0fa7f8c2445495e706f1209291c1285ddd3578fef0c84eb5fc",
     "src/actions/edit.rs": "90200c45bc846149a2a05b8ce0b1ab98118b185094686abacccc0ddc882969b4",
@@ -18,8 +18,9 @@
     "src/actions/search.rs": "b4f28b86de8352bbc127b19e07a493c9e4614cb74c1771e35c04ac866d88e294",
     "src/actions/settings.rs": "f916e800e130114450c6d09548e5eafafccfbf3f33421ab39befe154df058902",
     "src/actions/tabs.rs": "36a88d8ae08bf873d37b61c1dd17e31c218472e0bef15c7de19b687b6cbc9f58",
+    "src/actions/tools.rs": "2074f4bc5cdafe5fc7aeab218e57125a8a96e87ddb6c9de407a594d21dfa2e12",
     "src/actions/view.rs": "8174bbe169b16aabfa281c22482180e25f461343b5dc6b63981ee4d47205f006",
-    "src/actions.rs": "3204a14f2691bd8df3561dbbfbe0de2aedf49311b23b78ff4fa134defcba9eac",
+    "src/actions.rs": "c886d19db5df4def9926cf6fe8b1fc159b3232af54ed754db671f16fbf929ab7",
     "src/api_registry.rs": "60dfe5418abf2097cd0fd71fcb5906ca32aefb1bbc47203c194bc05cf59ecb3e",
     "src/app/keymap.rs": "a80009f2e271ca2ace56f1a9fcd65b009773710931f3a1424a3c139d1befe34f",
     "src/app/menus/app_menu.rs": "703d08cc9f7a62abff24b51f2b1e61075830ed62b02efaee11444ca1a3618d2b",
@@ -27,6 +28,7 @@
     "src/app/menus/edit.rs": "314c854d7d9fa6c239413af66f7c7761d62e4374bcc97b08048f327620add19f",
     "src/app/menus/encoding.rs": "50c53eed1ae652d4b076de3e8cc17a365cd56050d5c759cc10458fa4313f455a",
     "src/app/menus/file.rs": "6b0ab811d1f50d61798c60700b20ffe56abc9ae77facc6460a4df1ca0570aa5a",
+    "src/app/menus/hash_tools_policy_cases.rs": "b8b33f116bbadeebba15c05fb369cc137ef63ce3193b79d0f90b9534efd95a68",
     "src/app/menus/help.rs": "c8cc90a6954a8a4fc653f3588253e6b4cbbaa679a4146ee47d6b6c022cecbad4",
     "src/app/menus/language.rs": "9412d06d56ce78fa01c3a79f7ed1f23c57080bbd3644c0f007dd9c26f528e9ed",
     "src/app/menus/macros.rs": "7f5f0b1ccd25d94da19880d1dfea2dad7d3787ea44fcdb6a59585f589dc91953",
@@ -36,8 +38,9 @@
     "src/app/menus/search.rs": "42c770ed0a264dc7c395622c69fbb75594bee4cb621ce40c189bc7f0ed82f765",
     "src/app/menus/settings.rs": "7a91a6b35e1f795a72a1fcd5b3363ff45e5b48df51f546aa60c22dfcd52aa1ed",
     "src/app/menus/state.rs": "bb1beb475663ad83ab0ea457d6de371c4a96d2cb75b29e6db5d4f8d51f00eaa7",
+    "src/app/menus/tools.rs": "1b1d03c754fa54b852b3724d93732d1815ec731429e0a5dfc5ccb43977c49197",
     "src/app/menus/view.rs": "b96737881f95025a6d21ff958e6e10155ef8edd15bb35edeed3fd16dfa1f9c23",
-    "src/app/menus.rs": "2167e6b86e29d23ef58221da7000cab2c50f5c10ff1202400bd7fd762026f4ec",
+    "src/app/menus.rs": "583255d4cfa66df7aba30c97b3afc4d8a5ad222161e46484692dcd26f4bfd686",
     "src/app/mod.rs": "831d6ca1d4e76111edd7c2f2854bdc84e9baad74f639975a1e860be009528407",
     "src/app/quit.rs": "512c8981791bc38146708140aa62040c2a3c22c817444cfef077f5c3a81f0fc0",
     "src/app/quit_state.rs": "5a2fe01360e75d943dccb963cace6e12a537ce6c015b7280937478e2e2c57b00",
@@ -49,16 +52,17 @@
     "src/call_context.rs": "c0f382cfec3d27faefda0e2cfdd1aa8c6aed86823121f90dd05a605bd35273bd",
     "src/changelog.rs": "6f1cdf601ac205897a3d06a86cbc2c8ca8fcb2e29686ee7785992d666be0fcc8",
     "src/clipboard_history.rs": "bfe665d23bdcebcb1198eb3c7f379a26664a4aa6dfe3377b0baf7d40d8a7c731",
+    "src/clipboard_ownership.rs": "ad59e7457dbde49618add9d99802d8ee018f12a8f5772ac8c9ba75b5614341b9",
     "src/clipboard_rich.rs": "dad033bee22d196bad4fb5039894b955b427704b3d3dc41431458d9f91b3b82a",
     "src/config.rs": "8e7af0eca571680c683f5aa7286393c31e8907dcdec519aebefda4bf9be5f692",
     "src/consts.rs": "ecae4caac8f1e3f17933059b9919f5001b72f8ebf954a4b2ac1abdd75277e51d",
     "src/edit_ops/begin_end_select.rs": "7e3919976f49f2ef2af7564e46d16ef0cbc5fb5e2b1b335a647123d3dc5ff5f4",
     "src/edit_ops/blank_ops.rs": "095023726fa1732362b1385b17b2466c18ac2344675724c6b0625a89d0571d2b",
-    "src/edit_ops/bookmark_clipboard.rs": "706caea8990e6c67a8d54e4b2142e92300a738d8254fb2fbf6db456a6367eb84",
-    "src/edit_ops/bookmark_edits.rs": "be80375239bb51fceb1574c00688622dd023989c52bdc87b41803069b6a539a5",
+    "src/edit_ops/bookmark_clipboard.rs": "014495318238407c18ab9049362c59e1e23a88c2fca2e06e3979b8a676311c3b",
+    "src/edit_ops/bookmark_edits.rs": "ccf7b046f6800187942f5f96a629eabdfdf9cb9db75071a185be7c0a42d102f8",
     "src/edit_ops/case_ops.rs": "8bd76a20b9aacec59ea83758fc558df50cfcfe1a22a691273a3a7e5edd2c9454",
-    "src/edit_ops/clipboard_all.rs": "c988507c1c3b03d9a4d0c49bcfae2aca196fc17e4664c9bf22de567e8611b17d",
-    "src/edit_ops/clipboard_ops.rs": "020534cb8aa4cef4e57e673861e7e6b1b4bd87542f909e87ab0c82d8abb8bde6",
+    "src/edit_ops/clipboard_all.rs": "72c8132e33f323986d32b35f84d632d9106159a9e696bfddefdf93e8589f7cb2",
+    "src/edit_ops/clipboard_ops.rs": "9807e976556279644bb9c832b6813cbeed539ad567353fc78e91c0e6247914cd",
     "src/edit_ops/comment_ops.rs": "3bb9562940ef7ca84a5654c611185aeb9796988b3dfcadc4e31740d8573e21f0",
     "src/edit_ops/delimiter_select.rs": "6fb029a50d78e94fe45dbed361c404cd8e4bac5283432533cd94efe98282489b",
     "src/edit_ops/editor_keys.rs": "714dbbf52dc4893f93916fce5996cf21ca8529c46c2e8e3d273236044e3311c4",
@@ -83,6 +87,7 @@
     "src/find_state.rs": "6b2d159b9c588d70029d3f663681c64680cc5938d4daf855a4ecd49ac98ae334",
     "src/fonts.rs": "6e26e40847e3f3b15f32410d0a8804d2e787d1d2c633ebd76938b3c389ea5201",
     "src/gutter.rs": "dfe87247f9532c628183d3ef82c54f610a2df83c005a4b284f29801cc305e44b",
+    "src/hash_tools.rs": "6c07a6f458b4a9e8c5797bbc0a0c3004a74eb7dabf179b2b8b01c6ee4a1f2589",
     "src/input_field.rs": "0bf16dc3fc2bda306e857b5cb330e366e6e6df228762cceac1dd7d45dae22cc2",
     "src/input_field_rename.rs": "cca9d26adf6c235778b9315f5d4f3511cd3d8409527da83418603537f8e4f9b4",
     "src/input_field_window.rs": "f6cc271f385be21f29ce6a81b324c2e22715aa62d687fd869881ab3bf5d58912",
@@ -102,7 +107,7 @@
     "src/locale_sort_windows.rs": "456d5f41ceaa63ec1c0acf33a082a01a0814b779097f2aed8cfd662a9ca5dfcd",
     "src/macros.rs": "0a15c28ab687490a29597c829cb3faade7ac01d93a65a5e43564cf8d1a7c88ca",
     "src/macros_playback_fixture.rs": "fe4904388250c4abb8bcb2ad990b3e1e736da46ca9a5b8fe8e5515925798ab61",
-    "src/main.rs": "c4e677bd9dbddd531fb39e99bfab56de13b68c492d22b7d93f3e584f6389d30f",
+    "src/main.rs": "55fea8a223bdbf883a8b6c9e3a9dad29940ae9e93f938cea5e6db3925833e027",
     "src/panic_log.rs": "f3b24ecf846e2b7a6b218ba1a732efad70da2113cba2746175dbd33e96290c6f",
     "src/persist.rs": "7995c33c733153eaffa48f17512b7ea0fd52884cf389c1311259397889176fe2",
     "src/plugins/host_api.rs": "a3ecf172f8174a3502aaf74c3254582088a872434ac073756c4224164421edda",
@@ -133,8 +138,8 @@
     "src/settings/persistence_fixture.rs": "a7cec9a94d21c3da5cbfdeff8ba0f57854de89f642315576d4e016097ade1bd5",
     "src/settings.rs": "65d3fe1a335a2806574a8f10524687d43619d7c2c6aa591db016db4f71af16c6",
     "src/shell.rs": "04f1f44c04af6cbabd9f02aae93a8b0642b3d8b392b2f78a1371433e17aea646",
-    "src/shortcuts/npp_defaults.rs": "8c7b344dfdb263fd87ae0310f33eefb720bbde54db56e694fb7f6b9b44091e64",
-    "src/shortcuts.rs": "1f50dc3379219534b1cd49ec564c4d566eac08da985931ae7c4d9b815ee35e4b",
+    "src/shortcuts/npp_defaults.rs": "98f73558c93c08ce193bb6eb23c343ce53f0da955e1174d0a4453c1b63b46d94",
+    "src/shortcuts.rs": "81bb05c345abe1190a2649eda2feac4cde53bf07919f15d750fbb2df616327da",
     "src/single_instance.rs": "9136898987ad1f83bfc8d4c510b3141acd670d4dd4c041509a0b3d0f7cf559da",
     "src/style_model/active_theme.rs": "0e560d798075155e6304196946d4f4dd486c70121eac326d47754edfdb297407",
     "src/style_model/bundled.rs": "065d9228af7882fb11b0ac2e90ca0659178529457830b834fdd3b3f0c5f0214f",
@@ -173,7 +178,7 @@
     "src/ui/chrome.rs": "b53351c20adef925e8e1d23d4c3c9bca279870dacb68b989f5d2ec71c9ed500b",
     "src/ui/clipboard_history_panel.rs": "935cb71cc93a2863731ebbb430e6a611af6ee05472121871ab339d3da52ea498",
     "src/ui/context_menu.rs": "091511212eba85e519a02484123b083be7aeba7198ebbe2b89fce060b711e89c",
-    "src/ui/csv_doc/actions.rs": "c86d03dab4bc43d86a8e35ca4c092ee533ce40a0d29a1585d88d3016963953eb",
+    "src/ui/csv_doc/actions.rs": "0a7f112dcbea42f92a54a492a56887784461def5dc70ab0a7c9e2c39c3f6c60b",
     "src/ui/csv_doc/cell_input.rs": "2189cd7ae9999e862921054b440bdf3bd6f3f399d361e4f1744de72b240fdf7d",
     "src/ui/csv_doc/clipboard.rs": "6b87d9e13a1d2f7c5007aadf859b918731a8f59d7ac79ee59302a74faf6ea264",
     "src/ui/csv_doc/context_menu.rs": "a7c64fe438f51d33d6745f7dffa7c9cf05dc73ff9c95a79210640b53a102e599",
@@ -197,11 +202,16 @@
     "src/ui/find_dialog/replace_tab.rs": "2630e38cc802714f8f4abca86439733b25109d398b5380ab7ed08a72a15302e9",
     "src/ui/find_dialog/widgets.rs": "1a96d2433657bfd5d2c03d4955ef8530f25e04bc284f82ad52b0ae973cdf207f",
     "src/ui/find_in_files_panel.rs": "0e0782efdb6b7387343a165ddb5ff5a995078106b07f4ef685e0b6a5e08e1046",
-    "src/ui/folder_panel/context_menu.rs": "56b5529df4682f4e9408ee393ead8e7e614200e1a9a9fe2543b239917c2f4533",
+    "src/ui/folder_panel/context_menu.rs": "149dff6e4d643e34cd9851cb9e152a46d9e8c574d1fb4b3756f334d8d82ef043",
     "src/ui/folder_panel/mod.rs": "e4c8de849e2b585e96d820988a1df554f686c8e53f92e4faa06fcda999731c43",
     "src/ui/folder_panel/tree.rs": "a828a362a305e29b6142f88a0a3e991656f178c9bf4c07797006814200f6a463",
     "src/ui/function_hint.rs": "c9b8e4b0a604e95f75828b174266af3070badab8a6870800b2ca3aab4beae3c6",
     "src/ui/goto_bar.rs": "1c6fd60e9fdd5dcdea8806f947f2d76d00daa9f07bf00b14e4657a05207b3de8",
+    "src/ui/hash_tools/files.rs": "de187d5ae1d918c8db2552e876475c3cd30618c4bb249ef675464b1f3080df4d",
+    "src/ui/hash_tools/input.rs": "5329b30038b00a94b337666dc62b5a55f9be5a15d817eb371928a54abdaa2e68",
+    "src/ui/hash_tools/jobs.rs": "b2033531050a1b20181e404a12aaafc3c153ef53fd011cf54057a94a14361671",
+    "src/ui/hash_tools/mod.rs": "73d75254871ffc3cbbbf0af3cb53381a1b153f88aec9bed7a437de90f140f247",
+    "src/ui/hash_tools/selection.rs": "2e878870ec59685adb961daedd2d3ef6104745bb8e7143b54aeea21312a942dc",
     "src/ui/macro_prompt_bar.rs": "770f0f93adb0ead0461795b5c55ac9657b997a70a34223a7110f173c2739c726",
     "src/ui/markdown_view/input.rs": "b668c64651bce89901911fc635fe058e730b3ea5f7b7391926bad0a14379dc5b",
     "src/ui/markdown_view/mod.rs": "675fa1682a1e592706b70800734304956b18bc6e6c839688e7c309ffff305c91",
@@ -209,7 +219,7 @@
     "src/ui/menu_bar/keys.rs": "571cfa619b8da968a1dd64ef1d3df6a82c2d103ad0dc7849852eff08717b5678",
     "src/ui/menu_bar/mnemonic.rs": "c84a488548db6c6bcd29ff3b86d03056e7b5ef7748edbfc8959397f74c1a7f69",
     "src/ui/menu_bar/mod.rs": "0e9bc08354bae4fef0d1041a526d2dabb71634a7b1e5b2b7ff0374a7358e697b",
-    "src/ui/mod.rs": "db5b2f99915b85714e422785e9f89b0e5e4e8407a789b96f860d1fe6ea20cd66",
+    "src/ui/mod.rs": "b49bfc78cdf95c528d8cffb7a35b1f6ea5f2d3fa7365cbcbaf5e96043c382a97",
     "src/ui/paste_format_dialog.rs": "82ce89c56ee3e79a65b751ee04c716cf6954a4efbdcd4b43ebb076ebec7b385e",
     "src/ui/preferences/auto_completion.rs": "b2b2421810f75daa6b23a1c0df02a638386cb667793b173014c6b2f0cad65ae0",
     "src/ui/preferences/backup.rs": "a01d4e053bca542a135c2bb2bb84d89ff464ebf0db43ce8e4f0b1a4faaae91ab",
@@ -228,7 +238,7 @@
     "src/ui/preferences/language.rs": "5a64bfb7c777d8ab21620a1593710413666fae6712377a0adbf495793859fe95",
     "src/ui/preferences/margins.rs": "4e4c20a4aa2b374adcd4aae25e40471b46145368cb82b91cdf3a29f56c16ffd4",
     "src/ui/preferences/misc.rs": "1d8a42586d9709ee4762e4f75dcdaeaff8be2486a48ded3da79de3e48155beb7",
-    "src/ui/preferences/mod.rs": "8bb0ce8569768d2dcc29a1ab22cbeee5fa1eb88c71e7ae42ae84837c5ca3d8cf",
+    "src/ui/preferences/mod.rs": "f7e7bef2d6fe21289f8ca9a7a4cc5beb9a5242ce5d1395ec9f7e036eb838d88c",
     "src/ui/preferences/multi_instance.rs": "0cdf85d9329e738bbb5e01799e2907dc836aba657b0ecbf174d6ac057df43f6f",
     "src/ui/preferences/new_document.rs": "eb81ce386615824dfe300e4e953bf17f0e0a5ef12c534e42182528c252a9a743",
     "src/ui/preferences/performance.rs": "fa54121b6e6c10e783e00c2817fa9897b4f36fe185a0c242e0b0cca3a28dcca2",
@@ -245,7 +255,7 @@
     "src/ui/rich_doc_link_bar.rs": "fbd3672547e2d21150ab5ccb3a631a1b17ea02d506d3dfa95547e29d600d923a",
     "src/ui/rich_doc_view.rs": "2baf33214dce832ca60bd223bca63afcdc3023a85829f3bcaa03e3517a4b52b1",
     "src/ui/rich_highlight.rs": "840181b77d3fa5ab34f438a6f4735dc7c31a8d3e530a645dd3616491a3bf6707",
-    "src/ui/run_dialog/input.rs": "98333b7780af81f84ff7507052c71892d948b0e26f7f179dde7e4605a89d23ac",
+    "src/ui/run_dialog/input.rs": "2491cdafb5c587f0d6119cc7eb938ee451f194aedd93849d6006e98c55e11072",
     "src/ui/run_dialog/mod.rs": "754d8b08109f67b6098bdbac1c79c1a9e96cab23cae96d53882e16a43f681ca6",
     "src/ui/run_dialog/saved.rs": "e05d709a7e898744b791754b420837b833844808fb5e6123c7912289953ab3e7",
     "src/ui/shortcut_mapper.rs": "4174ec55fc156c758265f7dfb1178a2ac8f7dd09031f7c46cc8e38f86a9cb3b3",
@@ -258,12 +268,12 @@
     "src/ui/style_configurator/hsv_surface.rs": "d35ea55d2b74d115cf66a63d8bd61347a44149406da5895e26da0dc330b95271",
     "src/ui/style_configurator/layout.rs": "b5bfec68b0a8e3c0b38cbe3574bfb3e8689bd4c63fde181e0564d1197a61529a",
     "src/ui/style_configurator/left_column.rs": "782420cf289ce2e2c8ad877b5626b400744bf64ec48531fbebfb8aa7a63f4c78",
-    "src/ui/style_configurator/mod.rs": "871def947de0c66737c1ca84bd4bab3d49198fad80ea8b5766966eee773490a6",
+    "src/ui/style_configurator/mod.rs": "410589ce6f722cbb9c62b099e89f74bada1e47ce130970a9d9a6f9329dea59d7",
     "src/ui/style_configurator/right_column.rs": "789366eb365c5f92bfcb354f2f355ae09fe69b49cf682fb69b78642189a100f8",
     "src/ui/style_configurator/state.rs": "2a672ebcba418c2163989365377788744cae084a570075985c81b3dde1be07e5",
     "src/ui/style_configurator/user_ext_edit.rs": "433f05402fef58ab13ee37d88767d3d5030dc9e6d5a382ce4c716d0794a7dc9c",
     "src/ui/style_configurator/user_ext_input.rs": "c482f8a6a7fb051d896746186b1363b8fa8705637f57a1ff2a28b0da2673bc99",
-    "src/ui/tab_context_menu.rs": "bf44cff650603303effd0f7cfbd13f0203b018c05dfc77b677943831d23b1a86",
+    "src/ui/tab_context_menu.rs": "09a78455d1cc588e586e302408e07d21719e78dcff39b293cc91c60f6e8c886b",
     "src/ui/tab_rename_bar.rs": "68c3805d8fcf7bdbbfd4c6a258285f67811a1984e00bf0188e41c29814558c9a",
     "src/ui/tab_strip.rs": "c4012260b6218a0abce3813733cf6b514efb2d47b413e0cee0ed609f9fb29fbf",
     "src/ui/text_tools/add_prefix_suffix.rs": "6ef6920eb9d70c8406040acb60af51eb8f4468b086b7f4f776b2a19995da1e31",
@@ -271,7 +281,7 @@
     "src/ui/text_tools/eol.rs": "1da43b158568ffc13c192637d3b64fea371600142b22dbc0d7106cb7d3bc7c7d",
     "src/ui/text_tools/join_merge.rs": "13573aed314fdab6d24038e6a18f9a45a6aebd743344129e962a9b1fcf1c9c2c",
     "src/ui/text_tools/lists_comparison.rs": "a7db8786c3a9c774834d88bb5b26ba8e534327f3f695fe11717a4d3dcd6f2b94",
-    "src/ui/text_tools/mod.rs": "e06d6f6a6896fb0ca749ffd676402c0ac0fbc3aed2b7f93667cb509c44e47fc4",
+    "src/ui/text_tools/mod.rs": "5a5217120d63b4a34bd2c3811842b6c8b1b9415c9f60a1b16b7a91633cf50952",
     "src/ui/text_tools/remove_duplicates.rs": "b24e95766de6dafc7b41e7bfd2dddc741d65d3529a4332bbc215f7595b247c1b",
     "src/ui/text_tools/remove_empty_lines.rs": "4e258c0eceab110a93c07941f9c415aab6e71f168c74a20f0a0c1bdf1f92f915",
     "src/ui/text_tools/remove_lines_containing.rs": "6f06b6c7fa7fb53c3f469d21e8bd9157c913ecc9754f39b57f0e8a449f416946",
@@ -281,7 +291,7 @@
     "src/ui/toolbar.rs": "08a0ccacfc2083103cc1f0ac263901f9bd822e463706a60f0f39988a1ad418d5",
     "src/workspace/autocomplete.rs": "b320df6a6512035509a7e598830ef5ce51796dfb775a25e3c9f6959216e9b9b3",
     "src/workspace/autocomplete_candidates.rs": "935f0390779a8016cb0d6208a85d26a157627a6d2199e1c3f30170707b094d84",
-    "src/workspace/block.rs": "e277867482c3a3969be019a397547bbe5e4c67102bfa7e0cc18ada7148517c40",
+    "src/workspace/block.rs": "94b65bca6ca4f8f243d8e7a11a8e837ae0285ff3c49dd8999b3c13002768316d",
     "src/workspace/brace_match.rs": "e205973a0dd712504c50a3f2ce83a9142a19a69f5c2e99313df676296c4f6573",
     "src/workspace/brace_navigation.rs": "8d4f4d3214095ef2656bbf4ecad49bc48d39c564c7d7daa1dcd445aad66f2fc3",
     "src/workspace/call_hint.rs": "43dfa02ef1fbc393e80b891b9e7bf31004af627f83202aa6f7b1988b713f2b01",
@@ -291,11 +301,11 @@
     "src/workspace/completion_macro.rs": "b75aedfd58b6dbbbbd4f96bf1d27d59406d04e527beead4b8371fb11132b1e52",
     "src/workspace/cursor.rs": "bd7995d3d9b5f0125ee04a7baef274ece3c2769555431170d1ee0c46bbbf5f27",
     "src/workspace/directory_operations.rs": "e99b779cb52f093598a39d612a274e7808ed522fc74c1a907de7aa1574f04024",
-    "src/workspace/edits.rs": "fa3d69b6701d9a98c48cc1089fc14bbe43f711d9fd6ac11d35a4de260500ae0a",
+    "src/workspace/edits.rs": "73fdcdd9017190b30146c98733d2db6763704296e3c897a05c89ea1247203700",
     "src/workspace/file_move.rs": "4b2b28d4a2b831b6e59f56b105a0ad3d8ec32a933c066d8d1e17d42155673e49",
     "src/workspace/file_routes.rs": "8c03274c60637d4b81b9298b04c84fac7abd15e3c6174f0044f38bbdcd2781dc",
     "src/workspace/file_tab_actions.rs": "da125d264a4d080a47a81ac213db73c5199eae9e5fd7ae42d9ecca458b0a108f",
-    "src/workspace/find.rs": "93eaa084a936fbe9df36b3f9fae84b2cf118bd8b0ff765e8de78d76777547656",
+    "src/workspace/find.rs": "9c9ac1cb5c5f191d92d8895e9837134dc0f0d5ef65a2f5be803580a144ae2109",
     "src/workspace/find_current_budget.rs": "9dc9a69bce849720e64bd84c7ea5ff2344e8e7471f709ed76e8e6821362dfff8",
     "src/workspace/find_current_controller.rs": "946195362ae726684941f02aa08c8d811c5358c1d56fb2bac5008e17075264c0",
     "src/workspace/find_current_endpoints.rs": "e9a6d156baab172aaaa21ebf14fc223afe00349f6b9a2f9de93f6b1c2f1a0599",
@@ -313,23 +323,23 @@
     "src/workspace/ime.rs": "761420f3a3a2a82a86609f909df4809d44372b2e61d4d68855146db100fa088b",
     "src/workspace/input_handler.rs": "ef1a987ad7c26cfb1d7574da1a1317e57f533df85109297224a3cca498d9f9c6",
     "src/workspace/language.rs": "d2de7352c993a234b32d8df2b93741c6319ccada93f9fc4f37ded2998bd223b0",
-    "src/workspace/macros.rs": "b429ae5aa2910f84ce5636e6aaf3a9d482077713da619cbb017173eaf47460dc",
+    "src/workspace/macros.rs": "a8ff899faed8fbaa4c18506d9541ae0c08508cca605eb7006c9509a4d1037136",
     "src/workspace/markdown_format.rs": "1e8c6fa671dfb4f0304f9c885628d0ce8c537f0cdaf5d9d044bb3929694201f0",
     "src/workspace/menu_bar.rs": "eb33b9884b6e0574c700fa5c6a7460139c23bc09dfb4c5dff3ea4cfd936b8795",
     "src/workspace/menu_state.rs": "c08c5730ca88b4773ff7e69c8375574d6b9946653ff0b8eb9c4245dec4707989",
-    "src/workspace/mod.rs": "802c0b3bbabd2b833aa33bdc761e52f29f218875aeafccb0cc4d8042d401dd52",
+    "src/workspace/mod.rs": "7014eb826d4db15ef271ff6c21ed7bd2860b1d9a55cc4e5d399f12d8d1da9f20",
     "src/workspace/mouse.rs": "d33004f7e533a7290340fdcd47b18bbbb0f30c0650d05ff77cc5d671f65a32ad",
     "src/workspace/movement.rs": "842121092e1c8537d4a9eb47c890fea8fcd08ce6eb427e5d067e89c5d544af9e",
     "src/workspace/open_existing.rs": "2f0688288f495fb8717aa9e7338e47be14c405af2e33491a70a7f2e57b06ccbd",
     "src/workspace/plugins.rs": "9e1c3d4dd021e69ecf0e7f3ac26db856e40a3413d86336dffeb3830bb5f61e92",
-    "src/workspace/prepared_edits.rs": "c4e1eb1e1c79562da14dda1ab8bf5bad4a12d4cb7afb4eb202fc498e60ddc728",
+    "src/workspace/prepared_edits.rs": "782d079e1734a21094472622174ecf2861a121df86aed1e7e336df629b5d2c37",
     "src/workspace/prepared_macro_capture.rs": "926de786c5269f0425b1aeb62ce92fdbf88f5a4ac230360150ac3ff62a81fe50",
     "src/workspace/project_file_visits.rs": "c359c6b1f887f8849a03831435663f5e628d1d518c61923ca3b486452143255e",
     "src/workspace/proofreading.rs": "60304192a859e36321e3f69c8ce458884b5f851d5818e809c59bd403526f2d0b",
     "src/workspace/reload.rs": "661872a83d432cf68d1cf0ed0c9a4471ebb6abc0744e34f28c56afc79845b3f4",
     "src/workspace/reload_csv.rs": "31fcefc7f786c0f67c431b09c9c9d1fb65d08a6f5e9364c1c83eaee68465ab10",
     "src/workspace/reload_guard.rs": "3ef6b45a0a902612de7295f8948ee699bab9937d98abfb6f2ee1bf8ad0593a32",
-    "src/workspace/render.rs": "4fe3dd38404e1ab620ee40e15324ab23a16cb662191fdec7a1035c4a1566ede5",
+    "src/workspace/render.rs": "221a4ed968bbdc194212833f252932c618dd3865a246d4145ad2cf6fb30e68b8",
     "src/workspace/rich_edit.rs": "6e19702656046073b5388eac4cdf93bc3a3b218b5fa63cf9cbedcbbe747068c2",
     "src/workspace/rich_replacement.rs": "8b3dc53ff3638c61f110346021c58c8b01a81fe70c0ebca3a0072a16157aecf2",
     "src/workspace/run.rs": "c0ffc5d538bbb7135d7d471850a1e0564d5282d43a716c03a7e50767e27c03bd",
@@ -360,23 +370,23 @@
     "unique_ids": 481,
     "duplicate_appearances": 100,
     "separators": 45,
-    "catalog_rows": 277,
+    "catalog_rows": 289,
     "conditional_directives_in_resource": 0,
     "appearance_statuses": {
       "action-only": 2,
       "alternate-only": 2,
-      "missing": 358,
+      "missing": 346,
       "partial": 8,
-      "routed": 209,
+      "routed": 221,
       "status-only": 1,
       "stub": 1
     },
     "unique_statuses": {
       "action-only": 2,
       "alternate-only": 2,
-      "missing": 283,
+      "missing": 271,
       "partial": 8,
-      "routed": 184,
+      "routed": 196,
       "status-only": 1,
       "stub": 1
     },
@@ -1293,7 +1303,7 @@
       "alternate": [
         {
           "path": "src/workspace/mod.rs",
-          "line": 1175,
+          "line": 1177,
           "method": "open_tab_rename"
         }
       ],
@@ -1907,9 +1917,9 @@
         {
           "method": "global action closure",
           "path": "src/app/menus.rs",
-          "line": 110,
+          "line": 114,
           "wire_path": "src/app/menus.rs",
-          "wire_line": 110
+          "wire_line": 114
         }
       ],
       "alternate": [],
@@ -1972,8 +1982,15 @@
       "studio_handlers": [
         {
           "method": "undo",
+          "path": "src/ui/hash_tools/mod.rs",
+          "line": 262,
+          "wire_path": "src/workspace/render.rs",
+          "wire_line": 179
+        },
+        {
+          "method": "undo",
           "path": "src/workspace/edits.rs",
-          "line": 433,
+          "line": 435,
           "wire_path": "src/workspace/render.rs",
           "wire_line": 179
         }
@@ -2038,8 +2055,15 @@
       "studio_handlers": [
         {
           "method": "redo",
+          "path": "src/ui/hash_tools/mod.rs",
+          "line": 263,
+          "wire_path": "src/workspace/render.rs",
+          "wire_line": 180
+        },
+        {
+          "method": "redo",
           "path": "src/workspace/edits.rs",
-          "line": 467,
+          "line": 469,
           "wire_path": "src/workspace/render.rs",
           "wire_line": 180
         }
@@ -2104,8 +2128,15 @@
       "studio_handlers": [
         {
           "method": "cut",
+          "path": "src/ui/hash_tools/mod.rs",
+          "line": 261,
+          "wire_path": "src/workspace/render.rs",
+          "wire_line": 177
+        },
+        {
+          "method": "cut",
           "path": "src/workspace/edits.rs",
-          "line": 275,
+          "line": 276,
           "wire_path": "src/workspace/render.rs",
           "wire_line": 177
         }
@@ -2168,6 +2199,13 @@
         }
       ],
       "studio_handlers": [
+        {
+          "method": "copy",
+          "path": "src/ui/hash_tools/mod.rs",
+          "line": 260,
+          "wire_path": "src/workspace/render.rs",
+          "wire_line": 176
+        },
         {
           "method": "copy",
           "path": "src/workspace/edits.rs",
@@ -2236,8 +2274,15 @@
       "studio_handlers": [
         {
           "method": "paste",
+          "path": "src/ui/hash_tools/mod.rs",
+          "line": 212,
+          "wire_path": "src/workspace/render.rs",
+          "wire_line": 178
+        },
+        {
+          "method": "paste",
           "path": "src/workspace/edits.rs",
-          "line": 332,
+          "line": 334,
           "wire_path": "src/workspace/render.rs",
           "wire_line": 178
         }
@@ -2297,7 +2342,7 @@
         {
           "method": "delete",
           "path": "src/workspace/edits.rs",
-          "line": 579,
+          "line": 581,
           "wire_path": "src/workspace/render.rs",
           "wire_line": 248
         }
@@ -2354,6 +2399,13 @@
         }
       ],
       "studio_handlers": [
+        {
+          "method": "select_all",
+          "path": "src/ui/hash_tools/mod.rs",
+          "line": 255,
+          "wire_path": "src/workspace/render.rs",
+          "wire_line": 175
+        },
         {
           "method": "select_all",
           "path": "src/workspace/edits.rs",
@@ -2419,7 +2471,7 @@
           "path": "src/edit_ops/begin_end_select.rs",
           "line": 28,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 506
+          "wire_line": 510
         }
       ],
       "alternate": [],
@@ -2477,7 +2529,7 @@
           "path": "src/edit_ops/begin_end_select.rs",
           "line": 37,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 507
+          "wire_line": 511
         }
       ],
       "alternate": [],
@@ -2533,7 +2585,7 @@
           "path": "src/edit_ops/insert.rs",
           "line": 26,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 456
+          "wire_line": 460
         }
       ],
       "alternate": [],
@@ -2589,7 +2641,7 @@
           "path": "src/edit_ops/insert.rs",
           "line": 45,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 457
+          "wire_line": 461
         }
       ],
       "alternate": [],
@@ -2645,7 +2697,7 @@
           "path": "src/edit_ops/insert.rs",
           "line": 61,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 458
+          "wire_line": 462
         }
       ],
       "alternate": [],
@@ -2701,7 +2753,7 @@
           "path": "src/edit_ops/clipboard_ops.rs",
           "line": 20,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 459
+          "wire_line": 463
         }
       ],
       "alternate": [],
@@ -2755,9 +2807,9 @@
         {
           "method": "copy_filename",
           "path": "src/edit_ops/clipboard_ops.rs",
-          "line": 36,
+          "line": 37,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 460
+          "wire_line": 464
         }
       ],
       "alternate": [],
@@ -2811,9 +2863,9 @@
         {
           "method": "copy_dir_path",
           "path": "src/edit_ops/clipboard_ops.rs",
-          "line": 56,
+          "line": 58,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 461
+          "wire_line": 465
         }
       ],
       "alternate": [],
@@ -2869,7 +2921,7 @@
           "path": "src/edit_ops/clipboard_all.rs",
           "line": 44,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 462
+          "wire_line": 466
         }
       ],
       "alternate": [],
@@ -2925,7 +2977,7 @@
           "path": "src/edit_ops/clipboard_all.rs",
           "line": 53,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 463
+          "wire_line": 467
         }
       ],
       "alternate": [],
@@ -3095,7 +3147,7 @@
         {
           "method": "uppercase_selection",
           "path": "src/workspace/edits.rs",
-          "line": 3529,
+          "line": 3531,
           "wire_path": "src/workspace/render.rs",
           "wire_line": 364
         }
@@ -3155,7 +3207,7 @@
         {
           "method": "lowercase_selection",
           "path": "src/workspace/edits.rs",
-          "line": 3548,
+          "line": 3550,
           "wire_path": "src/workspace/render.rs",
           "wire_line": 365
         }
@@ -3215,7 +3267,7 @@
           "path": "src/edit_ops/case_ops.rs",
           "line": 44,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 465
+          "wire_line": 469
         }
       ],
       "alternate": [],
@@ -3273,7 +3325,7 @@
           "path": "src/edit_ops/case_ops.rs",
           "line": 53,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 466
+          "wire_line": 470
         }
       ],
       "alternate": [],
@@ -3333,7 +3385,7 @@
           "path": "src/edit_ops/case_ops.rs",
           "line": 62,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 467
+          "wire_line": 471
         }
       ],
       "alternate": [],
@@ -3393,7 +3445,7 @@
           "path": "src/edit_ops/case_ops.rs",
           "line": 71,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 468
+          "wire_line": 472
         }
       ],
       "alternate": [],
@@ -3449,7 +3501,7 @@
           "path": "src/edit_ops/case_ops.rs",
           "line": 80,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 469
+          "wire_line": 473
         }
       ],
       "alternate": [],
@@ -3505,7 +3557,7 @@
           "path": "src/edit_ops/case_ops.rs",
           "line": 89,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 470
+          "wire_line": 474
         }
       ],
       "alternate": [],
@@ -3617,7 +3669,7 @@
           "path": "src/edit_ops/line_ops.rs",
           "line": 511,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 471
+          "wire_line": 475
         }
       ],
       "alternate": [],
@@ -3673,7 +3725,7 @@
           "path": "src/edit_ops/line_ops.rs",
           "line": 520,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 472
+          "wire_line": 476
         }
       ],
       "alternate": [],
@@ -3733,7 +3785,7 @@
           "path": "src/edit_ops/line_ops.rs",
           "line": 531,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 473
+          "wire_line": 477
         }
       ],
       "alternate": [],
@@ -3793,7 +3845,7 @@
           "path": "src/edit_ops/line_ops.rs",
           "line": 548,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 474
+          "wire_line": 478
         }
       ],
       "alternate": [],
@@ -3851,7 +3903,7 @@
         {
           "method": "move_line_up",
           "path": "src/workspace/edits.rs",
-          "line": 3377,
+          "line": 3379,
           "wire_path": "src/workspace/render.rs",
           "wire_line": 361
         }
@@ -3911,7 +3963,7 @@
         {
           "method": "move_line_down",
           "path": "src/workspace/edits.rs",
-          "line": 3390,
+          "line": 3392,
           "wire_path": "src/workspace/render.rs",
           "wire_line": 362
         }
@@ -3969,7 +4021,7 @@
           "path": "src/edit_ops/line_ops.rs",
           "line": 572,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 475
+          "wire_line": 479
         }
       ],
       "alternate": [],
@@ -4025,7 +4077,7 @@
           "path": "src/edit_ops/line_ops.rs",
           "line": 584,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 476
+          "wire_line": 480
         }
       ],
       "alternate": [],
@@ -4089,7 +4141,7 @@
         {
           "method": "insert_blank_line_above",
           "path": "src/workspace/edits.rs",
-          "line": 3952,
+          "line": 3954,
           "wire_path": "src/workspace/render.rs",
           "wire_line": 379
         }
@@ -4155,7 +4207,7 @@
         {
           "method": "insert_blank_line_below",
           "path": "src/workspace/edits.rs",
-          "line": 3974,
+          "line": 3976,
           "wire_path": "src/workspace/render.rs",
           "wire_line": 380
         }
@@ -4213,7 +4265,7 @@
           "path": "src/edit_ops/line_ops.rs",
           "line": 491,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 491
+          "wire_line": 495
         }
       ],
       "alternate": [],
@@ -4269,7 +4321,7 @@
           "path": "src/edit_ops/line_ops.rs",
           "line": 500,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 492
+          "wire_line": 496
         }
       ],
       "alternate": [],
@@ -4325,7 +4377,7 @@
           "path": "src/edit_ops/line_ops.rs",
           "line": 417,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 477
+          "wire_line": 481
         }
       ],
       "alternate": [],
@@ -4381,7 +4433,7 @@
           "path": "src/edit_ops/line_sort.rs",
           "line": 322,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 479
+          "wire_line": 483
         }
       ],
       "alternate": [],
@@ -4437,7 +4489,7 @@
           "path": "src/edit_ops/line_sort.rs",
           "line": 324,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 481
+          "wire_line": 485
         }
       ],
       "alternate": [],
@@ -4493,7 +4545,7 @@
           "path": "src/edit_ops/line_ops.rs",
           "line": 435,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 485
+          "wire_line": 489
         }
       ],
       "alternate": [],
@@ -4549,7 +4601,7 @@
           "path": "src/edit_ops/line_ops.rs",
           "line": 453,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 487
+          "wire_line": 491
         }
       ],
       "alternate": [],
@@ -4605,7 +4657,7 @@
           "path": "src/edit_ops/line_ops.rs",
           "line": 471,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 489
+          "wire_line": 493
         }
       ],
       "alternate": [],
@@ -4661,7 +4713,7 @@
           "path": "src/edit_ops/line_sort.rs",
           "line": 326,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 483
+          "wire_line": 487
         }
       ],
       "alternate": [],
@@ -4717,7 +4769,7 @@
           "path": "src/edit_ops/line_ops.rs",
           "line": 426,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 478
+          "wire_line": 482
         }
       ],
       "alternate": [],
@@ -4773,7 +4825,7 @@
           "path": "src/edit_ops/line_sort.rs",
           "line": 323,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 480
+          "wire_line": 484
         }
       ],
       "alternate": [],
@@ -4829,7 +4881,7 @@
           "path": "src/edit_ops/line_sort.rs",
           "line": 325,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 482
+          "wire_line": 486
         }
       ],
       "alternate": [],
@@ -4885,7 +4937,7 @@
           "path": "src/edit_ops/line_ops.rs",
           "line": 444,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 486
+          "wire_line": 490
         }
       ],
       "alternate": [],
@@ -4941,7 +4993,7 @@
           "path": "src/edit_ops/line_ops.rs",
           "line": 462,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 488
+          "wire_line": 492
         }
       ],
       "alternate": [],
@@ -4997,7 +5049,7 @@
           "path": "src/edit_ops/line_ops.rs",
           "line": 480,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 490
+          "wire_line": 494
         }
       ],
       "alternate": [],
@@ -5053,7 +5105,7 @@
           "path": "src/edit_ops/line_sort.rs",
           "line": 327,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 484
+          "wire_line": 488
         }
       ],
       "alternate": [],
@@ -5111,7 +5163,7 @@
         {
           "method": "block_comment",
           "path": "src/workspace/edits.rs",
-          "line": 3612,
+          "line": 3614,
           "wire_path": "src/workspace/render.rs",
           "wire_line": 366
         }
@@ -5173,7 +5225,7 @@
           "path": "src/edit_ops/comment_ops.rs",
           "line": 21,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 513
+          "wire_line": 517
         }
       ],
       "alternate": [],
@@ -5233,7 +5285,7 @@
           "path": "src/edit_ops/comment_ops.rs",
           "line": 33,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 514
+          "wire_line": 518
         }
       ],
       "alternate": [],
@@ -5291,7 +5343,7 @@
         {
           "method": "stream_comment",
           "path": "src/workspace/edits.rs",
-          "line": 3866,
+          "line": 3868,
           "wire_path": "src/workspace/render.rs",
           "wire_line": 367
         }
@@ -5348,7 +5400,7 @@
           "path": "src/edit_ops/comment_ops.rs",
           "line": 45,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 515
+          "wire_line": 519
         }
       ],
       "alternate": [],
@@ -5894,7 +5946,7 @@
         {
           "method": "trim_trailing_ws",
           "path": "src/workspace/edits.rs",
-          "line": 3942,
+          "line": 3944,
           "wire_path": "src/workspace/render.rs",
           "wire_line": 368
         }
@@ -5952,7 +6004,7 @@
           "path": "src/edit_ops/blank_ops.rs",
           "line": 44,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 493
+          "wire_line": 497
         }
       ],
       "alternate": [],
@@ -6008,7 +6060,7 @@
           "path": "src/edit_ops/blank_ops.rs",
           "line": 94,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 494
+          "wire_line": 498
         }
       ],
       "alternate": [],
@@ -6064,7 +6116,7 @@
           "path": "src/edit_ops/blank_ops.rs",
           "line": 104,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 495
+          "wire_line": 499
         }
       ],
       "alternate": [],
@@ -6120,7 +6172,7 @@
           "path": "src/edit_ops/blank_ops.rs",
           "line": 114,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 496
+          "wire_line": 500
         }
       ],
       "alternate": [],
@@ -6176,7 +6228,7 @@
           "path": "src/edit_ops/blank_ops.rs",
           "line": 129,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 497
+          "wire_line": 501
         }
       ],
       "alternate": [],
@@ -6232,7 +6284,7 @@
           "path": "src/edit_ops/blank_ops.rs",
           "line": 144,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 498
+          "wire_line": 502
         }
       ],
       "alternate": [],
@@ -6288,7 +6340,7 @@
           "path": "src/edit_ops/blank_ops.rs",
           "line": 155,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 499
+          "wire_line": 503
         }
       ],
       "alternate": [],
@@ -6488,7 +6540,7 @@
           "path": "src/edit_ops/on_selection.rs",
           "line": 26,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 500
+          "wire_line": 504
         }
       ],
       "alternate": [],
@@ -6543,7 +6595,7 @@
           "path": "src/edit_ops/on_selection.rs",
           "line": 87,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 502
+          "wire_line": 506
         }
       ],
       "alternate": [],
@@ -6622,7 +6674,7 @@
           "path": "src/edit_ops/on_selection.rs",
           "line": 148,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 504
+          "wire_line": 508
         }
       ],
       "alternate": [],
@@ -7054,9 +7106,9 @@
         {
           "method": "global action closure",
           "path": "src/app/menus.rs",
-          "line": 139,
+          "line": 143,
           "wire_path": "src/app/menus.rs",
-          "wire_line": 139
+          "wire_line": 143
         }
       ],
       "alternate": [],
@@ -7109,9 +7161,9 @@
         {
           "method": "global action closure",
           "path": "src/app/menus.rs",
-          "line": 136,
+          "line": 140,
           "wire_path": "src/app/menus.rs",
-          "wire_line": 136
+          "wire_line": 140
         }
       ],
       "alternate": [],
@@ -7167,7 +7219,7 @@
           "path": "src/edit_ops/readonly.rs",
           "line": 20,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 508
+          "wire_line": 512
         }
       ],
       "alternate": [],
@@ -7283,7 +7335,7 @@
           "path": "src/edit_ops/readonly.rs",
           "line": 38,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 509
+          "wire_line": 513
         }
       ],
       "alternate": [],
@@ -7401,7 +7453,7 @@
           "path": "src/workspace/find_in_files.rs",
           "line": 29,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 403
+          "wire_line": 407
         }
       ],
       "alternate": [],
@@ -7460,7 +7512,7 @@
         {
           "method": "find_next",
           "path": "src/workspace/find.rs",
-          "line": 1019,
+          "line": 1020,
           "wire_path": "src/workspace/render.rs",
           "wire_line": 343
         }
@@ -7521,7 +7573,7 @@
         {
           "method": "find_prev",
           "path": "src/workspace/find.rs",
-          "line": 1030,
+          "line": 1031,
           "wire_path": "src/workspace/render.rs",
           "wire_line": 344
         }
@@ -7700,7 +7752,7 @@
         {
           "method": "toggle_replace_bar",
           "path": "src/workspace/find.rs",
-          "line": 631,
+          "line": 632,
           "wire_path": "src/workspace/render.rs",
           "wire_line": 347
         }
@@ -7875,7 +7927,7 @@
         {
           "method": "open_goto_line",
           "path": "src/workspace/find.rs",
-          "line": 786,
+          "line": 787,
           "wire_path": "src/workspace/render.rs",
           "wire_line": 356
         }
@@ -8054,9 +8106,9 @@
         {
           "method": "open_mark",
           "path": "src/workspace/find.rs",
-          "line": 1998,
+          "line": 1999,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 440
+          "wire_line": 444
         }
       ],
       "alternate": [],
@@ -8647,9 +8699,9 @@
         {
           "method": "mark_clear_all",
           "path": "src/workspace/find.rs",
-          "line": 2197,
+          "line": 2198,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 442
+          "wire_line": 446
         }
       ],
       "alternate": [],
@@ -9243,9 +9295,9 @@
         {
           "method": "mark_copy",
           "path": "src/workspace/find.rs",
-          "line": 2219,
+          "line": 2220,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 443
+          "wire_line": 447
         }
       ],
       "alternate": [],
@@ -9289,7 +9341,7 @@
         "mac": [
           "cmd-f2"
         ],
-        "line": 433
+        "line": 447
       },
       "studio_menu": [
         {
@@ -9349,7 +9401,7 @@
         "mac": [
           "f2"
         ],
-        "line": 434
+        "line": 448
       },
       "studio_menu": [
         {
@@ -9409,7 +9461,7 @@
         "mac": [
           "shift-f2"
         ],
-        "line": 435
+        "line": 449
       },
       "studio_menu": [
         {
@@ -9467,7 +9519,7 @@
         "mac": [
           "cmd-shift-f2"
         ],
-        "line": 436
+        "line": 450
       },
       "studio_menu": [
         {
@@ -9523,7 +9575,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 438
+        "line": 452
       },
       "studio_menu": [
         {
@@ -9537,9 +9589,9 @@
         {
           "method": "cut_bookmarked_lines",
           "path": "src/edit_ops/bookmark_edits.rs",
-          "line": 162,
+          "line": 163,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 398
+          "wire_line": 402
         }
       ],
       "alternate": [],
@@ -9579,7 +9631,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 437
+        "line": 451
       },
       "studio_menu": [
         {
@@ -9595,7 +9647,7 @@
           "path": "src/edit_ops/bookmark_clipboard.rs",
           "line": 122,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 397
+          "wire_line": 401
         }
       ],
       "alternate": [],
@@ -9635,7 +9687,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 439
+        "line": 453
       },
       "studio_menu": [
         {
@@ -9649,9 +9701,9 @@
         {
           "method": "paste_to_bookmarked_lines",
           "path": "src/edit_ops/bookmark_edits.rs",
-          "line": 163,
+          "line": 164,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 399
+          "wire_line": 403
         }
       ],
       "alternate": [],
@@ -9691,7 +9743,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 440
+        "line": 454
       },
       "studio_menu": [
         {
@@ -9705,9 +9757,9 @@
         {
           "method": "remove_bookmarked_lines",
           "path": "src/edit_ops/bookmark_edits.rs",
-          "line": 164,
+          "line": 165,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 400
+          "wire_line": 404
         }
       ],
       "alternate": [],
@@ -9747,7 +9799,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 441
+        "line": 455
       },
       "studio_menu": [
         {
@@ -9761,9 +9813,9 @@
         {
           "method": "remove_non_bookmarked_lines",
           "path": "src/edit_ops/bookmark_edits.rs",
-          "line": 165,
+          "line": 166,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 401
+          "wire_line": 405
         }
       ],
       "alternate": [],
@@ -9803,7 +9855,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 442
+        "line": 456
       },
       "studio_menu": [
         {
@@ -9817,9 +9869,9 @@
         {
           "method": "inverse_bookmarks",
           "path": "src/edit_ops/bookmark_edits.rs",
-          "line": 166,
+          "line": 167,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 402
+          "wire_line": 406
         }
       ],
       "alternate": [],
@@ -9936,7 +9988,7 @@
         {
           "method": "toggle_full_screen",
           "path": "src/workspace/edits.rs",
-          "line": 1134,
+          "line": 1136,
           "wire_path": "src/workspace/render.rs",
           "wire_line": 213
         }
@@ -10169,7 +10221,7 @@
         {
           "method": "toggle_show_whitespace",
           "path": "src/workspace/edits.rs",
-          "line": 1146,
+          "line": 1148,
           "wire_path": "src/workspace/render.rs",
           "wire_line": 214
         }
@@ -10411,7 +10463,7 @@
         {
           "method": "zoom_in",
           "path": "src/workspace/mod.rs",
-          "line": 1448,
+          "line": 1450,
           "wire_path": "src/workspace/render.rs",
           "wire_line": 390
         }
@@ -10478,7 +10530,7 @@
         {
           "method": "zoom_out",
           "path": "src/workspace/mod.rs",
-          "line": 1457,
+          "line": 1459,
           "wire_path": "src/workspace/render.rs",
           "wire_line": 391
         }
@@ -10545,7 +10597,7 @@
         {
           "method": "zoom_reset",
           "path": "src/workspace/mod.rs",
-          "line": 1466,
+          "line": 1468,
           "wire_path": "src/workspace/render.rs",
           "wire_line": 392
         }
@@ -12088,7 +12140,7 @@
         {
           "method": "toggle_word_wrap",
           "path": "src/workspace/edits.rs",
-          "line": 3166,
+          "line": 3168,
           "wire_path": "src/workspace/render.rs",
           "wire_line": 215
         }
@@ -12917,7 +12969,7 @@
         {
           "method": "toggle_folder_panel",
           "path": "src/workspace/edits.rs",
-          "line": 3155,
+          "line": 3157,
           "wire_path": "src/workspace/render.rs",
           "wire_line": 300
         }
@@ -20693,7 +20745,7 @@
         "mac": [
           "cmd-,"
         ],
-        "line": 448
+        "line": 462
       },
       "studio_menu": [
         {
@@ -20707,9 +20759,9 @@
         {
           "method": "global action closure",
           "path": "src/app/menus.rs",
-          "line": 127,
+          "line": 131,
           "wire_path": "src/app/menus.rs",
-          "wire_line": 127
+          "wire_line": 131
         }
       ],
       "alternate": [],
@@ -20750,7 +20802,7 @@
         "mac": [
           "cmd-shift-,"
         ],
-        "line": 449
+        "line": 463
       },
       "studio_menu": [
         {
@@ -20764,9 +20816,9 @@
         {
           "method": "global action closure",
           "path": "src/app/menus.rs",
-          "line": 130,
+          "line": 134,
           "wire_path": "src/app/menus.rs",
-          "wire_line": 130
+          "wire_line": 134
         }
       ],
       "alternate": [],
@@ -20805,7 +20857,7 @@
         "context": "GLOBAL",
         "windows": [],
         "mac": [],
-        "line": 451
+        "line": 465
       },
       "studio_menu": [
         {
@@ -20819,9 +20871,9 @@
         {
           "method": "global action closure",
           "path": "src/app/menus.rs",
-          "line": 124,
+          "line": 128,
           "wire_path": "src/app/menus.rs",
-          "wire_line": 124
+          "wire_line": 128
         }
       ],
       "alternate": [],
@@ -20929,14 +20981,40 @@
         3577
       ],
       "mapping": "catalog command ID",
-      "studio_action": null,
-      "studio_declaration": null,
-      "studio_catalog": null,
-      "studio_menu": [],
-      "studio_handlers": [],
+      "studio_action": "ToolsMd5Generate",
+      "studio_declaration": {
+        "path": "src/actions/tools.rs",
+        "line": 3
+      },
+      "studio_catalog": {
+        "action": "ToolsMd5Generate",
+        "label": "MD5: Generate...",
+        "npp": "IDM_TOOL_MD5_GENERATE",
+        "context": "GLOBAL",
+        "windows": [],
+        "mac": [],
+        "line": 420
+      },
+      "studio_menu": [
+        {
+          "path": "src/app/menus/tools.rs",
+          "line": 7,
+          "menu_path": "Tools > MD5 > Generate...",
+          "label": "Generate..."
+        }
+      ],
+      "studio_handlers": [
+        {
+          "method": "global action closure",
+          "path": "src/app/menus.rs",
+          "line": 147,
+          "wire_path": "src/app/menus.rs",
+          "wire_line": 147
+        }
+      ],
       "alternate": [],
-      "status": "missing",
-      "note": "No mapped static main-menu/catalog action found; this does not prove the behavior is absent from every other UI."
+      "status": "routed",
+      "note": "Connected production route; full oracle behavior and native visuals are unverified by this static audit."
     },
     {
       "index": 539,
@@ -20952,14 +21030,40 @@
         3586
       ],
       "mapping": "catalog command ID",
-      "studio_action": null,
-      "studio_declaration": null,
-      "studio_catalog": null,
-      "studio_menu": [],
-      "studio_handlers": [],
+      "studio_action": "ToolsMd5GenerateFromFiles",
+      "studio_declaration": {
+        "path": "src/actions/tools.rs",
+        "line": 4
+      },
+      "studio_catalog": {
+        "action": "ToolsMd5GenerateFromFiles",
+        "label": "MD5: Generate from files...",
+        "npp": "IDM_TOOL_MD5_GENERATEFROMFILE",
+        "context": "GLOBAL",
+        "windows": [],
+        "mac": [],
+        "line": 421
+      },
+      "studio_menu": [
+        {
+          "path": "src/app/menus/tools.rs",
+          "line": 8,
+          "menu_path": "Tools > MD5 > Generate from files...",
+          "label": "Generate from files..."
+        }
+      ],
+      "studio_handlers": [
+        {
+          "method": "global action closure",
+          "path": "src/app/menus.rs",
+          "line": 148,
+          "wire_path": "src/app/menus.rs",
+          "wire_line": 148
+        }
+      ],
       "alternate": [],
-      "status": "missing",
-      "note": "No mapped static main-menu/catalog action found; this does not prove the behavior is absent from every other UI."
+      "status": "routed",
+      "note": "Connected production route; full oracle behavior and native visuals are unverified by this static audit."
     },
     {
       "index": 540,
@@ -20975,14 +21079,40 @@
         3595
       ],
       "mapping": "catalog command ID",
-      "studio_action": null,
-      "studio_declaration": null,
-      "studio_catalog": null,
-      "studio_menu": [],
-      "studio_handlers": [],
+      "studio_action": "ToolsMd5GenerateSelection",
+      "studio_declaration": {
+        "path": "src/actions/tools.rs",
+        "line": 5
+      },
+      "studio_catalog": {
+        "action": "ToolsMd5GenerateSelection",
+        "label": "MD5: Generate from selection into clipboard",
+        "npp": "IDM_TOOL_MD5_GENERATEINTOCLIPBOARD",
+        "context": "GLOBAL",
+        "windows": [],
+        "mac": [],
+        "line": 422
+      },
+      "studio_menu": [
+        {
+          "path": "src/app/menus/tools.rs",
+          "line": 9,
+          "menu_path": "Tools > MD5 > Generate from selection into clipboard",
+          "label": "Generate from selection into clipboard"
+        }
+      ],
+      "studio_handlers": [
+        {
+          "method": "global action closure",
+          "path": "src/app/menus.rs",
+          "line": 156,
+          "wire_path": "src/app/menus.rs",
+          "wire_line": 156
+        }
+      ],
       "alternate": [],
-      "status": "missing",
-      "note": "No mapped static main-menu/catalog action found; this does not prove the behavior is absent from every other UI."
+      "status": "routed",
+      "note": "Connected production route; full oracle behavior and native visuals are unverified by this static audit."
     },
     {
       "index": 541,
@@ -20998,14 +21128,40 @@
         3620
       ],
       "mapping": "catalog command ID",
-      "studio_action": null,
-      "studio_declaration": null,
-      "studio_catalog": null,
-      "studio_menu": [],
-      "studio_handlers": [],
+      "studio_action": "ToolsSha1Generate",
+      "studio_declaration": {
+        "path": "src/actions/tools.rs",
+        "line": 6
+      },
+      "studio_catalog": {
+        "action": "ToolsSha1Generate",
+        "label": "SHA-1: Generate...",
+        "npp": "IDM_TOOL_SHA1_GENERATE",
+        "context": "GLOBAL",
+        "windows": [],
+        "mac": [],
+        "line": 423
+      },
+      "studio_menu": [
+        {
+          "path": "src/app/menus/tools.rs",
+          "line": 12,
+          "menu_path": "Tools > SHA-1 > Generate...",
+          "label": "Generate..."
+        }
+      ],
+      "studio_handlers": [
+        {
+          "method": "global action closure",
+          "path": "src/app/menus.rs",
+          "line": 149,
+          "wire_path": "src/app/menus.rs",
+          "wire_line": 149
+        }
+      ],
       "alternate": [],
-      "status": "missing",
-      "note": "No mapped static main-menu/catalog action found; this does not prove the behavior is absent from every other UI."
+      "status": "routed",
+      "note": "Connected production route; full oracle behavior and native visuals are unverified by this static audit."
     },
     {
       "index": 542,
@@ -21021,14 +21177,40 @@
         3629
       ],
       "mapping": "catalog command ID",
-      "studio_action": null,
-      "studio_declaration": null,
-      "studio_catalog": null,
-      "studio_menu": [],
-      "studio_handlers": [],
+      "studio_action": "ToolsSha1GenerateFromFiles",
+      "studio_declaration": {
+        "path": "src/actions/tools.rs",
+        "line": 7
+      },
+      "studio_catalog": {
+        "action": "ToolsSha1GenerateFromFiles",
+        "label": "SHA-1: Generate from files...",
+        "npp": "IDM_TOOL_SHA1_GENERATEFROMFILE",
+        "context": "GLOBAL",
+        "windows": [],
+        "mac": [],
+        "line": 424
+      },
+      "studio_menu": [
+        {
+          "path": "src/app/menus/tools.rs",
+          "line": 13,
+          "menu_path": "Tools > SHA-1 > Generate from files...",
+          "label": "Generate from files..."
+        }
+      ],
+      "studio_handlers": [
+        {
+          "method": "global action closure",
+          "path": "src/app/menus.rs",
+          "line": 150,
+          "wire_path": "src/app/menus.rs",
+          "wire_line": 150
+        }
+      ],
       "alternate": [],
-      "status": "missing",
-      "note": "No mapped static main-menu/catalog action found; this does not prove the behavior is absent from every other UI."
+      "status": "routed",
+      "note": "Connected production route; full oracle behavior and native visuals are unverified by this static audit."
     },
     {
       "index": 543,
@@ -21045,14 +21227,40 @@
         3696
       ],
       "mapping": "catalog command ID",
-      "studio_action": null,
-      "studio_declaration": null,
-      "studio_catalog": null,
-      "studio_menu": [],
-      "studio_handlers": [],
+      "studio_action": "ToolsSha1GenerateSelection",
+      "studio_declaration": {
+        "path": "src/actions/tools.rs",
+        "line": 8
+      },
+      "studio_catalog": {
+        "action": "ToolsSha1GenerateSelection",
+        "label": "SHA-1: Generate from selection into clipboard",
+        "npp": "IDM_TOOL_SHA1_GENERATEINTOCLIPBOARD",
+        "context": "GLOBAL",
+        "windows": [],
+        "mac": [],
+        "line": 425
+      },
+      "studio_menu": [
+        {
+          "path": "src/app/menus/tools.rs",
+          "line": 14,
+          "menu_path": "Tools > SHA-1 > Generate from selection into clipboard",
+          "label": "Generate from selection into clipboard"
+        }
+      ],
+      "studio_handlers": [
+        {
+          "method": "global action closure",
+          "path": "src/app/menus.rs",
+          "line": 157,
+          "wire_path": "src/app/menus.rs",
+          "wire_line": 157
+        }
+      ],
       "alternate": [],
-      "status": "missing",
-      "note": "No mapped static main-menu/catalog action found; this does not prove the behavior is absent from every other UI."
+      "status": "routed",
+      "note": "Connected production route; full oracle behavior and native visuals are unverified by this static audit."
     },
     {
       "index": 544,
@@ -21068,14 +21276,40 @@
         3638
       ],
       "mapping": "catalog command ID",
-      "studio_action": null,
-      "studio_declaration": null,
-      "studio_catalog": null,
-      "studio_menu": [],
-      "studio_handlers": [],
+      "studio_action": "ToolsSha256Generate",
+      "studio_declaration": {
+        "path": "src/actions/tools.rs",
+        "line": 9
+      },
+      "studio_catalog": {
+        "action": "ToolsSha256Generate",
+        "label": "SHA-256: Generate...",
+        "npp": "IDM_TOOL_SHA256_GENERATE",
+        "context": "GLOBAL",
+        "windows": [],
+        "mac": [],
+        "line": 426
+      },
+      "studio_menu": [
+        {
+          "path": "src/app/menus/tools.rs",
+          "line": 17,
+          "menu_path": "Tools > SHA-256 > Generate...",
+          "label": "Generate..."
+        }
+      ],
+      "studio_handlers": [
+        {
+          "method": "global action closure",
+          "path": "src/app/menus.rs",
+          "line": 151,
+          "wire_path": "src/app/menus.rs",
+          "wire_line": 151
+        }
+      ],
       "alternate": [],
-      "status": "missing",
-      "note": "No mapped static main-menu/catalog action found; this does not prove the behavior is absent from every other UI."
+      "status": "routed",
+      "note": "Connected production route; full oracle behavior and native visuals are unverified by this static audit."
     },
     {
       "index": 545,
@@ -21091,14 +21325,40 @@
         3647
       ],
       "mapping": "catalog command ID",
-      "studio_action": null,
-      "studio_declaration": null,
-      "studio_catalog": null,
-      "studio_menu": [],
-      "studio_handlers": [],
+      "studio_action": "ToolsSha256GenerateFromFiles",
+      "studio_declaration": {
+        "path": "src/actions/tools.rs",
+        "line": 10
+      },
+      "studio_catalog": {
+        "action": "ToolsSha256GenerateFromFiles",
+        "label": "SHA-256: Generate from files...",
+        "npp": "IDM_TOOL_SHA256_GENERATEFROMFILE",
+        "context": "GLOBAL",
+        "windows": [],
+        "mac": [],
+        "line": 427
+      },
+      "studio_menu": [
+        {
+          "path": "src/app/menus/tools.rs",
+          "line": 18,
+          "menu_path": "Tools > SHA-256 > Generate from files...",
+          "label": "Generate from files..."
+        }
+      ],
+      "studio_handlers": [
+        {
+          "method": "global action closure",
+          "path": "src/app/menus.rs",
+          "line": 152,
+          "wire_path": "src/app/menus.rs",
+          "wire_line": 152
+        }
+      ],
       "alternate": [],
-      "status": "missing",
-      "note": "No mapped static main-menu/catalog action found; this does not prove the behavior is absent from every other UI."
+      "status": "routed",
+      "note": "Connected production route; full oracle behavior and native visuals are unverified by this static audit."
     },
     {
       "index": 546,
@@ -21115,14 +21375,40 @@
         3703
       ],
       "mapping": "catalog command ID",
-      "studio_action": null,
-      "studio_declaration": null,
-      "studio_catalog": null,
-      "studio_menu": [],
-      "studio_handlers": [],
+      "studio_action": "ToolsSha256GenerateSelection",
+      "studio_declaration": {
+        "path": "src/actions/tools.rs",
+        "line": 11
+      },
+      "studio_catalog": {
+        "action": "ToolsSha256GenerateSelection",
+        "label": "SHA-256: Generate from selection into clipboard",
+        "npp": "IDM_TOOL_SHA256_GENERATEINTOCLIPBOARD",
+        "context": "GLOBAL",
+        "windows": [],
+        "mac": [],
+        "line": 428
+      },
+      "studio_menu": [
+        {
+          "path": "src/app/menus/tools.rs",
+          "line": 19,
+          "menu_path": "Tools > SHA-256 > Generate from selection into clipboard",
+          "label": "Generate from selection into clipboard"
+        }
+      ],
+      "studio_handlers": [
+        {
+          "method": "global action closure",
+          "path": "src/app/menus.rs",
+          "line": 158,
+          "wire_path": "src/app/menus.rs",
+          "wire_line": 158
+        }
+      ],
       "alternate": [],
-      "status": "missing",
-      "note": "No mapped static main-menu/catalog action found; this does not prove the behavior is absent from every other UI."
+      "status": "routed",
+      "note": "Connected production route; full oracle behavior and native visuals are unverified by this static audit."
     },
     {
       "index": 547,
@@ -21138,14 +21424,40 @@
         3656
       ],
       "mapping": "catalog command ID",
-      "studio_action": null,
-      "studio_declaration": null,
-      "studio_catalog": null,
-      "studio_menu": [],
-      "studio_handlers": [],
+      "studio_action": "ToolsSha512Generate",
+      "studio_declaration": {
+        "path": "src/actions/tools.rs",
+        "line": 12
+      },
+      "studio_catalog": {
+        "action": "ToolsSha512Generate",
+        "label": "SHA-512: Generate...",
+        "npp": "IDM_TOOL_SHA512_GENERATE",
+        "context": "GLOBAL",
+        "windows": [],
+        "mac": [],
+        "line": 429
+      },
+      "studio_menu": [
+        {
+          "path": "src/app/menus/tools.rs",
+          "line": 22,
+          "menu_path": "Tools > SHA-512 > Generate...",
+          "label": "Generate..."
+        }
+      ],
+      "studio_handlers": [
+        {
+          "method": "global action closure",
+          "path": "src/app/menus.rs",
+          "line": 153,
+          "wire_path": "src/app/menus.rs",
+          "wire_line": 153
+        }
+      ],
       "alternate": [],
-      "status": "missing",
-      "note": "No mapped static main-menu/catalog action found; this does not prove the behavior is absent from every other UI."
+      "status": "routed",
+      "note": "Connected production route; full oracle behavior and native visuals are unverified by this static audit."
     },
     {
       "index": 548,
@@ -21161,14 +21473,40 @@
         3665
       ],
       "mapping": "catalog command ID",
-      "studio_action": null,
-      "studio_declaration": null,
-      "studio_catalog": null,
-      "studio_menu": [],
-      "studio_handlers": [],
+      "studio_action": "ToolsSha512GenerateFromFiles",
+      "studio_declaration": {
+        "path": "src/actions/tools.rs",
+        "line": 13
+      },
+      "studio_catalog": {
+        "action": "ToolsSha512GenerateFromFiles",
+        "label": "SHA-512: Generate from files...",
+        "npp": "IDM_TOOL_SHA512_GENERATEFROMFILE",
+        "context": "GLOBAL",
+        "windows": [],
+        "mac": [],
+        "line": 430
+      },
+      "studio_menu": [
+        {
+          "path": "src/app/menus/tools.rs",
+          "line": 23,
+          "menu_path": "Tools > SHA-512 > Generate from files...",
+          "label": "Generate from files..."
+        }
+      ],
+      "studio_handlers": [
+        {
+          "method": "global action closure",
+          "path": "src/app/menus.rs",
+          "line": 154,
+          "wire_path": "src/app/menus.rs",
+          "wire_line": 154
+        }
+      ],
       "alternate": [],
-      "status": "missing",
-      "note": "No mapped static main-menu/catalog action found; this does not prove the behavior is absent from every other UI."
+      "status": "routed",
+      "note": "Connected production route; full oracle behavior and native visuals are unverified by this static audit."
     },
     {
       "index": 549,
@@ -21185,14 +21523,40 @@
         3710
       ],
       "mapping": "catalog command ID",
-      "studio_action": null,
-      "studio_declaration": null,
-      "studio_catalog": null,
-      "studio_menu": [],
-      "studio_handlers": [],
+      "studio_action": "ToolsSha512GenerateSelection",
+      "studio_declaration": {
+        "path": "src/actions/tools.rs",
+        "line": 14
+      },
+      "studio_catalog": {
+        "action": "ToolsSha512GenerateSelection",
+        "label": "SHA-512: Generate from selection into clipboard",
+        "npp": "IDM_TOOL_SHA512_GENERATEINTOCLIPBOARD",
+        "context": "GLOBAL",
+        "windows": [],
+        "mac": [],
+        "line": 431
+      },
+      "studio_menu": [
+        {
+          "path": "src/app/menus/tools.rs",
+          "line": 24,
+          "menu_path": "Tools > SHA-512 > Generate from selection into clipboard",
+          "label": "Generate from selection into clipboard"
+        }
+      ],
+      "studio_handlers": [
+        {
+          "method": "global action closure",
+          "path": "src/app/menus.rs",
+          "line": 159,
+          "wire_path": "src/app/menus.rs",
+          "wire_line": 159
+        }
+      ],
       "alternate": [],
-      "status": "missing",
-      "note": "No mapped static main-menu/catalog action found; this does not prove the behavior is absent from every other UI."
+      "status": "routed",
+      "note": "Connected production route; full oracle behavior and native visuals are unverified by this static audit."
     },
     {
       "index": 550,
@@ -21227,7 +21591,7 @@
           "path": "src/workspace/macros.rs",
           "line": 362,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 518
+          "wire_line": 522
         }
       ],
       "alternate": [],
@@ -21267,7 +21631,7 @@
           "path": "src/workspace/macros.rs",
           "line": 379,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 519
+          "wire_line": 523
         }
       ],
       "alternate": [],
@@ -21310,7 +21674,7 @@
         "mac": [
           "cmd-shift-p"
         ],
-        "line": 421
+        "line": 435
       },
       "studio_menu": [
         {
@@ -21326,7 +21690,7 @@
           "path": "src/workspace/macros.rs",
           "line": 395,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 520
+          "wire_line": 524
         }
       ],
       "alternate": [],
@@ -21365,7 +21729,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 423
+        "line": 437
       },
       "studio_menu": [
         {
@@ -21381,7 +21745,7 @@
           "path": "src/workspace/macros.rs",
           "line": 428,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 522
+          "wire_line": 526
         }
       ],
       "alternate": [],
@@ -21422,7 +21786,7 @@
         "mac": [
           "cmd-shift-m"
         ],
-        "line": 422
+        "line": 436
       },
       "studio_menu": [
         {
@@ -21438,7 +21802,7 @@
           "path": "src/workspace/macros.rs",
           "line": 413,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 521
+          "wire_line": 525
         }
       ],
       "alternate": [],
@@ -21481,7 +21845,7 @@
         "mac": [
           "f5"
         ],
-        "line": 426
+        "line": 440
       },
       "studio_menu": [
         {
@@ -21536,7 +21900,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 427
+        "line": 441
       },
       "studio_menu": [
         {
@@ -21585,7 +21949,7 @@
         "context": "GLOBAL",
         "windows": [],
         "mac": [],
-        "line": 430
+        "line": 444
       },
       "studio_menu": [
         {
@@ -21605,9 +21969,9 @@
         {
           "method": "global action closure",
           "path": "src/app/menus.rs",
-          "line": 188,
+          "line": 206,
           "wire_path": "src/app/menus.rs",
-          "wire_line": 188
+          "wire_line": 206
         }
       ],
       "alternate": [],
@@ -22208,7 +22572,7 @@
           "f1"
         ],
         "mac": [],
-        "line": 453
+        "line": 467
       },
       "studio_menu": [
         {
@@ -22228,9 +22592,9 @@
         {
           "method": "global action closure",
           "path": "src/app/menus.rs",
-          "line": 116,
+          "line": 120,
           "wire_path": "src/app/menus.rs",
-          "wire_line": 116
+          "wire_line": 120
         }
       ],
       "alternate": [],

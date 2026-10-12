@@ -724,7 +724,7 @@ impl TextToolsDialog {
     fn copy_to_clipboard(&mut self, cx: &mut Context<Self>) {
         self.status = Some(match self.compute(None) {
             Ok(text) => {
-                cx.write_to_clipboard(gpui::ClipboardItem::new_string(text));
+                crate::clipboard_ownership::write_now(cx, gpui::ClipboardItem::new_string(text));
                 "Result copied to clipboard.".into()
             }
             Err(why) => why.into(),
@@ -752,7 +752,7 @@ impl TextToolsDialog {
         };
         let sel = f.selected();
         if !sel.is_empty() {
-            cx.write_to_clipboard(gpui::ClipboardItem::new_string(sel.to_string()));
+            crate::clipboard_ownership::write_now(cx, gpui::ClipboardItem::new_string(sel.to_string()));
         }
     }
 
@@ -765,7 +765,7 @@ impl TextToolsDialog {
             return;
         };
         if let Some(sel) = f.take_selection() {
-            cx.write_to_clipboard(gpui::ClipboardItem::new_string(sel));
+            crate::clipboard_ownership::write_now(cx, gpui::ClipboardItem::new_string(sel));
             cx.notify();
         }
     }
@@ -1061,13 +1061,13 @@ impl TextToolsDialog {
             "c" if cmd_or_ctrl => {
                 let sel = f.selected();
                 if !sel.is_empty() {
-                    cx.write_to_clipboard(gpui::ClipboardItem::new_string(sel.to_string()));
+                    crate::clipboard_ownership::write_now(cx, gpui::ClipboardItem::new_string(sel.to_string()));
                 }
                 return;
             }
             "x" if cmd_or_ctrl => {
                 if let Some(sel) = f.take_selection() {
-                    cx.write_to_clipboard(gpui::ClipboardItem::new_string(sel));
+                    crate::clipboard_ownership::write_now(cx, gpui::ClipboardItem::new_string(sel));
                 }
             }
             _ => return,
@@ -1134,13 +1134,13 @@ impl TextToolsDialog {
             "c" if cmd_or_ctrl => {
                 let sel = f.selected();
                 if !sel.is_empty() {
-                    cx.write_to_clipboard(gpui::ClipboardItem::new_string(sel.to_string()));
+                    crate::clipboard_ownership::write_now(cx, gpui::ClipboardItem::new_string(sel.to_string()));
                 }
                 return;
             }
             "x" if cmd_or_ctrl => {
                 if let Some(sel) = f.take_selection() {
-                    cx.write_to_clipboard(gpui::ClipboardItem::new_string(sel));
+                    crate::clipboard_ownership::write_now(cx, gpui::ClipboardItem::new_string(sel));
                 }
             }
             _ => return,

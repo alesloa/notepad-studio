@@ -143,6 +143,7 @@ pub(crate) fn prepare_bookmarks(rope: Rope, revision: ContentRevision, selection
 
 impl Workspace {
     pub(crate) fn run_bookmark_command(&mut self, command: BookmarkCommand, window: &mut Window, cx: &mut Context<Self>) -> bool {
+        if command == BookmarkCommand::Cut { crate::clipboard_ownership::supersede(); }
         self.cancel_bookmark_copy(cx);
         if !self.bookmark_source_available(command, window, cx) { return false; }
         let paste = if command == BookmarkCommand::Paste {

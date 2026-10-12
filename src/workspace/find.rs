@@ -557,6 +557,7 @@ impl Workspace {
             && self.input_focus(window) == InputFocus::Editor {
             self.cancel_brace_navigation(); cx.notify(); return;
         }
+        if window.is_window_active() && self.cancel_hash_selection(cx) { return; }
         if self.pending_bookmark_copy.is_some()
             && window.is_window_active()
             && self.focus_handle.is_focused(window)
@@ -2217,6 +2218,7 @@ impl Workspace {
     }
 
     pub(crate) fn mark_copy(&mut self, _: &MarkCopy, _w: &mut Window, cx: &mut Context<Self>) {
+        crate::clipboard_ownership::supersede();
         self.cancel_bookmark_copy(cx);
         // Source-of-truth is the active buffer's `marks` layer — that's what
         // the editor paints. `mark_state.marks` is a cache that may go stale
@@ -2234,7 +2236,7 @@ impl Workspace {
             out.push_str(&text);
             out.push('\n');
         }
-        cx.write_to_clipboard(ClipboardItem::new_string(out));
+        crate::clipboard_ownership::write_now(cx, ClipboardItem::new_string(out));
         let count = ranges.len();
         self.mark_state.status = Some(format!(
             "Copied {count} marked text{} to clipboard",

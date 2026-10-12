@@ -205,3 +205,12 @@ Additional registry dependencies introduced by English proofreading:
     unicode-blocks 0.1.10: MIT
     Source: https://github.com/magiclen/unicode-blocks
     Original licences: licenses/unicode-blocks-0.1.10/
+
+Hash Tools uses the existing locked RustCrypto digest algorithms.
+    md-5 0.10.6 and sha1 0.10.6
+    Copyright (c) 2006-2009 Graydon Hoare; 2009-2013 Mozilla Foundation;
+    2016 Artyom Pavlov.
+    Source: https://github.com/RustCrypto/hashes
+    License: MIT OR Apache-2.0; original texts are retained in
+    licenses/md-5-0.10.6/ and licenses/sha1-0.10.6/.
+    SHA-256/SHA-512 use the already noticed sha2 0.10.9 dependency.

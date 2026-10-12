@@ -1,0 +1,16 @@
+{
+  "generator": "Python 3.12.8 hashlib/OpenSSL 3.0.15",
+  "scope": "test fixture correction only; original 23 raw/text and 6 protocol vectors unchanged",
+  "reason": "Appending FF makes the Windows-1252 seed invalid UTF-8; E9 80 81 alone validly decodes as U+9001",
+  "case": {
+    "id": "windows1252_unambiguous",
+    "input_text": "\u00e9\u20ac\u0081\u00ff\r\n",
+    "input_hex": "e98081ff0d0a",
+    "digests": {
+      "md5": "ed6a6df1b22f4bf7ad3ae8b2d9f2ec7d",
+      "sha1": "87114fe6fcfaeda80d9994adb94fb1ef84079e81",
+      "sha256": "74bf51dad2fb019c6c1e590e72a003504e4a34f0fb2cbd50bba467323903e418",
+      "sha512": "5ef454af815b81be9cb58456b96dad4893409d614cbb67b67502d8de8a18bee52383d3d5fcbe94e1b45a16fe6d5ba9b87e39cb569d11cc38cb0ef7f64b9a9919"
+    }
+  }
+}

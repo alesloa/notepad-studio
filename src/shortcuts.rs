@@ -326,6 +326,9 @@ static CATALOG: &[ActionEntry] = &[
     row!(EditFindCount, "Count", EXTRA, W, [], []),
     row!(EditReplace,       "Replace",       Some("IDM_SEARCH_REPLACE"),     W, ["ctrl-h"],       ["cmd-alt-f"]),
     row!(EditGotoLine,      "Go to Line",    Some("IDM_SEARCH_GOTOLINE"),    W, ["ctrl-g"],       ["cmd-l"]),
+    // Keep Cmd-B for Markdown Bold on macOS; Control-B navigates braces.
+    row!(SearchGoToMatchingBrace, "Go to Matching Brace", Some("IDM_SEARCH_GOTOMATCHINGBRACE"), W, ["ctrl-b"], ["ctrl-b"]),
+    row!(SearchSelectInBetween, "Select All In-between {} [] or ()", Some("IDM_SEARCH_SELECTMATCHINGBRACES"), W, ["ctrl-alt-b"], ["cmd-alt-b"]),
     row!(SearchFindInFiles, "Find in Files", Some("IDM_SEARCH_FINDINFILES"), W, ["ctrl-shift-f"], ["cmd-shift-f"]),
     row!(SearchFindInProjects, "Find in Projects", EXTRA, W, [], []),
     row!(SearchMark,        "Mark",          Some("IDM_SEARCH_MARK"),        W, ["ctrl-m"],       ["cmd-m"]),

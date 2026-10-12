@@ -10,8 +10,13 @@ pub(super) fn needs_background(event: &MacroEvent) -> bool {
         | MacroEvent::ReplaceAllWithOptions(search) if search.regex)
         || matches!(event, MacroEvent::CutBookmarkedLines | MacroEvent::PasteToBookmarkedLines
             | MacroEvent::RemoveBookmarkedLines | MacroEvent::RemoveNonBookmarkedLines | MacroEvent::InverseBookmarks
+            | MacroEvent::GoToMatchingBrace | MacroEvent::SelectInBetween
             | MacroEvent::CopyBookmarkedLines | MacroEvent::Undo | MacroEvent::Redo | MacroEvent::SortLinesLexIgnoreCaseAsc | MacroEvent::SortLinesLexIgnoreCaseDesc
             | MacroEvent::SortLinesLocaleAsc | MacroEvent::SortLinesLocaleDesc | MacroEvent::SortLinesLengthAsc | MacroEvent::SortLinesLengthDesc)
+}
+
+pub(super) fn allows_read_only(event: &MacroEvent) -> bool {
+    matches!(event, MacroEvent::InverseBookmarks | MacroEvent::GoToMatchingBrace | MacroEvent::SelectInBetween)
 }
 
 pub(super) fn is_search(event: &MacroEvent) -> bool {
@@ -163,7 +168,7 @@ impl Workspace {
             id: uuid::Uuid::new_v4(), window: window.window_handle(), completed: 0,
             events: events.to_vec(), index: 0, remaining: times, tab: tab.session_id,
             instance: tab.instance.clone(), input: window.input_context_token(),
-            metadata_only: events.iter().all(|event| matches!(event, MacroEvent::InverseBookmarks)),
+            metadata_only: events.iter().all(allows_read_only),
             undo_base: tab.undo_stack.len(), undo_len: tab.undo_stack.len(), redo_len: tab.redo_stack.len(),
             grouped: !events.iter().any(|ev| matches!(ev, MacroEvent::Undo | MacroEvent::Redo)),
             selection: tab.selection,
@@ -215,7 +220,7 @@ impl Workspace {
                 }
                 cx.notify(); return false;
             }
-            if self.regex_replacement.pending.is_some() || self.pending_prepared_edit.is_some() || self.pending_bookmark_copy.is_some() {
+            if self.regex_replacement.pending.is_some() || self.pending_prepared_edit.is_some() || self.pending_bookmark_copy.is_some() || self.brace_navigation_pending() {
                 if group_open { self.end_edit_group(cx); }
                 set_replaying(previous);
                 if let Some(mut playback) = self.regex_replacement.macro_playback.take() {

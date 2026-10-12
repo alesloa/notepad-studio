@@ -123,6 +123,7 @@ impl Workspace {
         if let Some(tab) = self.tabs.get_mut(self.active) { tab.observe_content_activity(); }
         self.retire_source_input_after_edit();
         self.cancel_prepared_edit(cx);
+        self.cancel_brace_navigation();
         // The synchronous edit-commit path stays CHEAP so the edit, caret, and
         // repaint land this frame and the UI thread never stalls. The two
         // heavyweight post-edit jobs — a full syntax reparse and session

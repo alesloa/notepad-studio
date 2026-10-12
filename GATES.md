@@ -27,9 +27,10 @@ Scope: Continue the requested cross-platform Notepad++ parity audit and fix the 
   EVIDENCE: Immutable894aca5 combined Linux passes after legacy macro refusal, XIM0.1 and read-only replacement reporting:1877units+3integration/11ignored,build31.08s/testcompile1m56s/runtime62.77s/all-targetClippy27.63s;194app208test191duplicate inherited warnings,no owned warnings. Full19CT+29parser+69actual wire/1ignored pass,6.01s compile. Logs log/linux-894aca5-{build,tests,clippy,wire-tests}.txt. This snapshot excludes later test isolation and unintegrated Source scope/Reload/property receiver. Native computer-use retry fails OSerror2 missingpipe; CUA native disabled. CurrentmacOS build and native UI/OSIME remain open; headless GPUI is not native evidence.
 
 - [x] G9: The integrated main tree builds and passes its required unit/integration/clippy checks with no new warnings on touched code.
-  CHECK: powershell -NoProfile -Command "Get-Content log/reload-final-main-tests.txt -Tail 24"
-  EXPECT: 1926 passed; 0 failed
-  EVIDENCE: Reviewed frozen21-path Reload patch12c5d245 personally appliedtoc6d1a63, plus Root stale-Huge prompt and CSV width-framing RED/fixes. Original editable source survives until exact guarded publication; bounded BGreads/decoding/richsnapshot/syntax/disposal, one running/latestpending, cancellation and UUID/incarnation/content/history/CSV guards. Windows1926units+3integration/12ignored/build13.46s/testcompile13.72s/runtime55.08s/Clippy7.14s pass,195app209test192duplicate inherited/no ownedwarnings. Logs log/reload-width-main-* andcopied leaflogs. Normalized matched release baseline stillrunning; exactafter samples and limits recorded inPLAN/devlog, no speedup/native claim. LaterLinux/currentMac/native remainopen. Refresh each batch.
+  CHECK: powershell -NoProfile -Command "Get-Content log/windows-brace-main-tests.txt -Tail 24"
+  EXPECT: 2684 passed; 0 failed
+  EVIDENCE: Deciding brace composition at6be baseline:733 source/manifest hashes unchanged,29 integrated files byte-exact to ee8728f0 patch. Windows build47.959s;2684unit+3integration/30ignored (81.59s unit,211.665s total);Clippy26.914s with334→331 occurrences/195→193 unique pairs,zero new diagnostics;12 inventory tests/regeneration check. Source340 Rust files SHA1282a5ac, Cargo/Lock unchanged. Logs log/windows-brace-main-* and docs/windows-brace-validation-20261011.md. Scoped optimized helper controls and actual TestWindow paint work are separate; native Windows/currentMac verification remains G8.
+
 
 - [x] G10: Completed source batches have separate conventional commits and current change.log/devlog entries; the main working tree is clean before beginning a new batch.
   CHECK: git status --porcelain

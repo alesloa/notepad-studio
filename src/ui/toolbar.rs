@@ -263,6 +263,7 @@ enum Cmd {
     Find,
     Replace,
     FindInFiles,
+    GoToMatchingBrace,
     Mark,
     ZoomIn,
     ZoomOut,
@@ -346,6 +347,7 @@ const ITEMS_SEARCH: &[Item] = &[
     Item { cmd: Cmd::Find, icon: "icons/magnifying_glass.svg", tooltip: "Find…", action_id: Some("EditFind") },
     Item { cmd: Cmd::Replace, icon: "icons/replace.svg", tooltip: "Replace…", action_id: Some("EditReplace") },
     Item { cmd: Cmd::FindInFiles, icon: "icons/folder_search.svg", tooltip: "Find in Files…", action_id: Some("SearchFindInFiles") },
+    Item { cmd: Cmd::GoToMatchingBrace, icon: "icons/code.svg", tooltip: "Go to Matching Brace", action_id: Some("SearchGoToMatchingBrace") },
     Item { cmd: Cmd::Mark, icon: "icons/book.svg", tooltip: "Mark…", action_id: Some("SearchMark") },
 ];
 const ITEMS_VIEW: &[Item] = &[
@@ -653,6 +655,7 @@ pub(crate) fn toolbar(
                             Cmd::FindInFiles => {
                                 w.open_find_in_files(&SearchFindInFiles, window, cx)
                             }
+                            Cmd::GoToMatchingBrace => w.go_to_matching_brace(&SearchGoToMatchingBrace, window, cx),
                             Cmd::Mark => w.open_mark(&SearchMark, window, cx),
                             Cmd::ZoomIn => w.zoom_in(&ViewZoomIn, window, cx),
                             Cmd::ZoomOut => w.zoom_out(&ViewZoomOut, window, cx),

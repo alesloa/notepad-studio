@@ -220,7 +220,7 @@ impl Workspace {
             bookmarks: std::collections::BTreeSet::new(),
             marks: Vec::new(),
             language: None,
-            highlights: Vec::new(),
+            highlights: std::sync::Arc::new(Vec::new()),
             loading: None,
             new_label: None,
             read_only: true,

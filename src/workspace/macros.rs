@@ -85,7 +85,7 @@ impl Workspace {
             Some("Focus the active Source or Raw View editor to run a macro")
         } else if tab.buffer.loading.is_some() {
             Some("Wait for the file to finish loading before running a macro")
-        } else if tab.buffer.read_only && !events.iter().all(|event| matches!(event, MacroEvent::InverseBookmarks)) {
+        } else if tab.buffer.read_only && !events.iter().all(search_macro::allows_read_only) {
             Some("Buffer is read-only")
         } else if self.is_composing_text(window) {
             Some("Finish the active composition before running a macro")
@@ -245,6 +245,8 @@ impl Workspace {
             MacroEvent::RemoveBookmarkedLines => return self.run_bookmark_command(crate::edit_ops::bookmark_edits::BookmarkCommand::Remove, window, cx),
             MacroEvent::RemoveNonBookmarkedLines => return self.run_bookmark_command(crate::edit_ops::bookmark_edits::BookmarkCommand::RemoveNon, window, cx),
             MacroEvent::InverseBookmarks => return self.run_bookmark_command(crate::edit_ops::bookmark_edits::BookmarkCommand::Inverse, window, cx),
+            MacroEvent::GoToMatchingBrace => return self.run_brace_navigation(super::brace_navigation::Navigation::GoTo, window, cx),
+            MacroEvent::SelectInBetween => return self.run_brace_navigation(super::brace_navigation::Navigation::Select, window, cx),
             MacroEvent::Paste => {
                 if self.input_focus(window) == InputFocus::Editor {
                     let Some(text) = cx.read_from_clipboard().and_then(|item| item.text()) else { return true; };

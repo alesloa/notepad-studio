@@ -64,6 +64,11 @@ A lightweight, cross-platform text editor inspired by Notepad++, written in Rust
 > recovery copy before overwriting an existing destination; failure refuses the save.
 > [Failed-save restoration](docs/windows-bounded-restore.md) streams the saved
 > bytes back with 64 KiB scratch; incomplete recovery retains the rescue copy.
+> Go to Matching Brace (Ctrl-B) and Select All In-between (Ctrl-Alt-B) now
+> share cancellable background matching with bracket outlines. Unchanged paints
+> reuse matched and unmatched results; navigation preserves document bytes and
+> works in read-only Source or Raw View. [Brace scope](docs/windows-brace-navigation.md)
+> records the remaining lexer-style and native verification gaps.
 > Column edit paths now preflight hostile geometry and cumulative allocations.
 > Their temporary foreground limits and remaining parity gaps are recorded in
 > [column operation limits](docs/column-safety.md).

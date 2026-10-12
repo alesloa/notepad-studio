@@ -488,7 +488,7 @@ fn start_streaming(
         // Skip tree-sitter while streaming. Re-enabled (per file size) at
         // end-of-load.
         language: None,
-        highlights: Vec::new(),
+        highlights: std::sync::Arc::new(Vec::new()),
         loading: Some(LoadProgress {
             bytes_read: 0,
             total_bytes,

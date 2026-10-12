@@ -37,7 +37,7 @@ fn fixture(text: &str) -> Buffer {
     let mut buffer = Buffer::empty();
     buffer.rope = ropey::Rope::from_str(text);
     buffer.language = Some(LanguageId::Rust);
-    buffer.highlights = vec![HighlightSpan { range: 0..1, kind: HighlightKind::String }];
+    buffer.highlights = std::sync::Arc::new(vec![HighlightSpan { range: 0..1, kind: HighlightKind::String }]);
     buffer.mark_saved();
     buffer
 }

@@ -10,6 +10,11 @@ Notepad++, written in Rust on GPUI. Apache-2.0.
 
 v0.0.5 — current
 
+  Go to Matching Brace (Ctrl-B) and Select All In-between (Ctrl-Alt-B) now
+  navigate Source and Raw View, including read-only documents and saved macros.
+  Matching runs in background with Escape cancellation, and bracket outlines
+  reuse results across unchanged paints.
+
   Failed-save recovery now restores the saved file in bounded chunks. If
   restoration fails, the rescue copy is kept and its location is reported.
 

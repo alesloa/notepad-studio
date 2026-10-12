@@ -1,9 +1,12 @@
 # Windows matching-brace work
 
-The two Search commands are missing at the current Windows checkpoint. The
-existing bracket painter also scans the document synchronously. This record
-describes reproduced gaps and the implementation contract; it does not claim
-that the commands or revised painter have shipped.
+Both Search commands are now wired through actions, menus, Shortcut Mapper and
+saved macro playback. Go to Matching Brace also has a toolbar button. The
+painter and commands share a cancellable background matcher and cache both
+matches and misses. Navigation changes no document bytes or text history.
+Main build, full tests, Clippy and inventory checks pass; the
+[validation record](windows-brace-validation-20261011.md) records their exact source
+and remaining limits.
 
 The local Notepad++ oracle specifies before-caret brace priority, with an
 at-caret fallback only when there is no brace immediately before the caret
@@ -18,7 +21,7 @@ Go to Matching Brace moves to the partner's byte position. Select All In-between
 {} [] or () includes both delimiters and orders the earlier endpoint as anchor
 and the later endpoint plus one as head. Both update the preferred caret column
 (`NppCommands.cpp:1940–1958`). Their default Windows shortcuts are Ctrl-B and
-Ctrl-Alt-B (`Parameters.cpp:261–262`); Notepad Studio will add Cmd mirrors.
+Ctrl-Alt-B (`Parameters.cpp:261–262`); On macOS, Control-B preserves the existing Cmd-B Markdown Bold binding; Select uses Cmd-Alt-B. Mac testing is deferred.
 The menu positions and labels are at `Notepad_plus.rc:664–665`. Go to Matching
 Brace has a toolbar route; Select does not. The macro whitelist contains both
 commands at `NppCommands.cpp:4434–4435`. Implementation must be original Rust;
@@ -57,13 +60,28 @@ run, root removed only its temporary test patch and verified all 446 original
 source/manifest hashes and a clean main tree. Local evidence remains in ignored
 `gates/` under the isolated Windows brace worktree.
 
-The next implementation must share one cancellable background matcher between
-navigation and painting. Capture immutable Rope/style snapshots without
-copying full text or a large style vector on the UI thread. Validate malformed
-styles and checked offsets on the worker. Cache both matched and unmatched
-results, and reject replies after content/activity, caret/rectangle, tab
-incarnation, syntax publication, focus or window changes. Refused operations
-preserve source and history; successful navigation changes no document bytes.
-Saved macros must wait for matching and keep existing Undo grouping. Required
-Windows build/tests/Clippy, optimized large-file controls and supported native
-visual/input verification remain pending. Mac testing is deferred.
+The implementation captures Rope and `Arc<Vec<HighlightSpan>>` snapshots without
+copying full text or the style vector on the UI thread. The worker validates up
+to one million ordered, non-overlapping syntax spans and uses checked iterative
+nesting and byte offsets. Cancellation is checked at most every 64 KiB of scan.
+Replies are rejected after source, caret/rectangle, tab incarnation, syntax
+publication or focus/window changes. Snapshot disposal runs on a worker.
+
+Source or Raw View must be focused, loaded and free of composition or an active
+edit transaction. Read-only navigation is allowed. A successful Go to command
+collapses to the partner's byte position; Select includes both delimiters and
+clears rectangle geometry. Accepted misses preserve selection and rectangle
+geometry. Refused commands preserve the document and are not recorded.
+
+Saved macros wait for matching, keep their completed prefix on cancellation and
+stop the remaining tail after stale results. Completed prefix/navigation/tail
+edits share one Undo without merging earlier user history. A manual brace action
+cannot take a waiting macro's worker. A paint-only worker can be promoted to a
+navigation request without starting another scan.
+
+The matcher compares broad `HighlightKind` values, including string/comment
+origins. Exact Notepad++ lexer styles and its styled-tail relaxation remain
+open. Find-focused navigation is not established. Native Windows visual/input
+verification remains unavailable; TestWindow dispatch and paint probes do not
+establish it. See the validation record for scoped optimized helper timings.
+Mac testing is deferred.

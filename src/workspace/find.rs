@@ -553,6 +553,10 @@ impl Workspace {
             window.focus(&self.focus_handle, cx);
             return;
         }
+        if self.brace_navigation_pending() && window.is_window_active() && self.focus_handle.is_focused(window)
+            && self.input_focus(window) == InputFocus::Editor {
+            self.cancel_brace_navigation(); cx.notify(); return;
+        }
         if self.pending_bookmark_copy.is_some()
             && window.is_window_active()
             && self.focus_handle.is_focused(window)

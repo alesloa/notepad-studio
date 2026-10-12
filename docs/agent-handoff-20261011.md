@@ -6,26 +6,39 @@ checkpoint for one completed batch.
 
 ## Current checkpoint
 
-The latest continuation integrates bounded same-handle failed-save restoration
-on the tested b42 source. Main build passed in 22.216 s; 2,666 unit and 3
-integration tests passed, with 30 ignored (64.86 s unit / 148.148 s wall).
-Clippy passed in 22.440 s, and all 12 inventory tests and regeneration checks
-passed. Canonical diagnostics remain at 334 occurrences / 195 unique pairs.
-The 338 production Rust files have SHA256
-`a54ce8dd308d461367f743437d9216a897d89a48cf932cc8b5217b8adfa785f5`;
-Cargo retains SHA256 `fb072656`, and the lockfile is unchanged. See
-[bounded recovery checks](windows-bounded-restore-validation-20261011.md).
-Hash G1 now has 12 missing-feature failures, four future input protocol tests
-blocked by absent dialogs, and four passing controls. Root verified the corrected
-receipt `f5600d26` and authorized implementation in its isolated leaf. Legacy
-line run3 has 13 passing / 68 failing caller controls; root verified its
-`f2687342` deciding packet and authorized the reviewed three phases. Earlier
-fixture errors are archived and excluded. Root's brace
-baseline has four helper, two actual missing-route and one actual paint-work
-failure; source is restored and
-the [brace contract](windows-brace-navigation.md) remains unimplemented. Overall
-goal active; normal Save background ownership is next for File. Verify Git log
-for the resulting commit before resuming; do not reapply the bounded patch.
+Bounded failed-save restoration is committed as `6be0a4d`; its combined
+Windows checks and exact optimized helper controls passed. Root has now
+integrated both brace Search routes and the shared worker/cache candidate.
+The isolated candidate passed 18 focused tests and 2,684 unit plus three
+integration tests (30 ignored). Main build (47.959 s), full tests (81.59 s unit / 211.665 s total),
+Clippy (26.914 s, zero new diagnostics) and all 12 inventory tests/check pass.
+See [brace validation](windows-brace-validation-20261011.md) for the deciding receipt.
+Do not treat this as completion of the Windows parity goal.
+
+Book implements all twelve hash tools in its isolated leaf. The pure engine
+passed 11 controls; its first coherent GPUI phase passed 47 tests, including
+actual separate Find-window dispatch, dialog buttons, file hashes and held
+clipboard/Cut ownership controls. Final close/reopen and progress cleanup,
+root receipt review and full checks are pending. Sort's corrected phases pass
+103 installed caller tests, including lexical, numeric and dedupe commands.
+Its final pure adapter fixture correction and full checks are pending. Fixture
+and compile corrections remain excluded from product failure counts and
+preserved with their earlier packets.
+
+File's fresh `windows-normal-save-background` leaf is based at `6be0a4d`.
+Root verified G1: seven actual foreground prepare/write violations, an older
+Save As reply taking ownership after a newer completion, and 29 passing
+ownership/close controls. Implementation is authorized under the frozen
+capture/publication and close/Exit settlement contract. The safe commit gate
+must serialize destructive workers without blocking the UI and preserve
+critical restore errors. Bounded restore behavior is already integrated.
+
+Current source and generator outputs include 340 production Rust files,
+SHA256 `1282a5ac2d774561b51d5ee06cbba1b0a2a4b2343f0639dbc6d3e35d6c83e78d`.
+Cargo retains `fb072656`; lockfile remains `9ea6f022`. All 733 frozen
+source/manifest hashes stayed unchanged during main checks. Native Windows verification remains unavailable; exact brace lexer
+styles and styled-tail behavior remain open. Overall goal active. Verify Git
+status/log and actual owner state before resuming.
 
 - Repository: `C:/Users/Ale/Documents/GitHub/notepad-studio`, branch `main`.
 - Feature checkpoint: `c077e2dca48b6c35c457691c84f4b9c2c843b935`, adding 17 File,
@@ -44,7 +57,7 @@ for the resulting commit before resuming; do not reapply the bounded patch.
 - Windows PowerShell; set both `CC` and `CXX` to
   `C:/Program Files/LLVM/bin/clang-cl.exe` for Cargo.
 - Completed save, column, physical-line and bounded-restoration worktrees
-  preserve frozen evidence. File is idle pending a fresh normal-Save background
+  preserve frozen evidence. File implements the fresh normal-Save background
   leaf. Book implements hash tools in `windows-hash-tools`; Sort implements the
   reviewed legacy-line phases in `windows-legacy-lines`. Both are based at
   `b42c889`. Caches have
@@ -141,9 +154,11 @@ diagnostic comparison and inventory logs alongside. Gates/logs are ignored.
 
 ## Next work
 
-Inventory: 581 appearances, 481 unique IDs, 45 separators, 275 catalog rows;
-182 routed, 285 missing, 8 partial, 2 alternate-only, 2 action-only, 1 status-only
-and 1 stub. Routing proves wiring only. Behavior records remain pending.
+Current inventory: 581 appearances, 481 unique IDs, 45 separators, 277 catalog
+rows; 184 routed, 283 missing, 8 partial, 2 alternate-only, 2 action-only,
+1 status-only and 1 stub. Routing proves wiring only. Behavior records remain
+pending. The following save/column/physical-line receipts are historical;
+the current combined brace checks are recorded above.
 
 The save, column and physical-line safety batch is integrated. Its baseline
 reproductions, approved policies and combined checks are recorded in
@@ -164,7 +179,7 @@ reapply any of these completed patches.
    `8781129422befa76ef7db9f6cca68a4709693d6b4aace91a0b84d89ef30b23a8`.
    The later column/physical composition passes the combined checks below.
    The quiet 18 MiB writer-helper comparison adds 194.542 ms at the medians;
-   normal Save background capture/publication is the next read-only contract.
+   normal Save background capture/publication is now an authorized active leaf.
    That local contract is
    `../notepad-studio-agents/windows-save-durability/gates/windows-normal-save-background-contract.md`,
    SHA-256 `a5a429745879784779e04abb34c09422e700c42b453b35b3e856d4320aafff4e`.
@@ -174,8 +189,8 @@ reapply any of these completed patches.
    mandatory rescue refusal and critical failed-restore diagnostics, including
    Cancel/stale replies. Settle destructive jobs before accepted close/Exit.
    Legacy `.doc` conversion requires separate scope. Bounded restoration is
-   now a separate active leaf below. No normal-Save background implementation
-   is started yet.
+   integrated as `6be0a4d`. Normal-Save background implementation is active in
+   its fresh leaf under this frozen contract; it is not integrated yet.
 2. Column safety: `windows-column-safety` has five actual hostile-state REDs
    and two classic-case rectangle behavior REDs. Its first five regression
    reruns pass. The candidate validates geometry, payload and history plans
@@ -223,33 +238,36 @@ separate checkpoints.
 
 Active next leaves:
 
-- `windows-bounded-restore`, detached at `10d4723`: reviewed G1 runs have one
-  positive and one intentional contract failure. The old restoration callback
-  receives 18,874,368 bytes against the proposed 65,536-byte budget. Injected
-  read OOM preserves the exact rescue and original write/restore errors; no
-  allocator abort or physical memory exhaustion was reproduced. Root verified
-  all 13 evidence hashes and approved the fixed 64 KiB same-handle recovery
-  pump, with checked counts, short-read/Interrupted/EOF/growth controls, final
-  truncation/sync only after complete restoration, and rescue retention on
-  failure. Implementation is active; nothing from this leaf is integrated.
-- `windows-hash-tools`, detached at `10d4723`: source-only G1 preparation for
-  twelve MD5/SHA1/SHA256/SHA512 text/file/selection commands. No Cargo or
-  production implementation yet. Selection policy review covers UTF8 editor
-  bytes, document EOL, no transport BOM, strict Windows-1252 and rectangle/focus
-  behavior. Read [oracle preparation](windows-hash-tools-oracle-20261011.md).
-  Rebase onto the latest combined checkpoint before production work.
-- `windows-legacy-lines`, detached at `b42c889`: source-only G1 preparation
-  for the eight older lexical/integer/decimal sort routes, Reverse, Randomize
-  and both duplicate-removal commands. No Cargo or production fixes yet.
-  Audit exact numeric/refusal, UTF16 lexical, rectangle and selection behavior
-  before reusing the guarded prepared-line engine and saved macro pipeline.
+- `windows-normal-save-background`, detached at `6be0a4d`: root verified the
+  frozen G1 packet and authorized bounded capture, worker write/publication,
+  captured savepoints and close/Exit settlement. A separate real recovery
+  session-capture control is being prepared for root review; no broad session
+  implementation is authorized before that review. Bounded failed-save
+  restoration is already integrated. Do not reapply its older patch.
+- `windows-hash-tools`, detached at `b42c889`: all twelve MD5/SHA1/SHA256/SHA512
+  text/file/selection tools are implemented in the isolated candidate. The
+  engine passes 11 tests and the first coherent GPUI phase passes 47. Root
+  reviewed the engine packet; final GPUI receipt review, close/reopen and
+  progress cleanup, full gates and main composition remain pending. Selection
+  policy covers UTF8 editor bytes, document EOL, no transport BOM, strict
+  Windows-1252 and rectangle/focus behavior. Read
+  [oracle preparation](windows-hash-tools-oracle-20261011.md). The bound Find
+  fallback must retain the exact owning Workspace and origin focus.
+- `windows-legacy-lines`, detached at `b42c889`: the eight older lexical,
+  integer and decimal sort routes, Reverse, Randomize and both duplicate
+  commands use the guarded prepared-line engine and saved macro pipeline.
+  All 103 installed caller controls pass. Final adapter fixture correction,
+  full gates, frozen receipt review and main composition remain pending.
+  Preserve the reviewed UTF16 lexical, numeric refusal, rectangle and EOL
+  policies, including whole-draft refusal on invalid decimal rows.
 
-Then continue older sort/reverse/shuffle/dedup performance/macro/fidelity repair,
-hash tools, brace navigation/highlighting, session/pinning/printing, Search
-results/mark styles, split views/folding/monitoring, encoding/languages and the
-remaining ledger. Explicit renamed-label precedence over
-`untitled_uses_first_line` is also open; the stored label already supplies
-Save/Copy/Save-close suggestions.
+Brace navigation/highlighting is integrated with green main gates. Exact
+lexer styles, styled-tail relaxation, Find-focused brace behavior and native
+UI verification remain open. Continue the active save/hash/legacy-line leaves,
+then session/pinning/printing, Search results/mark styles, split views/folding/
+monitoring, encoding/languages and the remaining ledger. Explicit renamed-label
+precedence over `untitled_uses_first_line` is also open; the stored label already
+supplies Save/Copy/Save-close suggestions.
 
 Native verification is unavailable. The supported bridge returned:
 

@@ -764,7 +764,7 @@ fn restore_tab_in(entry: &SessionTab, bak_dir: &Path) -> RestoreOutcome {
         bookmarks,
         marks: Vec::new(),
         language: entry.language,
-        highlights: Vec::new(),
+        highlights: std::sync::Arc::new(Vec::new()),
         loading: None,
         new_label,
         // A lossy decode can't be saved back without rewriting the bad
@@ -939,7 +939,7 @@ fn restore_closed_tab_in(entry: &SessionClosedTab, dir: &Path) -> Option<ClosedT
         bookmarks: BTreeSet::new(),
         marks: Vec::new(),
         language: entry.language,
-        highlights: Vec::new(),
+        highlights: std::sync::Arc::new(Vec::new()),
         loading: None,
         new_label,
         read_only,

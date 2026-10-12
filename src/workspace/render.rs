@@ -336,6 +336,8 @@ impl Render for Workspace {
             .on_action(cx.listener(Self::tab_clear_color))
             // Open the find dialog from the editor side. Each chord lands on
             // the matching dialog tab.
+            .on_action(cx.listener(Self::go_to_matching_brace))
+            .on_action(cx.listener(Self::select_in_between))
             .on_action(cx.listener(Self::open_find))
             .on_action(cx.listener(Self::close_find))
             .on_action(cx.listener(Self::find_next))

@@ -104,6 +104,8 @@ pub(crate) enum MacroEvent {
     RemoveBookmarkedLines,
     RemoveNonBookmarkedLines,
     InverseBookmarks,
+    GoToMatchingBrace,
+    SelectInBetween,
     Paste,
     SelectAll,
     Undo,
@@ -353,6 +355,12 @@ pub(crate) fn set_replaying(value: bool) -> bool {
     let prev = g.replaying;
     g.replaying = value;
     prev
+}
+
+pub(crate) fn is_replaying() -> bool {
+    #[cfg(test)]
+    if let Some(replaying) = playback_fixture::replaying() { return replaying; }
+    global().lock().map(|g| g.replaying).unwrap_or(false)
 }
 
 /// True iff a recording is currently in progress and not paused by a replay.

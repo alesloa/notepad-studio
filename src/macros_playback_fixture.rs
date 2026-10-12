@@ -33,6 +33,10 @@ pub(super) fn set_replaying(value: bool) -> Option<bool> {
     })
 }
 
+pub(super) fn replaying() -> Option<bool> {
+    EXECUTION.with(|slot| slot.borrow().as_ref().map(|execution| execution.recorder.replaying))
+}
+
 pub(super) fn recording() -> Option<bool> {
     EXECUTION.with(|slot| slot.borrow().as_ref().map(|execution| execution.recorder.recording))
 }

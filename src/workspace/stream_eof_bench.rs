@@ -19,7 +19,7 @@ fn stream_eof_release_completion_sample() {
                 w.tabs[1].buffer.rope = loaded.clone();
                 w.tabs[1].buffer.file_path = Some(path.clone());
                 w.tabs[1].buffer.language = None;
-                w.tabs[1].buffer.highlights.clear();
+                w.tabs[1].buffer.highlights = Default::default();
                 w.tabs[1].buffer.read_only = true;
                 w.tabs[1].buffer.loading = Some(LoadProgress {
                     bytes_read: source.len() as u64, total_bytes: source.len() as u64,

@@ -15,7 +15,9 @@ use gpui::{
 
 use crate::buffer::LineGeo;
 use crate::consts::{CARET_WIDTH_PX, OVERSTRIKE_CARET_HEIGHT_PX, OVERSTRIKE_CARET_MIN_WIDTH_PX};
-use crate::syntax::{self, HighlightKind, HighlightSpan};
+use crate::syntax::{self, HighlightSpan};
+#[cfg(test)]
+use crate::syntax::HighlightKind;
 use crate::text::{url_scan, wrap};
 use crate::theme::SyntaxTheme;
 use crate::workspace::{WrapCache, WrapRow, Workspace};
@@ -43,10 +45,8 @@ pub(crate) struct EditorPrepaint {
     /// "Mark All" persistent highlights. Painted *below* `match_quads` so a
     /// live find highlight on the same byte still reads on top.
     mark_quads: Vec<PaintQuad>,
-    /// Notepad++-style bracket-pair outlines. One 1px frame around the
-    /// bracket immediately before the caret, plus one around its match
-    /// (if any). Empty when the caret isn't sitting next to a bracket.
-    /// Recomputed every prepaint — caching only spans one render frame.
+    /// Outlines for the cached before-caret or at-caret brace and its match.
+    /// Quads are rebuilt for the visible lines; matching runs on a worker.
     bracket_quads: Vec<PaintQuad>,
     caret: Option<PaintQuad>,
     /// "Show whitespace" overlay glyphs. Empty when the toggle is off.
@@ -764,146 +764,6 @@ const fn build_codepoint_labels() -> [&'static str; 256] {
     t
 }
 
-/// True when byte `pos` falls inside a tree-sitter span flagged as string or
-/// comment. Used by the bracket-pair finder to skip brackets that live
-/// inside literals/comments — Notepad++ does the same so `"f(x)"` doesn't
-/// hijack matching when the caret sits next to a real `(` outside the
-/// string. `spans` is assumed sorted by `range.start`, which
-/// `Buffer::reparse_highlights` guarantees.
-fn byte_is_in_string_or_comment(pos: usize, spans: &[HighlightSpan]) -> bool {
-    // Binary-search the first span whose end is past `pos`. Because spans
-    // can nest (e.g. tree-sitter sometimes emits a string span inside a
-    // wider span), we then linearly walk forward as long as `range.start`
-    // is still <= pos, checking each candidate's kind.
-    let first = spans.partition_point(|s| s.range.end <= pos);
-    for span in spans[first..].iter() {
-        if span.range.start > pos {
-            break;
-        }
-        if span.range.end > pos
-            && matches!(span.kind, HighlightKind::String | HighlightKind::Comment)
-        {
-            return true;
-        }
-    }
-    false
-}
-
-/// Given the byte position of one bracket (`origin`) and the bracket char
-/// at that position, walk the rope to find its matching pair. Returns the
-/// byte offset of the match on success. Honors nesting depth — a `{` inside
-/// `{ ... }` doesn't pair with the outer brace. Skips brackets that live
-/// inside string/comment spans (`spans_for_skip`); pass an empty slice to
-/// disable that filter (used as a fallback when the buffer has no language
-/// highlights).
-fn find_matching_bracket(
-    rope: &ropey::Rope,
-    origin: usize,
-    bracket: u8,
-    spans_for_skip: &[HighlightSpan],
-) -> Option<usize> {
-    let (target, forward) = match bracket {
-        b'(' => (b')', true),
-        b'[' => (b']', true),
-        b'{' => (b'}', true),
-        b')' => (b'(', false),
-        b']' => (b'[', false),
-        b'}' => (b'{', false),
-        _ => return None,
-    };
-
-    let total = rope.len_bytes();
-    if forward {
-        // Scan forward from the byte after `origin`. ASCII brackets are
-        // one byte wide so byte-level iteration is exact.
-        let start = origin + 1;
-        if start >= total {
-            return None;
-        }
-        let mut depth: i32 = 1;
-        let mut iter = rope.bytes_at(start);
-        let mut i = start;
-        while let Some(b) = iter.next() {
-            if b == bracket || b == target {
-                if !byte_is_in_string_or_comment(i, spans_for_skip) {
-                    if b == bracket {
-                        depth += 1;
-                    } else {
-                        depth -= 1;
-                        if depth == 0 {
-                            return Some(i);
-                        }
-                    }
-                }
-            }
-            i += 1;
-        }
-        None
-    } else {
-        if origin == 0 {
-            return None;
-        }
-        let mut depth: i32 = 1;
-        let mut iter = rope.bytes_at(origin);
-        let mut i = origin;
-        while let Some(b) = iter.prev() {
-            if i == 0 {
-                break;
-            }
-            i -= 1;
-            if b == bracket || b == target {
-                if !byte_is_in_string_or_comment(i, spans_for_skip) {
-                    if b == bracket {
-                        depth += 1;
-                    } else {
-                        depth -= 1;
-                        if depth == 0 {
-                            return Some(i);
-                        }
-                    }
-                }
-            }
-        }
-        None
-    }
-}
-
-/// Resolve the bracket pair to outline this frame. Notepad++ matches when
-/// the caret is **immediately after** a bracket char — the byte at
-/// `head - 1`. Returns `(left_byte, right_byte)` (always ordered) for the
-/// pair, or `None` when the caret isn't next to a bracket, the bracket
-/// sits inside a string/comment, or no match is found.
-fn locate_bracket_pair(
-    rope: &ropey::Rope,
-    head: usize,
-    selection_empty: bool,
-    spans_for_skip: &[HighlightSpan],
-) -> Option<(usize, usize)> {
-    if !selection_empty {
-        return None;
-    }
-    if head == 0 {
-        return None;
-    }
-    let total = rope.len_bytes();
-    if head > total {
-        return None;
-    }
-    let origin = head - 1;
-    if origin >= total {
-        return None;
-    }
-    let b = rope.byte(origin);
-    if !matches!(b, b'(' | b')' | b'[' | b']' | b'{' | b'}') {
-        return None;
-    }
-    if byte_is_in_string_or_comment(origin, spans_for_skip) {
-        return None;
-    }
-    let other = find_matching_bracket(rope, origin, b, spans_for_skip)?;
-    Some((origin.min(other), origin.max(other)))
-}
-
 /// Build 1px-outline quads for a bracket byte position if it falls on a
 /// visible line. Pushed into `out`. Skips when the byte sits past the
 /// printable end of its line (e.g. EOL) — bracket chars never do, so this
@@ -1074,6 +934,8 @@ impl gpui::Element for EditorElement {
                 });
             }
         }
+
+        self.workspace.update(cx, |w, cx| w.refresh_brace_match(window, cx));
 
         // Step 2 — read the workspace for the rest of the prepaint pass.
         let workspace = self.workspace.read(cx);
@@ -1777,20 +1639,9 @@ impl gpui::Element for EditorElement {
             Vec::new()
         };
 
-        // Notepad++-style bracket-pair outlining. Pure additive pass: reads
-        // selection / rope / cached highlight spans, emits its own quad
-        // slot, and never mutates the existing prepaint state. When the
-        // active buffer has no language detected, `highlights` is empty and
-        // the matcher falls back to a dumb byte-level scan (all brackets
-        // are considered, including ones inside strings/comments) — same
-        // graceful degradation we use for the syntax painter.
+        // Drawing consumes the worker cache, including cached unmatched results.
         let mut bracket_quads: Vec<PaintQuad> = Vec::new();
-        if let Some((left, right)) = locate_bracket_pair(
-            &buffer.rope,
-            head,
-            selection_empty,
-            &buffer.highlights,
-        ) {
+        if let Some((left, right)) = workspace.cached_brace_pair(window) {
             let bracket_color: Hsla = Rgba::from(rgb(theme.bracket_match)).into();
             let line_left = bounds.left() - scroll_left;
             bracket_outline_for_byte(

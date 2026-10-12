@@ -18,7 +18,7 @@ fn completion(entity: &Entity<super::Workspace>, visual: &mut VisualTestContext,
         tab.buffer.file_path = Some(path.clone());
         tab.buffer.rope = ropey::Rope::from_str("fn caf\u{e9}() { let value = \"\u{4e2d}\u{1f600}\"; }\n");
         tab.buffer.language = None;
-        tab.buffer.highlights.clear();
+        tab.buffer.highlights = Default::default();
         tab.buffer.read_only = true;
         tab.buffer.loading = Some(LoadProgress {
             bytes_read: 100, total_bytes: 100, cancel: cancel.clone(),

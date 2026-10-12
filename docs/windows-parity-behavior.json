@@ -2440,7 +2440,16 @@
       ],
       "route_at_baseline": "missing",
       "behavior": "pending",
-      "evidence": []
+      "evidence": [
+        "docs/windows-brace-navigation.md",
+        "docs/windows-brace-validation-20261011.md"
+      ],
+      "implementation": "integrated; automated leaf and combined Windows checks and scoped optimized helper controls passed; exact lexer styles and native verification pending",
+      "remaining": [
+        "Exact per-lexer style distinctions and styled-tail behavior",
+        "Native Windows menu, shortcut, toolbar and focus inspection",
+        "Find-focused brace navigation behavior audit"
+      ]
     },
     {
       "id": "IDM_SEARCH_SELECTMATCHINGBRACES",
@@ -2456,7 +2465,16 @@
       ],
       "route_at_baseline": "missing",
       "behavior": "pending",
-      "evidence": []
+      "evidence": [
+        "docs/windows-brace-navigation.md",
+        "docs/windows-brace-validation-20261011.md"
+      ],
+      "implementation": "integrated; automated leaf and combined Windows checks and scoped optimized helper controls passed; exact lexer styles and native verification pending",
+      "remaining": [
+        "Exact per-lexer style distinctions and styled-tail behavior",
+        "Native Windows menu, shortcut, toolbar and focus inspection",
+        "Find-focused brace navigation behavior audit"
+      ]
     },
     {
       "id": "IDM_SEARCH_MARK",
@@ -7862,13 +7880,13 @@
       "evidence": []
     }
   ],
-  "current_source_sha256": "c71335ee3eaa3d371bef0f956e95ea302ca23a719329a7c54e15832b3c26c339",
+  "current_source_sha256": "1282a5ac2d774561b51d5ee06cbba1b0a2a4b2343f0639dbc6d3e35d6c83e78d",
   "current_route_counts": {
     "action-only": 2,
     "alternate-only": 2,
-    "missing": 285,
+    "missing": 283,
     "partial": 8,
-    "routed": 182,
+    "routed": 184,
     "status-only": 1,
     "stub": 1
   },

@@ -92,7 +92,7 @@ pub(crate) struct Buffer {
     pub(crate) language: Option<LanguageId>,
     /// Cached tree-sitter highlight spans, sorted by `range.start`.
     /// Refreshed inside `apply_edit` after every rope mutation.
-    pub(crate) highlights: Vec<HighlightSpan>,
+    pub(crate) highlights: Arc<Vec<HighlightSpan>>,
     /// Streaming-load progress for the current file. `Some` while a large
     /// file is still reading in chunks off the bg executor; cleared when the
     /// load completes or the user cancels. Edits / Save / Find behaviour
@@ -186,7 +186,7 @@ impl Buffer {
             bookmarks: BTreeSet::new(),
             marks: Vec::new(),
             language: None,
-            highlights: Vec::new(),
+            highlights: std::sync::Arc::new(Vec::new()),
             loading: None,
             new_label: None,
             read_only: false,
@@ -240,7 +240,7 @@ impl Buffer {
             bookmarks: BTreeSet::new(),
             marks: Vec::new(),
             language: crate::settings::snapshot().default_language,
-            highlights: Vec::new(),
+            highlights: std::sync::Arc::new(Vec::new()),
             loading: None,
             new_label: None,
             read_only: false,
@@ -303,17 +303,17 @@ impl Buffer {
     /// through Workspace's background syntax controller.
     pub(crate) fn reparse_highlights(&mut self) {
         let Some(lang) = self.language else {
-            self.highlights.clear();
+            self.highlights = Default::default();
             return;
         };
         let snap = crate::settings::snapshot();
         if crate::syntax::should_skip_syntax(self.rope.len_bytes() as u64, &snap) {
-            self.highlights.clear();
+            self.highlights = Default::default();
             return;
         }
         #[cfg(test)] highlight_tests::record_flatten();
         let source = self.rope.to_string();
-        self.highlights = crate::syntax::highlight(lang, &source);
+        self.highlights = Arc::new(crate::syntax::highlight(lang, &source));
     }
 
     pub(crate) fn display_short_name(&self) -> SharedString {

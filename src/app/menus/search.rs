@@ -18,6 +18,8 @@ pub(crate) fn build(_state: &MenuState) -> Menu {
             MenuItem::action("Replace…", EditReplace),
             MenuItem::separator(),
             MenuItem::action("Go to Line…", EditGotoLine),
+            MenuItem::action("Go to Matching Brace", SearchGoToMatchingBrace),
+            MenuItem::action("Select All In-between {} [] or ()", SearchSelectInBetween),
             MenuItem::separator(),
             MenuItem::action("Find in Files…", SearchFindInFiles),
             MenuItem::action("Find in Projects…", SearchFindInProjects),

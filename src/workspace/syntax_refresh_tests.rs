@@ -533,7 +533,7 @@ fn syntax_refresh_release_timings_above_streaming_threshold() {
         visual.update(|_, cx| {
             entity.update(cx, |w, _| {
                 w.tabs[0].buffer.rope = ropey::Rope::from_str(&text);
-                w.tabs[0].buffer.highlights.clear();
+                w.tabs[0].buffer.highlights = Default::default();
             })
         });
         for sample in 0..3 {

@@ -66,6 +66,8 @@ mod mouse;
 mod open_existing;
 pub(crate) use open_existing::{already_open_message, show_already_open_error};
 mod movement;
+mod brace_match;
+mod brace_navigation;
 mod plugins;
 mod render;
 mod run;
@@ -119,6 +121,7 @@ pub(crate) struct Workspace {
     pub(crate) focus_handle: FocusHandle,
     pub(crate) source_input_context: source_input::SourceInputContext,
     pub(crate) ime_composition: Option<ime::ImeComposition>,
+    pub(crate) brace_navigation: brace_navigation::State,
     pub(crate) pending_prepared_edit: Option<prepared_edits::PendingPreparedEdit>,
     pub(crate) pending_bookmark_copy: Option<crate::edit_ops::bookmark_clipboard::PendingBookmarkCopy>,
     #[cfg(test)]
@@ -745,6 +748,7 @@ impl Workspace {
             focus_handle,
             source_input_context: source_input::SourceInputContext::new(welcome_id),
             ime_composition: None,
+            brace_navigation: Default::default(),
             pending_prepared_edit: None,
             pending_bookmark_copy: None,
             #[cfg(test)]

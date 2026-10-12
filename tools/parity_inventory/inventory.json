@@ -1,5 +1,5 @@
 {
-  "studio_source_sha256": "a54ce8dd308d461367f743437d9216a897d89a48cf932cc8b5217b8adfa785f5",
+  "studio_source_sha256": "1282a5ac2d774561b51d5ee06cbba1b0a2a4b2343f0639dbc6d3e35d6c83e78d",
   "studio_sources": {
     "src/actions/bookmarks.rs": "eeaf95badc144e0fa7f8c2445495e706f1209291c1285ddd3578fef0c84eb5fc",
     "src/actions/edit.rs": "90200c45bc846149a2a05b8ce0b1ab98118b185094686abacccc0ddc882969b4",
@@ -15,7 +15,7 @@
     "src/actions/proofreading.rs": "6098219f475681ce9b7654dbe6dda4281300981c11a74aeb5fa66c72c23845ce",
     "src/actions/rich_doc.rs": "e9b9c83f05652e3274d1d32c9b0369259dcc0ca0e6b187043555112cf92592f8",
     "src/actions/run.rs": "8b8b2b6059b8eb4da2dce9c4fc3a420975fcc3456068851dc943132091cdd333",
-    "src/actions/search.rs": "df68788ae44b89fd119ca2b69c8e99a2dead9a18042fbfe2b986cb7999b8a37b",
+    "src/actions/search.rs": "b4f28b86de8352bbc127b19e07a493c9e4614cb74c1771e35c04ac866d88e294",
     "src/actions/settings.rs": "f916e800e130114450c6d09548e5eafafccfbf3f33421ab39befe154df058902",
     "src/actions/tabs.rs": "36a88d8ae08bf873d37b61c1dd17e31c218472e0bef15c7de19b687b6cbc9f58",
     "src/actions/view.rs": "8174bbe169b16aabfa281c22482180e25f461343b5dc6b63981ee4d47205f006",
@@ -33,7 +33,7 @@
     "src/app/menus/plugins.rs": "cac1a71db473b9ff4b86a9a49c98d9923fa3de7c043b6c1d3fe34459f4a10bb7",
     "src/app/menus/publication_fixture.rs": "bf58bb5d93884e1b6b766dd8a3a0288fe9fa13c781e5cf0d2c307f1f2edc590f",
     "src/app/menus/run.rs": "08f6f2d00d3e33697aab143c53664b189d33328945be7456ec34dd184197d360",
-    "src/app/menus/search.rs": "693a2a9e3e9bd42cce10fed661719f788ad9cb01e1d0d1a1b509f5c65fcd21ad",
+    "src/app/menus/search.rs": "42c770ed0a264dc7c395622c69fbb75594bee4cb621ce40c189bc7f0ed82f765",
     "src/app/menus/settings.rs": "7a91a6b35e1f795a72a1fcd5b3363ff45e5b48df51f546aa60c22dfcd52aa1ed",
     "src/app/menus/state.rs": "bb1beb475663ad83ab0ea457d6de371c4a96d2cb75b29e6db5d4f8d51f00eaa7",
     "src/app/menus/view.rs": "b96737881f95025a6d21ff958e6e10155ef8edd15bb35edeed3fd16dfa1f9c23",
@@ -45,7 +45,7 @@
     "src/app/window.rs": "42f1117f4c7940254786aa67dea89e21f2be2b71d644ac81b48198de204c246d",
     "src/assets.rs": "58f498f42210c21e76038342146108d5a2d584a69804c1d1b75d49b63a1c6bf7",
     "src/buffer/prepared.rs": "85f08ca8854789015378372a257835faa4a6c77a2e0a64f15d834ae3e6523362",
-    "src/buffer.rs": "f842c5486f0280a6c347fcc80c4174a6c81dc02159eb03aa56f32a430dd8babd",
+    "src/buffer.rs": "592fd97aefe66a4f24b6fe3380597808555b31edff949b448291ae3321d8ded7",
     "src/call_context.rs": "c0f382cfec3d27faefda0e2cfdd1aa8c6aed86823121f90dd05a605bd35273bd",
     "src/changelog.rs": "6f1cdf601ac205897a3d06a86cbc2c8ca8fcb2e29686ee7785992d666be0fcc8",
     "src/clipboard_history.rs": "bfe665d23bdcebcb1198eb3c7f379a26664a4aa6dfe3377b0baf7d40d8a7c731",
@@ -73,7 +73,7 @@
     "src/edit_ops/trim_both_scope.rs": "e69a6c4becb48689fc73e7f157d482869f17f5cf7a1384324a3c49ac6767b8f4",
     "src/edit_ops/trim_trailing_scope.rs": "f4ff4bb61b6ad02f0d39f42261fbdcda7ffc67c3c72eaaf2c86738a405355f0a",
     "src/edit_ops/util.rs": "1c773958e7c80acdefeb814cf3988caa9b4970f6593d88ee4688ec80239c6fc1",
-    "src/editor_element.rs": "c1ccbeb4a0e868b83ed3910fa248f9cf7c72ba38aaac3497d647185826327213",
+    "src/editor_element.rs": "948219e1cbe8d953386f12caf4ed08e14e0cd6555d009a9b256c57b0896e1f71",
     "src/editor_proofreading.rs": "b3b5362455509e74cd35a95ecea58d5e5c1b8af505862dc00d094aaded290c7f",
     "src/find_block_map.rs": "c7a1eb06a3e2c74557328b59b1776b2f14817cfb9a817aa63508daf83aa4c436",
     "src/find_in_files.rs": "0b289c528aad6f4bc11ed10f4fd300e8de9e74d9719ff8acc4fe19b4e1598186",
@@ -86,19 +86,19 @@
     "src/io/background_drop.rs": "9fc5aadeb3251706439e5dd5ad846f88880788fa35783ee28687d9d3ad62dec9",
     "src/io/copy_snapshot.rs": "ffa012c2df868d18ecfea86d4fe3b41eff389d1e25871f1d79e5c571d8724717",
     "src/io/copy_stage.rs": "0c7da56aa74dd3bc886a832c70575925ffe7dea724e696cc9ececd94a37241cb",
-    "src/io/copy_writer.rs": "7fce5b2251728b311c5d11c002efa1abf4f2b914f7bfc540c179e3aa5df78ed1",
+    "src/io/copy_writer.rs": "4ada9d08dc2ec64e6eecb39e7b8f8795fd3e84a7a1c16aa17a423fc02dd2488b",
     "src/io/restore_copy.rs": "b3a1fd15b3e74328b9c261da23ba44138954334ba00bfb82972feba20971905d",
     "src/io/safety_copy.rs": "d1bcfa37d3057ad8ca6b081511b8f5b44139113a365e1e47bc2a5d2cb05a433a",
     "src/io/save_all.rs": "2799cad7525aa0d4db3b97634942c415ac92c8ad2fb3046b64200bfc5f287b9e",
     "src/io/save_as_dialog.rs": "870b9d7970e5c213b5b07c1465881f07862073f6d14dde9a586dabeda6d89a68",
     "src/io/save_copy.rs": "726807eafc13306398dbe72b844adf428173352d3dbddcae9b43ddd70b3e404a",
-    "src/io.rs": "5727deb511e9a7f132b2df899454028802ced18cdd2d69978afd9a902cb8043f",
-    "src/io_reload.rs": "6d167ea8cfea21d1b86b131f6cd9d31fe7c78affb5829de7a54cd83d5e0ea47a",
-    "src/io_stream.rs": "450a533562310b8c50d18cb4b2a425be85bd830eac2ce321537ef20ed1126f61",
+    "src/io.rs": "ff5d77f9a7b96c93ea72d7187525e7ff6475c92c48a7c1bf8babf583dcaba10f",
+    "src/io_reload.rs": "aacfb5a85b45a6ed58ae436fc6ff63e5f2a028d961a2701fc6fbce01c088c076",
+    "src/io_stream.rs": "b3e79827e23aea7eabb379214eeb3d025c111f676ccf39ba793d76d6448cdff4",
     "src/locale_date.rs": "b7c0a84062bcd5a8142bf9ff3c3c62dcce03f40fa5fc3ff7824b858f52b1f7c8",
     "src/locale_sort_windows.rs": "456d5f41ceaa63ec1c0acf33a082a01a0814b779097f2aed8cfd662a9ca5dfcd",
-    "src/macros.rs": "4fa244f0b6d1383bec908fc6a8a69a11982f9fa4180ea64e413c1bec9462aaf7",
-    "src/macros_playback_fixture.rs": "19ba5fe472e4801e0ac90f0618e1e9eb787e022aab8ee26dbe023742f8f441e2",
+    "src/macros.rs": "10b02bbde492435da42564f3398494456d6058d39f3617264bb05c3c9c83c298",
+    "src/macros_playback_fixture.rs": "fe4904388250c4abb8bcb2ad990b3e1e736da46ca9a5b8fe8e5515925798ab61",
     "src/main.rs": "c4e677bd9dbddd531fb39e99bfab56de13b68c492d22b7d93f3e584f6389d30f",
     "src/panic_log.rs": "f3b24ecf846e2b7a6b218ba1a732efad70da2113cba2746175dbd33e96290c6f",
     "src/persist.rs": "7995c33c733153eaffa48f17512b7ea0fd52884cf389c1311259397889176fe2",
@@ -126,12 +126,12 @@
     "src/session/rich_backup.rs": "fba68189867d7d8869f759ddf522154be2e8ae77cc3ceff03b36ea06bbdfbf32",
     "src/session/startup_restore.rs": "1cbb15e585c688b9753c497a0a8c45c6c68dae59038a3209f06bf8cbce440f45",
     "src/session/windows.rs": "c79dfd8eff0f89ffbcf619579434db7a1f4a323e19eefcc90a4377909bf6c178",
-    "src/session.rs": "504e9002005ec93d285f1db3d99a46f91bbbcd672a2ed5658e28a69f2bd8e450",
+    "src/session.rs": "fd57c8a815f64c37f680ea3c40d7eaf894bc4ddaa02ca07e1602f50ace945a46",
     "src/settings/persistence_fixture.rs": "a7cec9a94d21c3da5cbfdeff8ba0f57854de89f642315576d4e016097ade1bd5",
     "src/settings.rs": "65d3fe1a335a2806574a8f10524687d43619d7c2c6aa591db016db4f71af16c6",
     "src/shell.rs": "04f1f44c04af6cbabd9f02aae93a8b0642b3d8b392b2f78a1371433e17aea646",
     "src/shortcuts/npp_defaults.rs": "8c7b344dfdb263fd87ae0310f33eefb720bbde54db56e694fb7f6b9b44091e64",
-    "src/shortcuts.rs": "7b986734b01550a4ebff7290828a22179f6a01d6b9f91cc917c106f445b9279a",
+    "src/shortcuts.rs": "1f50dc3379219534b1cd49ec564c4d566eac08da985931ae7c4d9b815ee35e4b",
     "src/single_instance.rs": "9136898987ad1f83bfc8d4c510b3141acd670d4dd4c041509a0b3d0f7cf559da",
     "src/style_model/active_theme.rs": "0e560d798075155e6304196946d4f4dd486c70121eac326d47754edfdb297407",
     "src/style_model/bundled.rs": "065d9228af7882fb11b0ac2e90ca0659178529457830b834fdd3b3f0c5f0214f",
@@ -275,22 +275,24 @@
     "src/ui/text_tools/reverse_text.rs": "83b462dbe09bfe9aeb907f1217d881456832b75dba523b6ee2ba8928def6de1e",
     "src/ui/text_tools/widgets.rs": "9b3c98a9acd2d52633f988d1baf39cb6938ca2c1951c92e5c17cd0b9c24858fd",
     "src/ui/text_tools_preview_panel.rs": "9d01737d4900317c7e1bd7dc0c99ceffd74783e138ab4c3cfcf26ac30cc08726",
-    "src/ui/toolbar.rs": "c88abc2d1fd98f24945f2e3d0631f600dc99fba36ea4a8d7fe9d36b2179d140b",
+    "src/ui/toolbar.rs": "08a0ccacfc2083103cc1f0ac263901f9bd822e463706a60f0f39988a1ad418d5",
     "src/workspace/autocomplete.rs": "b320df6a6512035509a7e598830ef5ce51796dfb775a25e3c9f6959216e9b9b3",
     "src/workspace/autocomplete_candidates.rs": "935f0390779a8016cb0d6208a85d26a157627a6d2199e1c3f30170707b094d84",
     "src/workspace/block.rs": "e277867482c3a3969be019a397547bbe5e4c67102bfa7e0cc18ada7148517c40",
+    "src/workspace/brace_match.rs": "e205973a0dd712504c50a3f2ce83a9142a19a69f5c2e99313df676296c4f6573",
+    "src/workspace/brace_navigation.rs": "8d4f4d3214095ef2656bbf4ecad49bc48d39c564c7d7daa1dcd445aad66f2fc3",
     "src/workspace/call_hint.rs": "43dfa02ef1fbc393e80b891b9e7bf31004af627f83202aa6f7b1988b713f2b01",
     "src/workspace/close_tag.rs": "a7954fe5acd2550f9d863b2b25b5b77b36c85902510ded5907ef17371555661d",
     "src/workspace/column_plan.rs": "7d766f2f489f624228a6461eed027f641623b7659da4c60141e5fd0772084a4f",
     "src/workspace/completion_api.rs": "95bc8727ff8d2e8557597bf10a5ea62e6ff064e65ba9495f573d5b55a19b69db",
     "src/workspace/completion_macro.rs": "b75aedfd58b6dbbbbd4f96bf1d27d59406d04e527beead4b8371fb11132b1e52",
-    "src/workspace/cursor.rs": "959f5aba0a3d9cb07a49c33f27fbbf13a0486c0832948b2a64f6dac2c9356cf7",
+    "src/workspace/cursor.rs": "bd7995d3d9b5f0125ee04a7baef274ece3c2769555431170d1ee0c46bbbf5f27",
     "src/workspace/directory_operations.rs": "e99b779cb52f093598a39d612a274e7808ed522fc74c1a907de7aa1574f04024",
     "src/workspace/edits.rs": "fa3d69b6701d9a98c48cc1089fc14bbe43f711d9fd6ac11d35a4de260500ae0a",
     "src/workspace/file_move.rs": "4b2b28d4a2b831b6e59f56b105a0ad3d8ec32a933c066d8d1e17d42155673e49",
     "src/workspace/file_routes.rs": "43ec082625774a477985e81926a84c547a2f5e7c817ad7d5b73d3b1253ccacb2",
     "src/workspace/file_tab_actions.rs": "da125d264a4d080a47a81ac213db73c5199eae9e5fd7ae42d9ecca458b0a108f",
-    "src/workspace/find.rs": "103c478559357f43b2cf983aff7f4026b759e8f0278acd41bd795d0695768950",
+    "src/workspace/find.rs": "93eaa084a936fbe9df36b3f9fae84b2cf118bd8b0ff765e8de78d76777547656",
     "src/workspace/find_current_budget.rs": "9dc9a69bce849720e64bd84c7ea5ff2344e8e7471f709ed76e8e6821362dfff8",
     "src/workspace/find_current_controller.rs": "946195362ae726684941f02aa08c8d811c5358c1d56fb2bac5008e17075264c0",
     "src/workspace/find_current_endpoints.rs": "e9a6d156baab172aaaa21ebf14fc223afe00349f6b9a2f9de93f6b1c2f1a0599",
@@ -307,12 +309,12 @@
     "src/workspace/history.rs": "e81e204f82315aab37b044596a219297028ced18a3c897844d62219648651492",
     "src/workspace/ime.rs": "761420f3a3a2a82a86609f909df4809d44372b2e61d4d68855146db100fa088b",
     "src/workspace/input_handler.rs": "ef1a987ad7c26cfb1d7574da1a1317e57f533df85109297224a3cca498d9f9c6",
-    "src/workspace/language.rs": "2354cd797e6775c07bfcc6e1c7a24dbf76f8d59704fa737c6886ed9abcd2d204",
-    "src/workspace/macros.rs": "2c46d74b12dd23bd4e35ddce6162b207b3358fc32f408e8fc2860b25bb839993",
+    "src/workspace/language.rs": "d2de7352c993a234b32d8df2b93741c6319ccada93f9fc4f37ded2998bd223b0",
+    "src/workspace/macros.rs": "814acc33548307e8e33bdcd96922c221cef273b95e01178b71b5e182aa657d48",
     "src/workspace/markdown_format.rs": "1e8c6fa671dfb4f0304f9c885628d0ce8c537f0cdaf5d9d044bb3929694201f0",
     "src/workspace/menu_bar.rs": "eb33b9884b6e0574c700fa5c6a7460139c23bc09dfb4c5dff3ea4cfd936b8795",
     "src/workspace/menu_state.rs": "c08c5730ca88b4773ff7e69c8375574d6b9946653ff0b8eb9c4245dec4707989",
-    "src/workspace/mod.rs": "edd5d29f3a93e36230d25955fb894a7a9a252548641e33955e93f0358ef64c4a",
+    "src/workspace/mod.rs": "802c0b3bbabd2b833aa33bdc761e52f29f218875aeafccb0cc4d8042d401dd52",
     "src/workspace/mouse.rs": "d33004f7e533a7290340fdcd47b18bbbb0f30c0650d05ff77cc5d671f65a32ad",
     "src/workspace/movement.rs": "842121092e1c8537d4a9eb47c890fea8fcd08ce6eb427e5d067e89c5d544af9e",
     "src/workspace/open_existing.rs": "2f0688288f495fb8717aa9e7338e47be14c405af2e33491a70a7f2e57b06ccbd",
@@ -324,15 +326,15 @@
     "src/workspace/reload.rs": "661872a83d432cf68d1cf0ed0c9a4471ebb6abc0744e34f28c56afc79845b3f4",
     "src/workspace/reload_csv.rs": "31fcefc7f786c0f67c431b09c9c9d1fb65d08a6f5e9364c1c83eaee68465ab10",
     "src/workspace/reload_guard.rs": "3ef6b45a0a902612de7295f8948ee699bab9937d98abfb6f2ee1bf8ad0593a32",
-    "src/workspace/render.rs": "f6f3f96b74228f5ee316705ddf3e6a8f31de65ea34cca87913ee17f23a51daa5",
+    "src/workspace/render.rs": "4fe3dd38404e1ab620ee40e15324ab23a16cb662191fdec7a1035c4a1566ede5",
     "src/workspace/rich_edit.rs": "6e19702656046073b5388eac4cdf93bc3a3b218b5fa63cf9cbedcbbe747068c2",
     "src/workspace/rich_replacement.rs": "8b3dc53ff3638c61f110346021c58c8b01a81fe70c0ebca3a0072a16157aecf2",
     "src/workspace/run.rs": "c0ffc5d538bbb7135d7d471850a1e0564d5282d43a716c03a7e50767e27c03bd",
-    "src/workspace/search_macro.rs": "94accbec9048de8c83490c78c3485463f796b340e6309a20f66bee50981f0ecd",
+    "src/workspace/search_macro.rs": "aa143eb34aac2e85e93a8ea502316eb8ae952e4c9d2272ceb62f6f818e49f085",
     "src/workspace/session_syntax_bench.rs": "d8d114a040c63b6c3a69c7c1b83d8e350fba9a66c7f14429c4a506abd215595c",
     "src/workspace/source_input.rs": "08752743d74f93856561f80f1f10c69354effc0688a202c9b70e3accd3f132a7",
     "src/workspace/status.rs": "338218be900828e0bb19a57570021582980fcce542d0a04e130e49912937726c",
-    "src/workspace/stream_eof_bench.rs": "574c28f8181702af80ecc0389b5b9fb9f2e43cf1584157fe1a82ecccc184bf6c",
+    "src/workspace/stream_eof_bench.rs": "5ae68e529225ff15e2bdfb50d739957a97d35e7c6b70e6925ae9673be7a06df3",
     "src/workspace/syntax_refresh/session_pump.rs": "da29d1cbfd269d6485467104931631e84ba5228c00ff686dbe7e9ccdd9b78738",
     "src/workspace/syntax_refresh.rs": "fd9546f47fc189e63a8daf7c64a80547e213cf46888bb01a97fce631e802a440",
     "src/workspace/tab_actions.rs": "96c719febddf41c7ed4f2f4e8be5cf3919388df4d11f9bce8fd508ba28f89c6a",
@@ -355,23 +357,23 @@
     "unique_ids": 481,
     "duplicate_appearances": 100,
     "separators": 45,
-    "catalog_rows": 275,
+    "catalog_rows": 277,
     "conditional_directives_in_resource": 0,
     "appearance_statuses": {
       "action-only": 2,
       "alternate-only": 2,
-      "missing": 360,
+      "missing": 358,
       "partial": 8,
-      "routed": 207,
+      "routed": 209,
       "status-only": 1,
       "stub": 1
     },
     "unique_statuses": {
       "action-only": 2,
       "alternate-only": 2,
-      "missing": 285,
+      "missing": 283,
       "partial": 8,
-      "routed": 182,
+      "routed": 184,
       "status-only": 1,
       "stub": 1
     },
@@ -1288,7 +1290,7 @@
       "alternate": [
         {
           "path": "src/workspace/mod.rs",
-          "line": 1171,
+          "line": 1175,
           "method": "open_tab_rename"
         }
       ],
@@ -2414,7 +2416,7 @@
           "path": "src/edit_ops/begin_end_select.rs",
           "line": 28,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 504
+          "wire_line": 506
         }
       ],
       "alternate": [],
@@ -2472,7 +2474,7 @@
           "path": "src/edit_ops/begin_end_select.rs",
           "line": 37,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 505
+          "wire_line": 507
         }
       ],
       "alternate": [],
@@ -2528,7 +2530,7 @@
           "path": "src/edit_ops/insert.rs",
           "line": 26,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 454
+          "wire_line": 456
         }
       ],
       "alternate": [],
@@ -2584,7 +2586,7 @@
           "path": "src/edit_ops/insert.rs",
           "line": 45,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 455
+          "wire_line": 457
         }
       ],
       "alternate": [],
@@ -2640,7 +2642,7 @@
           "path": "src/edit_ops/insert.rs",
           "line": 61,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 456
+          "wire_line": 458
         }
       ],
       "alternate": [],
@@ -2696,7 +2698,7 @@
           "path": "src/edit_ops/clipboard_ops.rs",
           "line": 20,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 457
+          "wire_line": 459
         }
       ],
       "alternate": [],
@@ -2752,7 +2754,7 @@
           "path": "src/edit_ops/clipboard_ops.rs",
           "line": 36,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 458
+          "wire_line": 460
         }
       ],
       "alternate": [],
@@ -2808,7 +2810,7 @@
           "path": "src/edit_ops/clipboard_ops.rs",
           "line": 56,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 459
+          "wire_line": 461
         }
       ],
       "alternate": [],
@@ -2864,7 +2866,7 @@
           "path": "src/edit_ops/clipboard_all.rs",
           "line": 44,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 460
+          "wire_line": 462
         }
       ],
       "alternate": [],
@@ -2920,7 +2922,7 @@
           "path": "src/edit_ops/clipboard_all.rs",
           "line": 53,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 461
+          "wire_line": 463
         }
       ],
       "alternate": [],
@@ -3092,7 +3094,7 @@
           "path": "src/workspace/edits.rs",
           "line": 3529,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 362
+          "wire_line": 364
         }
       ],
       "alternate": [],
@@ -3152,7 +3154,7 @@
           "path": "src/workspace/edits.rs",
           "line": 3548,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 363
+          "wire_line": 365
         }
       ],
       "alternate": [],
@@ -3210,7 +3212,7 @@
           "path": "src/edit_ops/case_ops.rs",
           "line": 44,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 463
+          "wire_line": 465
         }
       ],
       "alternate": [],
@@ -3268,7 +3270,7 @@
           "path": "src/edit_ops/case_ops.rs",
           "line": 53,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 464
+          "wire_line": 466
         }
       ],
       "alternate": [],
@@ -3328,7 +3330,7 @@
           "path": "src/edit_ops/case_ops.rs",
           "line": 62,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 465
+          "wire_line": 467
         }
       ],
       "alternate": [],
@@ -3388,7 +3390,7 @@
           "path": "src/edit_ops/case_ops.rs",
           "line": 71,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 466
+          "wire_line": 468
         }
       ],
       "alternate": [],
@@ -3444,7 +3446,7 @@
           "path": "src/edit_ops/case_ops.rs",
           "line": 80,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 467
+          "wire_line": 469
         }
       ],
       "alternate": [],
@@ -3500,7 +3502,7 @@
           "path": "src/edit_ops/case_ops.rs",
           "line": 89,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 468
+          "wire_line": 470
         }
       ],
       "alternate": [],
@@ -3612,7 +3614,7 @@
           "path": "src/edit_ops/line_ops.rs",
           "line": 592,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 469
+          "wire_line": 471
         }
       ],
       "alternate": [],
@@ -3668,7 +3670,7 @@
           "path": "src/edit_ops/line_ops.rs",
           "line": 610,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 470
+          "wire_line": 472
         }
       ],
       "alternate": [],
@@ -3728,7 +3730,7 @@
           "path": "src/edit_ops/line_ops.rs",
           "line": 629,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 471
+          "wire_line": 473
         }
       ],
       "alternate": [],
@@ -3788,7 +3790,7 @@
           "path": "src/edit_ops/line_ops.rs",
           "line": 646,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 472
+          "wire_line": 474
         }
       ],
       "alternate": [],
@@ -3848,7 +3850,7 @@
           "path": "src/workspace/edits.rs",
           "line": 3377,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 359
+          "wire_line": 361
         }
       ],
       "alternate": [],
@@ -3908,7 +3910,7 @@
           "path": "src/workspace/edits.rs",
           "line": 3390,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 360
+          "wire_line": 362
         }
       ],
       "alternate": [],
@@ -3964,7 +3966,7 @@
           "path": "src/edit_ops/line_ops.rs",
           "line": 670,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 473
+          "wire_line": 475
         }
       ],
       "alternate": [],
@@ -4020,7 +4022,7 @@
           "path": "src/edit_ops/line_ops.rs",
           "line": 682,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 474
+          "wire_line": 476
         }
       ],
       "alternate": [],
@@ -4086,7 +4088,7 @@
           "path": "src/workspace/edits.rs",
           "line": 3952,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 377
+          "wire_line": 379
         }
       ],
       "alternate": [],
@@ -4152,7 +4154,7 @@
           "path": "src/workspace/edits.rs",
           "line": 3974,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 378
+          "wire_line": 380
         }
       ],
       "alternate": [],
@@ -4208,7 +4210,7 @@
           "path": "src/edit_ops/line_ops.rs",
           "line": 566,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 489
+          "wire_line": 491
         }
       ],
       "alternate": [],
@@ -4264,7 +4266,7 @@
           "path": "src/edit_ops/line_ops.rs",
           "line": 578,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 490
+          "wire_line": 492
         }
       ],
       "alternate": [],
@@ -4320,7 +4322,7 @@
           "path": "src/edit_ops/line_ops.rs",
           "line": 459,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 475
+          "wire_line": 477
         }
       ],
       "alternate": [],
@@ -4376,7 +4378,7 @@
           "path": "src/edit_ops/line_sort.rs",
           "line": 322,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 477
+          "wire_line": 479
         }
       ],
       "alternate": [],
@@ -4432,7 +4434,7 @@
           "path": "src/edit_ops/line_sort.rs",
           "line": 324,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 479
+          "wire_line": 481
         }
       ],
       "alternate": [],
@@ -4488,7 +4490,7 @@
           "path": "src/edit_ops/line_ops.rs",
           "line": 483,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 483
+          "wire_line": 485
         }
       ],
       "alternate": [],
@@ -4544,7 +4546,7 @@
           "path": "src/edit_ops/line_ops.rs",
           "line": 507,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 485
+          "wire_line": 487
         }
       ],
       "alternate": [],
@@ -4600,7 +4602,7 @@
           "path": "src/edit_ops/line_ops.rs",
           "line": 531,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 487
+          "wire_line": 489
         }
       ],
       "alternate": [],
@@ -4656,7 +4658,7 @@
           "path": "src/edit_ops/line_sort.rs",
           "line": 326,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 481
+          "wire_line": 483
         }
       ],
       "alternate": [],
@@ -4712,7 +4714,7 @@
           "path": "src/edit_ops/line_ops.rs",
           "line": 471,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 476
+          "wire_line": 478
         }
       ],
       "alternate": [],
@@ -4768,7 +4770,7 @@
           "path": "src/edit_ops/line_sort.rs",
           "line": 323,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 478
+          "wire_line": 480
         }
       ],
       "alternate": [],
@@ -4824,7 +4826,7 @@
           "path": "src/edit_ops/line_sort.rs",
           "line": 325,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 480
+          "wire_line": 482
         }
       ],
       "alternate": [],
@@ -4880,7 +4882,7 @@
           "path": "src/edit_ops/line_ops.rs",
           "line": 495,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 484
+          "wire_line": 486
         }
       ],
       "alternate": [],
@@ -4936,7 +4938,7 @@
           "path": "src/edit_ops/line_ops.rs",
           "line": 519,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 486
+          "wire_line": 488
         }
       ],
       "alternate": [],
@@ -4992,7 +4994,7 @@
           "path": "src/edit_ops/line_ops.rs",
           "line": 543,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 488
+          "wire_line": 490
         }
       ],
       "alternate": [],
@@ -5048,7 +5050,7 @@
           "path": "src/edit_ops/line_sort.rs",
           "line": 327,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 482
+          "wire_line": 484
         }
       ],
       "alternate": [],
@@ -5108,7 +5110,7 @@
           "path": "src/workspace/edits.rs",
           "line": 3612,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 364
+          "wire_line": 366
         }
       ],
       "alternate": [],
@@ -5168,7 +5170,7 @@
           "path": "src/edit_ops/comment_ops.rs",
           "line": 21,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 511
+          "wire_line": 513
         }
       ],
       "alternate": [],
@@ -5228,7 +5230,7 @@
           "path": "src/edit_ops/comment_ops.rs",
           "line": 33,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 512
+          "wire_line": 514
         }
       ],
       "alternate": [],
@@ -5288,7 +5290,7 @@
           "path": "src/workspace/edits.rs",
           "line": 3866,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 365
+          "wire_line": 367
         }
       ],
       "alternate": [],
@@ -5343,7 +5345,7 @@
           "path": "src/edit_ops/comment_ops.rs",
           "line": 45,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 513
+          "wire_line": 515
         }
       ],
       "alternate": [],
@@ -5402,7 +5404,7 @@
           "path": "src/workspace/autocomplete.rs",
           "line": 412,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 383
+          "wire_line": 385
         }
       ],
       "alternate": [],
@@ -5461,7 +5463,7 @@
           "path": "src/workspace/autocomplete.rs",
           "line": 391,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 382
+          "wire_line": 384
         }
       ],
       "alternate": [],
@@ -5520,7 +5522,7 @@
           "path": "src/workspace/autocomplete.rs",
           "line": 452,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 385
+          "wire_line": 387
         }
       ],
       "alternate": [],
@@ -5579,7 +5581,7 @@
           "path": "src/workspace/call_hint.rs",
           "line": 555,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 386
+          "wire_line": 388
         }
       ],
       "alternate": [],
@@ -5638,7 +5640,7 @@
           "path": "src/workspace/call_hint.rs",
           "line": 566,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 387
+          "wire_line": 389
         }
       ],
       "alternate": [],
@@ -5723,7 +5725,7 @@
           "path": "src/workspace/format.rs",
           "line": 38,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 367
+          "wire_line": 369
         }
       ],
       "alternate": [],
@@ -5779,7 +5781,7 @@
           "path": "src/workspace/format.rs",
           "line": 47,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 368
+          "wire_line": 370
         }
       ],
       "alternate": [],
@@ -5835,7 +5837,7 @@
           "path": "src/workspace/format.rs",
           "line": 51,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 369
+          "wire_line": 371
         }
       ],
       "alternate": [],
@@ -5891,7 +5893,7 @@
           "path": "src/workspace/edits.rs",
           "line": 3942,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 366
+          "wire_line": 368
         }
       ],
       "alternate": [],
@@ -5947,7 +5949,7 @@
           "path": "src/edit_ops/blank_ops.rs",
           "line": 44,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 491
+          "wire_line": 493
         }
       ],
       "alternate": [],
@@ -6003,7 +6005,7 @@
           "path": "src/edit_ops/blank_ops.rs",
           "line": 94,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 492
+          "wire_line": 494
         }
       ],
       "alternate": [],
@@ -6059,7 +6061,7 @@
           "path": "src/edit_ops/blank_ops.rs",
           "line": 104,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 493
+          "wire_line": 495
         }
       ],
       "alternate": [],
@@ -6115,7 +6117,7 @@
           "path": "src/edit_ops/blank_ops.rs",
           "line": 114,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 494
+          "wire_line": 496
         }
       ],
       "alternate": [],
@@ -6171,7 +6173,7 @@
           "path": "src/edit_ops/blank_ops.rs",
           "line": 129,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 495
+          "wire_line": 497
         }
       ],
       "alternate": [],
@@ -6227,7 +6229,7 @@
           "path": "src/edit_ops/blank_ops.rs",
           "line": 144,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 496
+          "wire_line": 498
         }
       ],
       "alternate": [],
@@ -6283,7 +6285,7 @@
           "path": "src/edit_ops/blank_ops.rs",
           "line": 155,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 497
+          "wire_line": 499
         }
       ],
       "alternate": [],
@@ -6483,7 +6485,7 @@
           "path": "src/edit_ops/on_selection.rs",
           "line": 26,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 498
+          "wire_line": 500
         }
       ],
       "alternate": [],
@@ -6538,7 +6540,7 @@
           "path": "src/edit_ops/on_selection.rs",
           "line": 87,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 500
+          "wire_line": 502
         }
       ],
       "alternate": [],
@@ -6617,7 +6619,7 @@
           "path": "src/edit_ops/on_selection.rs",
           "line": 148,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 502
+          "wire_line": 504
         }
       ],
       "alternate": [],
@@ -7162,7 +7164,7 @@
           "path": "src/edit_ops/readonly.rs",
           "line": 20,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 506
+          "wire_line": 508
         }
       ],
       "alternate": [],
@@ -7278,7 +7280,7 @@
           "path": "src/edit_ops/readonly.rs",
           "line": 38,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 507
+          "wire_line": 509
         }
       ],
       "alternate": [],
@@ -7337,7 +7339,7 @@
           "path": "src/workspace/find.rs",
           "line": 423,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 339
+          "wire_line": 341
         }
       ],
       "alternate": [],
@@ -7367,7 +7369,7 @@
       "studio_action": "SearchFindInFiles",
       "studio_declaration": {
         "path": "src/actions/search.rs",
-        "line": 31
+        "line": 33
       },
       "studio_catalog": {
         "action": "SearchFindInFiles",
@@ -7380,12 +7382,12 @@
         "mac": [
           "cmd-shift-f"
         ],
-        "line": 329
+        "line": 332
       },
       "studio_menu": [
         {
           "path": "src/app/menus/search.rs",
-          "line": 22,
+          "line": 24,
           "menu_path": "Search > Find in Files…",
           "label": "Find in Files…"
         }
@@ -7396,7 +7398,7 @@
           "path": "src/workspace/find_in_files.rs",
           "line": 29,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 401
+          "wire_line": 403
         }
       ],
       "alternate": [],
@@ -7455,9 +7457,9 @@
         {
           "method": "find_next",
           "path": "src/workspace/find.rs",
-          "line": 1015,
+          "line": 1019,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 341
+          "wire_line": 343
         }
       ],
       "alternate": [],
@@ -7516,9 +7518,9 @@
         {
           "method": "find_prev",
           "path": "src/workspace/find.rs",
-          "line": 1026,
+          "line": 1030,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 342
+          "wire_line": 344
         }
       ],
       "alternate": [],
@@ -7695,9 +7697,9 @@
         {
           "method": "toggle_replace_bar",
           "path": "src/workspace/find.rs",
-          "line": 627,
+          "line": 631,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 345
+          "wire_line": 347
         }
       ],
       "alternate": [],
@@ -7870,9 +7872,9 @@
         {
           "method": "open_goto_line",
           "path": "src/workspace/find.rs",
-          "line": 782,
+          "line": 786,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 354
+          "wire_line": 356
         }
       ],
       "alternate": [],
@@ -7900,14 +7902,44 @@
         4434
       ],
       "mapping": "catalog command ID",
-      "studio_action": null,
-      "studio_declaration": null,
-      "studio_catalog": null,
-      "studio_menu": [],
-      "studio_handlers": [],
+      "studio_action": "SearchGoToMatchingBrace",
+      "studio_declaration": {
+        "path": "src/actions/search.rs",
+        "line": 25
+      },
+      "studio_catalog": {
+        "action": "SearchGoToMatchingBrace",
+        "label": "Go to Matching Brace",
+        "npp": "IDM_SEARCH_GOTOMATCHINGBRACE",
+        "context": "W",
+        "windows": [
+          "ctrl-b"
+        ],
+        "mac": [
+          "ctrl-b"
+        ],
+        "line": 330
+      },
+      "studio_menu": [
+        {
+          "path": "src/app/menus/search.rs",
+          "line": 21,
+          "menu_path": "Search > Go to Matching Brace",
+          "label": "Go to Matching Brace"
+        }
+      ],
+      "studio_handlers": [
+        {
+          "method": "go_to_matching_brace",
+          "path": "src/workspace/brace_navigation.rs",
+          "line": 243,
+          "wire_path": "src/workspace/render.rs",
+          "wire_line": 339
+        }
+      ],
       "alternate": [],
-      "status": "missing",
-      "note": "No mapped static main-menu/catalog action found; this does not prove the behavior is absent from every other UI."
+      "status": "routed",
+      "note": "Connected production route; full oracle behavior and native visuals are unverified by this static audit."
     },
     {
       "index": 147,
@@ -7930,14 +7962,44 @@
         4435
       ],
       "mapping": "catalog command ID",
-      "studio_action": null,
-      "studio_declaration": null,
-      "studio_catalog": null,
-      "studio_menu": [],
-      "studio_handlers": [],
+      "studio_action": "SearchSelectInBetween",
+      "studio_declaration": {
+        "path": "src/actions/search.rs",
+        "line": 26
+      },
+      "studio_catalog": {
+        "action": "SearchSelectInBetween",
+        "label": "Select All In-between {} [] or ()",
+        "npp": "IDM_SEARCH_SELECTMATCHINGBRACES",
+        "context": "W",
+        "windows": [
+          "ctrl-alt-b"
+        ],
+        "mac": [
+          "cmd-alt-b"
+        ],
+        "line": 331
+      },
+      "studio_menu": [
+        {
+          "path": "src/app/menus/search.rs",
+          "line": 22,
+          "menu_path": "Search > Select All In-between {} [] or ()",
+          "label": "Select All In-between {} [] or ()"
+        }
+      ],
+      "studio_handlers": [
+        {
+          "method": "select_in_between",
+          "path": "src/workspace/brace_navigation.rs",
+          "line": 247,
+          "wire_path": "src/workspace/render.rs",
+          "wire_line": 340
+        }
+      ],
       "alternate": [],
-      "status": "missing",
-      "note": "No mapped static main-menu/catalog action found; this does not prove the behavior is absent from every other UI."
+      "status": "routed",
+      "note": "Connected production route; full oracle behavior and native visuals are unverified by this static audit."
     },
     {
       "index": 148,
@@ -7962,7 +8024,7 @@
       "studio_action": "SearchMark",
       "studio_declaration": {
         "path": "src/actions/search.rs",
-        "line": 60
+        "line": 62
       },
       "studio_catalog": {
         "action": "SearchMark",
@@ -7975,12 +8037,12 @@
         "mac": [
           "cmd-m"
         ],
-        "line": 331
+        "line": 334
       },
       "studio_menu": [
         {
           "path": "src/app/menus/search.rs",
-          "line": 25,
+          "line": 27,
           "menu_path": "Search > Mark…",
           "label": "Mark…"
         }
@@ -7989,9 +8051,9 @@
         {
           "method": "open_mark",
           "path": "src/workspace/find.rs",
-          "line": 1994,
+          "line": 1998,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 438
+          "wire_line": 440
         }
       ],
       "alternate": [],
@@ -8559,7 +8621,7 @@
       "studio_action": "MarkClearAll",
       "studio_declaration": {
         "path": "src/actions/search.rs",
-        "line": 62
+        "line": 64
       },
       "studio_catalog": {
         "action": "MarkClearAll",
@@ -8568,12 +8630,12 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 333
+        "line": 336
       },
       "studio_menu": [
         {
           "path": "src/app/menus/search.rs",
-          "line": 26,
+          "line": 28,
           "menu_path": "Search > Clear all marks",
           "label": "Clear all marks"
         }
@@ -8582,9 +8644,9 @@
         {
           "method": "mark_clear_all",
           "path": "src/workspace/find.rs",
-          "line": 2193,
+          "line": 2197,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 440
+          "wire_line": 442
         }
       ],
       "alternate": [],
@@ -9155,7 +9217,7 @@
       "studio_action": "MarkCopy",
       "studio_declaration": {
         "path": "src/actions/search.rs",
-        "line": 63
+        "line": 65
       },
       "studio_catalog": {
         "action": "MarkCopy",
@@ -9164,12 +9226,12 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 334
+        "line": 337
       },
       "studio_menu": [
         {
           "path": "src/app/menus/search.rs",
-          "line": 27,
+          "line": 29,
           "menu_path": "Search > Copy Marked Text",
           "label": "Copy Marked Text"
         }
@@ -9178,9 +9240,9 @@
         {
           "method": "mark_copy",
           "path": "src/workspace/find.rs",
-          "line": 2215,
+          "line": 2219,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 441
+          "wire_line": 443
         }
       ],
       "alternate": [],
@@ -9224,7 +9286,7 @@
         "mac": [
           "cmd-f2"
         ],
-        "line": 430
+        "line": 433
       },
       "studio_menu": [
         {
@@ -9240,7 +9302,7 @@
           "path": "src/workspace/movement.rs",
           "line": 536,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 391
+          "wire_line": 393
         }
       ],
       "alternate": [],
@@ -9284,7 +9346,7 @@
         "mac": [
           "f2"
         ],
-        "line": 431
+        "line": 434
       },
       "studio_menu": [
         {
@@ -9300,7 +9362,7 @@
           "path": "src/workspace/movement.rs",
           "line": 551,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 392
+          "wire_line": 394
         }
       ],
       "alternate": [],
@@ -9344,7 +9406,7 @@
         "mac": [
           "shift-f2"
         ],
-        "line": 432
+        "line": 435
       },
       "studio_menu": [
         {
@@ -9360,7 +9422,7 @@
           "path": "src/workspace/movement.rs",
           "line": 578,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 393
+          "wire_line": 395
         }
       ],
       "alternate": [],
@@ -9402,7 +9464,7 @@
         "mac": [
           "cmd-shift-f2"
         ],
-        "line": 433
+        "line": 436
       },
       "studio_menu": [
         {
@@ -9418,7 +9480,7 @@
           "path": "src/workspace/movement.rs",
           "line": 598,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 394
+          "wire_line": 396
         }
       ],
       "alternate": [],
@@ -9458,7 +9520,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 435
+        "line": 438
       },
       "studio_menu": [
         {
@@ -9474,7 +9536,7 @@
           "path": "src/edit_ops/bookmark_edits.rs",
           "line": 162,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 396
+          "wire_line": 398
         }
       ],
       "alternate": [],
@@ -9514,7 +9576,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 434
+        "line": 437
       },
       "studio_menu": [
         {
@@ -9530,7 +9592,7 @@
           "path": "src/edit_ops/bookmark_clipboard.rs",
           "line": 122,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 395
+          "wire_line": 397
         }
       ],
       "alternate": [],
@@ -9570,7 +9632,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 436
+        "line": 439
       },
       "studio_menu": [
         {
@@ -9586,7 +9648,7 @@
           "path": "src/edit_ops/bookmark_edits.rs",
           "line": 163,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 397
+          "wire_line": 399
         }
       ],
       "alternate": [],
@@ -9626,7 +9688,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 437
+        "line": 440
       },
       "studio_menu": [
         {
@@ -9642,7 +9704,7 @@
           "path": "src/edit_ops/bookmark_edits.rs",
           "line": 164,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 398
+          "wire_line": 400
         }
       ],
       "alternate": [],
@@ -9682,7 +9744,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 438
+        "line": 441
       },
       "studio_menu": [
         {
@@ -9698,7 +9760,7 @@
           "path": "src/edit_ops/bookmark_edits.rs",
           "line": 165,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 399
+          "wire_line": 401
         }
       ],
       "alternate": [],
@@ -9738,7 +9800,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 439
+        "line": 442
       },
       "studio_menu": [
         {
@@ -9754,7 +9816,7 @@
           "path": "src/edit_ops/bookmark_edits.rs",
           "line": 166,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 400
+          "wire_line": 402
         }
       ],
       "alternate": [],
@@ -9857,7 +9919,7 @@
         "mac": [
           "f11"
         ],
-        "line": 372
+        "line": 375
       },
       "studio_menu": [
         {
@@ -10090,7 +10152,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 375
+        "line": 378
       },
       "studio_menu": [
         {
@@ -10325,7 +10387,7 @@
           "cmd-=",
           "cmd-+"
         ],
-        "line": 369
+        "line": 372
       },
       "studio_menu": [
         {
@@ -10341,14 +10403,14 @@
           "path": "src/ui/preferences/mod.rs",
           "line": 993,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 388
+          "wire_line": 390
         },
         {
           "method": "zoom_in",
           "path": "src/workspace/mod.rs",
-          "line": 1444,
+          "line": 1448,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 388
+          "wire_line": 390
         }
       ],
       "alternate": [],
@@ -10392,7 +10454,7 @@
         "mac": [
           "cmd--"
         ],
-        "line": 370
+        "line": 373
       },
       "studio_menu": [
         {
@@ -10408,14 +10470,14 @@
           "path": "src/ui/preferences/mod.rs",
           "line": 997,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 389
+          "wire_line": 391
         },
         {
           "method": "zoom_out",
           "path": "src/workspace/mod.rs",
-          "line": 1453,
+          "line": 1457,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 389
+          "wire_line": 391
         }
       ],
       "alternate": [],
@@ -10459,7 +10521,7 @@
         "mac": [
           "cmd-0"
         ],
-        "line": 371
+        "line": 374
       },
       "studio_menu": [
         {
@@ -10475,14 +10537,14 @@
           "path": "src/ui/preferences/mod.rs",
           "line": 1001,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 390
+          "wire_line": 392
         },
         {
           "method": "zoom_reset",
           "path": "src/workspace/mod.rs",
-          "line": 1462,
+          "line": 1466,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 390
+          "wire_line": 392
         }
       ],
       "alternate": [],
@@ -10681,7 +10743,7 @@
         "mac": [
           "cmd-1"
         ],
-        "line": 342
+        "line": 345
       },
       "studio_menu": [
         {
@@ -10741,7 +10803,7 @@
         "mac": [
           "cmd-2"
         ],
-        "line": 343
+        "line": 346
       },
       "studio_menu": [
         {
@@ -10801,7 +10863,7 @@
         "mac": [
           "cmd-3"
         ],
-        "line": 344
+        "line": 347
       },
       "studio_menu": [
         {
@@ -10861,7 +10923,7 @@
         "mac": [
           "cmd-4"
         ],
-        "line": 345
+        "line": 348
       },
       "studio_menu": [
         {
@@ -10921,7 +10983,7 @@
         "mac": [
           "cmd-5"
         ],
-        "line": 346
+        "line": 349
       },
       "studio_menu": [
         {
@@ -10981,7 +11043,7 @@
         "mac": [
           "cmd-6"
         ],
-        "line": 347
+        "line": 350
       },
       "studio_menu": [
         {
@@ -11041,7 +11103,7 @@
         "mac": [
           "cmd-7"
         ],
-        "line": 348
+        "line": 351
       },
       "studio_menu": [
         {
@@ -11101,7 +11163,7 @@
         "mac": [
           "cmd-8"
         ],
-        "line": 349
+        "line": 352
       },
       "studio_menu": [
         {
@@ -11161,7 +11223,7 @@
         "mac": [
           "cmd-9"
         ],
-        "line": 350
+        "line": 353
       },
       "studio_menu": [
         {
@@ -11216,7 +11278,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 352
+        "line": 355
       },
       "studio_menu": [
         {
@@ -11271,7 +11333,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 353
+        "line": 356
       },
       "studio_menu": [
         {
@@ -11331,7 +11393,7 @@
         "mac": [
           "ctrl-pagedown"
         ],
-        "line": 340
+        "line": 343
       },
       "studio_menu": [
         {
@@ -11391,7 +11453,7 @@
         "mac": [
           "ctrl-pageup"
         ],
-        "line": 341
+        "line": 344
       },
       "studio_menu": [
         {
@@ -11447,7 +11509,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 354
+        "line": 357
       },
       "studio_menu": [
         {
@@ -11503,7 +11565,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 355
+        "line": 358
       },
       "studio_menu": [
         {
@@ -11563,7 +11625,7 @@
         "mac": [
           "cmd-shift-pagedown"
         ],
-        "line": 356
+        "line": 359
       },
       "studio_menu": [
         {
@@ -11623,7 +11685,7 @@
         "mac": [
           "cmd-shift-pageup"
         ],
-        "line": 357
+        "line": 360
       },
       "studio_menu": [
         {
@@ -11678,7 +11740,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 358
+        "line": 361
       },
       "studio_menu": [
         {
@@ -11733,7 +11795,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 359
+        "line": 362
       },
       "studio_menu": [
         {
@@ -11788,7 +11850,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 360
+        "line": 363
       },
       "studio_menu": [
         {
@@ -11843,7 +11905,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 361
+        "line": 364
       },
       "studio_menu": [
         {
@@ -11898,7 +11960,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 362
+        "line": 365
       },
       "studio_menu": [
         {
@@ -11953,7 +12015,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 363
+        "line": 366
       },
       "studio_menu": [
         {
@@ -12009,7 +12071,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 374
+        "line": 377
       },
       "studio_menu": [
         {
@@ -12838,7 +12900,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 376
+        "line": 379
       },
       "studio_menu": [
         {
@@ -13129,7 +13191,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 386
+        "line": 389
       },
       "studio_menu": [
         {
@@ -13145,7 +13207,7 @@
           "path": "src/workspace/format.rs",
           "line": 121,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 375
+          "wire_line": 377
         }
       ],
       "alternate": [],
@@ -13185,7 +13247,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 382
+        "line": 385
       },
       "studio_menu": [
         {
@@ -13201,7 +13263,7 @@
           "path": "src/workspace/format.rs",
           "line": 85,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 371
+          "wire_line": 373
         }
       ],
       "alternate": [],
@@ -13241,7 +13303,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 383
+        "line": 386
       },
       "studio_menu": [
         {
@@ -13257,7 +13319,7 @@
           "path": "src/workspace/format.rs",
           "line": 94,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 372
+          "wire_line": 374
         }
       ],
       "alternate": [],
@@ -13297,7 +13359,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 385
+        "line": 388
       },
       "studio_menu": [
         {
@@ -13313,7 +13375,7 @@
           "path": "src/workspace/format.rs",
           "line": 112,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 374
+          "wire_line": 376
         }
       ],
       "alternate": [],
@@ -13353,7 +13415,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 384
+        "line": 387
       },
       "studio_menu": [
         {
@@ -13369,7 +13431,7 @@
           "path": "src/workspace/format.rs",
           "line": 103,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 373
+          "wire_line": 375
         }
       ],
       "alternate": [],
@@ -14880,7 +14942,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 389
+        "line": 392
       },
       "studio_menu": [
         {
@@ -15159,7 +15221,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 390
+        "line": 393
       },
       "studio_menu": [
         {
@@ -15208,7 +15270,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 391
+        "line": 394
       },
       "studio_menu": [
         {
@@ -15257,7 +15319,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 392
+        "line": 395
       },
       "studio_menu": [
         {
@@ -15421,7 +15483,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 393
+        "line": 396
       },
       "studio_menu": [
         {
@@ -15723,7 +15785,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 394
+        "line": 397
       },
       "studio_menu": [
         {
@@ -15841,7 +15903,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 395
+        "line": 398
       },
       "studio_menu": [
         {
@@ -15959,7 +16021,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 396
+        "line": 399
       },
       "studio_menu": [
         {
@@ -16008,7 +16070,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 397
+        "line": 400
       },
       "studio_menu": [
         {
@@ -16057,7 +16119,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 398
+        "line": 401
       },
       "studio_menu": [
         {
@@ -16221,7 +16283,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 399
+        "line": 402
       },
       "studio_menu": [
         {
@@ -16546,7 +16608,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 401
+        "line": 404
       },
       "studio_menu": [
         {
@@ -16618,7 +16680,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 402
+        "line": 405
       },
       "studio_menu": [
         {
@@ -16713,7 +16775,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 403
+        "line": 406
       },
       "studio_menu": [
         {
@@ -16877,7 +16939,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 404
+        "line": 407
       },
       "studio_menu": [
         {
@@ -16926,7 +16988,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 405
+        "line": 408
       },
       "studio_menu": [
         {
@@ -16998,7 +17060,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 407
+        "line": 410
       },
       "studio_menu": [
         {
@@ -17116,7 +17178,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 408
+        "line": 411
       },
       "studio_menu": [
         {
@@ -17188,7 +17250,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 409
+        "line": 412
       },
       "studio_menu": [
         {
@@ -17329,7 +17391,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 410
+        "line": 413
       },
       "studio_menu": [
         {
@@ -17401,7 +17463,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 412
+        "line": 415
       },
       "studio_menu": [
         {
@@ -17542,7 +17604,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 413
+        "line": 416
       },
       "studio_menu": [
         {
@@ -17591,7 +17653,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 414
+        "line": 417
       },
       "studio_menu": [
         {
@@ -17750,7 +17812,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 389
+        "line": 392
       },
       "studio_menu": [
         {
@@ -18029,7 +18091,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 390
+        "line": 393
       },
       "studio_menu": [
         {
@@ -18078,7 +18140,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 391
+        "line": 394
       },
       "studio_menu": [
         {
@@ -18127,7 +18189,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 392
+        "line": 395
       },
       "studio_menu": [
         {
@@ -18291,7 +18353,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 393
+        "line": 396
       },
       "studio_menu": [
         {
@@ -18593,7 +18655,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 394
+        "line": 397
       },
       "studio_menu": [
         {
@@ -18711,7 +18773,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 395
+        "line": 398
       },
       "studio_menu": [
         {
@@ -18829,7 +18891,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 396
+        "line": 399
       },
       "studio_menu": [
         {
@@ -18878,7 +18940,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 397
+        "line": 400
       },
       "studio_menu": [
         {
@@ -18927,7 +18989,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 398
+        "line": 401
       },
       "studio_menu": [
         {
@@ -19091,7 +19153,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 399
+        "line": 402
       },
       "studio_menu": [
         {
@@ -19416,7 +19478,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 401
+        "line": 404
       },
       "studio_menu": [
         {
@@ -19488,7 +19550,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 402
+        "line": 405
       },
       "studio_menu": [
         {
@@ -19583,7 +19645,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 403
+        "line": 406
       },
       "studio_menu": [
         {
@@ -19747,7 +19809,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 404
+        "line": 407
       },
       "studio_menu": [
         {
@@ -19796,7 +19858,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 405
+        "line": 408
       },
       "studio_menu": [
         {
@@ -19868,7 +19930,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 407
+        "line": 410
       },
       "studio_menu": [
         {
@@ -19986,7 +20048,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 408
+        "line": 411
       },
       "studio_menu": [
         {
@@ -20058,7 +20120,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 409
+        "line": 412
       },
       "studio_menu": [
         {
@@ -20199,7 +20261,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 410
+        "line": 413
       },
       "studio_menu": [
         {
@@ -20271,7 +20333,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 412
+        "line": 415
       },
       "studio_menu": [
         {
@@ -20412,7 +20474,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 413
+        "line": 416
       },
       "studio_menu": [
         {
@@ -20461,7 +20523,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 414
+        "line": 417
       },
       "studio_menu": [
         {
@@ -20628,7 +20690,7 @@
         "mac": [
           "cmd-,"
         ],
-        "line": 445
+        "line": 448
       },
       "studio_menu": [
         {
@@ -20685,7 +20747,7 @@
         "mac": [
           "cmd-shift-,"
         ],
-        "line": 446
+        "line": 449
       },
       "studio_menu": [
         {
@@ -20740,7 +20802,7 @@
         "context": "GLOBAL",
         "windows": [],
         "mac": [],
-        "line": 448
+        "line": 451
       },
       "studio_menu": [
         {
@@ -21160,9 +21222,9 @@
         {
           "method": "macro_start_recording",
           "path": "src/workspace/macros.rs",
-          "line": 348,
+          "line": 350,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 516
+          "wire_line": 518
         }
       ],
       "alternate": [],
@@ -21200,9 +21262,9 @@
         {
           "method": "macro_stop_recording",
           "path": "src/workspace/macros.rs",
-          "line": 365,
+          "line": 367,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 517
+          "wire_line": 519
         }
       ],
       "alternate": [],
@@ -21245,7 +21307,7 @@
         "mac": [
           "cmd-shift-p"
         ],
-        "line": 418
+        "line": 421
       },
       "studio_menu": [
         {
@@ -21259,9 +21321,9 @@
         {
           "method": "macro_playback",
           "path": "src/workspace/macros.rs",
-          "line": 381,
+          "line": 383,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 518
+          "wire_line": 520
         }
       ],
       "alternate": [],
@@ -21300,7 +21362,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 420
+        "line": 423
       },
       "studio_menu": [
         {
@@ -21314,9 +21376,9 @@
         {
           "method": "macro_save_current",
           "path": "src/workspace/macros.rs",
-          "line": 414,
+          "line": 416,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 520
+          "wire_line": 522
         }
       ],
       "alternate": [],
@@ -21357,7 +21419,7 @@
         "mac": [
           "cmd-shift-m"
         ],
-        "line": 419
+        "line": 422
       },
       "studio_menu": [
         {
@@ -21371,9 +21433,9 @@
         {
           "method": "macro_run_multiple_times",
           "path": "src/workspace/macros.rs",
-          "line": 399,
+          "line": 401,
           "wire_path": "src/workspace/render.rs",
-          "wire_line": 519
+          "wire_line": 521
         }
       ],
       "alternate": [],
@@ -21416,7 +21478,7 @@
         "mac": [
           "f5"
         ],
-        "line": 423
+        "line": 426
       },
       "studio_menu": [
         {
@@ -21471,7 +21533,7 @@
         "context": "W",
         "windows": [],
         "mac": [],
-        "line": 424
+        "line": 427
       },
       "studio_menu": [
         {
@@ -21520,7 +21582,7 @@
         "context": "GLOBAL",
         "windows": [],
         "mac": [],
-        "line": 427
+        "line": 430
       },
       "studio_menu": [
         {
@@ -22143,7 +22205,7 @@
           "f1"
         ],
         "mac": [],
-        "line": 450
+        "line": 453
       },
       "studio_menu": [
         {

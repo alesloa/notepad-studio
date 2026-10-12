@@ -135,8 +135,8 @@ pub(crate) fn read(request: Request) -> Result<Buffer, Error> {
         if !crate::syntax::should_skip_syntax(buffer.rope.len_bytes() as u64, &request.settings) {
             progress.check()?;
             let source = buffer.rope.to_string();
-            buffer.highlights = crate::syntax::highlight_cancellable(language, &source, Some(&progress.parser_cancel))
-                .map_err(|e| Error::Failed(e.to_string()))?;
+            buffer.highlights = Arc::new(crate::syntax::highlight_cancellable(language, &source, Some(&progress.parser_cancel))
+                .map_err(|e| Error::Failed(e.to_string()))?);
         }
     }
     // The original handle must still identify the same length/mtime after every parser finishes.

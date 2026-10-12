@@ -6,7 +6,7 @@ pub(super) fn snapshot(buffer: &Buffer) -> Buffer {
     Buffer { rope: buffer.rope.clone(), file_path: None, dirty: buffer.dirty,
         raw_revision: buffer.raw_revision.clone(), savepoint: buffer.savepoint.clone(),
         line_ending: buffer.line_ending, encoding: buffer.encoding, bookmarks: Default::default(),
-        marks: Vec::new(), language: None, highlights: Vec::new(), loading: None,
+        marks: Vec::new(), language: None, highlights: std::sync::Arc::new(Vec::new()), loading: None,
         new_label: None, read_only: buffer.read_only, tab_color: None,
         is_changelog: false, rich_doc: None, flat_text_cache: None }
 }

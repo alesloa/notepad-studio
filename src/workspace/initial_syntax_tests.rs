@@ -51,7 +51,7 @@ fn initial_syntax_reopen_defers_actual_handler_and_preserves_snapshot() {
             tab.buffer.encoding = Encoding::Utf16Le;
             tab.buffer.line_ending = LineEnding::Crlf;
             tab.buffer.mark_saved();
-            tab.buffer.highlights = crate::syntax::highlight(LanguageId::Rust, &tab.buffer.rope.to_string());
+            tab.buffer.highlights = std::sync::Arc::new(crate::syntax::highlight(LanguageId::Rust, &tab.buffer.rope.to_string()));
             assert!(!tab.buffer.highlights.is_empty());
             let uuid = tab.session_id;
             let source = tab.buffer.rope.clone();
@@ -131,7 +131,7 @@ fn initial_syntax_running_result_rejects_same_uuid_reopened_incarnation() {
             let rope = old.buffer.rope.clone();
             let revision = old.buffer.raw_revision.clone();
             let mut reopened = Tab::from_closed(ClosedTab { buffer: old.buffer, session_id: uuid });
-            reopened.buffer.highlights.clear();
+            reopened.buffer.highlights = Default::default();
             assert!(reopened.buffer.rope.is_instance(&rope));
             assert_eq!(reopened.buffer.raw_revision, revision);
             w.tabs.insert(0, reopened);

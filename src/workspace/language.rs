@@ -1,6 +1,6 @@
 // PowerEditor/src/NppCommands.cpp:4008-4017 — selecting a buffer's language.
 
-use gpui::{Context, Window};
+use gpui::{AppContext, Context, Window};
 
 use crate::actions::*;
 use crate::buffer::Buffer;
@@ -15,7 +15,7 @@ fn select_language(buffer: &mut Buffer, language: Option<LanguageId>) -> Result<
         return Ok(false);
     }
     buffer.language = language;
-    buffer.highlights.clear();
+    buffer.highlights = Default::default();
     Ok(true)
 }
 
@@ -27,11 +27,11 @@ fn parse_language(rope: &ropey::Rope, language: LanguageId, settings: &crate::se
     crate::syntax::highlight(language, &rope.to_string())
 }
 
-pub(super) fn install_highlights(buffer: &mut Buffer, language: LanguageId, source: &ropey::Rope, highlights: Vec<HighlightSpan>) -> Result<Vec<HighlightSpan>, Vec<HighlightSpan>> {
+pub(super) fn install_highlights(buffer: &mut Buffer, language: LanguageId, source: &ropey::Rope, highlights: Vec<HighlightSpan>) -> Result<std::sync::Arc<Vec<HighlightSpan>>, Vec<HighlightSpan>> {
     if buffer.loading.is_some() || buffer.language != Some(language) || !buffer.rope.is_instance(source) {
         return Err(highlights);
     }
-    Ok(std::mem::replace(&mut buffer.highlights, highlights))
+    Ok(std::mem::replace(&mut buffer.highlights, std::sync::Arc::new(highlights)))
 }
 
 macro_rules! language_handlers {
@@ -75,6 +75,10 @@ language_handlers! {
 
 impl Workspace {
     fn set_language(&mut self, language: Option<LanguageId>, cx: &mut Context<Self>) {
+        if let Some(tab) = self.tabs.get_mut(self.active).filter(|tab| tab.buffer.loading.is_none() && tab.buffer.language != language) {
+            let retired = std::mem::take(&mut tab.buffer.highlights);
+            cx.background_spawn(async move { drop(retired); }).detach();
+        }
         match select_language(&mut self.active_tab_mut().buffer, language) {
             Ok(false) => {
                 // Reselecting the current language retries a bounded-queue refusal.
@@ -124,7 +128,7 @@ mod tests {
             buffer.marks.push(0..1);
             assert!(select_language(&mut buffer, Some(LanguageId::Python)).unwrap());
             let settings = crate::settings::Settings::default();
-            buffer.highlights = parse_language(&buffer.rope, LanguageId::Python, &settings);
+            buffer.highlights = std::sync::Arc::new(parse_language(&buffer.rope, LanguageId::Python, &settings));
             assert!(!buffer.highlights.is_empty());
             assert_eq!(buffer.language, Some(LanguageId::Python));
             assert!(!buffer.dirty);
@@ -149,7 +153,7 @@ mod tests {
     fn loading_buffers_keep_their_detected_language_and_highlights() {
         let mut buffer = Buffer::empty();
         buffer.language = Some(LanguageId::Rust);
-        buffer.highlights = vec![HighlightSpan { range: 0..2, kind: crate::syntax::HighlightKind::Keyword }];
+        buffer.highlights = std::sync::Arc::new(vec![HighlightSpan { range: 0..2, kind: crate::syntax::HighlightKind::Keyword }]);
         buffer.loading = Some(crate::buffer::LoadProgress {
             bytes_read: 0,
             total_bytes: 100,

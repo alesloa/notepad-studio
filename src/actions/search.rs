@@ -22,6 +22,8 @@ gpui::actions!(
         EditReplaceAll,
         EditReplaceAllOpened,
         EditGotoLine,
+        SearchGoToMatchingBrace,
+        SearchSelectInBetween,
         EditFindToggleCase,
         EditFindToggleWord,
         EditFindToggleRegex,

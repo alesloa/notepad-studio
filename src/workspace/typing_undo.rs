@@ -1,4 +1,4 @@
-// scintilla/src/UndoHistory.cxx:253-350,565-622 — adjacent insertion actions,
+// scintilla/src/UndoHistory.cxx:253-350,565-622 — insertion/removal actions,
 // savepoint/explicit-group boundaries, and eligibility retained by Undo/Redo.
 use crate::buffer::{ContentRevision, EditOp, UndoEntry};
 use crate::tab::Tab;
@@ -21,15 +21,23 @@ pub(crate) struct State {
 struct Run {
     entry: EntryStamp,
     after: ContentRevision,
-    next_byte: usize,
+    byte: usize,
+    kind: Kind,
 }
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum Kind { Insert, Remove }
 
 impl State {
     pub(crate) fn seal(&mut self) { self.run = None; }
 
-    fn adjacent(&self, tab: &Tab, byte: usize) -> bool {
+    fn adjacent(&self, tab: &Tab, byte: usize, length: usize, kind: Kind) -> bool {
         self.run.as_ref().is_some_and(|run| {
-            run.next_byte == byte && run.after == tab.buffer.raw_revision
+            run.kind == kind && match kind {
+                Kind::Insert => run.byte == byte,
+                Kind::Remove => matches!(length, 1 | 2)
+                    && (run.byte == byte || byte.checked_add(length) == Some(run.byte)),
+            } && run.after == tab.buffer.raw_revision
                 && !tab.buffer.at_raw_savepoint()
                 && tab.undo_stack.last().is_some_and(|entry| run.entry.matches(entry))
         })
@@ -133,6 +141,14 @@ pub(super) fn prepare_text(
 }
 
 pub(super) fn prepare(tab: &mut Tab, byte: usize, coalesce: bool) -> Result<Plan, &'static str> {
+    prepare_kind(tab, byte, 0, Kind::Insert, coalesce)
+}
+
+pub(super) fn prepare_removal(tab: &mut Tab, byte: usize, length: usize, coalesce: bool) -> Result<Plan, &'static str> {
+    prepare_kind(tab, byte, length, Kind::Remove, coalesce)
+}
+
+fn prepare_kind(tab: &mut Tab, byte: usize, length: usize, kind: Kind, coalesce: bool) -> Result<Plan, &'static str> {
     #[cfg(test)]
     let fail_history = std::mem::take(&mut tab.typing_undo.fail_history_reserve);
     #[cfg(not(test))]
@@ -141,7 +157,7 @@ pub(super) fn prepare(tab: &mut Tab, byte: usize, coalesce: bool) -> Result<Plan
         if fail_history || transaction.ops.try_reserve(1).is_err() { return Err("Cannot reserve typing Undo history; no changes applied"); }
         return Ok(Plan::Transaction);
     }
-    if coalesce && tab.typing_undo.adjacent(tab, byte) {
+    if coalesce && tab.typing_undo.adjacent(tab, byte, length, kind) {
         #[cfg(test)]
         let fail_group = std::mem::take(&mut tab.typing_undo.fail_group_reserve);
         #[cfg(not(test))]
@@ -164,10 +180,23 @@ pub(super) fn prepare(tab: &mut Tab, byte: usize, coalesce: bool) -> Result<Plan
 }
 
 pub(super) fn commit(tab: &mut Tab, plan: Plan, op: EditOp, coalesce: bool) {
+    commit_kind(tab, plan, op, coalesce, Kind::Insert);
+}
+
+pub(super) fn commit_removal(tab: &mut Tab, plan: Plan, op: EditOp, coalesce: bool) {
+    commit_kind(tab, plan, op, coalesce, Kind::Remove);
+}
+
+fn commit_kind(tab: &mut Tab, plan: Plan, op: EditOp, coalesce: bool, kind: Kind) {
     let after = op.after_revision.clone();
-    let next_byte = op.byte_start.checked_add(op.inserted.len());
-    let eligible = coalesce && op.removed.is_empty() && !op.inserted.is_empty()
-        && op.before_revision != op.after_revision;
+    let byte = match kind {
+        Kind::Insert => op.byte_start.checked_add(op.inserted.len()),
+        Kind::Remove => Some(op.byte_start),
+    };
+    let eligible = coalesce && op.before_revision != op.after_revision && match kind {
+        Kind::Insert => op.removed.is_empty() && !op.inserted.is_empty(),
+        Kind::Remove => op.inserted.is_empty() && !op.removed.is_empty(),
+    };
     match plan {
         Plan::Separate => tab.undo_stack.push(UndoEntry::Single(op)),
         Plan::Transaction => {
@@ -194,8 +223,8 @@ pub(super) fn commit(tab: &mut Tab, plan: Plan, op: EditOp, coalesce: bool) {
     }
     tab.redo_stack.clear();
     tab.typing_undo.run = if eligible && tab.edit_transaction.is_none() {
-        next_byte.and_then(|next_byte| tab.undo_stack.last().map(|entry| Run {
-            entry: EntryStamp::capture(entry), after, next_byte,
+        byte.and_then(|byte| tab.undo_stack.last().map(|entry| Run {
+            entry: EntryStamp::capture(entry), after, byte, kind,
         }))
     } else { None };
 }

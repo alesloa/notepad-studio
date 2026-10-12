@@ -14,7 +14,7 @@
 use gpui::{Context, Window};
 
 use crate::actions::{
-    EditBackspace, EditBlockComment, EditCopy, EditCut, EditDelete, EditDeleteLine,
+    EditBlockComment, EditCopy, EditCut, EditDeleteLine,
     EditDeleteLineLeft, EditDeleteLineRight, EditDeleteWordLeft, EditDeleteWordRight,
     EditDuplicateLine, EditInsertBlankLineAbove, EditInsertBlankLineBelow,
     EditInsertDateTimeCustomized, EditInsertDateTimeLong, EditInsertDateTimeShort,
@@ -176,11 +176,11 @@ impl Workspace {
             }
             MacroEvent::Backspace => {
                 if self.has_block_selection() { return self.block_delete(true, cx); }
-                self.backspace(&EditBackspace, window, cx);
+                return self.run_backspace(window, cx);
             },
             MacroEvent::Delete => {
                 if self.has_block_selection() { return self.block_delete(false, cx); }
-                self.delete(&EditDelete, window, cx);
+                return self.run_delete(window, cx);
             },
             MacroEvent::InsertNewline => self.insert_newline(&EditInsertNewline, window, cx),
             MacroEvent::InsertTab => self.insert_tab(&EditInsertTab, window, cx),

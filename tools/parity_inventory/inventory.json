@@ -1,5 +1,5 @@
 {
-  "studio_source_sha256": "e9328ac02a9aff05b8e7bd515c8a8874e9ec1d1cd4a4e68548e533ce979f94c2",
+  "studio_source_sha256": "c396575e9168704bacf008f97f2b56705527662e118212a4cd1d70fe4d90d80a",
   "studio_sources": {
     "src/actions/bookmarks.rs": "eeaf95badc144e0fa7f8c2445495e706f1209291c1285ddd3578fef0c84eb5fc",
     "src/actions/edit.rs": "90200c45bc846149a2a05b8ce0b1ab98118b185094686abacccc0ddc882969b4",
@@ -299,9 +299,9 @@
     "src/workspace/column_plan.rs": "7d766f2f489f624228a6461eed027f641623b7659da4c60141e5fd0772084a4f",
     "src/workspace/completion_api.rs": "95bc8727ff8d2e8557597bf10a5ea62e6ff064e65ba9495f573d5b55a19b69db",
     "src/workspace/completion_macro.rs": "b75aedfd58b6dbbbbd4f96bf1d27d59406d04e527beead4b8371fb11132b1e52",
-    "src/workspace/cursor.rs": "0aea860cc62672a59051b015b74d5a16f5cd7147aa406a8371614700001ec9cb",
+    "src/workspace/cursor.rs": "d17a73780655b74ab1aa2f0e199bdd2324d0373af6f4f829580a5a47b2784792",
     "src/workspace/directory_operations.rs": "e99b779cb52f093598a39d612a274e7808ed522fc74c1a907de7aa1574f04024",
-    "src/workspace/edits.rs": "73fdcdd9017190b30146c98733d2db6763704296e3c897a05c89ea1247203700",
+    "src/workspace/edits.rs": "4d62b4e727a7ca4408ea80b0a40e3a8457d7c0ad12ec0bd373d55aab15c493aa",
     "src/workspace/file_move.rs": "4b2b28d4a2b831b6e59f56b105a0ad3d8ec32a933c066d8d1e17d42155673e49",
     "src/workspace/file_routes.rs": "8c03274c60637d4b81b9298b04c84fac7abd15e3c6174f0044f38bbdcd2781dc",
     "src/workspace/file_tab_actions.rs": "da125d264a4d080a47a81ac213db73c5199eae9e5fd7ae42d9ecca458b0a108f",
@@ -323,11 +323,11 @@
     "src/workspace/ime.rs": "761420f3a3a2a82a86609f909df4809d44372b2e61d4d68855146db100fa088b",
     "src/workspace/input_handler.rs": "ec7c5303c7aa36501ed452c4b10c27990928d17b00f25691a3e59664465930d3",
     "src/workspace/language.rs": "d2de7352c993a234b32d8df2b93741c6319ccada93f9fc4f37ded2998bd223b0",
-    "src/workspace/macros.rs": "a8ff899faed8fbaa4c18506d9541ae0c08508cca605eb7006c9509a4d1037136",
+    "src/workspace/macros.rs": "4322d0916e5fb585b8f9f2dbf9ac3fa4e4390947547ba30a5b20d10b06b90dcd",
     "src/workspace/markdown_format.rs": "1e8c6fa671dfb4f0304f9c885628d0ce8c537f0cdaf5d9d044bb3929694201f0",
     "src/workspace/menu_bar.rs": "eb33b9884b6e0574c700fa5c6a7460139c23bc09dfb4c5dff3ea4cfd936b8795",
     "src/workspace/menu_state.rs": "c08c5730ca88b4773ff7e69c8375574d6b9946653ff0b8eb9c4245dec4707989",
-    "src/workspace/mod.rs": "df4df62759e84ceace00999a567a6ffe619d2e6ad116b8f8a9869ae8b31758e4",
+    "src/workspace/mod.rs": "81958202037e60b5f3f7fe548cd0bb314c7407f846ece244ecaf9717c5f6feb1",
     "src/workspace/mouse.rs": "d33004f7e533a7290340fdcd47b18bbbb0f30c0650d05ff77cc5d671f65a32ad",
     "src/workspace/movement.rs": "842121092e1c8537d4a9eb47c890fea8fcd08ce6eb427e5d067e89c5d544af9e",
     "src/workspace/open_existing.rs": "2f0688288f495fb8717aa9e7338e47be14c405af2e33491a70a7f2e57b06ccbd",
@@ -354,7 +354,7 @@
     "src/workspace/tabs.rs": "aada21f0dae0586893d551d5b81a06b86d1a264642bbb68d10854cd84ce84ef4",
     "src/workspace/tag_match.rs": "d4f3e48f7bd8c6c2af89328b9c5d2641bd8795783da271f688b501b5c668a4e8",
     "src/workspace/trash.rs": "34cc0529369b1df9a9d9e3761f0665d98d0274d8035dcce6f23edf8425948ded",
-    "src/workspace/typing_undo.rs": "2fd9f656f5846b7f9947c853d492448d5e725b738d57d745aafde8aedd321bb3"
+    "src/workspace/typing_undo.rs": "5ba7e497ea8330976545e86b07c34c5037650750de8209c2609c509084ff8845"
   },
   "oracle_sources": {
     "Notepad_plus.rc": "cb930d135a47c2f8da40ddfab8cacc9d399621dc7927f4fab29fe031d6c139e9",
@@ -2343,7 +2343,7 @@
         {
           "method": "delete",
           "path": "src/workspace/edits.rs",
-          "line": 581,
+          "line": 595,
           "wire_path": "src/workspace/render.rs",
           "wire_line": 248
         }
@@ -3148,7 +3148,7 @@
         {
           "method": "uppercase_selection",
           "path": "src/workspace/edits.rs",
-          "line": 3531,
+          "line": 3559,
           "wire_path": "src/workspace/render.rs",
           "wire_line": 364
         }
@@ -3208,7 +3208,7 @@
         {
           "method": "lowercase_selection",
           "path": "src/workspace/edits.rs",
-          "line": 3550,
+          "line": 3578,
           "wire_path": "src/workspace/render.rs",
           "wire_line": 365
         }
@@ -3904,7 +3904,7 @@
         {
           "method": "move_line_up",
           "path": "src/workspace/edits.rs",
-          "line": 3379,
+          "line": 3407,
           "wire_path": "src/workspace/render.rs",
           "wire_line": 361
         }
@@ -3964,7 +3964,7 @@
         {
           "method": "move_line_down",
           "path": "src/workspace/edits.rs",
-          "line": 3392,
+          "line": 3420,
           "wire_path": "src/workspace/render.rs",
           "wire_line": 362
         }
@@ -4142,7 +4142,7 @@
         {
           "method": "insert_blank_line_above",
           "path": "src/workspace/edits.rs",
-          "line": 3954,
+          "line": 3982,
           "wire_path": "src/workspace/render.rs",
           "wire_line": 379
         }
@@ -4208,7 +4208,7 @@
         {
           "method": "insert_blank_line_below",
           "path": "src/workspace/edits.rs",
-          "line": 3976,
+          "line": 4004,
           "wire_path": "src/workspace/render.rs",
           "wire_line": 380
         }
@@ -5164,7 +5164,7 @@
         {
           "method": "block_comment",
           "path": "src/workspace/edits.rs",
-          "line": 3614,
+          "line": 3642,
           "wire_path": "src/workspace/render.rs",
           "wire_line": 366
         }
@@ -5344,7 +5344,7 @@
         {
           "method": "stream_comment",
           "path": "src/workspace/edits.rs",
-          "line": 3868,
+          "line": 3896,
           "wire_path": "src/workspace/render.rs",
           "wire_line": 367
         }
@@ -5947,7 +5947,7 @@
         {
           "method": "trim_trailing_ws",
           "path": "src/workspace/edits.rs",
-          "line": 3944,
+          "line": 3972,
           "wire_path": "src/workspace/render.rs",
           "wire_line": 368
         }
@@ -9989,7 +9989,7 @@
         {
           "method": "toggle_full_screen",
           "path": "src/workspace/edits.rs",
-          "line": 1136,
+          "line": 1164,
           "wire_path": "src/workspace/render.rs",
           "wire_line": 213
         }
@@ -10222,7 +10222,7 @@
         {
           "method": "toggle_show_whitespace",
           "path": "src/workspace/edits.rs",
-          "line": 1148,
+          "line": 1176,
           "wire_path": "src/workspace/render.rs",
           "wire_line": 214
         }
@@ -12141,7 +12141,7 @@
         {
           "method": "toggle_word_wrap",
           "path": "src/workspace/edits.rs",
-          "line": 3168,
+          "line": 3196,
           "wire_path": "src/workspace/render.rs",
           "wire_line": 215
         }
@@ -12970,7 +12970,7 @@
         {
           "method": "toggle_folder_panel",
           "path": "src/workspace/edits.rs",
-          "line": 3157,
+          "line": 3185,
           "wire_path": "src/workspace/render.rs",
           "wire_line": 300
         }

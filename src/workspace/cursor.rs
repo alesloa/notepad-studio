@@ -205,6 +205,18 @@ impl Workspace {
     pub(crate) fn replace_input_text(
         &mut self, byte_range: Range<usize>, new_text: &str, coalesce: bool, cx: &mut Context<Self>,
     ) -> bool {
+        self.replace_history_text(byte_range, new_text, coalesce, false, cx)
+    }
+
+    pub(super) fn replace_deletion(
+        &mut self, byte_range: Range<usize>, coalesce: bool, cx: &mut Context<Self>,
+    ) -> bool {
+        self.replace_history_text(byte_range, "", coalesce, true, cx)
+    }
+
+    fn replace_history_text(
+        &mut self, byte_range: Range<usize>, new_text: &str, coalesce: bool, removal: bool, cx: &mut Context<Self>,
+    ) -> bool {
         if self.buffer().read_only {
             self.set_status("Buffer is read-only"); cx.notify(); return false;
         }
@@ -216,18 +228,22 @@ impl Workspace {
             self.set_status("Typing exceeds the document size limit; no changes applied");
             cx.notify(); return false;
         }
-        let coalesce = coalesce && range.is_empty() && !new_text.is_empty() && !self.bulk_edit
+        let coalesce = coalesce && (if removal { !range.is_empty() && new_text.is_empty() }
+            else { range.is_empty() && !new_text.is_empty() }) && !self.bulk_edit
             && self.tabs.get(self.active).is_some_and(|tab| tab.view_mode == crate::tab::TabViewMode::Edit);
         let (removed, inserted) = match super::typing_undo::prepare_text(self.active_tab_mut(), &range, new_text) {
             Ok(text) => text,
             Err(message) => { self.set_status(message); cx.notify(); return false; }
         };
-        let plan = match super::typing_undo::prepare(self.active_tab_mut(), range.start, coalesce) {
+        let plan = match if removal {
+            super::typing_undo::prepare_removal(self.active_tab_mut(), range.start, range.end - range.start, coalesce)
+        } else { super::typing_undo::prepare(self.active_tab_mut(), range.start, coalesce) } {
             Ok(plan) => plan,
             Err(message) => { self.set_status(message); cx.notify(); return false; }
         };
         let op = self.apply_owned_edit(range, removed, inserted, cx);
-        super::typing_undo::commit(self.active_tab_mut(), plan, op, coalesce);
+        if removal { super::typing_undo::commit_removal(self.active_tab_mut(), plan, op, coalesce); }
+        else { super::typing_undo::commit(self.active_tab_mut(), plan, op, coalesce); }
         if self.tabs.get(self.active).is_some_and(|tab| tab.edit_transaction.is_none()) && self.find_state.open && !self.find_state.query.is_empty() {
             self.refresh_matches();
         }

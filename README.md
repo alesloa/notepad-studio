@@ -17,6 +17,11 @@ A lightweight, cross-platform text editor inspired by Notepad++, written in Rust
 > legacy Save macro replay, and the gaps in the [menu inventory](docs/notepadpp-parity-inventory.md).
 > Adjacent committed Source/Raw text input shares one Undo entry while retaining
 > every edit revision. See [the insertion checks and remaining boundaries](docs/windows-typing-undo-validation-20261011.md).
+> Ordinary empty-selection Backspace/Delete also share adjacent Undo runs under
+> Notepad++'s editing-byte rules; selection, word, rectangle and IME edits stay
+> separate. See [the deletion checks and limits](docs/windows-deletion-undo-validation-20261011.md)
+> and [combined Windows validation](docs/windows-deletion-main-validation-20261011.md).
+> Enter/Tab alignment and asynchronous Save/recovery/close composition remain under audit.
 > Regex capture replacement has landed with
 > bounded background planning; see its documented syntax and limits.
 > Manual large line indentation and its Undo/Redo also prepare in the

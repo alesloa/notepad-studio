@@ -546,69 +546,97 @@ impl Workspace {
     }
 
     pub(crate) fn backspace(&mut self, _: &EditBackspace, window: &mut Window, cx: &mut Context<Self>) {
+        self.run_backspace(window, cx);
+    }
+
+    pub(crate) fn run_backspace(&mut self, window: &mut Window, cx: &mut Context<Self>) -> bool {
         let focus = self.input_focus(window);
         if focus == InputFocus::RichDocBody {
             self.rich_doc_delete(false, cx);
-            return;
+            return true;
         }
         if focus == InputFocus::CsvGrid {
             crate::ui::csv_doc::actions::handle_grid_delete_key(self, cx);
-            return;
+            return true;
         }
         if focus != InputFocus::Editor {
             self.input_backspace(window);
             if focus == InputFocus::CsvCell { self.schedule_autosave(cx); }
             cx.notify();
-            return;
+            return true;
         }
         if self.has_block_selection() {
-            if self.block_delete(true, cx) { crate::macros::record(crate::macros::MacroEvent::Backspace); }
-            return;
+            let applied = self.block_delete(true, cx);
+            if applied { crate::macros::record(crate::macros::MacroEvent::Backspace); }
+            return applied;
         }
-        crate::macros::record(crate::macros::MacroEvent::Backspace);
         if self.selection().is_empty() {
             let head = self.selection().head;
             let Some(range) = backspace_range(&self.buffer().rope, head) else {
-                return;
+                crate::macros::record(crate::macros::MacroEvent::Backspace);
+                return true;
             };
-            self.replace_byte_range(range, "", cx);
+            let read_only = self.buffer().read_only;
+            if read_only { crate::macros::record(crate::macros::MacroEvent::Backspace); }
+            let coalesce = !self.is_composing_text(window);
+            let applied = self.replace_deletion(range, coalesce, cx);
+            if applied && !read_only {
+                crate::macros::record(crate::macros::MacroEvent::Backspace);
+            }
+            return applied || read_only;
         } else {
+            crate::macros::record(crate::macros::MacroEvent::Backspace);
             let r = self.selection().ordered();
             self.replace_byte_range(r, "", cx);
         }
+        true
     }
 
     pub(crate) fn delete(&mut self, _: &EditDelete, window: &mut Window, cx: &mut Context<Self>) {
+        self.run_delete(window, cx);
+    }
+
+    pub(crate) fn run_delete(&mut self, window: &mut Window, cx: &mut Context<Self>) -> bool {
         let focus = self.input_focus(window);
         if focus == InputFocus::RichDocBody {
             self.rich_doc_delete(true, cx);
-            return;
+            return true;
         }
         if focus == InputFocus::CsvGrid {
             crate::ui::csv_doc::actions::handle_grid_delete_key(self, cx);
-            return;
+            return true;
         }
         if focus != InputFocus::Editor {
             self.input_delete(window);
             if focus == InputFocus::CsvCell { self.schedule_autosave(cx); }
             cx.notify();
-            return;
+            return true;
         }
         if self.has_block_selection() {
-            if self.block_delete(false, cx) { crate::macros::record(crate::macros::MacroEvent::Delete); }
-            return;
+            let applied = self.block_delete(false, cx);
+            if applied { crate::macros::record(crate::macros::MacroEvent::Delete); }
+            return applied;
         }
-        crate::macros::record(crate::macros::MacroEvent::Delete);
         if self.selection().is_empty() {
             let head = self.selection().head;
             let Some(range) = delete_forward_range(&self.buffer().rope, head) else {
-                return;
+                crate::macros::record(crate::macros::MacroEvent::Delete);
+                return true;
             };
-            self.replace_byte_range(range, "", cx);
+            let read_only = self.buffer().read_only;
+            if read_only { crate::macros::record(crate::macros::MacroEvent::Delete); }
+            let coalesce = !self.is_composing_text(window);
+            let applied = self.replace_deletion(range, coalesce, cx);
+            if applied && !read_only {
+                crate::macros::record(crate::macros::MacroEvent::Delete);
+            }
+            return applied || read_only;
         } else {
+            crate::macros::record(crate::macros::MacroEvent::Delete);
             let r = self.selection().ordered();
             self.replace_byte_range(r, "", cx);
         }
+        true
     }
 
     pub(crate) fn insert_newline(&mut self, _: &EditInsertNewline, window: &mut Window, cx: &mut Context<Self>) {

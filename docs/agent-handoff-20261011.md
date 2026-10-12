@@ -4,7 +4,28 @@ Continue the user's goal of finishing Windows Notepad++ behavior and feature
 parity. Mac testing is deferred. Full parity remains open; this is a tested
 checkpoint for one completed batch.
 
-## Current checkpoint, updated after typing integration
+## Current checkpoint, updated after deletion integration on 2026-10-12
+
+Ordinary Source/Raw Backspace/Delete grouping is integrated after the `c5221e7`
+documentation checkpoint. Required main build, 2,917 unit plus three integration
+tests/32 ignored, Clippy with unchanged 332/193 located diagnostic counts,
+inventory checks and all 12 parser tests pass. See
+[deletion main validation](windows-deletion-main-validation-20261011.md) for the
+exact source, logs, executable and scope. Twenty-four separate optimized model
+controls and 48 empty inventories pass; added deletion costs and lower model
+memory are recorded without a native speed claim. No push accompanies this batch.
+
+File's first registered Save→Full native/raw Undo readback and shared-turn
+controls pass, but an admitted-Writer barrier reproduced premature close
+acceptance. Close/Exit and final Full/cache/ticket/Copy/Move composition remain
+open. Sort's fixed Latest pages, joint admission and complete freshness guards
+passed focused controls; pristine-tab activity initialization and IME no-op final
+stamps produced two deciding failures. Narrow corrections are underway. Book's
+deletion delivery is complete; next work is the keyboard Enter/Tab oracle audit.
+Root owns final composition and commits. Use the actual Git log for the current
+commit identity; native verification and the full inventory backlog remain open.
+
+## Previous typing checkpoint
 
 The latest product-source checkpoint is `ba9f296` (`fix: group adjacent text
 input for undo`), after Hash Tools `f62f750`, legacy line operations `4a5dad8`

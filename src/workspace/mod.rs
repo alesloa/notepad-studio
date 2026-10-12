@@ -2010,3 +2010,6 @@ mod physical_line_tests;
 
 #[cfg(test)]
 mod typing_undo_tests;
+
+#[cfg(test)]
+mod deletion_undo_tests;

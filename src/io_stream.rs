@@ -495,6 +495,7 @@ fn start_streaming(
             cancel: cancel.clone(),
         }),
         new_label: None,
+        new_label_is_custom: false,
         // No edits until the whole file is in: a restart replaces the rope,
         // and text typed into a half-read file would be lost or misplaced.
         read_only: true,
@@ -779,6 +780,7 @@ fn abort_load(workspace: &mut Workspace, idx: usize, status: String) {
         tab.wrap_cache = None;
         tab.buffer.file_path = None;
         tab.buffer.new_label = Some(label);
+        tab.buffer.new_label_is_custom = false;
         tab.buffer.read_only = false;
         tab.buffer.mark_saved();
     }

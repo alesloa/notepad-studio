@@ -193,6 +193,8 @@ pub(crate) struct SessionTab {
     /// keeps its original number.
     #[serde(default)]
     pub(crate) new_label: Option<String>,
+    #[serde(default)]
+    pub(crate) new_label_is_custom: bool,
     /// Read-only flag — survives launches so a tab marked Read-Only stays
     /// edit-blocked next session.
     #[serde(default)]
@@ -239,6 +241,8 @@ pub(crate) struct SessionClosedTab {
     pub(crate) language: Option<LanguageId>,
     #[serde(default)]
     pub(crate) new_label: Option<String>,
+    #[serde(default)]
+    pub(crate) new_label_is_custom: bool,
     #[serde(default)]
     pub(crate) tab_color: Option<u8>,
 }
@@ -433,6 +437,7 @@ fn recover_unreferenced_baks(mut manifest: SessionManifest, bak_dir: &Path) -> S
             bookmarks: Vec::new(),
             original_mtime: None,
             new_label: Some(label.to_string()),
+            new_label_is_custom: false,
             read_only: false,
             tab_color: None,
             is_changelog: false,
@@ -527,6 +532,7 @@ pub(crate) fn snapshot_tab_with_policy(tab: &Tab, bak_policy: BakPolicy) -> Sess
             .as_ref()
             .and_then(|p| mtime_unix(p)),
         new_label: buffer.new_label.as_ref().map(|s| s.to_string()),
+        new_label_is_custom: buffer.new_label_is_custom,
         // A streaming load holds the tab read-only until the file is in;
         // that is not the user's flag.
         read_only: buffer.read_only && buffer.loading.is_none(),
@@ -550,6 +556,7 @@ pub(crate) fn snapshot_closed_tab(closed: &ClosedTab) -> SessionClosedTab {
         encoding: EncodingTag::from_encoding(closed.buffer.encoding),
         language: closed.buffer.language,
         new_label: closed.buffer.new_label.as_ref().map(|s| s.to_string()),
+        new_label_is_custom: closed.buffer.new_label_is_custom,
         tab_color: closed.buffer.tab_color,
     }
 }
@@ -767,6 +774,7 @@ fn restore_tab_in(entry: &SessionTab, bak_dir: &Path) -> RestoreOutcome {
         highlights: std::sync::Arc::new(Vec::new()),
         loading: None,
         new_label,
+        new_label_is_custom: entry.new_label_is_custom,
         // A lossy decode can't be saved back without rewriting the bad
         // bytes, so it opens read-only as File ▸ Open does.
         read_only: entry.read_only || lossy
@@ -942,6 +950,7 @@ fn restore_closed_tab_in(entry: &SessionClosedTab, dir: &Path) -> Option<ClosedT
         highlights: std::sync::Arc::new(Vec::new()),
         loading: None,
         new_label,
+        new_label_is_custom: entry.new_label_is_custom,
         read_only,
         tab_color: entry.tab_color,
         is_changelog: false,
@@ -1228,6 +1237,48 @@ fn verbose_stamp() -> String {
 mod tests {
     use super::*;
 
+    #[test]
+    fn untitled_label_origin_defaults_in_old_open_and_closed_schemas() {
+        for name in ["new 37", "named café中😀"] {
+            let text = format!("id = '{}'\nnew_label = '{name}'\ndirty = true", Uuid::new_v4());
+            let open: SessionTab = toml::from_str(&text).expect("old open schema");
+            let closed: SessionClosedTab = toml::from_str(&text).expect("old closed schema");
+            assert_eq!(open.new_label.as_deref(), Some(name));
+            assert_eq!(closed.new_label.as_deref(), Some(name));
+            assert!(!open.new_label_is_custom && !closed.new_label_is_custom);
+        }
+    }
+
+    #[test]
+    fn explicit_untitled_label_closed_recovery_keeps_name_bytes_and_format() {
+        let dir = crate::persist::TempDir::new("explicit-closed-label");
+        let name = "closed café中😀.txt";
+        let mut buffer = Buffer::empty();
+        buffer.rope = ropey::Rope::from_str("first café中😀\r\nsecond line");
+        buffer.encoding = crate::text::encoding::Encoding::Utf16Be;
+        buffer.line_ending = crate::text::line_ending::LineEnding::Crlf;
+        buffer.new_label = Some(name.to_owned().into()); buffer.new_label_is_custom = true;
+        buffer.forget_savepoint();
+        let transferred = buffer.clone_for_transfer();
+        let closed = ClosedTab { buffer: transferred, session_id: Uuid::new_v4() };
+        let manifest = SessionManifest { closed_tabs: vec![snapshot_closed_tab(&closed)],
+            backups: vec![std::sync::Arc::new(Backup::closed(&closed))], ..Default::default() };
+        let path = dir.join("session.toml");
+        write_csv_fixture(manifest, &path, dir.path()).expect("actual closed recovery Writer");
+        let text = fs::read_to_string(&path).expect("actual manifest");
+        let manifest: SessionManifest = toml::from_str(&text).expect("closed schema");
+        let restored = restore_closed_tab_in(manifest.closed_tabs.first().expect("closed entry"), dir.path()).expect("actual closed restore");
+        assert_eq!(restored.buffer.rope.to_string(), "first café中😀\r\nsecond line");
+        assert_eq!(restored.buffer.encoding, crate::text::encoding::Encoding::Utf16Be);
+        assert_eq!(restored.buffer.line_ending, crate::text::line_ending::LineEnding::Crlf);
+        assert!(restored.buffer.dirty && restored.buffer.file_path.is_none());
+        let mut settings = crate::settings::snapshot(); settings.untitled_uses_first_line = true;
+        let _preference = crate::settings::override_for_test(settings);
+        assert_eq!(restored.buffer.display_short_name().as_ref(), name);
+        assert_eq!(restored.buffer.title_bar_label(), name);
+    }
+
+
     std::thread_local! {
         pub(super) static SAVE_BACKUP_STAMP: std::cell::Cell<Option<&'static str>> = const { std::cell::Cell::new(None) };
     }
@@ -1439,6 +1490,7 @@ mod tests {
             bookmarks: Vec::new(),
             original_mtime: None,
             new_label: None,
+            new_label_is_custom: false,
             read_only: false,
             tab_color: None,
             is_changelog: false,

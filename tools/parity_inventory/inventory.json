@@ -1,5 +1,5 @@
 {
-  "studio_source_sha256": "1282a5ac2d774561b51d5ee06cbba1b0a2a4b2343f0639dbc6d3e35d6c83e78d",
+  "studio_source_sha256": "032a8ba5223f22e50801f0f4794d280dda7e591cb99212d898d6ee046849b586",
   "studio_sources": {
     "src/actions/bookmarks.rs": "eeaf95badc144e0fa7f8c2445495e706f1209291c1285ddd3578fef0c84eb5fc",
     "src/actions/edit.rs": "90200c45bc846149a2a05b8ce0b1ab98118b185094686abacccc0ddc882969b4",
@@ -45,7 +45,7 @@
     "src/app/window.rs": "42f1117f4c7940254786aa67dea89e21f2be2b71d644ac81b48198de204c246d",
     "src/assets.rs": "58f498f42210c21e76038342146108d5a2d584a69804c1d1b75d49b63a1c6bf7",
     "src/buffer/prepared.rs": "85f08ca8854789015378372a257835faa4a6c77a2e0a64f15d834ae3e6523362",
-    "src/buffer.rs": "592fd97aefe66a4f24b6fe3380597808555b31edff949b448291ae3321d8ded7",
+    "src/buffer.rs": "7005892fce831a9e3142ca0154f4811eb486cb3d6d80407759aed98d6de75794",
     "src/call_context.rs": "c0f382cfec3d27faefda0e2cfdd1aa8c6aed86823121f90dd05a605bd35273bd",
     "src/changelog.rs": "6f1cdf601ac205897a3d06a86cbc2c8ca8fcb2e29686ee7785992d666be0fcc8",
     "src/clipboard_history.rs": "bfe665d23bdcebcb1198eb3c7f379a26664a4aa6dfe3377b0baf7d40d8a7c731",
@@ -86,15 +86,15 @@
     "src/io/background_drop.rs": "9fc5aadeb3251706439e5dd5ad846f88880788fa35783ee28687d9d3ad62dec9",
     "src/io/copy_snapshot.rs": "ffa012c2df868d18ecfea86d4fe3b41eff389d1e25871f1d79e5c571d8724717",
     "src/io/copy_stage.rs": "0c7da56aa74dd3bc886a832c70575925ffe7dea724e696cc9ececd94a37241cb",
-    "src/io/copy_writer.rs": "4ada9d08dc2ec64e6eecb39e7b8f8795fd3e84a7a1c16aa17a423fc02dd2488b",
+    "src/io/copy_writer.rs": "22fe01746f39f6bf054c715a7e619628b9784f73439e431c08c256dbc3467ee0",
     "src/io/restore_copy.rs": "b3a1fd15b3e74328b9c261da23ba44138954334ba00bfb82972feba20971905d",
     "src/io/safety_copy.rs": "d1bcfa37d3057ad8ca6b081511b8f5b44139113a365e1e47bc2a5d2cb05a433a",
     "src/io/save_all.rs": "2799cad7525aa0d4db3b97634942c415ac92c8ad2fb3046b64200bfc5f287b9e",
     "src/io/save_as_dialog.rs": "870b9d7970e5c213b5b07c1465881f07862073f6d14dde9a586dabeda6d89a68",
     "src/io/save_copy.rs": "726807eafc13306398dbe72b844adf428173352d3dbddcae9b43ddd70b3e404a",
-    "src/io.rs": "ff5d77f9a7b96c93ea72d7187525e7ff6475c92c48a7c1bf8babf583dcaba10f",
+    "src/io.rs": "08092df08403657c24ff994278f47b7fd7c8acd9e09d5d376097ea57dd02567a",
     "src/io_reload.rs": "aacfb5a85b45a6ed58ae436fc6ff63e5f2a028d961a2701fc6fbce01c088c076",
-    "src/io_stream.rs": "b3e79827e23aea7eabb379214eeb3d025c111f676ccf39ba793d76d6448cdff4",
+    "src/io_stream.rs": "f3a304c2a25bccf95d8ed6569dd4a7d4db6764135cce55fa0c6ba18ffb013768",
     "src/locale_date.rs": "b7c0a84062bcd5a8142bf9ff3c3c62dcce03f40fa5fc3ff7824b858f52b1f7c8",
     "src/locale_sort_windows.rs": "456d5f41ceaa63ec1c0acf33a082a01a0814b779097f2aed8cfd662a9ca5dfcd",
     "src/macros.rs": "10b02bbde492435da42564f3398494456d6058d39f3617264bb05c3c9c83c298",
@@ -126,7 +126,7 @@
     "src/session/rich_backup.rs": "fba68189867d7d8869f759ddf522154be2e8ae77cc3ceff03b36ea06bbdfbf32",
     "src/session/startup_restore.rs": "1cbb15e585c688b9753c497a0a8c45c6c68dae59038a3209f06bf8cbce440f45",
     "src/session/windows.rs": "c79dfd8eff0f89ffbcf619579434db7a1f4a323e19eefcc90a4377909bf6c178",
-    "src/session.rs": "fd57c8a815f64c37f680ea3c40d7eaf894bc4ddaa02ca07e1602f50ace945a46",
+    "src/session.rs": "57c9fb4c26230c9363949bc47fa3e5447db92eed2f3d030346b090c78e219ca0",
     "src/settings/persistence_fixture.rs": "a7cec9a94d21c3da5cbfdeff8ba0f57854de89f642315576d4e016097ade1bd5",
     "src/settings.rs": "65d3fe1a335a2806574a8f10524687d43619d7c2c6aa591db016db4f71af16c6",
     "src/shell.rs": "04f1f44c04af6cbabd9f02aae93a8b0642b3d8b392b2f78a1371433e17aea646",
@@ -290,7 +290,7 @@
     "src/workspace/directory_operations.rs": "e99b779cb52f093598a39d612a274e7808ed522fc74c1a907de7aa1574f04024",
     "src/workspace/edits.rs": "fa3d69b6701d9a98c48cc1089fc14bbe43f711d9fd6ac11d35a4de260500ae0a",
     "src/workspace/file_move.rs": "4b2b28d4a2b831b6e59f56b105a0ad3d8ec32a933c066d8d1e17d42155673e49",
-    "src/workspace/file_routes.rs": "43ec082625774a477985e81926a84c547a2f5e7c817ad7d5b73d3b1253ccacb2",
+    "src/workspace/file_routes.rs": "8c03274c60637d4b81b9298b04c84fac7abd15e3c6174f0044f38bbdcd2781dc",
     "src/workspace/file_tab_actions.rs": "da125d264a4d080a47a81ac213db73c5199eae9e5fd7ae42d9ecca458b0a108f",
     "src/workspace/find.rs": "93eaa084a936fbe9df36b3f9fae84b2cf118bd8b0ff765e8de78d76777547656",
     "src/workspace/find_current_budget.rs": "9dc9a69bce849720e64bd84c7ea5ff2344e8e7471f709ed76e8e6821362dfff8",
@@ -609,7 +609,7 @@
         {
           "method": "open_dialog",
           "path": "src/io.rs",
-          "line": 257,
+          "line": 258,
           "wire_path": "src/workspace/render.rs",
           "wire_line": 290
         }
@@ -933,7 +933,7 @@
         {
           "method": "open_folder_as_workspace",
           "path": "src/io.rs",
-          "line": 289,
+          "line": 290,
           "wire_path": "src/workspace/render.rs",
           "wire_line": 291
         }
@@ -1053,7 +1053,7 @@
         {
           "method": "save_active",
           "path": "src/io.rs",
-          "line": 438,
+          "line": 439,
           "wire_path": "src/workspace/render.rs",
           "wire_line": 301
         }
@@ -1112,7 +1112,7 @@
         {
           "method": "save_active_as",
           "path": "src/io.rs",
-          "line": 469,
+          "line": 470,
           "wire_path": "src/workspace/render.rs",
           "wire_line": 302
         }
@@ -1227,7 +1227,7 @@
         {
           "method": "save_all",
           "path": "src/io.rs",
-          "line": 541,
+          "line": 542,
           "wire_path": "src/workspace/render.rs",
           "wire_line": 304
         }

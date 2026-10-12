@@ -376,3 +376,118 @@ fn actual_rename_refuses_an_open_destination_hardlink_before_any_file_effect() {
         visual.update(|_, cx| assert_eq!(entity.read(cx).tabs[0].buffer.file_path.as_ref(), Some(&source)));
     });
 }
+
+// NppNotification.cpp:58-60; NppIO.cpp:2186; Notepad_plus.cpp:6572.
+#[test]
+fn explicit_untitled_label_survives_first_line_title_preference() {
+    for name in ["named café中😀.txt", "new 37"] {
+        with_editor(Buffer::empty(), |entity, visual| {
+            let mut settings = crate::settings::snapshot(); settings.untitled_uses_first_line = true;
+            let _preference = crate::settings::override_for_test(settings);
+            visual.simulate_input("first café中😀\nsecond line"); visual.run_until_parked();
+            let before = visual.update(|_, cx| { let tab = &entity.read(cx).tabs[0];
+                (tab.buffer.rope.to_string(), crate::buffer::serialize_undo_stack(&tab.undo_stack),
+                    tab.buffer.savepoint.clone(), tab.session_id, tab.instance.clone()) });
+            visual.dispatch_action(FileRename); visual.run_until_parked();
+            visual.simulate_input(name); visual.simulate_keystrokes("enter"); visual.run_until_parked();
+            visual.update(|_, cx| { let tab = &entity.read(cx).tabs[0];
+                assert_eq!(tab.buffer.new_label.as_ref().map(|s| s.as_ref()), Some(name));
+                assert_eq!(tab.buffer.rope.to_string(), before.0);
+                assert_eq!(crate::buffer::serialize_undo_stack(&tab.undo_stack), before.1);
+                assert!(tab.buffer.savepoint == before.2);
+                assert_eq!(tab.session_id, before.3); assert!(Arc::ptr_eq(&tab.instance, &before.4));
+                assert!(tab.buffer.dirty && tab.buffer.file_path.is_none());
+                assert_eq!(tab.buffer.display_short_name().as_ref(), name, "an explicit rename must stay visible");
+                assert_eq!(tab.buffer.title_bar_label(), name);
+            });
+            for enabled in [false, true] {
+                let mut settings = crate::settings::snapshot(); settings.untitled_uses_first_line = enabled;
+                let _toggle = crate::settings::override_for_test(settings);
+                visual.update(|_, cx| {
+                    assert_eq!(entity.read(cx).tabs[0].buffer.display_short_name().as_ref(), name);
+                    assert_eq!(entity.read(cx).tabs[0].buffer.title_bar_label(), name);
+                });
+            }
+            visual.simulate_keystrokes("ctrl-home");
+            visual.update(|_, cx| cx.write_to_clipboard(gpui::ClipboardItem::new_string("changed ".into())));
+            visual.dispatch_action(crate::actions::EditPaste); visual.run_until_parked();
+            visual.update(|_, cx| {
+                let buffer = &entity.read(cx).tabs[0].buffer;
+                assert_eq!(buffer.rope.to_string(), "changed first café中😀\nsecond line");
+                assert_eq!(buffer.display_short_name().as_ref(), name);
+            });
+            visual.dispatch_action(crate::actions::EditUndo); visual.run_until_parked();
+            visual.update(|_, cx| {
+                assert_eq!(entity.read(cx).tabs[0].buffer.rope.to_string(), before.0);
+                assert_eq!(entity.read(cx).tabs[0].buffer.title_bar_label(), name);
+            });
+            visual.dispatch_action(crate::actions::EditRedo); visual.run_until_parked();
+            visual.update(|_, cx| {
+                assert_eq!(entity.read(cx).tabs[0].buffer.rope.to_string(), "changed first café中😀\nsecond line");
+                assert_eq!(entity.read(cx).tabs[0].buffer.title_bar_label(), name);
+            });
+        });
+    }
+}
+
+#[test]
+fn explicit_untitled_label_survives_actual_recovery_write_and_restore() {
+    let dir = crate::persist::TempDir::new("explicit-label-recovery");
+    let path = dir.join("session.toml"); let name = "recovered café中😀.txt";
+    with_editor(Buffer::empty(), |entity, visual| {
+        visual.simulate_input("first café中😀\nsecond line"); visual.run_until_parked();
+        visual.dispatch_action(FileRename); visual.run_until_parked();
+        visual.simulate_input(name); visual.simulate_keystrokes("enter"); visual.run_until_parked();
+        let manifest = visual.update(|_, cx| entity.read(cx).session_snapshot(crate::session::BakPolicy::Full));
+        crate::session::write_csv_fixture(manifest, &path, dir.path()).expect("actual isolated recovery Writer");
+        let persisted = std::fs::read_to_string(&path).expect("published manifest");
+        let manifest: crate::session::SessionManifest = toml::from_str(&persisted).expect("current persisted schema");
+        let entry = manifest.tabs.first().expect("persisted dirty tab");
+        assert_eq!(entry.new_label.as_deref(), Some(name));
+        let crate::session::RestoreOutcome::Restored(tab) = crate::session::restore_csv_fixture(entry, dir.path())
+            else { panic!("actual recovery must restore the draft"); };
+        assert_eq!(tab.buffer.rope.to_string(), "first café中😀\nsecond line");
+        assert!(tab.buffer.dirty && tab.buffer.file_path.is_none());
+        let mut settings = crate::settings::snapshot(); settings.untitled_uses_first_line = true;
+        let _preference = crate::settings::override_for_test(settings);
+        assert_eq!(tab.buffer.display_short_name().as_ref(), name, "persisted explicit label must override first-line titles");
+        assert_eq!(tab.buffer.title_bar_label(), name);
+    });
+}
+
+#[test]
+fn automatic_untitled_label_still_follows_first_line_title_preference() {
+    with_editor(Buffer::empty(), |entity, visual| {
+        let mut settings = crate::settings::snapshot(); settings.untitled_uses_first_line = true;
+        let _preference = crate::settings::override_for_test(settings);
+        visual.simulate_input("first café中😀\nsecond line"); visual.run_until_parked();
+        visual.update(|_, cx| {
+            let buffer = &entity.read(cx).tabs[0].buffer;
+            assert_eq!(buffer.display_short_name().as_ref(), "first café中😀");
+            assert_eq!(buffer.title_bar_label(), "first café中😀");
+        });
+    });
+}
+
+#[test]
+fn explicit_untitled_label_is_metadata_only_in_read_only_source() {
+    with_editor(Buffer::empty(), |entity, visual| {
+        let mut settings = crate::settings::snapshot(); settings.untitled_uses_first_line = true;
+        let _preference = crate::settings::override_for_test(settings);
+        visual.simulate_input("first café中😀\nsecond line"); visual.run_until_parked();
+        let before = visual.update(|_, cx| entity.update(cx, |workspace, _| {
+            let tab = &mut workspace.tabs[0]; tab.buffer.read_only = true;
+            (tab.buffer.rope.to_string(), crate::buffer::serialize_undo_stack(&tab.undo_stack), tab.buffer.savepoint.clone())
+        }));
+        visual.dispatch_action(FileRename); visual.run_until_parked();
+        visual.simulate_input("read-only café中😀"); visual.simulate_keystrokes("enter"); visual.run_until_parked();
+        visual.update(|_, cx| {
+            let tab = &entity.read(cx).tabs[0];
+            assert_eq!(tab.buffer.display_short_name().as_ref(), "read-only café中😀");
+            assert!(tab.buffer.read_only && tab.buffer.dirty && tab.buffer.file_path.is_none());
+            assert_eq!(tab.buffer.rope.to_string(), before.0);
+            assert_eq!(crate::buffer::serialize_undo_stack(&tab.undo_stack), before.1);
+            assert!(tab.buffer.savepoint == before.2);
+        });
+    });
+}

@@ -261,13 +261,13 @@
       "route_at_baseline": "alternate-only",
       "behavior": "pending",
       "evidence": [
-        "docs/windows-file-routes-validation.md"
+        "docs/windows-file-routes-validation.md",
+        "docs/windows-untitled-label-validation-20261011.md"
       ],
       "remaining": [
-        "Native Windows dialogs and terminal launch inspection",
-        "Explicit renamed-label precedence over the use-first-line title preference"
+        "Native Windows dialogs and terminal launch inspection"
       ],
-      "implementation": "integrated; automated leaf and combined Windows checks and scoped default-release controls passed; native verification pending"
+      "implementation": "integrated; explicit untitled-label precedence and recovery origin pass six new tests and full Windows main gates; automatic-title audit and native verification pending"
     },
     {
       "id": "IDM_FILE_CLOSE",
@@ -7880,7 +7880,7 @@
       "evidence": []
     }
   ],
-  "current_source_sha256": "1282a5ac2d774561b51d5ee06cbba1b0a2a4b2343f0639dbc6d3e35d6c83e78d",
+  "current_source_sha256": "032a8ba5223f22e50801f0f4794d280dda7e591cb99212d898d6ee046849b586",
   "current_route_counts": {
     "action-only": 2,
     "alternate-only": 2,

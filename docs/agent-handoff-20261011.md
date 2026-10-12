@@ -16,15 +16,28 @@ Clippy (26.914 s, zero new diagnostics) and all 12 inventory tests/check pass.
 See [brace validation](windows-brace-validation-20261011.md) for the deciding receipt.
 Do not treat this as completion of the Windows parity goal.
 
-Book implements all twelve hash tools in its isolated leaf. The pure engine
-passed 11 controls; its first coherent GPUI phase passed 47 tests, including
-actual separate Find-window dispatch, dialog buttons, file hashes and held
-clipboard/Cut ownership controls. Final close/reopen and progress cleanup,
-root receipt review and full checks are pending. Sort's corrected phases pass
-103 installed caller tests, including lexical, numeric and dedupe commands.
-Its final pure adapter fixture correction and full checks are pending. Fixture
-and compile corrections remain excluded from product failure counts and
-preserved with their earlier packets.
+The current main batch also fixes explicit untitled-label precedence and
+persists its origin through open/closed recovery and window transfer. Main
+build (62.729 s), 2,690 unit plus three integration tests/30 ignored
+(51.12 s unit / 166.669 s total), Clippy (22.365 s, unchanged 331 occurrences /
+193 pairs), 12 inventory tests and generation check pass on all 733 frozen
+source/manifest entries. Seven source files are exact copies of the final
+reviewed leaf. See [rename validation](windows-untitled-label-validation-20261011.md).
+The label sources are integrated and checked; verify Git log/status for the resulting commit.
+
+Book implements all twelve hash tools in its isolated leaf. Root verified
+54 final source/manifest/license files, retained EXE/PDB, nine logs and seven
+failed/weak source snapshots. All 60 hash and three clipboard ownership controls
+pass. Required build/full tests/Clippy are authorized and pending. Optimized
+source/plan review, native verification and main composition remain open. The
+SHA-512 file title explicitly corrects the misleading default upstream caption.
+Sort's final 23-file candidate passes build, 2,771 unit plus three integration
+tests/32 ignored and Clippy with zero new diagnostics (334 occurrences / 195
+pairs). Both >10 MiB controls pass in debug. Root verified its 16-entry review
+package and 34-entry frozen evidence manifest. Default release test compilation
+is authorized; measurement runs wait for an explicit quiet slot. Effective test
+profile differences from the shipping app must be disclosed. Earlier compile
+and fixture failures remain preserved and excluded from product failure counts.
 
 File's fresh `windows-normal-save-background` leaf is based at `6be0a4d`.
 Root verified G1: seven actual foreground prepare/write violations, an older
@@ -59,7 +72,7 @@ inventoried gaps. No new unsafe/dependencies, main edits or release claims are
 authorized in this leaf.
 
 Current source and generator outputs include 340 production Rust files,
-SHA256 `1282a5ac2d774561b51d5ee06cbba1b0a2a4b2343f0639dbc6d3e35d6c83e78d`.
+SHA256 `032a8ba5223f22e50801f0f4794d280dda7e591cb99212d898d6ee046849b586`.
 Cargo retains `fb072656`; lockfile remains `9ea6f022`. All 733 frozen
 source/manifest hashes stayed unchanged during main checks. Native Windows verification remains unavailable; exact brace lexer
 styles and styled-tail behavior remain open. Overall goal active. Verify Git
@@ -269,21 +282,30 @@ Active next leaves:
   session-capture control and surgical bounded Full capture design above are
   reviewed; implementation is authorized in this leaf, with a first coherent
   capture phase required before broad integration. Bounded failed-save
-  restoration is already integrated. Do not reapply its older patch.
+  restoration is already integrated. Do not reapply its older patch. Root
+  accepted the first coherent manual Save/Save As phase: seven new controls
+  and 29 existing ownership/close controls pass; four expected REDs remain
+  (three Save All callers and Full recovery foreground capture). This is
+  partial proof under receipt ec7727e8, not full background-save acceptance.
+  Save All live CSV fixtures and bounded Full capture/settlement remain active.
+  Include the new defaulted new_label_is_custom scalar when composing capture.
 - `windows-hash-tools`, detached at `b42c889`: all twelve MD5/SHA1/SHA256/SHA512
   text/file/selection tools are implemented in the isolated candidate. The
-  engine passes 11 tests and the first coherent GPUI phase passes 47. Root
-  reviewed the engine packet; final GPUI receipt review, close/reopen and
-  progress cleanup, full gates and main composition remain pending. Selection
-  policy covers UTF8 editor bytes, document EOL, no transport BOM, strict
+  engine passes 11 tests and final GPUI controls pass 60 plus three clipboard
+  ownership controls. Root verified receipt e1e42d4f / manifest 13bf9974 and
+  authorized broad debug gates. Optimized/native checks and main composition
+  remain pending. Selection policy covers UTF8 editor bytes, document EOL, no transport BOM, strict
   Windows-1252 and rectangle/focus behavior. Read
   [oracle preparation](windows-hash-tools-oracle-20261011.md). The bound Find
   fallback must retain the exact owning Workspace and origin focus.
 - `windows-legacy-lines`, detached at `b42c889`: the eight older lexical,
   integer and decimal sort routes, Reverse, Randomize and both duplicate
   commands use the guarded prepared-line engine and saved macro pipeline.
-  All 103 installed caller controls pass. Final adapter fixture correction,
-  full gates, frozen receipt review and main composition remain pending.
+  Final required gates pass on manifest caebb0f7 / patch 734a0a55:
+  2,771 unit plus three integration tests/32 ignored and unchanged Clippy.
+  Both ignored large caller controls pass in debug; source/plan/evidence
+  reviewed. Default release test compilation is authorized; optimized runs,
+  native verification and main composition remain pending.
   Preserve the reviewed UTF16 lexical, numeric refusal, rectangle and EOL
   policies, including whole-draft refusal on invalid decimal rows.
 
@@ -292,8 +314,12 @@ lexer styles, styled-tail relaxation, Find-focused brace behavior and native
 UI verification remain open. Continue the active save/hash/legacy-line leaves,
 then session/pinning/printing, Search results/mark styles, split views/folding/
 monitoring, encoding/languages and the remaining ledger. Explicit renamed-label
-precedence over `untitled_uses_first_line` is also open; the stored label already
-supplies Save/Copy/Save-close suggestions.
+precedence over `untitled_uses_first_line` now passes main gates. Automatic-title
+first-physical-line/whitespace/empty-name semantics and bounded UI work remain
+open; first_nonempty_line currently materializes entire lines and can scan all
+lines during title calculation (source finding, no native latency/OOM claim).
+Separately audit typing Undo grouping; final rename tests use one registered
+Paste operation for exact Undo/Redo and do not establish typing coalescing.
 
 Native verification is unavailable. The supported bridge returned:
 

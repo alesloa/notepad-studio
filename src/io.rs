@@ -223,6 +223,7 @@ impl Workspace {
             highlights: std::sync::Arc::new(Vec::new()),
             loading: None,
             new_label: None,
+            new_label_is_custom: false,
             read_only: true,
             tab_color: None,
             is_changelog: true,

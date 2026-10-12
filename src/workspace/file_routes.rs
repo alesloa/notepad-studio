@@ -223,7 +223,7 @@ impl Workspace {
             self.set_status("Rename failed: that document name is already in use"); cx.notify(); return;
         }
         let Some(tab) = self.tabs.get_mut(index) else { return; };
-        tab.buffer.new_label = Some(name.to_owned().into()); tab.buffer.file_path = None;
+        tab.buffer.new_label = Some(name.to_owned().into()); tab.buffer.new_label_is_custom = true; tab.buffer.file_path = None;
         self.set_status(format!("Renamed tab to {name}")); self.save_session(cx); cx.notify();
     }
 }

@@ -10,6 +10,9 @@ Notepad++, written in Rust on GPUI. Apache-2.0.
 
 v0.0.5 — current
 
+  Renamed untitled tabs keep the name you choose when first-line titles are
+  enabled, including after edits, Undo/Redo, recovery and window transfer.
+
   Go to Matching Brace (Ctrl-B) and Select All In-between (Ctrl-Alt-B) now
   navigate Source and Raw View, including read-only documents and saved macros.
   Matching runs in background with Escape cancellation, and bracket outlines

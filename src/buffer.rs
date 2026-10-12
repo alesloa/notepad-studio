@@ -106,6 +106,7 @@ pub(crate) struct Buffer {
     /// lowest-unused slot. Persisted in the session manifest so restored
     /// untitled tabs keep their original label across launches.
     pub(crate) new_label: Option<SharedString>,
+    pub(crate) new_label_is_custom: bool,
     /// Notepad++ "Read-Only" flag. When `true`, every edit op short-circuits
     /// at `Workspace::replace_byte_range` and the status bar reports
     /// "Buffer is read-only". Set by the tab right-click menu; persisted in
@@ -189,6 +190,7 @@ impl Buffer {
             highlights: std::sync::Arc::new(Vec::new()),
             loading: None,
             new_label: None,
+            new_label_is_custom: false,
             read_only: false,
             tab_color: None,
             is_changelog: false,
@@ -219,6 +221,7 @@ impl Buffer {
             highlights: self.highlights.clone(),
             loading: None,
             new_label: self.new_label.clone(),
+            new_label_is_custom: self.new_label_is_custom,
             read_only: self.read_only,
             tab_color: self.tab_color,
             is_changelog: self.is_changelog,
@@ -243,6 +246,7 @@ impl Buffer {
             highlights: std::sync::Arc::new(Vec::new()),
             loading: None,
             new_label: None,
+            new_label_is_custom: false,
             read_only: false,
             tab_color: None,
             is_changelog: false,
@@ -322,6 +326,10 @@ impl Buffer {
                 return n.to_string_lossy().into_owned().into();
             }
         }
+        // NppNotification.cpp:58-60 keeps an explicitly renamed untitled name.
+        if let Some(label) = self.new_label.as_ref().filter(|_| self.new_label_is_custom) {
+            return label.clone();
+        }
         if crate::settings::snapshot().untitled_uses_first_line {
             if let Some(line) = first_nonempty_line(&self.rope) {
                 return line.into();
@@ -338,15 +346,7 @@ impl Buffer {
         if let Some(p) = self.file_path.as_ref() {
             return p.display().to_string();
         }
-        if crate::settings::snapshot().untitled_uses_first_line {
-            if let Some(line) = first_nonempty_line(&self.rope) {
-                return line;
-            }
-        }
-        self.new_label
-            .as_ref()
-            .map(|s| s.to_string())
-            .unwrap_or_else(|| "new".to_string())
+        self.display_short_name().to_string()
     }
 
     #[allow(dead_code)]

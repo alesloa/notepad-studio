@@ -69,6 +69,9 @@ A lightweight, cross-platform text editor inspired by Notepad++, written in Rust
 > reuse matched and unmatched results; navigation preserves document bytes and
 > works in read-only Source or Raw View. [Brace scope](docs/windows-brace-navigation.md)
 > records the remaining lexer-style and native verification gaps.
+> Explicitly renamed untitled tabs now keep their name when first-line titles
+> are enabled, including after edits and recovery. [Rename validation](docs/windows-untitled-label-validation-20261011.md)
+> records compatibility and the remaining automatic-title audit.
 > Column edit paths now preflight hostile geometry and cumulative allocations.
 > Their temporary foreground limits and remaining parity gaps are recorded in
 > [column operation limits](docs/column-safety.md).

@@ -7,8 +7,9 @@ checkpoint for one completed batch.
 ## Current checkpoint
 
 Bounded failed-save restoration is committed as `6be0a4d`; its combined
-Windows checks and exact optimized helper controls passed. Root has now
-integrated both brace Search routes and the shared worker/cache candidate.
+Windows checks and exact optimized helper controls passed. Brace navigation is
+committed as `45eeb7e`: both Search routes and the shared worker/cache candidate
+are integrated. Main was clean after the commit.
 The isolated candidate passed 18 focused tests and 2,684 unit plus three
 integration tests (30 ignored). Main build (47.959 s), full tests (81.59 s unit / 211.665 s total),
 Clippy (26.914 s, zero new diagnostics) and all 12 inventory tests/check pass.
@@ -32,6 +33,30 @@ ownership/close controls. Implementation is authorized under the frozen
 capture/publication and close/Exit settlement contract. The safe commit gate
 must serialize destructive workers without blocking the UI and preserve
 critical restore errors. Bounded restore behavior is already integrated.
+
+Root also verified the separate publication packet: one intentional bounded-
+capture RED after real Full recovery byte/state positives. A controlled model
+hook inserts a later native edit after synchronous Save; it does not establish
+interactive input during that write. The actual isolated Writer preserves that
+edit, a separate dirty native tab and its raw undo bytes. Its current capture
+still clones file-sized payloads on the UI thread. All 19 evidence entries and
+seven consumed sources were verified. Receipt SHA256:
+`1e37326f0e2081e3b5a60104e3a2dc5dc6111f5ad52286c870a92819d249c8ec`.
+
+The surgical bounded Full session capture proposal is authorized in File's
+leaf; it is not integrated. Proposal SHA256:
+`57566cd6924b72ca1c86fb21f6b4d9fd2728afc9b8bab47d179321d67aa82606`.
+Use 64 KiB/128 newly captured structural items per UI turn and a 512 MiB
+cumulative new-allocation budget. Preserve complete current AST/edit/raw undo,
+CSV/metadata, schema, Keep/UUID/MRU ownership and prior recovery on refusal.
+Move reserve/join/last-reference cache disposal to workers. Request tickets
+and existing generation retirement must reject captures admitted before
+accepted close/Exit, which awaits actual writer/restoration/cleanup and a fresh
+Full recovery point. The candidate must observe the new capture work directly;
+removing the old whole-clone observer does not prove bounded copying.
+Synchronous compatibility and forced-platform fallback remain separately
+inventoried gaps. No new unsafe/dependencies, main edits or release claims are
+authorized in this leaf.
 
 Current source and generator outputs include 340 production Rust files,
 SHA256 `1282a5ac2d774561b51d5ee06cbba1b0a2a4b2343f0639dbc6d3e35d6c83e78d`.
@@ -240,9 +265,10 @@ Active next leaves:
 
 - `windows-normal-save-background`, detached at `6be0a4d`: root verified the
   frozen G1 packet and authorized bounded capture, worker write/publication,
-  captured savepoints and close/Exit settlement. A separate real recovery
-  session-capture control is being prepared for root review; no broad session
-  implementation is authorized before that review. Bounded failed-save
+  captured savepoints and close/Exit settlement. The separate real recovery
+  session-capture control and surgical bounded Full capture design above are
+  reviewed; implementation is authorized in this leaf, with a first coherent
+  capture phase required before broad integration. Bounded failed-save
   restoration is already integrated. Do not reapply its older patch.
 - `windows-hash-tools`, detached at `b42c889`: all twelve MD5/SHA1/SHA256/SHA512
   text/file/selection tools are implemented in the isolated candidate. The

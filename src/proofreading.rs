@@ -186,7 +186,12 @@ pub(crate) fn check(source: &str, markdown: bool, spelling: bool, grammar: bool,
     ENGINE.with(|engine| {
         let mut engine = engine.try_borrow_mut().map_err(|_| "Proofreading engine is already in use")?;
         let dictionary = FstDictionary::curated();
-        let linter = engine.get_or_insert_with(|| LintGroup::new_curated(dictionary.clone(), Dialect::American));
+        let linter = engine.get_or_insert_with(|| {
+            let mut linter = LintGroup::new_curated(dictionary.clone(), Dialect::American);
+            // Space runs are layout (table padding, column alignment), not grammar.
+            linter.config.set_rule_enabled("Spaces", false);
+            linter
+        });
         let mut start = 0;
         let mut run_end = 0;
         while start < chars.len() && issues.len() < MAX_ISSUES {
@@ -316,6 +321,14 @@ mod tests {
         let issues = checked(source, true);
         assert_eq!(issues.iter().filter(|issue| issue.original == "sentnce").count(), 1);
         assert!(issues.iter().any(|issue| issue.range.start == source.rfind("sentnce").unwrap()));
+    }
+
+    #[test]
+    fn space_runs_in_tables_and_prose_are_not_marked() {
+        let source = "┌────┬──────────┬──────────┐\n│ #  │   File   │   URL    │\n├────┼──────────┼──────────┤\n│ 1  │ upSellPage.vue │ http://localhost:8416/glp1 │\n└────┴──────────┴──────────┘\nTwo  spaces here.    Then four.\nThis is an test.";
+        let issues = checked(source, false);
+        assert!(issues.iter().all(|issue| !issue.original.trim().is_empty()), "{issues:?}");
+        assert!(issues.iter().any(|issue| issue.kind == IssueKind::Grammar && issue.original.contains("an")), "{issues:?}");
     }
 
     #[test]

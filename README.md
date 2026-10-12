@@ -2,140 +2,80 @@
 
 A lightweight, cross-platform text editor inspired by Notepad++, written in Rust. Notepad++ feel, AI features optional, no bloat.
 
-![Notepad Studio — a lightweight cross-platform text editor for macOS, Windows, and Linux](docs/screenshot.png)
+![Notepad Studio, a lightweight cross-platform text editor for macOS, Windows, and Linux](docs/screenshot.png)
 
-> **Status:** v0.0.5. The core editor and Beyond section have shipped. Word wrap
-> + horizontal scrollbar, show whitespace, full-screen (F11), bracket matching,
-> auto-indent, syntax-aware comment toggle (24 langs), drop-to-open, recent
-> files, tab drag-reorder, per-window placement persistence, multi-click
-> selection (word/line/all), per-buffer EOL + encoding toggles, Replace All
-> single-undo, user-customisable Shortcut Mapper, in-window right-click context
-> menu, column/multi-cursor edit, macro record / replay, plugin host, session
-> restore, and large-file streaming reads have all landed. Currently in flight:
-> Notepad++ behavior parity and correctness audit, including remaining
-> native completion and IME verification, focus bugs, large-edit performance,
-> legacy Save macro replay, and the gaps in the [menu inventory](docs/notepadpp-parity-inventory.md).
-> Adjacent committed Source/Raw text input shares one Undo entry while retaining
-> every edit revision. See [the insertion checks and remaining boundaries](docs/windows-typing-undo-validation-20261011.md).
-> Ordinary empty-selection Backspace/Delete also share adjacent Undo runs under
-> Notepad++'s editing-byte rules; selection, word, rectangle and IME edits stay
-> separate. See [the deletion checks and limits](docs/windows-deletion-undo-validation-20261011.md)
-> and [combined Windows validation](docs/windows-deletion-main-validation-20261011.md).
-> Enter/Tab alignment and asynchronous Save/recovery/close composition remain under audit.
-> Regex capture replacement has landed with
-> bounded background planning; see its documented syntax and limits.
-> Manual large line indentation and its Undo/Redo also prepare in the
-> background, with Escape cancellation and one Undo per completed edit.
-> This includes costly annotations and a few very long selected lines.
-> Existing lexical, integer, decimal, reverse, randomize and duplicate-removal
-> commands also prepare in background, with cancellation and saved macro support.
-> See [their Windows checks and limits](docs/windows-legacy-lines-validation-20261011.md).
-> Post-edit and streamed-file completion syntax highlighting run in background
-> workers, with per-tab coalescing and bounded output. Syntax size limits use
-> the Rope byte count before allocating a full text copy.
-> Restored-session syntax parsing starts after the window mounts, prioritizes
-> the active document, and refills a bounded background queue. Session file
-> reads, decoding, rich-document imports and history restoration run in the
-> startup background request before editor registration. Session metadata
-> loading still runs in foreground. Recovery identities use the same worker;
-> recovered documents keep independent backup IDs and closed-tab history.
-> Reload also reads and parses in background, keeping the original document
-> editable and rejecting results after intervening edits or cancellation.
-> Find All in the current Doc View captures live formatted text incrementally,
-> matches in background and rejects stale result navigation. Large captures
-> yield between bounded turns and stop feeding when the worker queue is full.
-> Native completion latency and broader search performance still need testing.
-> Local English spelling and grammar checking now marks Normal Text and Markdown
-> Source View with wavy underlines and right-click corrections. Links and code
-> are excluded; see [scope and limits](docs/proofreading.md).
-> Save All now includes modified untitled documents with sequential Save As
-> dialogs and an Always Yes confirmation option. Save and close prompts reject
-> replies after the requesting tab is restored or its window accepts closure.
-> New [search macros](docs/search-macros.md) keep Find/Replace parameters and
-> wait for background regex edits. Copy All Filenames / File Paths uses the
-> current window's tab order; [Copy Bookmarked Lines](docs/bookmark-copy.md)
-> preserves line endings and prepares large manual copies in the background.
-> [Bookmark editing](docs/bookmark-edits.md) adds Cut, Paste, Remove, Remove Non-
-> Bookmarked Lines, and Inverse Bookmarks, with background planning and saved macro replay.
-> Move to Trash / Recycle Bin now confirms before deletion and rejects stale
-> replies; recovery errors keep the original document open for Save As.
-> Case-insensitive lexical, length and native Windows locale line sorts prepare in background,
-> including rectangle column keys, cancellation and one Undo for mixed macros.
-> Windows locale sorting uses the user locale with case-insensitive numeric keys.
-> [Source line boundaries](docs/physical-line-boundaries.md) follow Notepad++'s default
-> CRLF/LF/CR policy; Unicode separators remain document characters.
-> The File menu now exposes Rename, Move to Trash / Recycle Bin and the
-> containing-folder terminals and workspace route. Save a Copy As preserves
-> the original document's path and dirty state, with an option to open the copy.
-> Copy preparation and cross-volume rename run in the background with progress
-> and Cancel. Edited native-document copy snapshots have a 512 MiB memory limit;
-> exceeding it leaves both files unchanged and directs the user to Save As.
-> [Save protection](docs/windows-save-durability.md) requires a created and synced
-> recovery copy before overwriting an existing destination; failure refuses the save.
-> [Failed-save restoration](docs/windows-bounded-restore.md) streams the saved
-> bytes back with 64 KiB scratch; incomplete recovery retains the rescue copy.
-> Go to Matching Brace (Ctrl-B) and Select All In-between (Ctrl-Alt-B) now
-> share cancellable background matching with bracket outlines. Unchanged paints
-> reuse matched and unmatched results; navigation preserves document bytes and
-> works in read-only Source or Raw View. [Brace scope](docs/windows-brace-navigation.md)
-> records the remaining lexer-style and native verification gaps.
-> Explicitly renamed untitled tabs now keep their name when first-line titles
-> are enabled, including after edits and recovery. [Rename validation](docs/windows-untitled-label-validation-20261011.md)
-> records compatibility and the remaining automatic-title audit.
-> Automatic first-line names now follow edit history and prepare large updates
-> in background. Copy, Save and close wait for accepted names; naming limits
-> preserve document edits and Undo. [Title validation](docs/windows-automatic-title-main-validation-20261012.md)
-> tracks the combined Windows checks and remaining native verification.
-> Column edit paths now preflight hostile geometry and cumulative allocations.
-> Their temporary foreground limits and remaining parity gaps are recorded in
-> [column operation limits](docs/column-safety.md).
-> [Hash Tools](docs/hash-tools.md) supplies MD5, SHA-1, SHA-256 and SHA-512 for
-> dialog text, streamed files and read-only editor selections. Hash work uses
-> background workers, progress and Cancel, with explicit input/memory limits.
+**Status:** v0.0.6. The core editor works on macOS, Linux and Windows.
+Currently in flight: making it behave like Notepad++ in the details. That means
+checking input methods (IME) and auto-completion, fixing focus bugs, speeding up
+very large edits, replaying old macros that save files, and filling the gaps in
+the [menu inventory](docs/notepadpp-parity-inventory.md).
 
-Optional [API completion definitions](docs/api-completion.md) supply language
-names for Function Completion and signatures for parameter hints, including
-the active argument and overload navigation.
+## What it does
+
+- Tabs, sessions that come back after a restart, recent files, and drag a file onto the window to open it.
+- Find and Replace with regex, Find in Files, Mark and bookmarks.
+- Syntax highlighting for 25 languages, bracket matching, auto-indent and comment toggling.
+- Word wrap, show whitespace, zoom and full screen (F11).
+- Column (block) selection and multi-cursor editing.
+- Macro record and replay, with saved macros in the Macro menu.
+- A Shortcut Mapper, so you can change the shortcut of any built-in menu command.
+- Opens big files without freezing. Files over 10 MB load in the background with a Cancel button.
+- Native plugins (see [Plugins](#plugins)).
+- English spell and grammar check in plain text and Markdown.
+- MD5, SHA-1, SHA-256 and SHA-512 hashes of text, files or a selection.
+
+Slow jobs like sorting lines, indenting big selections, reloading and Find All
+run in the background, so the window keeps working while they run.
+
+More detail on some features:
+
+- [Regex replacement](docs/regex-replacement.md)
+- [Search macros](docs/search-macros.md)
+- [Copy Bookmarked Lines](docs/bookmark-copy.md) and [bookmark editing](docs/bookmark-edits.md)
+- [Spell and grammar check](docs/proofreading.md)
+- [Hash Tools](docs/hash-tools.md)
+- [API completion definitions](docs/api-completion.md): function names and parameter hints per language
+- [Save protection](docs/windows-save-durability.md): a backup copy exists before a file is overwritten
 
 ## Goals
 
-- **Lightweight** — small binary, fast cold start, low memory.
-- **Cross-platform** — macOS, Linux, Windows.
-- **Familiar** — Notepad++-style UX: tabs, find/replace, encoding/EOL toggles,
-  syntax highlighting, plugin-friendly.
-- **Open source** — Apache-2.0.
+- **Lightweight:** small binary, fast cold start, low memory.
+- **Cross-platform:** macOS, Linux, Windows.
+- **Familiar:** Notepad++-style tabs, find/replace, encoding and line-ending
+  toggles, syntax highlighting, plugins.
+- **Open source:** Apache-2.0.
 
 ## Built with
 
-- [`gpui`](https://gpui.rs/) — the GPU-accelerated UI framework from Zed Industries
+- [`gpui`](https://gpui.rs/), the GPU-accelerated UI framework from Zed Industries
   (Apache-2.0). Notepad Studio uses gpui as a UI library; all editor logic, layout,
   buffer handling, file I/O, and UX are original to this project.
-- [`ropey`](https://crates.io/crates/ropey) — rope data structure for the text buffer.
-- [`rfd`](https://crates.io/crates/rfd) — native file dialogs.
-- [`regex`](https://crates.io/crates/regex) — find/replace engine (literal escape, whole-word `\b`, and full regex modes).
-- [`dirs`](https://crates.io/crates/dirs) — platform-correct config / log paths.
-- [`serde`](https://crates.io/crates/serde) + [`toml`](https://crates.io/crates/toml) — settings persistence.
+- [`ropey`](https://crates.io/crates/ropey) for the text buffer.
+- [`rfd`](https://crates.io/crates/rfd) for native file dialogs.
+- [`regex`](https://crates.io/crates/regex) for find and replace.
+- [`dirs`](https://crates.io/crates/dirs) for config and log paths on each OS.
+- [`serde`](https://crates.io/crates/serde) and [`toml`](https://crates.io/crates/toml) to save settings.
 
 ## Platform support
 
 | Platform | Status         | Notes |
 | -------- | -------------- | ----- |
-| macOS    | tested daily   | Native menu bar, dock-icon reopen, traffic-light position. Default line ending: LF. |
-| Linux    | builds         | X11 / Wayland via gpui's defaults. Default line ending: LF. Last-window-close exits the app. |
-| Windows  | builds         | Default line ending: CRLF. Last-window-close exits the app. `File ▸ Exit` and `Alt+F4` both work. |
+| macOS    | tested daily   | Native menu bar, dock-icon reopen. Default line ending: LF. |
+| Linux    | builds         | X11 and Wayland. Default line ending: LF. Closing the last window quits the app. |
+| Windows  | builds         | Default line ending: CRLF. Closing the last window quits the app. `File ▸ Exit` and `Alt+F4` both work. |
 
-Keybindings register Cmd-* and Ctrl-* variants together so the same source builds
-across all three platforms — only the active modifier fires per OS. Word-jump
-also accepts `Alt-arrow` (macOS convention) alongside `Ctrl-arrow` (Notepad++).
-Crash reports land in `~/Library/Logs/Notepad Studio/panic.log` (macOS),
-`$XDG_STATE_HOME/Notepad Studio/panic.log` (Linux), or
-`%LOCALAPPDATA%\Notepad Studio\Logs\panic.log` (Windows).
+Shortcuts use `Ctrl` on Linux and Windows and `Cmd` on macOS.
+
+If the app crashes, it writes a report to:
+
+- macOS: `~/Library/Logs/Notepad Studio/panic.log`
+- Linux: `$XDG_STATE_HOME/Notepad Studio/panic.log`
+- Windows: `%LOCALAPPDATA%\Notepad Studio\Logs\panic.log`
 
 ## Installing a release
 
-Download a prebuilt binary from the
-[Releases page](https://github.com/alesloa/notepad-studio/releases). Each release
-ships one artifact per platform:
+Download a build from the
+[Releases page](https://github.com/alesloa/notepad-studio/releases):
 
 | Platform | Artifact | Contents |
 | -------- | -------- | -------- |
@@ -144,12 +84,12 @@ ships one artifact per platform:
 | Linux x86_64          | `Notepad-Studio-linux-x86_64.tar.gz` | `notepad-studio` binary |
 | Windows x86_64        | `Notepad-Studio-windows-x86_64.zip`  | `notepad-studio.exe` |
 
-All assets (icons, themes) are embedded in the binary, so the Linux and Windows
-artifacts are just the standalone executable — no extra files to keep alongside it.
+Icons and themes are built into the binary. On Linux and Windows you only need
+the one executable.
 
-> **macOS Gatekeeper note:** the `.app` is **not signed or notarized yet**, so the
-> first launch is blocked by Gatekeeper. Either **right-click the app → Open** (then
-> confirm once), or clear the quarantine flag after moving it to `/Applications`:
+> **macOS:** the app is **not signed yet**, so macOS blocks the first launch.
+> Right-click the app and choose **Open**, then confirm. Or move it to
+> `/Applications` and run:
 >
 > ```sh
 > xattr -dr com.apple.quarantine "/Applications/Notepad Studio.app"
@@ -165,153 +105,135 @@ cargo run --release    # build + run (optimised)
 cargo check            # type-check only, no binary
 ```
 
-`gpui` is vendored in-repo under [`vendor/gpui`](vendor/gpui), so the project is
-fully self-contained — nothing is fetched or downloaded for it. The first build
-compiles the vendored `gpui` from source (a few minutes); subsequent builds are
-fast.
+`gpui` is included in the repo under [`vendor/gpui`](vendor/gpui), so nothing
+is downloaded for it. The first build compiles it from source and takes a few
+minutes. Later builds are fast.
 
-Release builds (`cargo bundle`) carry the app icon automatically. Regenerating
-icons from new source art → [`docs/icons.md`](docs/icons.md).
+Release builds (`cargo bundle`) include the app icon. To make new icons, see
+[`docs/icons.md`](docs/icons.md).
 
 ## Roadmap
 
-### v0.0.1 — scaffold ✅
-- [x] Window opens, native menu bar, dark theme, status bar
-- [x] Stubbed actions (File / Edit / View / Help)
-- [x] Rope-backed read-only buffer renders line-by-line with gutter
+### v0.0.1: scaffold ✅
+- [x] Window, native menu bar, dark theme, status bar
+- [x] File / Edit / View / Help menus
+- [x] Read-only text view with line numbers
 
-### v0.0.2 — selection & themes ✅
-- [x] Custom `EditorElement` with shaped lines and selection paint
-- [x] Click + drag to select; shift-click to extend selection
-- [x] `Cmd/Ctrl-A` select all, `Cmd/Ctrl-C` copy via system clipboard
-- [x] `FocusHandle`, key context, IBeam cursor over the editor
-- [x] Light + Dark theme with `View ▸ Toggle Theme` (`Cmd/Ctrl-Shift-T`)
+### v0.0.2: selection and themes ✅
+- [x] Click and drag to select; shift-click to extend
+- [x] `Cmd/Ctrl-A` select all, `Cmd/Ctrl-C` copy
+- [x] Light and dark theme (`View ▸ Toggle Theme`)
 
-### v0.0.3 — editable buffer ✅
-- [x] `EntityInputHandler` — OS / IME text routes into the rope buffer
+### v0.0.3: editing ✅
+- [x] Typing, including input methods (IME)
 - [x] Backspace, Delete, Enter, Tab (4 spaces, configurable)
-- [x] Arrow keys, Home/End, Cmd+Home/End, Cmd+Up/Down for doc bounds
-- [x] Alt+Left/Right and Ctrl+Left/Right for word boundaries
-- [x] Shift-extend variants on every movement
-- [x] Sticky desired column for vertical movement
-- [x] Caret blinks every 500ms via `gpui::Timer` task; resets on activity
-- [x] Cut (Cmd+X), Paste (Cmd+V) wired to system clipboard
-- [x] Linear undo / redo stacks (Cmd+Z, Cmd+Shift+Z, Ctrl+Y)
-- [x] Dirty bit reflected in the title bar (● prefix)
+- [x] Arrow keys, Home/End, jump to start or end of the document
+- [x] Jump by word with Alt or Ctrl + Left/Right
+- [x] Shift + any movement key extends the selection
+- [x] Up/Down remember the column you started in
+- [x] Blinking caret
+- [x] Cut and Paste
+- [x] Undo and Redo (`Cmd+Z`, `Cmd+Shift+Z`, `Ctrl+Y`)
+- [x] Unsaved changes show a ● in the title bar
 
-### v0.0.3 — cross-platform polish ✅
-- [x] Mouse drag keeps selecting when the cursor leaves the window
-- [x] `File ▸ New Window` (Cmd/Ctrl+Shift+N) and macOS dock-icon reopen
-- [x] Ctrl- variants for every Cmd- chord; Linux/Windows-friendly defaults
-- [x] `QuitMode::Default` — macOS stays alive on last window close, Linux/Windows exit
-- [x] `File ▸ Exit` menu entry alongside the macOS `Quit`
-- [x] OS-aware line endings — CRLF default on Windows, LF elsewhere
-- [x] Panic hook writes timestamped reports to a platform-correct log dir
-- [x] Window placement persisted to `<config>/Notepad Studio/window.toml`
+### v0.0.3: cross-platform polish ✅
+- [x] Drag-select keeps going when the mouse leaves the window
+- [x] `File ▸ New Window` (`Cmd/Ctrl+Shift+N`) and macOS dock-icon reopen
+- [x] `Ctrl` versions of every `Cmd` shortcut
+- [x] macOS keeps running after the last window closes; Linux and Windows quit
+- [x] `File ▸ Exit`
+- [x] New files use CRLF on Windows and LF elsewhere
+- [x] Crash reports saved to a log file
+- [x] Window size and position remembered
 
-### v0.0.4 — file I/O & tabs ✅
-- [x] Multi-tab buffers — switchable buffers in one window with a top tab strip
-- [x] `Cmd/Ctrl-N` opens a new empty tab; `Cmd/Ctrl-W` closes the active tab
-- [x] `Ctrl-Tab` / `Ctrl-Shift-Tab` cycle tabs (MRU order, MRU tracking deferred)
-- [x] `Ctrl-PageDown` / `Ctrl-PageUp` cycle tabs in visual order
-- [x] `Cmd/Ctrl-1`..`Cmd/Ctrl-9` jump directly to tab N
-- [x] `Cmd/Ctrl-Shift-W` closes every tab; one fresh blank tab is left behind
-- [x] `Cmd/Ctrl-Shift-T` restores the most recently closed tab (last 20)
-- [x] Closing the last tab in a window closes the window
-- [x] Theme toggle moved to menu only (free for Notepad++ parity)
-- [x] File ▸ Open via `rfd` — loads into the active empty tab or a new tab, detects LF / CRLF / CR
-- [x] File ▸ Save (`Cmd/Ctrl-S`) and Save As (`Cmd-Shift-S` mac, `Ctrl-Alt-S` Linux/Win)
-- [x] File ▸ Save All (`Cmd-Opt-S` mac, `Ctrl-Shift-S` Linux/Win)
-- [x] File ▸ Save a Copy As; Rename, Move to Trash / Recycle Bin, containing-folder terminals and workspace
-- [x] Dirty-prompt on close-tab and Close All — Save / Don't Save / Cancel
-- [x] Window title and tab strip sync to active tab's file path and dirty bit
-- [x] Drop-to-open: drag a file onto the window (opens a new tab)
-- [x] File ▸ Recent Files (persistent MRU, capped at 10, `<config>/Notepad Studio/recent.toml`)
-- [x] Per-window placement persistence (replaces the v0.0.3 single-slot file)
-- [x] Tab drag-reorder
-- [x] View ▸ Tab — numbered/first/last/next/previous selection, reordering and colors; rebindable commands
+### v0.0.4: files and tabs ✅
+- [x] Tabs, with a tab strip at the top
+- [x] `Cmd/Ctrl-N` new tab, `Cmd/Ctrl-W` close tab
+- [x] `Ctrl-Tab` / `Ctrl-Shift-Tab` and `Ctrl-PageDown` / `Ctrl-PageUp` switch tabs
+- [x] `Cmd/Ctrl-1` to `Cmd/Ctrl-9` jump to a tab
+- [x] `Cmd/Ctrl-Shift-W` closes every tab
+- [x] `Cmd/Ctrl-Shift-T` reopens a closed tab (last 20)
+- [x] Closing the last tab closes the window
+- [x] Open, with line-ending detection (LF / CRLF / CR)
+- [x] Save (`Cmd/Ctrl-S`) and Save As (`Cmd-Shift-S` on mac, `Ctrl-Alt-S` on Linux/Windows)
+- [x] Save All (`Cmd-Opt-S` on mac, `Ctrl-Shift-S` on Linux/Windows), including untitled tabs
+- [x] Save a Copy As, Rename, Move to Trash / Recycle Bin, open the containing folder or a terminal there
+- [x] Save / Don't Save / Cancel prompt when closing unsaved tabs
+- [x] Title bar and tabs show the file path and unsaved state
+- [x] Drag a file onto the window to open it
+- [x] Recent Files (last 10)
+- [x] Each window remembers its own size and position
+- [x] Drag tabs to reorder them
+- [x] View ▸ Tab: select, move and color tabs
 
-### v0.0.5 — Notepad++ basics ✅
-- [x] Find bar with incremental search (`Cmd/Ctrl-F`)
-- [x] Find Next / Find Previous (`F3` / `Shift+F3`, also `Enter` / `Shift+Enter` in the find input)
-- [x] Match-case, whole-word, and regex toggles (powered by `regex::RegexBuilder`)
-- [x] Match counter chip — "X of Y" / "No matches" / "Invalid regex"
-- [x] All-match highlighting in the editor; current match gets a stronger tint
-- [x] Replace bar with Replace / Replace All (`Ctrl-H`, or `Cmd-Opt-F` on macOS)
-- [x] Go to Line (`Ctrl-G`, or `Cmd-L` on macOS to leave `Cmd-G` free for Find Next convention)
-- [x] Find in Files (`Cmd/Ctrl+Shift+F`) — `walkdir`-backed traversal, async
-      off-main search, scrollable results panel, click-to-jump into the file
-- [x] "Extended" search mode — `\n` `\r` `\t` `\0` `\b` `\\` `\xHH` `\dDDD` `\oOOO` escape interpretation in non-regex find/replace (Find / Replace / FIF / Mark)
-- [x] Mark / Bookmark — `F2` toggle, `Ctrl+F2` next, `Shift+F2` previous, `Cmd/Ctrl+Shift+F2` clear all; gutter glyph + buffer-local set
-- [x] [Copy Bookmarked Lines](docs/bookmark-copy.md) — physical lines in document order, unchanged edit state, cancellable large manual copies and small saved macro replay
-- [x] Replace All as a single undo step (edit-group primitive)
-- [x] [Regex capture replacement](docs/regex-replacement.md) — numbered/named captures, optional groups, zero-length matches, guarded background planning, and explicit unsupported-template errors
-- [x] Line endings toggle (CRLF / LF / CR) — click the EOL chip in the status bar to cycle
-- [x] Encoding toggle (UTF-8 / UTF-8 BOM / UTF-16 LE/BE / Latin-1) — BOM-aware load, click the encoding chip to cycle
+### v0.0.5: Notepad++ basics ✅
+- [x] Find bar that searches as you type (`Cmd/Ctrl-F`)
+- [x] Find Next / Previous (`F3` / `Shift+F3`, or `Enter` / `Shift+Enter` in the find box)
+- [x] Match case, whole word and regex options
+- [x] Match counter ("X of Y")
+- [x] All matches highlighted, current match brighter
+- [x] Replace and Replace All (`Ctrl-H`, or `Cmd-Opt-F` on macOS); Replace All undoes in one step
+- [x] Go to Line (`Ctrl-G`, or `Cmd-L` on macOS)
+- [x] Find in Files (`Cmd/Ctrl+Shift+F`) with a results panel; click a result to open it
+- [x] Extended search mode: `\n`, `\r`, `\t` and other escapes in normal find and replace
+- [x] Bookmarks: `F2` toggle, `Ctrl+F2` next, `Shift+F2` previous, `Cmd/Ctrl+Shift+F2` clear all
+- [x] [Copy Bookmarked Lines](docs/bookmark-copy.md)
+- [x] [Regex replacement](docs/regex-replacement.md) with numbered and named groups
+- [x] Click the line-ending label in the status bar to switch CRLF / LF / CR
+- [x] Click the encoding label to switch UTF-8 / UTF-8 BOM / UTF-16 LE/BE / Latin-1
 
-### v0.0.6 — viewing comfort
-- [x] Scrollable vertical viewport — only visible lines shape & paint
-- [x] Vertical scrollbar — drag thumb to scroll, click track to page-step
-- [x] Mouse wheel / trackpad scroll (pixel and line-mode deltas)
-- [x] PageUp / PageDown nav (with Shift- variants for selection)
-- [x] Cursor auto-scrolls into view on every move (typing, arrows, find, goto, …)
-- [x] Drag-select past the viewport edge auto-scrolls
-- [x] Async file / message dialogs — fixes a hard crash on dirty-tab close
-      (sync rfd dialogs ran the AppKit run loop and re-entered the gpui
-      `AppCell` borrow held by the outer `entity.update`, panicking on the
-      next caret-blink tick). Open / Save / Save As / Close-prompt all use
-      `rfd::AsyncFileDialog` / `AsyncMessageDialog` driven through
-      `cx.spawn_in`.
-- [x] Word wrap toggle — `View ▸ Word Wrap`; visual-row layout pass with wrap cache
-- [x] Horizontal scrollbar (visible when wrap is off)
-- [x] Right-click context menu — in-window overlay layer; Undo/Redo, Cut/Copy/Paste/Delete, Select All, Toggle Bookmark, Go to Line, Find
-- [x] Show whitespace — `View ▸ Show Whitespace` (· for spaces, → for tabs)
-- [x] Zoom in/out — `Cmd/Ctrl +/-/0` (VS Code style; scales chrome, gutter, and editor; persisted via `<config>/Notepad Studio/window.toml`)
-- [x] Full-screen toggle (`F11`)
+### v0.0.6: viewing comfort
+- [x] Scrolling only draws the visible lines, so long files stay fast
+- [x] Vertical and horizontal scrollbars
+- [x] Mouse wheel and trackpad scrolling
+- [x] PageUp / PageDown (Shift to select)
+- [x] The view follows the cursor
+- [x] Drag-select scrolls past the edge of the view
+- [x] Fixed a crash when closing an unsaved tab
+- [x] Word wrap (`View ▸ Word Wrap`)
+- [x] Right-click menu: Undo/Redo, Cut/Copy/Paste/Delete, Select All, Toggle Bookmark, Go to Line, Find
+- [x] Show whitespace (`View ▸ Show Whitespace`)
+- [x] Zoom in and out with `Cmd/Ctrl +/-/0`, remembered between runs
+- [x] Full screen (`F11`)
 
-### v0.0.7 — Edit ops (Notepad++ parity)
-- [x] Duplicate Line / Selection — `Cmd/Ctrl+D`
-- [x] Move Line Up / Down — `Ctrl+Shift+Up/Down` (Linux/Win), `Alt+Shift+Up/Down` (mac)
-- [x] Delete Line — `Cmd/Ctrl+Shift+L`
-- [x] UPPERCASE — `Cmd/Ctrl+Shift+U`
-- [x] lowercase — `Cmd/Ctrl+U`
-- [x] Toggle Block Comment — `Cmd+/` (mac), `Ctrl+Q` (Linux/Win)
-- [x] Toggle Stream Comment — `Cmd+Shift+/` (mac), `Ctrl+Shift+Q` (Linux/Win)
-- [x] Insert Blank Line Above / Below — `Cmd/Ctrl+Alt+Enter` / `Cmd/Ctrl+Shift+Enter`
-- [x] Trim Trailing Whitespace — Edit menu only
-- [x] Syntax-aware comment chars — per-language tokens for all 24 grammars
-- [x] Replace All as a single undo step (edit-group primitive)
+### v0.0.7: edit commands (Notepad++ parity)
+- [x] Duplicate Line / Selection (`Cmd/Ctrl+D`)
+- [x] Move Line Up / Down (`Ctrl+Shift+Up/Down` on Linux/Windows, `Alt+Shift+Up/Down` on mac)
+- [x] Delete Line (`Cmd/Ctrl+Shift+L`)
+- [x] UPPERCASE (`Cmd/Ctrl+Shift+U`) and lowercase (`Cmd/Ctrl+U`)
+- [x] Toggle Block Comment (`Cmd+/` on mac, `Ctrl+Q` on Linux/Windows)
+- [x] Toggle Stream Comment (`Cmd+Shift+/` on mac, `Ctrl+Shift+Q` on Linux/Windows)
+- [x] Insert Blank Line Above / Below (`Cmd/Ctrl+Alt+Enter` / `Cmd/Ctrl+Shift+Enter`)
+- [x] Trim Trailing Whitespace (Edit menu)
+- [x] Comment toggles use the right comment style for each language
 
-### v0.1.0 — syntax & language ✅
-- [x] Tree-sitter syntax highlighting — Rust, Python, C, C#, JS/TS/TSX, JSON, Markdown, Bash/Sh/Zsh/Ksh, PowerShell, Go, Java, Swift, Ruby, PHP, C++, Lua, HTML, CSS, SCSS, YAML, TOML, XML, SQL (25 modes). Filename detection (Rakefile, Gemfile) and shebang fallback. Kotlin and Dockerfile not yet supported (grammar incompatibilities).
-- [x] Language menu — select any of the 25 installed syntax modes or None (Normal Text), with per-tab checkmarks, session persistence and rebindable actions. Highlighting runs in the background.
-- [x] Bracket matching — depth-aware pair lookup, skips brackets inside strings/comments via tree-sitter span filter; falls back to dumb scan when no language
-- [x] Auto-indent — Enter inherits leading whitespace; extra indent after `{`, `[`, `(`
-- [x] Line indentation - Edit menu commands prepare larger or annotation-costly selections in the background; Escape cancels and Undo/Redo preserve text, marks and bookmarks. Large macro batches and block selections remain open.
-- [x] Comment toggle (syntax-aware) — per-language tokens for all 24 grammars (HTML/XML/Markdown wrap line ranges in `<!-- -->`; JSON no-op)
+### v0.1.0: syntax and languages ✅
+- [x] Syntax highlighting: Rust, Python, C, C#, JS/TS/TSX, JSON, Markdown, Bash/Sh/Zsh/Ksh, PowerShell, Go, Java, Swift, Ruby, PHP, C++, Lua, HTML, CSS, SCSS, YAML, TOML, XML, SQL. Also detects files like `Rakefile` and `Gemfile`, and scripts by their `#!` line. Kotlin and Dockerfile are not supported yet.
+- [x] Language menu to pick the language for each tab
+- [x] Bracket matching that skips brackets inside strings and comments
+- [x] Auto-indent after Enter, with extra indent after `{`, `[`, `(`
+- [x] Indent and unindent lines from the Edit menu; large selections run in the background
 
 ### Settings ✅
-- [x] Shortcut Mapper — `Settings ▸ Shortcut Mapper`; every fixed installed menu command, conflict detection, persisted to `<config>/Notepad Studio/shortcuts.toml`. Per-entry shortcuts for named Run commands, saved macros and plugin commands remain open.
+- [x] Shortcut Mapper (`Settings ▸ Shortcut Mapper`) for every menu command, with conflict warnings. Shortcuts for named Run commands, saved macros and plugin commands are still open.
 
 ### Polish ✅
-- [x] Multi-click selection — double-click a word, triple-click a line, quad+-click select-all
-- [x] Drop-to-open — drag any file onto the window to open it as a new tab
-- [x] Notepad++-style icon toolbar above the tab strip — File / Edit / Search / View / Macro / Plugins groups, monochrome SVGs tinted from the active theme, hover + pressed states, disabled state for unavailable actions
+- [x] Double-click selects a word, triple-click a line, four clicks select all
+- [x] Notepad++-style toolbar above the tabs
 
 ### Beyond
-- [x] Run dialog — `F5` or `Run ▸ Run...`; Browse, document/app variables, literal argument launching and recent commands in `run.toml`. Save named commands to the Run menu; select them in the dialog to edit, rename, copy or delete. Command and name fields have their own undo/redo. Named-command keyboard shortcuts remain open.
-- [x] Column-mode selection + multi-edit — alt-drag a rectangle, virtual columns extend past EOL, typing/Backspace/Delete/Cut/Copy/Paste all operate rectangularly in a single undo step, sentinel-tagged clipboard so Notepad Studio→Notepad Studio block paste lands as column paste; `Cmd/Ctrl+Alt+Shift+Arrow` extends the block by keyboard. Word-wrap + block paint together, and the Column Editor numeric-series dialog, deferred
-- [x] Macro record / replay — `Cmd/Ctrl+Shift+R` toggle recording, `Cmd/Ctrl+Shift+P` playback, `Cmd/Ctrl+Shift+M` opens an inline "Run N times" prompt; Save Currently Recorded prompts for a name, persists to `<config>/Notepad Studio/macros.toml`, and the saved entries appear under the `Macro` menu for one-click replay
-- [x] [Search macro parameters](docs/search-macros.md) — Find Next/Previous and Replace/Replace All keep query, mode and options across save/reload; regex replay waits for background edits
-- [x] Edit ▸ Copy to Clipboard ▸ Copy All Filenames / Copy All File Paths — current window's tab order, CRLF rows and saved macro replay against current tabs
-- [x] Plugin host — native cdylib plugins drop into `<config>/Notepad Studio/plugins/` and load at startup via `libloading`; the [`notepad-studio-plugin`](crates/notepad-studio-plugin) crate defines the C-ABI (`PluginInfo` / `HostApi`) and ships a safe `Plugin` trait + `declare_plugin!` macro for authors. The Plugins menu lists every loaded plugin with one submenu per plugin and one menu item per command. See the [Plugins](#plugins) section below
-- [x] Large-file streaming reads — files >10 MB stream in 1 MB chunks on the bg executor with status-bar progress + Cancel; >2 GB shows a confirm-open dialog; syntax highlighting skipped above 50 MB
-- [x] Session restore — open tabs, scroll positions, selections, and per-window placement persist across restarts; saved on autosave tick, on window close, and on app quit (`0cd4008` `8b6327b` `d8ba325`)
+- [x] Run dialog (`F5` or `Run ▸ Run...`), with saved commands in the Run menu. Shortcuts for saved commands are still open.
+- [x] Column selection: Alt-drag a block, then type, delete, cut, copy or paste across every line at once. `Cmd/Ctrl+Alt+Shift+Arrow` extends the block. Block selection with word wrap on, and the Column Editor dialog, are still open.
+- [x] Macros: `Cmd/Ctrl+Shift+R` to record, `Cmd/Ctrl+Shift+P` to play, `Cmd/Ctrl+Shift+M` to run N times. Saved macros appear in the Macro menu.
+- [x] [Search macros](docs/search-macros.md) remember the search text and options
+- [x] Edit ▸ Copy to Clipboard ▸ Copy All Filenames / Copy All File Paths
+- [x] Plugins (see [Plugins](#plugins))
+- [x] Large files: over 10 MB load in the background with progress and Cancel, over 2 GB ask first, and syntax highlighting turns off above 50 MB
+- [x] Open tabs, scroll positions, selections and window positions come back after a restart
 
 ## Plugins
 
-Notepad Studio loads native cdylib plugins from the editor's per-user plugins
-directory:
+Notepad Studio loads native plugins from this folder:
 
 | Platform | Path |
 | -------- | ---- |
@@ -319,28 +241,25 @@ directory:
 | Linux    | `$XDG_CONFIG_HOME/Notepad Studio/plugins/` (defaults to `~/.config/Notepad Studio/plugins/`) |
 | Windows  | `%APPDATA%\Notepad Studio\plugins\` |
 
-The directory is auto-created on first launch. To install a plugin, drop
-its `.dylib` (mac) / `.so` (linux) / `.dll` (windows) in there and restart
-Notepad Studio. The Plugins menu shows one submenu per loaded plugin with each
-exposed command as a menu item; "Plugins ▸ Open Plugins Folder" reveals
-the directory in the OS file manager.
+The folder is created on first launch. To install a plugin, put its `.dylib`
+(mac), `.so` (Linux) or `.dll` (Windows) file there and restart Notepad Studio.
+Each plugin gets its own submenu in the Plugins menu.
+`Plugins ▸ Open Plugins Folder` opens the folder.
 
-A sample plugin (Uppercase Selection + Show Hello) lives under
-[`crates/sample-uppercase-plugin`](crates/sample-uppercase-plugin) — build
-with `cargo build -p sample-uppercase-plugin --release` and copy
-`target/release/libsample_uppercase_plugin.{dylib,so,dll}` into the
-plugins directory.
+There is a sample plugin in
+[`crates/sample-uppercase-plugin`](crates/sample-uppercase-plugin). Build it with
+`cargo build -p sample-uppercase-plugin --release`, then copy
+`target/release/libsample_uppercase_plugin.{dylib,so,dll}` into the plugins folder.
 
-The plugin ABI is defined by the [`notepad-studio-plugin`](crates/notepad-studio-plugin)
-crate. v1 exposes buffer read/write, selection read/write, and a status
-bar message. ABI is versioned (`PLUGIN_API_VERSION = 1`); plugins built
-against a different version are skipped at load time with a stderr log.
+To write your own, use the [`notepad-studio-plugin`](crates/notepad-studio-plugin)
+crate. Plugins can read and change the text and the selection, and show a
+message in the status bar. Plugins built for a different plugin API version
+(currently `PLUGIN_API_VERSION = 1`) are skipped.
 
-> **Trust:** plugins run as native code with full process privileges. A
-> hostile plugin can read every file the editor can read and execute any
-> code your user account can. Only install plugins you trust. A capability
-> sandbox (wasmtime) is on the v2 roadmap.
+> **Trust:** plugins run as native code with the same access as Notepad Studio.
+> A bad plugin can read any file you can and run any code your account can. Only install
+> plugins you trust. A sandbox for plugins is planned for v2.
 
 ## License
 
-Apache-2.0 — see [LICENSE](LICENSE).
+Apache-2.0. See [LICENSE](LICENSE).

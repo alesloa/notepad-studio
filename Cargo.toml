@@ -29,7 +29,7 @@ authors = ["Notepad Studio contributors"]
 
 [package]
 name = "notepad-studio"
-version = "0.0.5"
+version = "0.0.6"
 edition = "2021"
 license = "Apache-2.0"
 description = "Lightweight cross-platform text editor inspired by Notepad++, written in Rust."

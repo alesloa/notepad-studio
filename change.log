@@ -8,7 +8,10 @@ Notepad Studio is a lightweight cross-platform text editor inspired by
 Notepad++, written in Rust on GPUI. Apache-2.0.
 
 
-v0.0.5 — current
+v0.0.6 — current
+
+  Grammar checking no longer underlines runs of spaces. Table padding, aligned
+  columns and two spaces after a period stay unmarked.
 
   First-line names for untitled tabs now follow the corresponding edits while
   respecting saved paths and names you choose. Large naming updates prepare in

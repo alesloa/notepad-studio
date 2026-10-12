@@ -36,6 +36,8 @@ impl Override {
 }
 impl Drop for Override { fn drop(&mut self) { STATE.with(|slot| slot.replace(self.0.take())); } }
 
+// `file-id` is a Windows-only dependency.
+#[cfg(target_os = "windows")]
 #[test]
 fn actual_writer_restoration_uses_fixed_scratch_budget() {
     let dir = crate::persist::TempDir::new("restore-fixed-budget"); let target = dir.join("prior.txt");

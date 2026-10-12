@@ -20,7 +20,9 @@ code and complete links are excluded too. This conservative filtering can skip
 ordinary text attached to a path or identifier without whitespace.
 
 Grammar includes article agreement, repeated words, punctuation, capitalization
-and writing-style rules. It is a rule-based assistant and can miss errors or
+and writing-style rules. Runs of spaces are layout, not grammar, so Harper's
+`Spaces` rule is off: table padding and aligned columns stay unmarked. It is a
+rule-based assistant and can miss errors or
 make unwanted suggestions. It does not rewrite text automatically. Grammar
 runs only on complete paragraphs that fit within 2,048 Unicode characters and
 8 KiB; fragments beside excluded text and size splits receive spelling checks

@@ -108,6 +108,7 @@ impl Workspace {
         if let Err(error) = delete(path) {
             self.set_status(format!("Move to trash failed: {error}")); cx.notify(); return;
         }
+        self.automatic_name_context_changed(cx);
         let mut removed = self.tabs.remove(idx);
         if exit {
             self.active = 0;

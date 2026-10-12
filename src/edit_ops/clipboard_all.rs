@@ -60,16 +60,36 @@ impl Workspace {
     }
 
     pub(crate) fn copy_all_tab_labels(&mut self, full_paths: bool, cx: &mut Context<Self>) -> bool {
-        crate::clipboard_ownership::supersede();
+        let request = crate::clipboard_ownership::claim(std::sync::Arc::new(std::sync::atomic::AtomicBool::new(false)));
         self.cancel_bookmark_copy(cx);
         crate::macros::record(if full_paths {
             MacroEvent::CopyAllFilePaths
         } else {
             MacroEvent::CopyAllFilenames
         });
+        if let Some(ready) = self.wait_for_automatic_titles(cx) {
+            let stamp = self.automatic_title_consumer_stamp();
+            let playback = self.begin_title_clipboard_wait();
+            cx.spawn(async move |this, cx| {
+                let _ = ready.await;
+                let _ = this.update(cx, |w, cx| {
+                    w.finish_title_clipboard_wait(playback, cx, move |w, cx| {
+                        if w.window_closed || !crate::clipboard_ownership::is_current(&request) { return false; }
+                        if w.automatic_title_consumer_stamp() != stamp {
+                            w.set_status("Document names changed while waiting to copy them; repeat the command for the current names"); cx.notify(); return false;
+                        }
+                        w.publish_all_tab_labels(full_paths, &request, cx)
+                    });
+                });
+            }).detach(); return true;
+        }
+        self.publish_all_tab_labels(full_paths, &request, cx)
+    }
+
+    fn publish_all_tab_labels(&mut self, full_paths: bool, request: &crate::clipboard_ownership::Request, cx: &mut Context<Self>) -> bool {
         match tab_labels(&self.tabs, full_paths) {
             Ok(Some(payload)) => {
-                crate::clipboard_ownership::write_now(cx, ClipboardItem::new_string(payload));
+                if !crate::clipboard_ownership::publish(request, cx, ClipboardItem::new_string(payload)) { return false; }
                 self.set_status(if full_paths {
                     "Copied all file paths"
                 } else {

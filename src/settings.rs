@@ -1675,9 +1675,46 @@ pub(crate) fn snapshot() -> Settings {
         .unwrap_or_default()
 }
 
+pub(crate) fn untitled_title_enabled() -> bool {
+    #[cfg(test)]
+    if let Some(enabled) = TEST_SETTINGS.with(|settings| settings.borrow().as_ref().map(|value| value.untitled_uses_first_line)) { return enabled; }
+    global().lock().map(|value| value.untitled_uses_first_line).unwrap_or(false)
+}
+
+#[derive(Clone, PartialEq, Eq)]
+pub(crate) struct TitlePolicy {
+    pub(crate) enabled: bool,
+    pub(crate) revision: crate::buffer::ContentRevision,
+}
+
+static TITLE_POLICY_REVISION: OnceLock<Mutex<crate::buffer::ContentRevision>> = OnceLock::new();
+
+fn title_policy_revision() -> &'static Mutex<crate::buffer::ContentRevision> {
+    TITLE_POLICY_REVISION.get_or_init(|| Mutex::new(Default::default()))
+}
+
+pub(crate) fn untitled_title_policy() -> TitlePolicy {
+    let enabled = untitled_title_enabled();
+    #[cfg(test)]
+    if TEST_SETTINGS.with(|settings| settings.borrow().is_some()) {
+        return TitlePolicy { enabled, revision: TEST_TITLE_REVISION.with(|revision| revision.borrow().clone()) };
+    }
+    TitlePolicy { enabled, revision: title_policy_revision().lock().map(|value| value.clone()).unwrap_or_default() }
+}
+
+fn advance_title_policy() {
+    #[cfg(test)]
+    if TEST_SETTINGS.with(|settings| settings.borrow().is_some()) {
+        TEST_TITLE_REVISION.with(|revision| *revision.borrow_mut() = Default::default());
+        return;
+    }
+    if let Ok(mut revision) = title_policy_revision().lock() { *revision = Default::default(); }
+}
+
 #[cfg(test)]
 thread_local! {
     static TEST_SETTINGS: std::cell::RefCell<Option<Settings>> = const { std::cell::RefCell::new(None) };
+    static TEST_TITLE_REVISION: std::cell::RefCell<crate::buffer::ContentRevision> = std::cell::RefCell::new(Default::default());
 }
 
 #[cfg(test)]
@@ -1687,6 +1724,7 @@ pub(crate) struct TestSettingsGuard(Option<Settings>);
 impl Drop for TestSettingsGuard {
     fn drop(&mut self) {
         TEST_SETTINGS.with(|settings| *settings.borrow_mut() = self.0.take());
+        TEST_TITLE_REVISION.with(|revision| *revision.borrow_mut() = Default::default());
     }
 }
 
@@ -1694,6 +1732,7 @@ impl Drop for TestSettingsGuard {
 #[cfg(test)]
 pub(crate) fn override_for_test(mut settings: Settings) -> TestSettingsGuard {
     clamp_indent_widths(&mut settings);
+    TEST_TITLE_REVISION.with(|revision| *revision.borrow_mut() = Default::default());
     TestSettingsGuard(TEST_SETTINGS.with(|current| current.replace(Some(settings))))
 }
 
@@ -1730,9 +1769,13 @@ pub(crate) fn replace_and_save(mut next: Settings) {
     #[cfg(test)]
     if TEST_SETTINGS.with(|settings| {
         let mut current = settings.borrow_mut();
-        if current.is_some() { *current = Some(next.clone()); true } else { false }
+        if let Some(previous) = current.as_ref() {
+            if previous.untitled_uses_first_line != next.untitled_uses_first_line { TEST_TITLE_REVISION.with(|revision| *revision.borrow_mut() = Default::default()); }
+            *current = Some(next.clone()); true
+        } else { false }
     }) { return; }
     if let Ok(mut g) = global().lock() {
+        if g.untitled_uses_first_line != next.untitled_uses_first_line { advance_title_policy(); }
         *g = next.clone();
     }
     save_to_disk(&next);
@@ -1797,6 +1840,7 @@ fn check_external_settings_change() {
     };
     clamp_indent_widths(&mut next);
     if let Ok(mut g) = global().lock() {
+        if g.untitled_uses_first_line != next.untitled_uses_first_line { advance_title_policy(); }
         *g = next;
     }
     if let Ok(mut g) = last_seen_mtime().lock() {

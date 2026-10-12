@@ -4,7 +4,73 @@ Continue the user's goal of finishing Windows Notepad++ behavior and feature
 parity. Mac testing is deferred. Full parity remains open; this is a tested
 checkpoint for one completed batch.
 
-## Current checkpoint, updated after deletion integration on 2026-10-12
+## Paused checkpoint, 2026-10-12
+
+The user requested stopping all agents and committing the current repository
+with `$commit all`. The full Windows goal is paused. This checkpoint integrates
+the reviewed automatic-title candidate-13 patch over `0e261a97` (previous product
+source `ec8ae984`), its changelog/README record and regenerated inventory. Do not
+reapply the title patch. Use Git log/status for the checkpoint's commit identity.
+
+Root runner session `63606` is terminal with exit 0. Build, full tests and Clippy
+pass on the separate F: Root target, with no input drift. The freeze covers 969 non-doc
+repository inputs, including the embedded changelog; its combined hash is
+`89d1022098a828579c069cdbf2417f3a89ac66aad4e22123102b2db410ee227e`.
+Root independently verified all frozen live inputs and nine retained evidence
+files. Main passes 2,984 unit and three integration tests, with 34 ignored; Clippy
+has 193 inherited warning pairs and no additions or removals. See the linked
+validation for exact logs, executables and provenance.
+
+All three agents and their owned processes are stopped. The title release
+compilation was cancelled; no verified final optimized artifact or timed control
+exists. All existing C:/F: source, caches and evidence remain intact. Do not delete
+the isolated worktrees: their unfinished keyboard/recovery changes are not on main.
+
+Local resume receipts under `../notepad-studio-agents/`:
+
+- `windows-automatic-title/gates/automatic-title-paused-handoff.md`: reviewed C13,
+  cancelled compile session 6615 and the pending six optimized controls.
+- `windows-normal-save-background/gates/g16-paused-20261012-0800-handoff.md`:
+  accepted G15, G16 recovery-loss baseline and incomplete/uncompiled registration.
+- `windows-deletion-undo/gates/keyboard-paused-handoff.md`: accepted storage
+  milestone and later compiled-only Advanced negative controls, never executed.
+
+The title candidate's fresh F: build and Clippy pass, with no input drift and
+193 canonical warning pairs exactly matching main. Candidate 12 has a full
+2,984-unit/three-integration pass; candidate 13 has eight focused passes and the
+reviewed three equivalent warning fixes plus strict background-disposal checks.
+Root verified all 775 archived candidate inputs, 13 focused evidence files and
+the 38-path patch (10 new Rust files). This is not a native or shipping latency
+claim. Large artifacts and process temporary files use F:; all old C: caches and
+packets remain intact. C: is below the build-space threshold.
+
+File's G15 eleven-function correction now passes explicit retry, shared budgets,
+admitted errors, actual owner removal and dirty-peer controls. G16 reproduces a
+different recovery loss: an actual registered owner Save through the new Full
+coordinator omits a previously registered peer and removes its recovery sidecars.
+Live documents, histories and original files stay intact. Root verified all
+56 source archives/66 evidence entries and approved checked registration,
+separate staging and shared committed-cache migration. An initially empty cache
+must preserve prior closed/restored recovery ownership or refuse publication.
+No partial File coordinator is integrated.
+
+Keyboard's earlier stream milestone passes 24 keyboard, 24 typing and 18 deletion
+functions across 89 keyboard contexts. Advanced/rectangle text baselines still
+have three failures across 38 contexts; full geometry and large background
+preparation remain open. Separate F: boundary controls pass all 24 physical-row
+contexts and reproduce read-only Tab grouping and selected same-EOL savepoint
+mismatches. The narrow corrected milestone now passes 65 functions in seven
+scopes, with 123 keyboard contexts. Root verified its 41 archives, 764 compiled
+inputs, 20 evidence links and two artifacts; it remains isolated. Later Advanced
+negative controls were compiled only and require execution after explicit resume.
+Ropey's actual feature tree uses CR/LF rows; the Unicode-row hypothesis was
+withdrawn, with no production row-policy change.
+
+Root owns composition and tested commits without push. Resume only on the user's
+request. The full Windows goal, inventory backlog, optimized and native verification
+remain open; Mac testing is deferred.
+
+## Last committed product checkpoint: deletion integration
 
 Ordinary Source/Raw Backspace/Delete grouping is integrated after the `c5221e7`
 documentation checkpoint. Required main build, 2,917 unit plus three integration
@@ -15,21 +81,10 @@ exact source, logs, executable and scope. Twenty-four separate optimized model
 controls and 48 empty inventories pass; added deletion costs and lower model
 memory are recorded without a native speed claim. No push accompanies this batch.
 
-The [2026-10-12 audit](windows-parity-audit-20261012.md) records the latest isolated
-results. File's registered Save→Full readback passes, but independent controls
-found shared-turn bookmark/CSV overruns and an admitted storage error hidden by
-close. Corrected focused controls and actual unsaved peer preservation pass;
-immediate explicit retry still refuses from the old completed error. Its deciding
-correction, close/Exit and full coordinator composition remain open.
-Sort candidate 11 passes corrected activity/IME/CSV stamps, coalesced deletion
-notifications and continuation controls. Its full-run parser and inherited
-getter fixture need correction before required broad gates can pass. Book's
-keyboard baseline ran all 69 contexts across two frozen packets, with three
-passing functions and eight failures. Implement exact Enter/Tab history, columns,
-indentation and recording while continuing Advanced, rectangle and large-command
-work. A temporary safe refusal is not completed keyboard parity.
-Root owns final composition and commits. Use the actual Git log for the current
-commit identity; native verification and the full inventory backlog remain open.
+The [2026-10-12 audit](windows-parity-audit-20261012.md) records current and older
+isolated results. Use the current working-tree section above and actual Git and
+process state before continuing. A temporary refusal or green batch does not
+complete the full Windows goal.
 
 ## Previous typing checkpoint
 

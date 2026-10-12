@@ -9,6 +9,7 @@ pub(super) fn needs_background(event: &MacroEvent) -> bool {
     matches!(event, MacroEvent::ReplaceCurrentWithOptions(search)
         | MacroEvent::ReplaceAllWithOptions(search) if search.regex)
         || matches!(event, MacroEvent::CutBookmarkedLines | MacroEvent::PasteToBookmarkedLines
+            | MacroEvent::CopyAllFilenames | MacroEvent::CopyAllFilePaths
             | MacroEvent::RemoveBookmarkedLines | MacroEvent::RemoveNonBookmarkedLines | MacroEvent::InverseBookmarks
             | MacroEvent::GoToMatchingBrace | MacroEvent::SelectInBetween
             | MacroEvent::CopyBookmarkedLines | MacroEvent::Undo | MacroEvent::Redo | MacroEvent::SortLinesLexIgnoreCaseAsc | MacroEvent::SortLinesLexIgnoreCaseDesc
@@ -233,7 +234,7 @@ impl Workspace {
                 }
                 cx.notify(); return false;
             }
-            if self.regex_replacement.pending.is_some() || self.pending_prepared_edit.is_some() || self.pending_bookmark_copy.is_some() || self.brace_navigation_pending() {
+            if self.regex_replacement.pending.is_some() || self.pending_prepared_edit.is_some() || self.pending_bookmark_copy.is_some() || self.brace_navigation_pending() || self.title_clipboard_pending() {
                 if group_open { self.end_edit_group(cx); }
                 set_replaying(previous);
                 if let Some(mut playback) = self.regex_replacement.macro_playback.take() {

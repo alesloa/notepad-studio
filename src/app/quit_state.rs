@@ -69,6 +69,7 @@ pub(super) struct WorkspaceStamp {
     autosave: u64,
     post_edit: u64,
     window_closed: bool,
+    automatic_title: (ContentRevision, ContentRevision, bool),
     theme: crate::theme::ThemeMode,
     whitespace: bool,
     wrap: bool,
@@ -91,6 +92,7 @@ impl WorkspaceStamp {
             active: workspace.active, mru: workspace.tab_mru.iter().copied().collect(),
             autosave: workspace.autosave_generation, post_edit: workspace.post_edit_generation,
             window_closed: workspace.window_closed, theme: workspace.theme_mode,
+            automatic_title: workspace.automatic_title_state_stamp(),
             whitespace: workspace.show_whitespace, wrap: workspace.word_wrap,
         }
     }

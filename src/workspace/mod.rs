@@ -48,6 +48,7 @@ mod format;
 mod history;
 pub(crate) mod typing_undo;
 mod prepared_edits;
+mod automatic_title;
 mod reload;
 mod reload_guard;
 mod reload_csv;
@@ -124,6 +125,7 @@ pub(crate) struct Workspace {
     pub(crate) ime_composition: Option<ime::ImeComposition>,
     pub(crate) brace_navigation: brace_navigation::State,
     pub(crate) pending_prepared_edit: Option<prepared_edits::PendingPreparedEdit>,
+    automatic_title: automatic_title::State,
     pub(crate) pending_hash_selection: Option<crate::ui::hash_tools::selection::Pending>,
     pub(crate) pending_bookmark_copy: Option<crate::edit_ops::bookmark_clipboard::PendingBookmarkCopy>,
     #[cfg(test)]
@@ -752,6 +754,7 @@ impl Workspace {
             ime_composition: None,
             brace_navigation: Default::default(),
             pending_prepared_edit: None,
+            automatic_title: Default::default(),
             pending_bookmark_copy: None,
             pending_hash_selection: None,
             #[cfg(test)]
@@ -1016,6 +1019,7 @@ impl Workspace {
         cx: &mut Context<Self>,
     ) -> Vec<usize> {
         use crate::tab::Tab;
+        self.automatic_name_context_changed(cx);
         let mut indices = Vec::with_capacity(count);
         let primary = self.active;
         for i in 0..count {
@@ -1042,6 +1046,7 @@ impl Workspace {
         if self.text_tools_aux_tabs.is_empty() {
             return;
         }
+        self.automatic_name_context_changed(cx);
         let mut idxs = std::mem::take(&mut self.text_tools_aux_tabs);
         idxs.sort_unstable();
         idxs.dedup();
@@ -1381,6 +1386,7 @@ impl Workspace {
         let recovered_count = tabs.len();
         let has_open = !tabs.is_empty();
         if has_open {
+            self.invalidate_automatic_name_context();
             self.tabs = tabs;
             self.active = manifest.active.min(self.tabs.len().saturating_sub(1));
         } else if let Some(tab) = self.tabs.first_mut() {
@@ -1406,6 +1412,7 @@ impl Workspace {
             let mut blank = crate::tab::Tab::empty();
             blank.session_id = welcome;
             blank.buffer.new_label = Some(label);
+            self.invalidate_automatic_name_context();
             self.tabs.push(blank);
             self.active = self.tabs.len().saturating_sub(1);
         }

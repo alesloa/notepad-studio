@@ -330,15 +330,6 @@ impl Buffer {
                 return n.to_string_lossy().into_owned().into();
             }
         }
-        // NppNotification.cpp:58-60 keeps an explicitly renamed untitled name.
-        if let Some(label) = self.new_label.as_ref().filter(|_| self.new_label_is_custom) {
-            return label.clone();
-        }
-        if crate::settings::snapshot().untitled_uses_first_line {
-            if let Some(line) = first_nonempty_line(&self.rope) {
-                return line.into();
-            }
-        }
         self.new_label
             .clone()
             .unwrap_or_else(|| SharedString::from("new"))
@@ -350,7 +341,9 @@ impl Buffer {
         if let Some(p) = self.file_path.as_ref() {
             return p.display().to_string();
         }
-        self.display_short_name().to_string()
+        let label = self.display_short_name();
+        #[cfg(test)] automatic_title_work::record_copy(label.len());
+        label.to_string()
     }
 
     #[allow(dead_code)]
@@ -1039,29 +1032,6 @@ fn undo_op_on(rope: &mut ropey::Rope, op: &mut EditOp) -> bool {
     true
 }
 
-/// First non-empty line of the rope, trimmed and truncated to 30 chars
-/// NPP-style. Returns `None` if the rope has no non-empty line. Used by
-/// `display_short_name` / `title_bar_label` when
-/// `Settings.untitled_uses_first_line` is true.
-fn first_nonempty_line(rope: &ropey::Rope) -> Option<String> {
-    const MAX_CHARS: usize = 30;
-    let total = rope.len_lines();
-    for i in 0..total {
-        let line = rope.line(i);
-        let s = line.to_string();
-        let trimmed = s.trim();
-        if trimmed.is_empty() {
-            continue;
-        }
-        let mut out: String = trimmed.chars().take(MAX_CHARS).collect();
-        if trimmed.chars().count() > MAX_CHARS {
-            out.push('…');
-        }
-        return Some(out);
-    }
-    None
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -1386,3 +1356,32 @@ mod annotation_tests;
 #[cfg(test)]
 #[path = "buffer_highlight_tests.rs"]
 pub(crate) mod highlight_tests;
+
+#[cfg(test)]
+pub(crate) mod automatic_title_work {
+    use super::*;
+    std::thread_local! {
+        static COPIED: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+        static SCANNED: std::cell::Cell<usize> = const { std::cell::Cell::new(0) };
+    }
+    pub(super) fn record_copy(bytes: usize) { COPIED.with(|n| n.set(n.get().saturating_add(bytes))); }
+    pub(crate) fn record_scan(bytes: usize) { SCANNED.with(|n| n.set(n.get().saturating_add(bytes))); }
+    pub(crate) fn reset() { COPIED.with(|n| n.set(0)); SCANNED.with(|n| n.set(0)); }
+    pub(crate) fn snapshot() -> (usize, usize) { (COPIED.with(std::cell::Cell::get), SCANNED.with(std::cell::Cell::get)) }
+
+    #[test]
+    fn automatic_title_deciding_work_on_large_first_line() {
+        let source=format!("neutral first line {}", "x".repeat(12*1024*1024));
+        let mut buffer=Buffer::empty(); buffer.new_label=Some("new 1".into());
+        buffer.rope=ropey::Rope::from_str(&source);
+        let mut settings=crate::settings::snapshot(); settings.untitled_uses_first_line=true;
+        let _settings=crate::settings::override_for_test(settings);
+        let revision=buffer.raw_revision.clone(); let savepoint=buffer.savepoint.clone();
+        COPIED.with(|n|n.set(0)); SCANNED.with(|n|n.set(0));
+        for _ in 0..2 { assert!(buffer.display_short_name().len()<=256); assert!(buffer.title_bar_label().len()<=256); }
+        assert_eq!(buffer.rope.to_string(),source); assert_eq!(buffer.raw_revision,revision); assert!(buffer.savepoint==savepoint);
+        let copied=COPIED.with(std::cell::Cell::get); let scanned=SCANNED.with(std::cell::Cell::get);
+        println!("automatic-title-work fixture_bytes={} title_calls=4 copied_name_bytes={copied} scanned_source_bytes={scanned}",source.len());
+        assert!(copied<=4096 && scanned<=4096,"title reads must not copy/count a file-sized first line on their caller");
+    }
+}

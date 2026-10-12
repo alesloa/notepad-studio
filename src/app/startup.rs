@@ -250,4 +250,4 @@ fn publish(prepared: Prepared, cx: &mut App) {
 
 #[cfg(test)]
 #[path = "startup_tests.rs"]
-pub(super) mod tests;
+pub(crate) mod tests;

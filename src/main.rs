@@ -14,6 +14,7 @@ mod actions;
 mod api_registry;
 mod app;
 mod assets;
+mod automatic_title;
 mod buffer;
 mod call_context;
 mod changelog;

@@ -10,6 +10,11 @@ Notepad++, written in Rust on GPUI. Apache-2.0.
 
 v0.0.5 — current
 
+  First-line names for untitled tabs now follow the corresponding edits while
+  respecting saved paths and names you choose. Large naming updates prepare in
+  background; Copy, Save and close wait for the accepted name. Naming limits
+  preserve document edits and Undo history.
+
   Ordinary Backspace and Delete in Source and Raw View now share adjacent Undo
   runs using Notepad++'s editing-byte rules. Savepoints and explicit edit groups
   separate runs. Required history storage is checked before deleting; a refused

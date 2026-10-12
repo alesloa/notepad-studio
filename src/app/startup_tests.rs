@@ -80,6 +80,13 @@ pub(in crate::app) fn configure_workspace(workspace: &mut Workspace, cx: &App) {
         workspace.session_final_save_result = Some(true);
     }
 }
+
+pub(crate) fn isolate_fresh_windows_for_test(cx: &mut App) {
+    let (snapshots, _) = channel(); let (failures, _) = channel();
+    cx.set_global(Fixture { inputs: None, gate: None, snapshots, failures, fail_open: false,
+        retirement_gate: None, retained_bytes: None, close_destination: false, reader_affinity: None,
+        fail_reader: false, reader_gate: None, read_done_gate: None, phases: None });
+}
 fn install(cx: &mut TestAppContext, manifest: SessionManifest, welcome: Uuid) -> (oneshot::Sender<()>, Receiver<SessionManifest>, Receiver<String>) {
     let (release, gate) = oneshot::channel();
     let (snapshots, saves) = channel();

@@ -934,6 +934,8 @@ fn move_tab_to_new_window(
     window: &mut gpui::Window,
     cx: &mut gpui::Context<Workspace>,
 ) {
+    if workspace.defer_automatic_title_tab(idx, "transfer", window, cx,
+        move |w, index, window, cx| move_tab_to_new_window(w, index, move_it, window, cx)) { return; }
     let Some(tab) = workspace.tabs.get(idx) else {
         return;
     };
@@ -945,6 +947,7 @@ fn move_tab_to_new_window(
     if move_it {
         // Take ownership — the tab is alive in the new window after this,
         // so it does NOT go onto the closed-tab stack.
+        workspace.invalidate_automatic_name_context();
         let tab = workspace.tabs.remove(idx);
         workspace.settle_after_tab_removal(idx, window, cx);
         if let Some((tab, error)) = crate::app::window::open_tab_in_new_window(tab, cx) {

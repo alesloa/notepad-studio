@@ -120,6 +120,8 @@ impl Workspace {
             tab.buffer.refresh_dirty();
             tab.undo_stack.pop();
             tab.redo_stack = std::mem::take(prior_redo);
+            tab.observe_content_activity();
+            self.observe_automatic_title_input(self.active, cx);
         } else {
             let text = op.inserted.clone();
             let complete = allow_completion && op.removed.is_empty() && !text.is_empty()

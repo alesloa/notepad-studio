@@ -93,6 +93,8 @@ impl Workspace {
     pub(crate) fn save_copy_as(&mut self, _: &FileSaveCopyAs, window: &mut Window, cx: &mut Context<Self>) {
         if self.window_closed { return; }
         if !crate::ui::csv_doc::actions::commit_cell_edit(self, cx) { return; }
+        self.stop_file_copy();
+        if self.buffer().file_path.is_none() && self.defer_automatic_title_active("save-copy", window, cx, |w, window, cx| w.save_copy_as(&FileSaveCopyAs, window, cx)) { return; }
         if unfinished(self, self.active) {
             self.set_status("Save a Copy As cancelled: finish the file load or current document edit first"); cx.notify(); return;
         }

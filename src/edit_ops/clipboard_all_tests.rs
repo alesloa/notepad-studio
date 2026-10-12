@@ -278,15 +278,28 @@ fn clipboard_all_new_copy_retires_pending_bookmark_clipboard_work() {
 }
 
 #[test]
-fn clipboard_all_untitled_labels_use_the_current_tab_title() {
+fn clipboard_all_untitled_labels_keep_stored_titles_until_an_edit() {
     let _settings = crate::settings::override_for_test(crate::settings::Settings {
         untitled_uses_first_line: true,
         ..Default::default()
     });
-    let tabs = sample_tabs();
-    let payload = super::tab_labels(&tabs, false).unwrap().unwrap();
-    assert!(payload.contains("café😀\r\n"), "{payload:?}");
-    assert!(!payload.contains("new Ω 7"));
+    let _recent = crate::recent::override_snapshot_for_test(Vec::new());
+    let _recorder = crate::macros::override_execution_for_test(false);
+    let _clipboard = crate::clipboard_ownership::override_for_test();
+    let mut cx = TestAppContext::single();
+    let (workspace, visual) = fixture(&mut cx, sample_tabs());
+    let expected = "café.txt\r\nnew Ω 7\r\ncafé.txt\r\ncafé.txt\r\n";
+    let before = visual.update(|_, cx| {
+        let w = workspace.read(cx);
+        assert_eq!(super::tab_labels(&w.tabs, false).unwrap().as_deref(), Some(expected));
+        edit_state(w)
+    });
+    visual.dispatch_action(EditCopyAllFilenames); visual.run_until_parked();
+    visual.update(|_, cx| {
+        assert_eq!(clipboard(cx), expected);
+        assert_eq!(edit_state(workspace.read(cx)), before);
+    });
+    cx.quit();
 }
 
 #[test]

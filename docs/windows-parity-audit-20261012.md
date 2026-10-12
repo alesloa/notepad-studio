@@ -1,9 +1,53 @@
 # Windows parity audit, 2026-10-12
 
-The integrated product source is `ec8ae9848e405902ba736dc20c18934628d17ab3`.
-Its [deletion build and test results](windows-deletion-main-validation-20261011.md)
-remain current. The following results concern isolated candidates. They do not
-establish completed Windows parity or native UI verification. Nothing was pushed.
+The last committed product source is `ec8ae9848e405902ba736dc20c18934628d17ab3`.
+Its [deletion results](windows-deletion-main-validation-20261011.md) are historical
+proof for that source. This checkpoint integrates the reviewed title patch over
+`0e261a97`, with [combined validation](windows-automatic-title-main-validation-20261012.md)
+passing. The user paused the full goal and requested stopping all agents and
+committing all current repository changes. Nothing was pushed; full Windows,
+optimized and native parity remain open.
+
+## Latest work
+
+Title candidate 13 passes a fresh F: build and Clippy with 193 canonical warning
+pairs exactly matching main. Root verified all 775 archives, 13 focused evidence
+files and its 38-path patch. Eight focused controls pass; the 2,984-unit plus
+three-integration full pass applies to candidate 12. Three equivalent warning
+fixes and stricter background-disposal assertions distinguish candidate 13.
+Root's combined main build, 2,984 unit plus three integration tests/34 ignored,
+and Clippy pass. Its 193 canonical warning pairs remain unchanged. All 969 frozen
+live inputs and nine evidence files were verified. The separate optimized harness
+compile was cancelled on pause; no verified final artifact or timed control exists.
+
+File G15's eleven-function candidate passes shared capture quotas, admitted
+storage-error refusal, explicit retry, actual owner removal and unsaved-peer
+controls. G16 exposes a different candidate recovery loss through the actual
+Workspace registration caller: owner Save through the new coordinator omits a
+previously registered peer and removes its bak/undo/rich sidecars. Live text,
+history and original disks stay unchanged. Root verified 56 source archives and
+66 evidence entries. Checked registration and distinct worker staging/shared
+committed-cache migration are approved; prior closed/restored recovery ownership
+must also be preserved. No partial File coordinator is integrated.
+
+Keyboard's stream milestone passes 24 keyboard, 24 typing and 18 deletion
+functions with 89 keyboard contexts. Advanced/rectangle baselines have three
+failures across 38 contexts. Separate F: controls pass all 24 physical-row cases
+and prove read-only Tab grouping and selected same-EOL savepoint mismatches.
+Root verified both 41-primary/764-compiled baselines and four retained artifacts.
+The corrected storage milestone passes 65 functions in seven scopes/123 keyboard
+contexts; its 41 archives/764 inputs/20 linked evidence files/two artifacts are
+verified. Later negative Advanced cases were compiled only, never executed.
+Full Advanced, shaped rectangle and large
+background behavior remain required. The actual Ropey feature tree uses CR/LF
+rows; a Unicode-row hypothesis was withdrawn without a production change.
+
+All agents and their owned processes are stopped. Their unfinished isolated work
+and all existing C: caches/packets remain intact. New build outputs, temporary
+files and large artifact archives use F:. The results below preserve earlier
+milestones and failure evidence; they do not override the current status above.
+
+## Earlier reviewed milestones
 
 Root independently checked the archived source, compiled inputs, retained test
 executables and logs described below. Detailed local packets stay in ignored

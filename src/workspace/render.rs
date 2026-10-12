@@ -30,6 +30,8 @@ use crate::workspace::Workspace;
 
 impl Render for Workspace {
     fn render(&mut self, window: &mut Window, cx: &mut Context<Self>) -> impl IntoElement {
+        self.set_automatic_title_window(window);
+        self.observe_automatic_title_policy(cx);
         self.normalize_saved_csv_source_view(cx);
         csv_actions::restore_committed_cell_focus(self, window, cx);
         self.retire_ime_composition(window, cx);
@@ -167,7 +169,7 @@ impl Render for Workspace {
         let loading_chip = buffer.loading.as_ref().map(|p| LoadingChip {
             progress_text: crate::io_stream::format_progress(p),
             cancel: p.cancel.clone(),
-        }).or_else(|| self.reload_chip()).or_else(|| self.file_move_chip()).or_else(|| self.file_copy_chip());
+        }).or_else(|| self.reload_chip()).or_else(|| self.file_move_chip()).or_else(|| self.file_copy_chip()).or_else(|| self.automatic_title_chip());
 
         div()
             .key_context("Workspace")

@@ -67,7 +67,8 @@ pub(crate) fn save_final_recovery(cx: &mut App) {
     if finish_exit_recovery_if_current(cx) { return; }
     for handle in cx.windows() {
         let Some(handle) = handle.downcast::<Workspace>() else { continue; };
-        if let Err(err) = handle.update(cx, |workspace, _, _| {
+        if let Err(err) = handle.update(cx, |workspace, _, cx| {
+            workspace.cancel_automatic_titles_for_recovery(cx);
             if let Err(err) = workspace.save_session_now() {
                 eprintln!("[session] final recovery write failed: {err}");
             }
@@ -90,6 +91,26 @@ pub(super) fn quit_with_recovery(cx: &mut App) {
     super::startup::cancel_for_quit(cx);
     if cx.default_global::<ExitState>().pending.is_some() { return; }
     cx.default_global::<ExitState>().accepted = None;
+    let mut naming = Vec::new();
+    for handle in cx.windows() {
+        let Some(handle) = handle.downcast::<Workspace>() else { continue; };
+        if let Ok(Some(ready)) = handle.update(cx, |workspace, _, cx| workspace.wait_for_automatic_titles(cx)) {
+            if naming.try_reserve(1).is_err() {
+                let _ = handle.update(cx, |workspace, _, cx| workspace.cancel_automatic_titles_for_recovery(cx));
+            } else { naming.push(ready); }
+        }
+    }
+    if !naming.is_empty() {
+        let request = Uuid::new_v4(); cx.default_global::<ExitState>().pending = Some(request);
+        cx.spawn(async move |cx| {
+            for ready in naming { let _ = ready.await; }
+            cx.update(|cx| {
+                if cx.default_global::<ExitState>().pending != Some(request) { return; }
+                cx.default_global::<ExitState>().pending = None;
+                quit_with_recovery(cx);
+            });
+        }).detach(); return;
+    }
     let windows = cx.windows();
     let mut capture = ExitCapture { windows: windows.iter().map(|handle| handle.window_id()).collect(), workspaces: Vec::new() };
     let mut snapshots = Vec::new();
@@ -190,6 +211,7 @@ pub(super) fn quit_with_recovery(cx: &mut App) {
 pub(crate) fn save_before_window_close(
     workspace: &mut crate::workspace::Workspace, cx: &mut gpui::Context<crate::workspace::Workspace>,
 ) -> bool {
+    if workspace.wait_automatic_titles_before_close(cx) { return false; }
     if let Err(err) = workspace.save_session_now() {
         workspace.set_status(format!("Window close cancelled: session recovery could not be saved: {err}; save your documents or retry closing"));
         cx.notify();

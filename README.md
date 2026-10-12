@@ -82,6 +82,10 @@ A lightweight, cross-platform text editor inspired by Notepad++, written in Rust
 > Explicitly renamed untitled tabs now keep their name when first-line titles
 > are enabled, including after edits and recovery. [Rename validation](docs/windows-untitled-label-validation-20261011.md)
 > records compatibility and the remaining automatic-title audit.
+> Automatic first-line names now follow edit history and prepare large updates
+> in background. Copy, Save and close wait for accepted names; naming limits
+> preserve document edits and Undo. [Title validation](docs/windows-automatic-title-main-validation-20261012.md)
+> tracks the combined Windows checks and remaining native verification.
 > Column edit paths now preflight hostile geometry and cumulative allocations.
 > Their temporary foreground limits and remaining parity gaps are recorded in
 > [column operation limits](docs/column-safety.md).

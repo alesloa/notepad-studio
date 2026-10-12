@@ -75,6 +75,7 @@ impl Workspace {
     /// file in a pristine empty tab). Everything tied to the old text goes,
     /// so the load is a clean slate.
     fn replace_active_buffer(&mut self, buffer: Buffer) {
+        self.invalidate_automatic_name_context();
         reset_tab_with(self.active_tab_mut(), buffer);
     }
 
@@ -96,6 +97,7 @@ impl Workspace {
     }
 
     fn append_buffer_as_tab(&mut self, buffer: Buffer) {
+        self.invalidate_automatic_name_context();
         let mut tab = Tab::empty();
         tab.buffer = buffer;
         self.tabs.push(tab);
@@ -119,6 +121,7 @@ impl Workspace {
     /// recents submenu reflects the change immediately. A failed read does
     /// NOT pollute the MRU — recents only ever lists paths that opened OK.
     pub(crate) fn open_path(&mut self, path: PathBuf, cx: &mut Context<Self>) {
+        if self.automatic_titles_pending() { self.run_after_automatic_titles(cx, move |w, cx| w.open_path(path, cx)); return; }
         if self.activate_open_tab_for(&path, cx) {
             return;
         }
@@ -199,6 +202,8 @@ impl Workspace {
     /// copy from the prior version's auto-open would otherwise stack
     /// alongside the freshly-loaded one after an update.
     pub(crate) fn open_changelog_silent(&mut self, path: PathBuf, cx: &mut Context<Self>) {
+        if self.automatic_titles_pending() { self.run_after_automatic_titles(cx, move |w, cx| w.open_changelog_silent(path, cx)); return; }
+        self.invalidate_automatic_name_context();
         let raw_bytes = match std::fs::read(&path) {
             Ok(b) => b,
             Err(err) => {
@@ -423,6 +428,7 @@ impl Workspace {
     /// write fails the old path and "new N" label go back, so the tab never
     /// claims a file that was not written.
     fn save_active_to_new_path(&mut self, path: PathBuf) -> Result<(), String> {
+        self.invalidate_automatic_name_context();
         let (old_path, old_label) = {
             let buf = &mut self.active_tab_mut().buffer;
             (buf.file_path.replace(path), buf.new_label.take())
@@ -438,6 +444,7 @@ impl Workspace {
 
     pub(crate) fn save_active(&mut self, _: &FileSave, window: &mut Window, cx: &mut Context<Self>) {
         if !crate::ui::csv_doc::actions::commit_cell_edit(self, cx) { return; }
+        if self.buffer().file_path.is_none() && self.defer_automatic_title_active("save", window, cx, |w, window, cx| w.save_active(&FileSave, window, cx)) { return; }
         if self.buffer().file_path.is_none() {
             self.save_active_as(&FileSaveAs, window, cx);
             return;
@@ -470,6 +477,7 @@ impl Workspace {
     pub(crate) fn save_active_as(&mut self, _: &FileSaveAs, window: &mut Window, cx: &mut Context<Self>) {
         if self.window_closed { return; }
         if !crate::ui::csv_doc::actions::commit_cell_edit(self, cx) { return; }
+        if self.buffer().file_path.is_none() && self.defer_automatic_title_active("save-as", window, cx, |w, window, cx| w.save_active_as(&FileSaveAs, window, cx)) { return; }
         // PowerEditor/src/NppIO.cpp:1994-2090 saves the requesting buffer.
         // Async replies also need its incarnation: restoring a closed tab
         // retains the session ID but must not inherit the old dialog.
@@ -492,6 +500,7 @@ impl Workspace {
         let selected = save_as_dialog::pick(starting, suggested);
         cx.spawn_in(window, async move |this, cx| {
             let Some(path) = selected.await else { return; };
+            if let Ok(Some(ready)) = this.update(cx, |w, cx| w.wait_for_automatic_titles(cx)) { let _ = ready.await; }
             let Some(refused) = this
                 .update(cx, |w, cx| {
                     if w.window_closed { return None; }
@@ -866,10 +875,20 @@ pub(crate) async fn save_tab_for_close(
     cx: &mut AsyncWindowContext,
     idx: usize,
 ) -> Result<(), String> {
+    let original = workspace.update(cx, |w, cx| {
+        if w.window_closed { return Err("window closed".to_owned()); }
+        let tab = w.tabs.get(idx).ok_or("tab gone")?;
+        let original = (tab.session_id, tab.instance.clone());
+        let ready = w.wait_for_automatic_titles(cx);
+        Ok::<_, String>((original, ready))
+    }).map_err(|e| e.to_string())??;
+    if let Some(ready) = original.1 { let _ = ready.await; }
+    let (request_id, request_instance) = original.0;
     let snap = workspace
         .update(cx, |w, cx| {
             if w.window_closed { return Err("window closed".to_string()); }
-            let id = w.tabs.get(idx).map(|tab| tab.session_id).ok_or("tab gone")?;
+            let id = w.tabs.iter().find(|tab| tab.session_id == request_id && std::sync::Arc::ptr_eq(&tab.instance, &request_instance))
+                .map(|tab| tab.session_id).ok_or("tab gone")?;
             crate::ui::csv_doc::actions::commit_cell_edit_for_tab(w, id, cx)?;
             let tab = w.tabs.iter().find(|tab| tab.session_id == id).ok_or("tab gone")?;
             let active_dir = tab

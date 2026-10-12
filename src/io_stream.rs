@@ -507,6 +507,7 @@ fn start_streaming(
         savepoint: None,
     };
 
+    workspace.invalidate_automatic_name_context();
     let pristine = active_is_pristine_empty(workspace);
     match workspace.tabs.get_mut(workspace.active).filter(|_| pristine) {
         Some(tab) => crate::io::reset_tab_with(tab, empty_buffer),
@@ -765,6 +766,7 @@ fn active_is_pristine_empty(workspace: &Workspace) -> bool {
 /// buffer is reset to an empty untitled one, so nothing partial stays bound
 /// to the file's path where a save could cut the file short.
 fn abort_load(workspace: &mut Workspace, idx: usize, status: String) {
+    workspace.invalidate_automatic_name_context();
     let label = crate::buffer::next_new_label_for(
         workspace
             .tabs

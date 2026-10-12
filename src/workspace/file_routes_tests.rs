@@ -2,6 +2,17 @@ use super::*;
 use crate::{buffer::Buffer, settings::Settings, tab::Tab};
 use gpui::{Entity, TestAppContext, VisualTestContext};
 
+#[path = "automatic_title_scalar_tests.rs"]
+mod automatic_title_scalar_tests;
+#[path = "automatic_title_worker_tests.rs"]
+mod automatic_title_worker_tests;
+#[path = "automatic_title_consumer_tests.rs"]
+mod automatic_title_consumer_tests;
+#[path = "automatic_title_format_tests.rs"]
+mod automatic_title_format_tests;
+#[path = "automatic_title_large_tests.rs"]
+mod automatic_title_large_tests;
+
 #[test]
 fn actual_untitled_rename_rejects_overlong_utf16_label_without_truncation() {
     let accepted = format!("{}😀", "a".repeat(61));
@@ -71,6 +82,8 @@ impl Launches {
 impl Drop for Launches { fn drop(&mut self) { LAUNCHES.with(|slot| slot.replace(None)); } }
 
 fn with_editor(buffer: Buffer, test: impl FnOnce(&Entity<Workspace>, &mut VisualTestContext)) {
+    let _macros = crate::macros::override_execution_for_test(false);
+    let _clipboard = crate::clipboard_ownership::override_for_test();
     #[cfg(target_os = "windows")]
     let _registry = registry_answer().is_none().then(|| Registry::new(Ok("C:/controlled PowerShell/powershell.exe".into())));
     let _settings = crate::settings::override_for_test(Settings { toolbar_hidden: true,
@@ -489,5 +502,126 @@ fn explicit_untitled_label_is_metadata_only_in_read_only_source() {
             assert_eq!(crate::buffer::serialize_undo_stack(&tab.undo_stack), before.1);
             assert!(tab.buffer.savepoint == before.2);
         });
+    });
+}
+
+// NppIO.cpp:2213-2267; Buffer.cpp:365-400; NppNotification.cpp:52-61.
+fn with_automatic_title(test: impl FnOnce(&Entity<Workspace>, &mut VisualTestContext)) {
+    let mut buffer=Buffer::empty(); buffer.new_label=Some("new 1".into());
+    with_editor(buffer,|entity,visual| {
+        let mut settings=crate::settings::snapshot(); settings.untitled_uses_first_line=true;
+        let _settings=crate::settings::override_for_test(settings); test(entity,visual);
+    });
+}
+fn automatic_title_paste(visual: &mut VisualTestContext, text: &str) {
+    visual.update(|_,cx|cx.write_to_clipboard(gpui::ClipboardItem::new_string(text.to_owned())));
+    visual.dispatch_action(crate::actions::EditPaste); visual.run_until_parked();
+}
+fn automatic_title_name(entity: &Entity<Workspace>, visual: &mut VisualTestContext) -> String {
+    visual.update(|_,cx| { let buffer=&entity.read(cx).tabs[0].buffer;
+        let label=buffer.display_short_name().to_string(); assert_eq!(buffer.title_bar_label(),label); label })
+}
+#[test]
+fn automatic_title_first_physical_empty_line_keeps_generated_label() {
+    for eol in ["\r\n","\n","\r"] { with_automatic_title(|entity,visual| {
+        automatic_title_paste(visual,&format!("{eol}later line"));
+        assert_eq!(automatic_title_name(entity,visual),"new 1");
+    }); }
+}
+#[test]
+fn automatic_title_removes_only_filename_invalid_characters() {
+    with_automatic_title(|entity,visual| {
+        automatic_title_paste(visual,"  a\\/:*?\"<>|\tb  \r\nlater");
+        assert_eq!(automatic_title_name(entity,visual),"ab");
+    });
+}
+#[test]
+fn automatic_title_uses_63_utf16_units_without_ellipsis() {
+    with_automatic_title(|entity,visual| {
+        automatic_title_paste(visual,&"a".repeat(80));
+        assert_eq!(automatic_title_name(entity,visual),"a".repeat(63));
+    });
+}
+#[test]
+fn automatic_title_unicode_separators_remain_first_line_characters() {
+    with_automatic_title(|entity,visual| {
+        automatic_title_paste(visual,"café\u{2028}中\u{0085}😀\u{2029}tail\rsecond");
+        assert_eq!(automatic_title_name(entity,visual),"café\u{2028}中\u{0085}😀\u{2029}tail");
+    });
+}
+#[test]
+fn automatic_title_unicode_spaces_are_preserved() {
+    with_automatic_title(|entity,visual| {
+        automatic_title_paste(visual,"\u{00a0}name\u{00a0}");
+        assert_eq!(automatic_title_name(entity,visual),"\u{00a0}name\u{00a0}");
+    });
+}
+#[test]
+fn automatic_title_empty_edit_retains_previous_name_through_undo_redo() {
+    with_automatic_title(|entity,visual| {
+        automatic_title_paste(visual,"retained\nsecond"); assert_eq!(automatic_title_name(entity,visual),"retained");
+        visual.simulate_keystrokes("ctrl-a"); visual.simulate_keystrokes("backspace"); visual.run_until_parked();
+        visual.update(|_,cx|assert_eq!(entity.read(cx).tabs[0].buffer.rope.to_string(),""));
+        assert_eq!(automatic_title_name(entity,visual),"retained");
+        visual.dispatch_action(crate::actions::EditUndo);visual.run_until_parked();assert_eq!(automatic_title_name(entity,visual),"retained");
+        visual.dispatch_action(crate::actions::EditRedo);visual.run_until_parked();assert_eq!(automatic_title_name(entity,visual),"retained");
+    });
+}
+#[test]
+fn automatic_title_disabling_preference_keeps_accepted_name() {
+    with_automatic_title(|entity,visual| {
+        automatic_title_paste(visual,"accepted\nsecond");assert_eq!(automatic_title_name(entity,visual),"accepted");
+        let mut settings=crate::settings::snapshot();settings.untitled_uses_first_line=false;
+        let _settings=crate::settings::override_for_test(settings);
+        assert_eq!(automatic_title_name(entity,visual),"accepted");
+    });
+}
+#[test]
+fn automatic_title_conflicting_untitled_name_keeps_previous_name() {
+    with_automatic_title(|entity,visual| {
+        visual.update(|_,cx|entity.update(cx,|w,_| { w.tabs[1].buffer.new_label=Some("SHARED".into());w.tabs[1].buffer.new_label_is_custom=true; }));
+        automatic_title_paste(visual,"shared"); assert_eq!(automatic_title_name(entity,visual),"new 1");
+    });
+}
+#[test]
+fn automatic_title_save_picker_suggests_accepted_name() {
+    with_automatic_title(|entity,visual| {
+        automatic_title_paste(visual,"suggested name\nsecond");
+        let requests=crate::io::SaveDialogRequestCaptureForTest::new();
+        let (reply,selected)=futures::channel::oneshot::channel();let _dialog=crate::io::SaveAsDialogOverrideForTest::new(selected);
+        visual.dispatch_action(FileSave);visual.run_until_parked();let actual=requests.requests();
+        assert!(reply.send(None).is_ok());visual.run_until_parked();
+        visual.update(|_,cx| { let buffer=&entity.read(cx).tabs[0].buffer;assert_eq!(buffer.rope.to_string(),"suggested name\nsecond");assert!(buffer.dirty && buffer.file_path.is_none()); });
+        assert_eq!(actual,vec![("Save As","suggested name".to_owned())]);
+    });
+}
+#[test]
+fn automatic_title_recovery_stores_accepted_name_after_real_writer() {
+    let directory=crate::persist::TempDir::new("automatic-title-recovery");let path=directory.join("session.toml");
+    with_automatic_title(|entity,visual| {
+        automatic_title_paste(visual,"recovered name\r\nsecond");
+        let manifest=visual.update(|_,cx|entity.read(cx).session_snapshot(crate::session::BakPolicy::Full));
+        crate::session::write_csv_fixture(manifest,&path,directory.path()).expect("actual isolated recovery Writer");
+        let manifest:crate::session::SessionManifest=toml::from_str(&std::fs::read_to_string(&path).expect("manifest")).expect("schema");
+        let entry=manifest.tabs.first().expect("entry");
+        let crate::session::RestoreOutcome::Restored(tab)=crate::session::restore_csv_fixture(entry,directory.path()) else {panic!("recovery must restore text")};
+        assert_eq!(tab.buffer.rope.to_string(),"recovered name\nsecond");assert!(tab.buffer.dirty && tab.buffer.file_path.is_none());
+        assert_eq!(entry.new_label.as_deref(),Some("recovered name"));assert!(!entry.new_label_is_custom);
+    });
+}
+#[test]
+fn automatic_title_disabled_preference_preserves_generated_name() {
+    with_automatic_title(|entity,visual| {
+        let mut settings=crate::settings::snapshot();settings.untitled_uses_first_line=false;
+        let _settings=crate::settings::override_for_test(settings);
+        automatic_title_paste(visual,"body");assert_eq!(automatic_title_name(entity,visual),"new 1");
+    });
+}
+#[test]
+fn automatic_title_explicit_rename_preserves_bytes_and_history() {
+    with_automatic_title(|entity,visual| {
+        visual.dispatch_action(FileRename);visual.run_until_parked();visual.simulate_input("manual café中😀");visual.simulate_keystrokes("enter");visual.run_until_parked();
+        automatic_title_paste(visual,"different first line");assert_eq!(automatic_title_name(entity,visual),"manual café中😀");
+        visual.update(|_,cx| {let tab=&entity.read(cx).tabs[0];assert_eq!(tab.buffer.rope.to_string(),"different first line");assert_eq!(tab.undo_stack.len(),1);assert!(tab.buffer.new_label_is_custom);});
     });
 }

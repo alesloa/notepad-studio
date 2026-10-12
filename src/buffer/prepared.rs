@@ -140,6 +140,24 @@ struct PreparedBody {
     bookmark_insert_end: bool,
     segments: Vec<Arc<PreparedBody>>,
     blocks: Option<(Option<BlockSelection>, Option<BlockSelection>)>,
+    retained_title_bytes: Option<usize>,
+    title_notifications: (bool, bool),
+}
+
+fn retained_title_bytes(ops: &[EditOp], capacity: usize, segments: &[Arc<PreparedBody>], segment_capacity: usize,
+    cancel: &AtomicBool) -> Option<usize>
+{
+    let mut bytes = capacity.checked_mul(std::mem::size_of::<EditOp>())?
+        .checked_add(segment_capacity.checked_mul(std::mem::size_of::<Arc<PreparedBody>>())?)?;
+    for op in ops {
+        if cancel.load(Ordering::Relaxed) { return None; }
+        bytes = bytes.checked_add(op.inserted.capacity())?.checked_add(op.removed.capacity())?;
+    }
+    for segment in segments {
+        if cancel.load(Ordering::Relaxed) { return None; }
+        bytes = bytes.checked_add(segment.retained_title_bytes?)?;
+    }
+    Some(bytes)
 }
 
 impl Clone for PreparedGroup {
@@ -180,6 +198,7 @@ impl PreparedGroup {
         let mut after_selection = before_selection;
         let mut after = before.clone();
         let mut current = revision.clone();
+        let mut title_notifications = (false, false);
         for edit in edits.into_iter().rev() {
             if cancel.load(Ordering::Relaxed) { return Err("Bookmark edit cancelled"); }
             let mut removed = String::new();
@@ -202,7 +221,13 @@ impl PreparedGroup {
             after_selection.anchor = insert(anchor, anchor < head);
             after_selection.head = insert(head, head < anchor);
             let start = after.byte_to_char(edit.range.start); let end = after.byte_to_char(edit.range.end);
-            after.remove(start..end); after.insert(start, &edit.text);
+            let row_before = crate::automatic_title::row_zero_notification(&after, edit.range.start);
+            after.remove(start..end);
+            let row_deleted = crate::automatic_title::row_zero_notification(&after, edit.range.start);
+            after.insert(start, &edit.text);
+            let row_after = crate::automatic_title::row_zero_notification(&after, edit.range.start);
+            title_notifications.0 |= (!removed.is_empty() && row_deleted) || (!edit.text.is_empty() && row_after);
+            title_notifications.1 |= (!edit.text.is_empty() && row_deleted) || (!removed.is_empty() && row_before);
             // Basic target replacement deletes and inserts even identical text.
             // Scintilla Editor.cxx:5928-5975, Document.cxx:1457-1558.
             let next = ContentRevision::default();
@@ -210,9 +235,10 @@ impl PreparedGroup {
                 removed, inserted: edit.text, sel_before_anchor: sel_before.anchor, sel_before_head: sel_before.head });
             current = next;
         }
+        let retained_title_bytes = retained_title_bytes(&ops, ops.capacity(), &[], 0, cancel);
         Ok(Self { before_revision: revision, after_revision: current, body: Arc::new(PreparedBody {
             before, after: after.clone(), before_selection, after_selection: after_selection.clamped(&after), ops,
-            forward: PrefixMap(forward), backward: PrefixMap(backward), lines: true, bookmark_insert_end: false, segments: Vec::new(), blocks: None,
+            forward: PrefixMap(forward), backward: PrefixMap(backward), lines: true, bookmark_insert_end: false, segments: Vec::new(), blocks: None, retained_title_bytes, title_notifications,
         }) })
     }
     pub(crate) fn build(before: Rope, revision: ContentRevision, before_selection: Selection,
@@ -249,6 +275,7 @@ impl PreparedGroup {
         let before_selection = before_selection.clamped(&before);
         let mut after = before.clone();
         let mut current_revision = revision.clone();
+        let mut title_notifications = (false, false);
         let mut selection = before_selection;
         for edit in edits.into_iter().rev() {
             if cancel.load(Ordering::Relaxed) { return Err("Line indentation cancelled"); }
@@ -258,8 +285,13 @@ impl PreparedGroup {
             for chunk in slice.chunks() { removed.push_str(chunk); }
             let start = after.byte_to_char(edit.range.start);
             let end = after.byte_to_char(edit.range.end);
+            let row_before = crate::automatic_title::row_zero_notification(&after, edit.range.start);
             after.remove(start..end);
+            let row_deleted = crate::automatic_title::row_zero_notification(&after, edit.range.start);
             after.insert(start, &edit.text);
+            let row_after = crate::automatic_title::row_zero_notification(&after, edit.range.start);
+            title_notifications.0 |= (!removed.is_empty() && row_deleted) || (!edit.text.is_empty() && row_after);
+            title_notifications.1 |= (!edit.text.is_empty() && row_deleted) || (!removed.is_empty() && row_before);
             let next = ContentRevision::default();
             ops.push(EditOp { before_revision: current_revision, after_revision: next.clone(),
                 byte_start: edit.range.start, removed, inserted: edit.text,
@@ -267,13 +299,18 @@ impl PreparedGroup {
             current_revision = next;
             if let Some(op) = ops.last() { selection.collapse_to(op.byte_start.saturating_add(op.inserted.len())); }
         }
+        let retained_title_bytes = retained_title_bytes(&ops, ops.capacity(), &[], 0, cancel);
         Ok(Self { before_revision: revision, after_revision: current_revision,
             body: Arc::new(PreparedBody { before, after: after.clone(),
             before_selection, after_selection: after_selection.clamped(&after), ops,
-            forward: PrefixMap(forward), backward: PrefixMap(backward), lines: false, bookmark_insert_end: false, segments: Vec::new(), blocks: None }) })
+            forward: PrefixMap(forward), backward: PrefixMap(backward), lines: false, bookmark_insert_end: false, segments: Vec::new(), blocks: None, retained_title_bytes, title_notifications }) })
     }
 
     pub(crate) fn ops(&self) -> &[EditOp] { &self.body.ops }
+    pub(crate) fn retained_title_bytes(&self) -> Option<usize> { self.body.retained_title_bytes }
+    pub(crate) fn has_title_notifications(&self, undo: bool) -> bool {
+        if undo { self.body.title_notifications.1 } else { self.body.title_notifications.0 }
+    }
     pub(crate) fn before_selection(&self) -> Selection { self.body.before_selection }
     pub(crate) fn expected(&self, undo: bool) -> &ContentRevision { if undo { &self.after_revision } else { &self.before_revision } }
     pub(crate) fn expected_rope(&self, undo: bool) -> &Rope { if undo { &self.body.after } else { &self.body.before } }
@@ -396,10 +433,12 @@ impl PreparedGroup {
                 }
             }
         }
+        let title_notifications = (segments.iter().any(|segment| segment.title_notifications.0), segments.iter().any(|segment| segment.title_notifications.1));
+        let retained_title_bytes = retained_title_bytes(&ops, ops.capacity(), &segments, segments.capacity(), cancel);
         Ok(Self { before_revision: current, after_revision: revision, body: Arc::new(PreparedBody {
             before: before.clone(), after: after.clone(), before_selection: before_selection.clamped(&before),
             after_selection: after_selection.clamped(&after), ops, forward: PrefixMap(Vec::new()), backward: PrefixMap(Vec::new()),
-            lines: true, bookmark_insert_end: false, segments, blocks,
+            lines: true, bookmark_insert_end: false, segments, blocks, retained_title_bytes, title_notifications,
         }) })
     }
     pub(crate) fn rebind(&mut self, current: &mut ContentRevision) {

@@ -155,6 +155,7 @@ impl Workspace {
 
     pub(crate) fn file_rename(&mut self, _: &FileRename, window: &mut Window, cx: &mut Context<Self>) {
         if self.window_closed { return; }
+        if self.defer_automatic_title_active("rename", window, cx, |w, window, cx| w.file_rename(&FileRename, window, cx)) { return; }
         self.stop_file_move(); cx.notify();
         let Some(tab) = self.tabs.get(self.active) else { return; };
         let Some(path) = tab.buffer.file_path.as_ref().filter(|path| path.is_file()).cloned() else {
@@ -199,6 +200,7 @@ impl Workspace {
     }
 
     pub(crate) fn finish_file_rename(&mut self, index: usize, source: PathBuf, destination: PathBuf, cx: &mut Context<Self>) {
+        self.invalidate_automatic_name_context();
         let Some(tab) = self.tabs.get_mut(index) else { return; };
         let id = tab.session_id;
         tab.buffer.file_path = Some(destination.clone());
@@ -215,13 +217,20 @@ impl Workspace {
             self.set_status("Rename failed: choose a valid document name"); cx.notify(); return;
         }
         // NppConstants.h:358; NppIO.cpp:2296 reserves the final UTF-16 unit for NUL.
-        if name.encode_utf16().count() > 63 {
+        if name.encode_utf16().take(64).count() > 63 {
             self.set_status("Rename failed: document names can contain at most 63 Windows characters"); cx.notify(); return;
+        }
+        if self.automatic_titles_pending() {
+            let Some(tab) = self.tabs.get(index) else { return; }; let id = tab.session_id; let instance = tab.instance.clone(); let name = name.to_owned();
+            self.run_after_automatic_titles(cx, move |w, cx| {
+                if let Some(index) = w.tabs.iter().position(|tab| tab.session_id == id && std::sync::Arc::ptr_eq(&tab.instance, &instance)) { w.rename_tab_label(index, name, cx); }
+            }); return;
         }
         if self.tabs.iter().enumerate().any(|(other, tab)| other != index && tab.buffer.file_path.is_none()
             && tab.buffer.display_short_name().as_ref() == name) {
             self.set_status("Rename failed: that document name is already in use"); cx.notify(); return;
         }
+        self.automatic_name_context_changed(cx);
         let Some(tab) = self.tabs.get_mut(index) else { return; };
         tab.buffer.new_label = Some(name.to_owned().into()); tab.buffer.new_label_is_custom = true; tab.buffer.file_path = None;
         self.set_status(format!("Renamed tab to {name}")); self.save_session(cx); cx.notify();

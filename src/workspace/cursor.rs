@@ -24,7 +24,12 @@ impl Workspace {
         &mut self, byte_range: Range<usize>, removed: String, inserted: String, cx: &mut Context<Self>,
     ) -> EditOp {
         let active = self.active;
+        self.begin_automatic_title_admission();
+        let automatic_allowed = self.automatic_title_capture_allowed(cx);
+        let title_budget = self.automatic_title_foreground_budget();
         let tab = &mut self.tabs[active];
+        let automatic_name = automatic_allowed && tab.buffer.file_path.is_none() && !tab.buffer.new_label_is_custom;
+        let mut title_effects = [Ok(None), Ok(None)];
         // Callers derive ranges from find results, undo history (possibly
         // restored from disk), macros and plugins. Clamp to the rope and land
         // both ends on a char boundary so the removal, the recorded undo op
@@ -43,9 +48,11 @@ impl Workspace {
         let char_end = tab.buffer.rope.byte_to_char(end);
         if char_start != char_end {
             tab.buffer.rope.remove(char_start..char_end);
+            if automatic_name { title_effects[0] = super::automatic_title::capture(&tab.buffer.rope, start, title_budget); }
         }
         if !new_text.is_empty() {
             tab.buffer.rope.insert(char_start, new_text);
+            if automatic_name { title_effects[1] = super::automatic_title::capture(&tab.buffer.rope, start, title_budget); }
         }
         // Rope just mutated — drop the find / smart-highlight scan cache so
         // the next `flat_text()` call rebuilds against the new content.
@@ -114,6 +121,8 @@ impl Workspace {
             sel_before_head,
         };
 
+        if automatic_name { self.record_automatic_title_effects(active, title_effects, cx); }
+
         if !in_bulk {
             self.after_edit_flush(cx);
         }
@@ -129,6 +138,7 @@ impl Workspace {
     /// per-edit hot loop is what makes batched edits fast.
     pub(crate) fn after_edit_flush(&mut self, cx: &mut Context<Self>) {
         if let Some(tab) = self.tabs.get_mut(self.active) { tab.observe_content_activity(); }
+        self.observe_automatic_title_input(self.active, cx);
         self.retire_source_input_after_edit();
         self.cancel_prepared_edit(cx);
         self.cancel_brace_navigation();
@@ -150,6 +160,8 @@ impl Workspace {
         self.last_lines.clear();
         self.caret_visible = true;
         self.status_message = None;
+        self.drive_automatic_titles(cx);
+        self.show_automatic_title_limit();
         self.ensure_cursor_visible(cx);
         cx.notify();
         // Debounced (~100ms) syntax reparse + eager untitled persistence —
@@ -327,9 +339,11 @@ impl Workspace {
         // `byte_start` may come from an undo file on disk: no overflow.
         let undo_range = op.byte_start..op.byte_start.saturating_add(op.inserted.len());
         let _ = self.apply_edit(undo_range, &op.removed, cx);
-        let buffer = &mut self.active_tab_mut().buffer;
-        buffer.raw_revision = op.before_revision.clone();
-        buffer.refresh_dirty();
+        let tab = self.active_tab_mut();
+        tab.buffer.raw_revision = op.before_revision.clone();
+        tab.buffer.refresh_dirty();
+        tab.observe_content_activity();
+        self.observe_automatic_title_input(self.active, cx);
     }
 
     /// Redo a single `EditOp` by replaying it forward. Same role as
@@ -337,9 +351,11 @@ impl Workspace {
     fn replay_redo_op(&mut self, op: &EditOp, cx: &mut Context<Self>) {
         let redo_range = op.byte_start..op.byte_start.saturating_add(op.removed.len());
         let _ = self.apply_edit(redo_range, &op.inserted, cx);
-        let buffer = &mut self.active_tab_mut().buffer;
-        buffer.raw_revision = op.after_revision.clone();
-        buffer.refresh_dirty();
+        let tab = self.active_tab_mut();
+        tab.buffer.raw_revision = op.after_revision.clone();
+        tab.buffer.refresh_dirty();
+        tab.observe_content_activity();
+        self.observe_automatic_title_input(self.active, cx);
     }
 
     /// Replay an entire `UndoEntry` in reverse. Used by the `EditUndo`

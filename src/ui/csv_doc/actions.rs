@@ -366,6 +366,8 @@ pub(crate) fn emit_to_source(
                 }
             }
             tab.buffer.raw_revision = source.revision;
+            tab.observe_content_activity();
+            w.observe_automatic_title_input(w.active, cx);
         }
     }
     w.tabs[w.active].buffer.refresh_dirty();

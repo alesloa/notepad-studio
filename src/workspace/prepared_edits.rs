@@ -239,6 +239,7 @@ impl Workspace {
     }
 
     pub(crate) fn stop_prepared_macro(&mut self, reason: &str) {
+        self.abandon_title_clipboard_wait();
         if let Some(playback) = self.regex_replacement.macro_playback.take() { self.set_status(playback.stopped(reason)); }
     }
 
@@ -512,6 +513,7 @@ impl Workspace {
         tab.buffer.invalidate_flat_text();
         tab.buffer.refresh_dirty();
         drop_on_worker((old_redo, old_metadata), cx);
+        if changed { self.record_automatic_title_history(self.active, state.group.clone(), undo, cx); }
         if changed { self.after_edit_flush(cx); self.commit_caret(cx); }
         #[cfg(test)]
         let clipboard_start = std::time::Instant::now();

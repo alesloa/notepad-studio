@@ -608,6 +608,7 @@ impl Workspace {
             return;
         }
         if self.regex_replacement.macro_playback.is_some() {
+            if self.title_clipboard_pending() { self.stop_prepared_macro("document-name copy cancelled"); }
             self.cancel_prepared_edit(cx);
             self.cancel_bookmark_copy(cx);
             self.cancel_regex_replacement();
@@ -623,7 +624,10 @@ impl Workspace {
             let indentation = self.status_message.as_deref() == Some("Preparing line indentation; Escape cancels");
             self.cancel_prepared_edit(cx);
             self.set_status(if indentation { "Line indentation cancelled; no changes applied" } else { "Line edits cancelled; no changes applied" });
-            cx.notify();
+            cx.notify(); return;
+        }
+        if window.is_window_active() && self.focus_handle.is_focused(window) && self.input_focus(window) == InputFocus::Editor {
+            self.cancel_automatic_titles(cx);
         }
     }
 

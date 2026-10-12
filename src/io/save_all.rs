@@ -51,6 +51,7 @@ pub(super) fn start(w: &mut Workspace, window: &mut Window, cx: &mut Context<Wor
     }
     let confirmed = needs_confirm.then(|| confirm(targets.len()));
     cx.spawn_in(window, async move |this, cx| {
+        if let Ok(Some(ready)) = this.update(cx, |w, cx| w.wait_for_automatic_titles(cx)) { let _ = ready.await; }
         if let Some(confirmed) = confirmed {
             let decision = confirmed.await;
             let proceed = this.update(cx, |w, cx| {
@@ -72,6 +73,7 @@ pub(super) fn start(w: &mut Workspace, window: &mut Window, cx: &mut Context<Wor
 
         let mut progress = Progress::default();
         for target in targets {
+            if let Ok(Some(ready)) = this.update(cx, |w, cx| w.wait_for_automatic_titles(cx)) { let _ = ready.await; }
             let step = this.update(cx, |w, cx| prepare(w, &target, cx)).unwrap_or(Step::Stop);
             match step {
                 Step::Stop => return,
@@ -79,6 +81,7 @@ pub(super) fn start(w: &mut Workspace, window: &mut Window, cx: &mut Context<Wor
                 Step::Saved(result) => progress.record(result),
                 Step::Pick(starting, suggested) => {
                     let path = super::save_as_dialog::pick(starting, suggested).await;
+                    if let Ok(Some(ready)) = this.update(cx, |w, cx| w.wait_for_automatic_titles(cx)) { let _ = ready.await; }
                     let result = this.update(cx, |w, cx| {
                         if w.window_closed || !w.commit_csv_drafts_for_save_all(cx) { return Step::Stop; }
                         let Some(index) = target.index(w) else { return Step::Skip; };

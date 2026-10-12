@@ -89,12 +89,14 @@ impl Workspace {
 
     pub(crate) fn new_tab(&mut self, cx: &mut Context<Self>) {
         if !crate::ui::csv_doc::actions::commit_cell_edit(self, cx) { return; }
+        if self.automatic_titles_pending() { self.run_after_automatic_titles(cx, |w, cx| w.new_tab(cx)); return; }
         self.append_blank_tab(cx);
     }
 
     // Closing has already settled drafts and may have removed the last tab.
     // Create its replacement without asking an absent source to commit again.
     fn append_blank_tab(&mut self, cx: &mut Context<Self>) {
+        self.invalidate_automatic_name_context();
         let label = crate::buffer::next_new_label_for(
             self.tabs.iter().map(|t| t.buffer.new_label.as_ref()),
         );
@@ -119,6 +121,7 @@ impl Workspace {
 
         let id = self.tabs[idx].session_id;
         if crate::ui::csv_doc::actions::commit_cell_edit_for_tab(self, id, cx).is_err() { return; }
+        if self.defer_automatic_title_tab(idx, "close", window, cx, |w, index, window, cx| w.close_tab_at(index, window, cx)) { return; }
         if !self.tabs[idx].buffer.dirty {
             self.finish_close(idx, window, cx);
             return;
@@ -205,6 +208,8 @@ impl Workspace {
         if idx >= self.tabs.len() {
             return;
         }
+        if self.defer_automatic_title_tab(idx, "close", window, cx, |w, index, window, cx| w.finish_close(index, window, cx)) { return; }
+        self.invalidate_automatic_name_context();
         let removed = self.tabs.remove(idx);
         self.remember_closed(removed);
         self.settle_after_tab_removal(idx, window, cx);
@@ -273,6 +278,11 @@ impl Workspace {
     /// welcome tab aside — the user sees `[welcome] [transferred]`, which
     /// matches NPP's "Open in New Instance" behaviour.
     pub(crate) fn adopt_transferred_tab(&mut self, tab: Tab, cx: &mut Context<Self>) {
+        if self.automatic_titles_pending() {
+            let mut tab = crate::io::BackgroundDrop::new(tab, cx.background_executor().clone());
+            self.run_after_automatic_titles(cx, move |w, cx| { if let Some(tab) = tab.take() { w.adopt_transferred_tab(tab, cx); } }); return;
+        }
+        self.invalidate_automatic_name_context();
         let pending = tab.initial_syntax_pending;
         self.tabs.push(tab);
         if pending { self.seed_initial_syntax(self.tabs.len().saturating_sub(1)); }
@@ -338,6 +348,7 @@ impl Workspace {
         self.cancel_regex_replacement();
         let prompts = ClosePrompts::capture();
         cx.spawn_in(window, async move |this, cx| {
+            if let Ok(Some(ready)) = this.update(cx, |w, cx| w.wait_for_automatic_titles(cx)) { let _ = ready.await; }
             for id in targets.into_iter().rev() {
                 let next = this
                     .update(cx, |w, cx| {
@@ -382,12 +393,14 @@ impl Workspace {
                     }
                 }
 
+                if let Ok(Some(ready)) = this.update(cx, |w, cx| w.wait_for_automatic_titles(cx)) { let _ = ready.await; }
                 let closed = this.update_in(cx, |w, window, cx| {
                     let idx = match w.close_confirmation_index(id, &snapshot, saved, cx) {
                         Ok(Some(idx)) => idx,
                         Ok(None) => return true,
                         Err(()) => return false,
                     };
+                    w.invalidate_automatic_name_context();
                     let removed = w.tabs.remove(idx);
                     w.retire_closed_reloads();
                     w.retire_closed_syntax_refresh(cx);
@@ -734,6 +747,7 @@ impl Workspace {
         // Unsupported filesystems refuse; never fall back to an overwrite.
         match renamore::rename_exclusive(&old_path, &new_path) {
             Ok(()) => {
+                self.automatic_name_context_changed(cx);
                 let Some(tab) = self.tabs.get_mut(idx) else { return; };
                 let id = tab.session_id;
                 let buf = &mut tab.buffer;
@@ -819,11 +833,13 @@ impl Workspace {
         cx: &mut Context<Self>,
     ) {
         if !crate::ui::csv_doc::actions::commit_cell_edit(self, cx) { return; }
+        if self.defer_automatic_title_window(_w, cx, |w, window, cx| w.restore_closed_tab(&FileRestoreClosedTab, window, cx)) { return; }
         let Some(closed) = self.closed_tabs.pop() else {
             return;
         };
         let recovered_raw = closed.buffer.rich_doc.is_none() && closed.buffer.new_label.as_ref()
             .is_some_and(|label| label.starts_with("Recovered raw source "));
+        self.invalidate_automatic_name_context();
         self.tabs.push(Tab::from_closed(closed));
         self.close_autocomplete(cx);
         self.close_function_hint(cx);
@@ -988,6 +1004,16 @@ impl Workspace {
         if from >= len || to >= len || from == to {
             return;
         }
+        if self.automatic_titles_pending() {
+            let source = self.tabs.get(from).map(|tab| (tab.session_id, tab.instance.clone()));
+            let target = self.tabs.get(to).map(|tab| (tab.session_id, tab.instance.clone()));
+            self.run_after_automatic_titles(cx, move |w, cx| {
+                let locate = |value: Option<(uuid::Uuid, std::sync::Arc<()>)>| value.and_then(|(id, instance)|
+                    w.tabs.iter().take(4096).position(|tab| tab.session_id == id && std::sync::Arc::ptr_eq(&tab.instance, &instance)));
+                if let (Some(from), Some(to)) = (locate(source), locate(target)) { w.move_tab(from, to, cx); }
+            }); return;
+        }
+        self.invalidate_automatic_name_context();
         let tab = self.tabs.remove(from);
         self.tabs.insert(to, tab);
 

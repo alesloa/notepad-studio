@@ -87,10 +87,9 @@ impl Stage {
                 file.write_all(bytes.get(..bytes.len().min(3)).unwrap_or_default())?;
                 progress.cancel.store(true, Ordering::Relaxed);
                 Err(io::Error::new(io::ErrorKind::Interrupted, "synthetic cancellation after write"))
-            }, |file, bytes| {
+            }, |file, copy| {
                 if fault.fail_restore { return Err(io::Error::new(io::ErrorKind::PermissionDenied, "synthetic restore failure")); }
-                use io::{Seek, SeekFrom};
-                file.seek(SeekFrom::Start(0))?; file.write_all(bytes)?; file.set_len(bytes.len() as u64)?; file.sync_all()
+                super::restore_copy::restore(file, copy)
             }).map_err(CommitError::Write);
         }
         self.commit_with(backup, progress, |file, bytes| {

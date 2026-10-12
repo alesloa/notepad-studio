@@ -6,6 +6,27 @@ checkpoint for one completed batch.
 
 ## Current checkpoint
 
+The latest continuation integrates bounded same-handle failed-save restoration
+on the tested b42 source. Main build passed in 22.216 s; 2,666 unit and 3
+integration tests passed, with 30 ignored (64.86 s unit / 148.148 s wall).
+Clippy passed in 22.440 s, and all 12 inventory tests and regeneration checks
+passed. Canonical diagnostics remain at 334 occurrences / 195 unique pairs.
+The 338 production Rust files have SHA256
+`a54ce8dd308d461367f743437d9216a897d89a48cf932cc8b5217b8adfa785f5`;
+Cargo retains SHA256 `fb072656`, and the lockfile is unchanged. See
+[bounded recovery checks](windows-bounded-restore-validation-20261011.md).
+Hash G1 now has 12 missing-feature failures, four future input protocol tests
+blocked by absent dialogs, and four passing controls. Root verified the corrected
+receipt `f5600d26` and authorized implementation in its isolated leaf. Legacy
+line run3 has 13 passing / 68 failing caller controls; root verified its
+`f2687342` deciding packet and authorized the reviewed three phases. Earlier
+fixture errors are archived and excluded. Root's brace
+baseline has four helper, two actual missing-route and one actual paint-work
+failure; source is restored and
+the [brace contract](windows-brace-navigation.md) remains unimplemented. Overall
+goal active; normal Save background ownership is next for File. Verify Git log
+for the resulting commit before resuming; do not reapply the bounded patch.
+
 - Repository: `C:/Users/Ale/Documents/GitHub/notepad-studio`, branch `main`.
 - Feature checkpoint: `c077e2dca48b6c35c457691c84f4b9c2c843b935`, adding 17 File,
   bookmark and line-sort commands plus the shared background engine. Save
@@ -22,10 +43,11 @@ checkpoint for one completed batch.
   Study behavior and write original Rust; preserve the Apache-2.0 boundary.
 - Windows PowerShell; set both `CC` and `CXX` to
   `C:/Program Files/LLVM/bin/clang-cl.exe` for Cargo.
-- Completed save, column and physical-line worktrees preserve frozen evidence.
-  File now implements bounded restoration in `windows-bounded-restore`; Book
-  prepares hash-tool controls in `windows-hash-tools`. Sort prepares existing
-  line-operation controls in `windows-legacy-lines` at `b42c889`. Caches have
+- Completed save, column, physical-line and bounded-restoration worktrees
+  preserve frozen evidence. File is idle pending a fresh normal-Save background
+  leaf. Book implements hash tools in `windows-hash-tools`; Sort implements the
+  reviewed legacy-line phases in `windows-legacy-lines`. Both are based at
+  `b42c889`. Caches have
   exclusive owners; inspect actual agent/process state before using one.
 - No push, release publication, Linux/WSL/VM work or Mac testing occurred.
 

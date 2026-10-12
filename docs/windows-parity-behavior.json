@@ -177,7 +177,8 @@
       "behavior": "pending",
       "evidence": [
         "docs/windows-save-durability.md",
-        "docs/windows-safety-validation-20261011.md"
+        "docs/windows-safety-validation-20261011.md",
+        "docs/windows-bounded-restore.md"
       ],
       "implementation": "existing-target synced rescue integrated; automated leaf and main save-only checks passed; normal-save background work and native verification pending"
     },
@@ -196,7 +197,8 @@
       "behavior": "pending",
       "evidence": [
         "docs/windows-save-durability.md",
-        "docs/windows-safety-validation-20261011.md"
+        "docs/windows-safety-validation-20261011.md",
+        "docs/windows-bounded-restore.md"
       ],
       "implementation": "existing-target synced rescue integrated; automated leaf and main save-only checks passed; normal-save background work and native verification pending"
     },
@@ -216,7 +218,8 @@
       "evidence": [
         "docs/windows-file-routes-validation.md",
         "docs/windows-save-durability.md",
-        "docs/windows-safety-validation-20261011.md"
+        "docs/windows-safety-validation-20261011.md",
+        "docs/windows-bounded-restore.md"
       ],
       "remaining": [
         "Native Windows behavior inspection"
@@ -239,7 +242,8 @@
       "behavior": "pending",
       "evidence": [
         "docs/windows-save-durability.md",
-        "docs/windows-safety-validation-20261011.md"
+        "docs/windows-safety-validation-20261011.md",
+        "docs/windows-bounded-restore.md"
       ],
       "implementation": "existing-target synced rescue integrated; automated leaf and main save-only checks passed; normal-save background work and native verification pending"
     },

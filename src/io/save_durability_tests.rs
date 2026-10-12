@@ -163,11 +163,9 @@ fn partial_write_error_restores_original_or_reports_its_retained_rescue_path() {
         let original = b"previous complete document\r\n"; fs::write(&target, original).expect("original");
         let result = write_file_safely_with_restore(&target, b"replacement", |file, _| {
             file.write_all(PREFIX)?; Err(std::io::Error::from_raw_os_error(112))
-        }, |file, bytes| {
+        }, |file, copy| {
             if restore_fails { return Err(std::io::Error::from_raw_os_error(5)); }
-            use std::io::{Seek, SeekFrom};
-            file.seek(SeekFrom::Start(0))?; file.write_all(bytes)?;
-            file.set_len(bytes.len() as u64)?; file.sync_all()
+            restore_copy::restore(file, copy)
         });
         if restore_fails {
             let rescue = rescue_path(dir.path(), 0);

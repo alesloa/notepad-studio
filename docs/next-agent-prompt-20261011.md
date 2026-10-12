@@ -2,12 +2,25 @@
 
 Target: a fresh Codex coding session in T3 Code, with this repository open.
 
+Bounded restoration is integrated and passes main build, 2,666 unit and 3
+integration tests (30 ignored), Clippy with zero new diagnostics, and 12
+inventory tests plus regeneration checks. The 338 production Rust files have
+SHA256 `a54ce8dd308d461367f743437d9216a897d89a48cf932cc8b5217b8adfa785f5`;
+Cargo retains `fb072656`, and the lockfile is unchanged. Read the handoff and
+[bounded recovery validation](windows-bounded-restore-validation-20261011.md).
+Hash and legacy-line implementation are authorized after corrected G1 review;
+earlier fixture errors are archived separately. Root brace
+G1 evidence is in
+[brace navigation](windows-brace-navigation.md), with no production implementation.
+Normal Save background capture/publication and close settlement is the next File
+task. Overall Windows parity remains open; verify current Git state and owners.
+
 ```text
 Continue the active goal of finishing Notepad Studio's Windows Notepad++ behavior parity in C:\Users\Ale\Documents\GitHub\notepad-studio. Mac testing is deferred by the user; do not start Linux, WSL or VMs. Preserve the Rust/GPUI architecture, Markdown Reader and other existing views, Apache-2.0 clean-room boundary, and local English-only proofreading.
 
-Read AGENTS.md, README.md and docs/agent-handoff-20261011.md before editing. Tested checkpoints include c077e2d (17 File/bookmark/sort commands) and 10d4723 (mandatory synced save rescue). Column/physical-line fixes are also integrated: build, 2652 unit plus 3 integration tests, Clippy with zero new diagnostics, inventory checks and scoped release controls pass. Current Rust inventory SHA is c71335ee3eaa3d371bef0f956e95ea302ca23a719329a7c54e15832b3c26c339. Verify the actual current branch, log and working tree. Completed worktree patches are already integrated; gates/ is ignored and retains local evidence.
+Read AGENTS.md, README.md and docs/agent-handoff-20261011.md before editing. Tested checkpoints include c077e2d (17 File/bookmark/sort commands), 10d4723 (mandatory synced save rescue) and b42c889 (column/physical-line fixes). Bounded failed-save recovery is also integrated: main build, 2666 unit plus 3 integration tests/30 ignored, Clippy with zero new diagnostics and inventory checks pass. Current Rust inventory SHA is a54ce8dd308d461367f743437d9216a897d89a48cf932cc8b5217b8adfa785f5. Verify the actual current branch, log and working tree for its resulting commit. Completed patches are already integrated; gates/ is ignored and retains local evidence.
 
-Use available parallel agents in isolated worktrees for independent, reproduced bugs or confirmed parity gaps. Do not reapply the completed save/column/physical-line patches. Active next leaves are bounded restoration (actual bounded-memory contract RED reviewed; fixed 64KiB pump implementation authorized) and source-only hash-tool G1 preparation (no Cargo yet). Neither next leaf is integrated. Read the handoff for exact source/evidence ownership, policy and limits. Normal Save background work, large columns, older line operations and native verification remain open. The inventory has 182 routed and 285 missing unique IDs; keep generator outputs and docs/windows-parity-behavior.json current. Preserve legacy macro refusals, background continuation and full-history limits. Use CodeGraph as instructed. Study Notepad++ for behavior and write original Rust.
+Use available parallel agents in isolated worktrees for independent, reproduced bugs or confirmed parity gaps. Do not reapply completed save/column/physical-line/bounded-restoration patches. Book implements hash tools and Sort implements twelve legacy line commands after corrected G1 review. Root brace baseline reproduces four helper behavior gaps, two missing routes and repeated foreground scanning on unchanged paint; production work is pending. File's next leaf is normal Save background capture/publication and close/Exit settlement under its frozen contract. Read the handoff for exact ownership, policy and limits. Large columns and native verification remain open. The inventory has 182 routed and 285 missing unique IDs; keep generator outputs and docs/windows-parity-behavior.json current. Preserve legacy macro compatibility, background continuation and full-history limits. Use CodeGraph as instructed. Study Notepad++ for behavior and write original Rust.
 
 Integrate each reviewed batch, run the required Windows gates, update release notes and records, and commit using $commit. Preserve user edits and unsaved application state. Do not push.
 

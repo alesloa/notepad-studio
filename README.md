@@ -62,6 +62,8 @@ A lightweight, cross-platform text editor inspired by Notepad++, written in Rust
 > exceeding it leaves both files unchanged and directs the user to Save As.
 > [Save protection](docs/windows-save-durability.md) requires a created and synced
 > recovery copy before overwriting an existing destination; failure refuses the save.
+> [Failed-save restoration](docs/windows-bounded-restore.md) streams the saved
+> bytes back with 64 KiB scratch; incomplete recovery retains the rescue copy.
 > Column edit paths now preflight hostile geometry and cumulative allocations.
 > Their temporary foreground limits and remaining parity gaps are recorded in
 > [column operation limits](docs/column-safety.md).

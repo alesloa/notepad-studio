@@ -147,6 +147,8 @@ impl Workspace {
         let worker_progress = progress.clone(); let destination = path.clone();
         #[cfg(test)]
         let (prepared_gate, committed_gate) = tests::take_worker_gates();
+        #[cfg(test)]
+        let result_gate = tests::take_result_gate();
         cx.notify();
         cx.spawn_in(window, async move |this, cx| {
             loop {
@@ -205,7 +207,13 @@ impl Workspace {
                 if let Some(gate) = committed_gate { let _ = gate.await; }
                 let result = stage.as_ref().ok_or_else(|| super::copy_stage::CommitError::Preparation("copy staging file is unavailable".into()))?
                     .commit(&backup, &worker_progress);
-                if let Err(error) = &result { if error.critical() { eprintln!("[Save a Copy As] {error}"); } }
+                #[cfg(test)]
+                let critical_log = if let Some((gate, log)) = result_gate { let _ = gate.await; Some(log) } else { None };
+                if let Err(error) = &result { if error.critical() {
+                    eprintln!("[Save a Copy As] {error}");
+                    #[cfg(test)]
+                    if let Some(log) = critical_log { if let Err(error) = log.send(error.to_string()) { eprintln!("[test critical log] {error}"); } }
+                } }
                 result
             });
             let result = commit.await;

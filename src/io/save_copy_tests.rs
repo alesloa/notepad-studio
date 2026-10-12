@@ -2,6 +2,7 @@ use super::*;
 use crate::{actions::*, buffer::Buffer, settings::Settings};
 use gpui::{Entity, TestAppContext, VisualTestContext};
 type WorkerGatePair = (Option<futures::channel::oneshot::Receiver<()>>, Option<futures::channel::oneshot::Receiver<()>>);
+type ResultGatePair = (futures::channel::oneshot::Receiver<()>, std::sync::mpsc::Sender<String>);
 
 #[test]
 fn actual_copy_picker_suggests_current_name_and_cancel_preserves_original() {
@@ -22,7 +23,16 @@ fn actual_copy_picker_suggests_current_name_and_cancel_preserves_original() {
 thread_local! {
     static OPEN_COPY: std::cell::RefCell<Option<Option<bool>>> = const { std::cell::RefCell::new(None) };
     static WORKER_GATES: std::cell::RefCell<WorkerGatePair> = const { std::cell::RefCell::new((None, None)) };
+    static RESULT_GATE: std::cell::RefCell<Option<ResultGatePair>> = const { std::cell::RefCell::new(None) };
 }
+pub(super) fn take_result_gate() -> Option<ResultGatePair> { RESULT_GATE.with(|slot| slot.borrow_mut().take()) }
+struct ResultGate(Option<ResultGatePair>);
+impl ResultGate {
+    fn new(gate: futures::channel::oneshot::Receiver<()>, log: std::sync::mpsc::Sender<String>) -> Self {
+        Self(RESULT_GATE.with(|slot| slot.replace(Some((gate, log)))))
+    }
+}
+impl Drop for ResultGate { fn drop(&mut self) { RESULT_GATE.with(|slot| slot.replace(self.0.take())); } }
 pub(super) fn take_worker_gates() -> WorkerGatePair {
     WORKER_GATES.with(|slot| std::mem::take(&mut *slot.borrow_mut()))
 }
@@ -451,6 +461,47 @@ fn actual_copy_cancel_with_failed_restore_reports_retained_rescue_bytes_even_aft
             assert!(crate::recent::snapshot().is_empty()); assert_eq!(std::fs::read(&source).expect("original"), b"source\r\n");
         });
     }
+}
+
+#[test]
+fn actual_copy_partial_write_cancel_restores_existing_destination() {
+    let dir = crate::persist::TempDir::new("copy-chunked-restore"); let source = dir.join("source.txt"); let target = dir.join("copy.txt");
+    std::fs::write(&source, b"source\r\n").expect("source"); std::fs::write(&target, b"previous destination\r\n").expect("target");
+    with_editor(crate::io::read_buffer(&source).expect("read"), |entity, visual| {
+        let _fault = super::super::copy_stage::tests::Override::new(false);
+        let sender = begin(visual, true); assert!(sender.send(Some(target.clone())).is_ok()); visual.run_until_parked();
+        assert_eq!(std::fs::read(&target).expect("restored"), b"previous destination\r\n");
+        assert_eq!(std::fs::read(&source).expect("original"), b"source\r\n");
+        assert_eq!(std::fs::read_dir(dir.path()).expect("cleanup").count(), 2);
+        assert!(crate::recent::snapshot().is_empty());
+        visual.update(|_, cx| {
+            let w = entity.read(cx); assert_eq!(w.tabs.len(), 2); assert!(w.file_copy.is_none());
+            let status = w.status_message.as_deref().expect("actual write failure");
+            assert!(status.contains("Save a Copy As failed:") && status.contains("the file on disk was left as it was"), "{status}");
+        });
+    });
+}
+
+#[test]
+fn actual_copy_closed_window_logs_failed_restore_and_retains_rescue() {
+    let dir = crate::persist::TempDir::new("copy-closed-rescue"); let source = dir.join("source.txt"); let target = dir.join("copy.txt");
+    let rescue = dir.join("copy.txt.notepad-studio-save");
+    std::fs::write(&source, b"source\r\n").expect("source"); std::fs::write(&target, b"prior destination\r\n").expect("target");
+    with_editor(crate::io::read_buffer(&source).expect("read"), |entity, visual| {
+        let _fault = super::super::copy_stage::tests::Override::new(true);
+        let (release, held) = futures::channel::oneshot::channel(); let (log, received) = std::sync::mpsc::channel();
+        let _gate = ResultGate::new(held, log);
+        let sender = begin(visual, true); assert!(sender.send(Some(target.clone())).is_ok()); visual.run_until_parked();
+        assert_eq!(std::fs::read(&rescue).expect("failed restore rescue"), b"prior destination\r\n");
+        assert!(received.try_recv().is_err(), "worker is held after the real commit result");
+        assert!(visual.simulate_close());
+        visual.update(|_, cx| { assert!(entity.read(cx).window_closed); });
+        assert!(release.send(()).is_ok()); visual.run_until_parked();
+        let logged = received.try_recv().expect("closed-window critical worker log");
+        assert!(logged.contains("putting the original back also failed")); assert!(logged.contains(&rescue.display().to_string()));
+        assert_eq!(std::fs::read(&rescue).expect("retained rescue"), b"prior destination\r\n");
+        assert_eq!(std::fs::read(&source).expect("source"), b"source\r\n"); assert!(crate::recent::snapshot().is_empty());
+    });
 }
 
 #[test]

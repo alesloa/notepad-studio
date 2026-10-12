@@ -5,6 +5,7 @@ mod copy_stage;
 mod copy_snapshot;
 mod background_drop;
 mod safety_copy;
+mod restore_copy;
 use safety_copy::make_safety_copy;
 pub(crate) use background_drop::BackgroundDrop;
 pub(crate) use copy_stage::Progress as CopyProgress;
@@ -683,21 +684,14 @@ fn write_file_safely_with(
     bytes: &[u8],
     write: impl Fn(&mut std::fs::File, &[u8]) -> std::io::Result<()>,
 ) -> Result<(), SaveError> {
-    write_file_safely_with_restore(path, bytes, write, |file, original| {
-        use std::io::{Seek, SeekFrom, Write};
-        let length = u64::try_from(original.len()).map_err(|_| std::io::Error::new(std::io::ErrorKind::InvalidData, "original too large"))?;
-        file.seek(SeekFrom::Start(0))?;
-        file.write_all(original)?;
-        file.set_len(length)?;
-        file.sync_all()
-    })
+    write_file_safely_with_restore(path, bytes, write, restore_copy::restore)
 }
 
 fn write_file_safely_with_restore(
     path: &Path,
     bytes: &[u8],
     write: impl Fn(&mut std::fs::File, &[u8]) -> std::io::Result<()>,
-    restore: impl Fn(&mut std::fs::File, &[u8]) -> std::io::Result<()>,
+    restore: impl Fn(&mut std::fs::File, &Path) -> std::io::Result<()>,
 ) -> Result<(), SaveError> {
 
     let io_err = |source: std::io::Error| SaveError::Io {
@@ -768,8 +762,7 @@ fn write_file_safely_with_restore(
     };
 
     // Put the original back.
-    let original = std::fs::read(&copy);
-    let restored = original.and_then(|original| restore(&mut file, &original));
+    let restored = restore(&mut file, &copy);
     drop(file);
     match restored {
         Ok(()) => {

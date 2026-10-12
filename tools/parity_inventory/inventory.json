@@ -1,5 +1,5 @@
 {
-  "studio_source_sha256": "c71335ee3eaa3d371bef0f956e95ea302ca23a719329a7c54e15832b3c26c339",
+  "studio_source_sha256": "a54ce8dd308d461367f743437d9216a897d89a48cf932cc8b5217b8adfa785f5",
   "studio_sources": {
     "src/actions/bookmarks.rs": "eeaf95badc144e0fa7f8c2445495e706f1209291c1285ddd3578fef0c84eb5fc",
     "src/actions/edit.rs": "90200c45bc846149a2a05b8ce0b1ab98118b185094686abacccc0ddc882969b4",
@@ -85,13 +85,14 @@
     "src/input_field_window.rs": "f6cc271f385be21f29ce6a81b324c2e22715aa62d687fd869881ab3bf5d58912",
     "src/io/background_drop.rs": "9fc5aadeb3251706439e5dd5ad846f88880788fa35783ee28687d9d3ad62dec9",
     "src/io/copy_snapshot.rs": "ffa012c2df868d18ecfea86d4fe3b41eff389d1e25871f1d79e5c571d8724717",
-    "src/io/copy_stage.rs": "90b06c4b9bb148ae6fec1085b4330e1822b6faf8fc7d22f73b94e07183de9267",
+    "src/io/copy_stage.rs": "0c7da56aa74dd3bc886a832c70575925ffe7dea724e696cc9ececd94a37241cb",
     "src/io/copy_writer.rs": "7fce5b2251728b311c5d11c002efa1abf4f2b914f7bfc540c179e3aa5df78ed1",
+    "src/io/restore_copy.rs": "b3a1fd15b3e74328b9c261da23ba44138954334ba00bfb82972feba20971905d",
     "src/io/safety_copy.rs": "d1bcfa37d3057ad8ca6b081511b8f5b44139113a365e1e47bc2a5d2cb05a433a",
     "src/io/save_all.rs": "2799cad7525aa0d4db3b97634942c415ac92c8ad2fb3046b64200bfc5f287b9e",
     "src/io/save_as_dialog.rs": "870b9d7970e5c213b5b07c1465881f07862073f6d14dde9a586dabeda6d89a68",
-    "src/io/save_copy.rs": "0259c3bcca793cdff4b1b0ceff0dd70b405fec89984c932c36cfede3c07fa23f",
-    "src/io.rs": "b5f9edaeb8744d7ba5baa0f280d401f2a7f4353ee87356a11437159b407f9711",
+    "src/io/save_copy.rs": "726807eafc13306398dbe72b844adf428173352d3dbddcae9b43ddd70b3e404a",
+    "src/io.rs": "5727deb511e9a7f132b2df899454028802ced18cdd2d69978afd9a902cb8043f",
     "src/io_reload.rs": "6d167ea8cfea21d1b86b131f6cd9d31fe7c78affb5829de7a54cd83d5e0ea47a",
     "src/io_stream.rs": "450a533562310b8c50d18cb4b2a425be85bd830eac2ce321537ef20ed1126f61",
     "src/locale_date.rs": "b7c0a84062bcd5a8142bf9ff3c3c62dcce03f40fa5fc3ff7824b858f52b1f7c8",
@@ -547,7 +548,7 @@
         {
           "method": "open_new_tab",
           "path": "src/io.rs",
-          "line": 57,
+          "line": 58,
           "wire_path": "src/workspace/render.rs",
           "wire_line": 289
         }
@@ -606,7 +607,7 @@
         {
           "method": "open_dialog",
           "path": "src/io.rs",
-          "line": 256,
+          "line": 257,
           "wire_path": "src/workspace/render.rs",
           "wire_line": 290
         }
@@ -930,7 +931,7 @@
         {
           "method": "open_folder_as_workspace",
           "path": "src/io.rs",
-          "line": 288,
+          "line": 289,
           "wire_path": "src/workspace/render.rs",
           "wire_line": 291
         }
@@ -1050,7 +1051,7 @@
         {
           "method": "save_active",
           "path": "src/io.rs",
-          "line": 437,
+          "line": 438,
           "wire_path": "src/workspace/render.rs",
           "wire_line": 301
         }
@@ -1109,7 +1110,7 @@
         {
           "method": "save_active_as",
           "path": "src/io.rs",
-          "line": 468,
+          "line": 469,
           "wire_path": "src/workspace/render.rs",
           "wire_line": 302
         }
@@ -1224,7 +1225,7 @@
         {
           "method": "save_all",
           "path": "src/io.rs",
-          "line": 540,
+          "line": 541,
           "wire_path": "src/workspace/render.rs",
           "wire_line": 304
         }
@@ -22222,7 +22223,7 @@
         {
           "method": "open_new_tab",
           "path": "src/io.rs",
-          "line": 57,
+          "line": 58,
           "wire_path": "src/workspace/render.rs",
           "wire_line": 289
         }

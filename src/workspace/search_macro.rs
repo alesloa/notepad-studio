@@ -39,6 +39,7 @@ pub(in crate::workspace) struct Playback {
     instance: Arc<()>,
     input: gpui::InputContextToken,
     metadata_only: bool,
+    history: crate::workspace::typing_undo::HistoryStamp,
     pub(in crate::workspace) undo_base: usize,
     pub(in crate::workspace) undo_len: usize,
     pub(in crate::workspace) redo_len: usize,
@@ -53,11 +54,17 @@ impl Playback {
         format!("Macro stopped after {} {unit}: {reason}", self.completed)
     }
 
+    pub(in crate::workspace) fn refresh_history(&mut self, tab: &crate::tab::Tab) {
+        self.undo_len = tab.undo_stack.len(); self.redo_len = tab.redo_stack.len();
+        self.history = crate::workspace::typing_undo::HistoryStamp::capture(tab);
+    }
+
     pub(in crate::workspace) fn valid(&self, w: &Workspace, window: &Window) -> bool {
         w.tabs.get(w.active).is_some_and(|tab| {
             tab.session_id == self.tab && Arc::ptr_eq(&tab.instance, &self.instance)
                 && tab.view_mode == TabViewMode::Edit && (!tab.buffer.read_only || self.metadata_only)
                 && tab.buffer.loading.is_none() && tab.edit_transaction.is_none()
+                && self.history.matches(tab)
                 && tab.undo_stack.len() == self.undo_len && tab.redo_stack.len() == self.redo_len
         }) && !w.window_closed && window.is_window_active()
             && window.input_context_token() == self.input
@@ -174,6 +181,7 @@ impl Workspace {
             events: events.to_vec(), index: 0, remaining: times, tab: tab.session_id,
             instance: tab.instance.clone(), input: window.input_context_token(),
             metadata_only: events.iter().all(allows_read_only),
+            history: crate::workspace::typing_undo::HistoryStamp::capture(tab),
             undo_base: tab.undo_stack.len(), undo_len: tab.undo_stack.len(), redo_len: tab.redo_stack.len(),
             grouped: !events.iter().any(|ev| matches!(ev, MacroEvent::Undo | MacroEvent::Redo)),
             selection: tab.selection, block: tab.block_selection,
@@ -231,7 +239,7 @@ impl Workspace {
                 if let Some(mut playback) = self.regex_replacement.macro_playback.take() {
                     self.merge_search_macro_undo(&playback);
                     if let Some(tab) = self.tabs.get(self.active) {
-                        playback.undo_len = tab.undo_stack.len(); playback.redo_len = tab.redo_stack.len();
+                        playback.refresh_history(tab);
                     }
                     self.regex_replacement.macro_playback = Some(playback);
                 }

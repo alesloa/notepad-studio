@@ -1391,10 +1391,19 @@ impl EntityInputHandler for Workspace {
                 if plain_point_insert {
                     byte_range.end = self.overtype_end(byte_range.start, new_text);
                 }
-                if !new_text.is_empty() {
-                    crate::macros::record(crate::macros::MacroEvent::InsertText(new_text.to_string()));
-                }
-                self.replace_byte_range(byte_range, new_text, cx);
+                let macro_text = if !new_text.is_empty() && crate::macros::is_recording() {
+                    #[cfg(test)]
+                    if std::mem::take(&mut self.active_tab_mut().typing_undo.fail_macro_reserve) {
+                        self.set_status("Cannot reserve recorded typing text; no changes applied"); cx.notify(); return;
+                    }
+                    let mut text = String::new();
+                    if text.try_reserve_exact(new_text.len()).is_err() {
+                        self.set_status("Cannot reserve recorded typing text; no changes applied"); cx.notify(); return;
+                    }
+                    text.push_str(new_text); Some(text)
+                } else { None };
+                if !self.replace_input_text(byte_range, new_text, plain_point_insert, cx) { return; }
+                if let Some(text) = macro_text { crate::macros::record(crate::macros::MacroEvent::InsertText(text)); }
                 if self.find_state.open && !self.find_state.query.is_empty() {
                     self.refresh_matches();
                 }

@@ -15,6 +15,8 @@ A lightweight, cross-platform text editor inspired by Notepad++, written in Rust
 > Notepad++ behavior parity and correctness audit, including remaining
 > native completion and IME verification, focus bugs, large-edit performance,
 > legacy Save macro replay, and the gaps in the [menu inventory](docs/notepadpp-parity-inventory.md).
+> Adjacent committed Source/Raw text input shares one Undo entry while retaining
+> every edit revision. See [the insertion checks and remaining boundaries](docs/windows-typing-undo-validation-20261011.md).
 > Regex capture replacement has landed with
 > bounded background planning; see its documented syntax and limits.
 > Manual large line indentation and its Undo/Redo also prepare in the

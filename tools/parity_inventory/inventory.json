@@ -1,5 +1,5 @@
 {
-  "studio_source_sha256": "2f32e1e531367e6f6f706967db2c0cb8d55039a83691d32b00b8a58031098cb9",
+  "studio_source_sha256": "e9328ac02a9aff05b8e7bd515c8a8874e9ec1d1cd4a4e68548e533ce979f94c2",
   "studio_sources": {
     "src/actions/bookmarks.rs": "eeaf95badc144e0fa7f8c2445495e706f1209291c1285ddd3578fef0c84eb5fc",
     "src/actions/edit.rs": "90200c45bc846149a2a05b8ce0b1ab98118b185094686abacccc0ddc882969b4",
@@ -48,7 +48,7 @@
     "src/app/window.rs": "42f1117f4c7940254786aa67dea89e21f2be2b71d644ac81b48198de204c246d",
     "src/assets.rs": "58f498f42210c21e76038342146108d5a2d584a69804c1d1b75d49b63a1c6bf7",
     "src/buffer/prepared.rs": "ddbfd37d5d3648de07c65f2f2a303538aa2baa5a4a7ebafa7fbb9de15a5a029c",
-    "src/buffer.rs": "7005892fce831a9e3142ca0154f4811eb486cb3d6d80407759aed98d6de75794",
+    "src/buffer.rs": "f590e5842446863d24b28a5838be2cf35b33b031d5f9a85ef016ff28640d3674",
     "src/call_context.rs": "c0f382cfec3d27faefda0e2cfdd1aa8c6aed86823121f90dd05a605bd35273bd",
     "src/changelog.rs": "6f1cdf601ac205897a3d06a86cbc2c8ca8fcb2e29686ee7785992d666be0fcc8",
     "src/clipboard_history.rs": "bfe665d23bdcebcb1198eb3c7f379a26664a4aa6dfe3377b0baf7d40d8a7c731",
@@ -159,7 +159,7 @@
     "src/syntax/grammars.rs": "5f55c1b501a59ecc8309d1cc3bf9bc0129c4109297509b346d956b6df79ba671",
     "src/syntax/keywords.rs": "027ca15afab2b54ff291ccb8f06da194d07a28ae870aa7b486f134d75e0d118d",
     "src/syntax/mod.rs": "f989db4734c486b6ac5ef8289c3bb2c60e92a1a77bde724c0a440b94c2569c16",
-    "src/tab.rs": "dd7f239968419fefbfbbdc73767ebeb61f638dbb401a0154505f76acd961d6d6",
+    "src/tab.rs": "a234b5d965cbc86aeb972c953ef8eb16b6f708ef391516db148a4b1c3152e839",
     "src/text/encoding.rs": "e3246b131d86f48e680e9e7ed80d8618202eb98a4976d46ef0db3a6905168a01",
     "src/text/eol_convert.rs": "44f7d4c2b7556573bc03e107acde6f74ace12c804d7c71e0fe38ed00c2be9a39",
     "src/text/extended_escape.rs": "2013fe355b8a7d1904f3460a6de15292720592c039248b26e206c1cd84334877",
@@ -299,7 +299,7 @@
     "src/workspace/column_plan.rs": "7d766f2f489f624228a6461eed027f641623b7659da4c60141e5fd0772084a4f",
     "src/workspace/completion_api.rs": "95bc8727ff8d2e8557597bf10a5ea62e6ff064e65ba9495f573d5b55a19b69db",
     "src/workspace/completion_macro.rs": "b75aedfd58b6dbbbbd4f96bf1d27d59406d04e527beead4b8371fb11132b1e52",
-    "src/workspace/cursor.rs": "bd7995d3d9b5f0125ee04a7baef274ece3c2769555431170d1ee0c46bbbf5f27",
+    "src/workspace/cursor.rs": "0aea860cc62672a59051b015b74d5a16f5cd7147aa406a8371614700001ec9cb",
     "src/workspace/directory_operations.rs": "e99b779cb52f093598a39d612a274e7808ed522fc74c1a907de7aa1574f04024",
     "src/workspace/edits.rs": "73fdcdd9017190b30146c98733d2db6763704296e3c897a05c89ea1247203700",
     "src/workspace/file_move.rs": "4b2b28d4a2b831b6e59f56b105a0ad3d8ec32a933c066d8d1e17d42155673e49",
@@ -321,18 +321,18 @@
     "src/workspace/format.rs": "514dd0c98f07fd04f1dc25404474788d0bd574404929bb0751303e38b5337ad4",
     "src/workspace/history.rs": "e81e204f82315aab37b044596a219297028ced18a3c897844d62219648651492",
     "src/workspace/ime.rs": "761420f3a3a2a82a86609f909df4809d44372b2e61d4d68855146db100fa088b",
-    "src/workspace/input_handler.rs": "ef1a987ad7c26cfb1d7574da1a1317e57f533df85109297224a3cca498d9f9c6",
+    "src/workspace/input_handler.rs": "ec7c5303c7aa36501ed452c4b10c27990928d17b00f25691a3e59664465930d3",
     "src/workspace/language.rs": "d2de7352c993a234b32d8df2b93741c6319ccada93f9fc4f37ded2998bd223b0",
     "src/workspace/macros.rs": "a8ff899faed8fbaa4c18506d9541ae0c08508cca605eb7006c9509a4d1037136",
     "src/workspace/markdown_format.rs": "1e8c6fa671dfb4f0304f9c885628d0ce8c537f0cdaf5d9d044bb3929694201f0",
     "src/workspace/menu_bar.rs": "eb33b9884b6e0574c700fa5c6a7460139c23bc09dfb4c5dff3ea4cfd936b8795",
     "src/workspace/menu_state.rs": "c08c5730ca88b4773ff7e69c8375574d6b9946653ff0b8eb9c4245dec4707989",
-    "src/workspace/mod.rs": "7014eb826d4db15ef271ff6c21ed7bd2860b1d9a55cc4e5d399f12d8d1da9f20",
+    "src/workspace/mod.rs": "df4df62759e84ceace00999a567a6ffe619d2e6ad116b8f8a9869ae8b31758e4",
     "src/workspace/mouse.rs": "d33004f7e533a7290340fdcd47b18bbbb0f30c0650d05ff77cc5d671f65a32ad",
     "src/workspace/movement.rs": "842121092e1c8537d4a9eb47c890fea8fcd08ce6eb427e5d067e89c5d544af9e",
     "src/workspace/open_existing.rs": "2f0688288f495fb8717aa9e7338e47be14c405af2e33491a70a7f2e57b06ccbd",
     "src/workspace/plugins.rs": "9e1c3d4dd021e69ecf0e7f3ac26db856e40a3413d86336dffeb3830bb5f61e92",
-    "src/workspace/prepared_edits.rs": "782d079e1734a21094472622174ecf2861a121df86aed1e7e336df629b5d2c37",
+    "src/workspace/prepared_edits.rs": "db64604f969fd38cb064efdde14db9dc3838f5b53694d06e4c42863759998918",
     "src/workspace/prepared_macro_capture.rs": "926de786c5269f0425b1aeb62ce92fdbf88f5a4ac230360150ac3ff62a81fe50",
     "src/workspace/project_file_visits.rs": "c359c6b1f887f8849a03831435663f5e628d1d518c61923ca3b486452143255e",
     "src/workspace/proofreading.rs": "60304192a859e36321e3f69c8ce458884b5f851d5818e809c59bd403526f2d0b",
@@ -343,9 +343,9 @@
     "src/workspace/rich_edit.rs": "6e19702656046073b5388eac4cdf93bc3a3b218b5fa63cf9cbedcbbe747068c2",
     "src/workspace/rich_replacement.rs": "8b3dc53ff3638c61f110346021c58c8b01a81fe70c0ebca3a0072a16157aecf2",
     "src/workspace/run.rs": "c0ffc5d538bbb7135d7d471850a1e0564d5282d43a716c03a7e50767e27c03bd",
-    "src/workspace/search_macro.rs": "47dbe0d76ec38073d3392cac7769bb27120f5fcc1fd04f4bddc69079007cb61d",
+    "src/workspace/search_macro.rs": "8cbcf30bc4ba884dfca813a17341f989f6692bd1aa8714ee2cce643b82c8830f",
     "src/workspace/session_syntax_bench.rs": "d8d114a040c63b6c3a69c7c1b83d8e350fba9a66c7f14429c4a506abd215595c",
-    "src/workspace/source_input.rs": "08752743d74f93856561f80f1f10c69354effc0688a202c9b70e3accd3f132a7",
+    "src/workspace/source_input.rs": "8fa30d93e16db513f41e5477349d1b612230a49fc2b94f211b65349b52652d2e",
     "src/workspace/status.rs": "338218be900828e0bb19a57570021582980fcce542d0a04e130e49912937726c",
     "src/workspace/stream_eof_bench.rs": "5ae68e529225ff15e2bdfb50d739957a97d35e7c6b70e6925ae9673be7a06df3",
     "src/workspace/syntax_refresh/session_pump.rs": "da29d1cbfd269d6485467104931631e84ba5228c00ff686dbe7e9ccdd9b78738",
@@ -353,7 +353,8 @@
     "src/workspace/tab_actions.rs": "96c719febddf41c7ed4f2f4e8be5cf3919388df4d11f9bce8fd508ba28f89c6a",
     "src/workspace/tabs.rs": "aada21f0dae0586893d551d5b81a06b86d1a264642bbb68d10854cd84ce84ef4",
     "src/workspace/tag_match.rs": "d4f3e48f7bd8c6c2af89328b9c5d2641bd8795783da271f688b501b5c668a4e8",
-    "src/workspace/trash.rs": "34cc0529369b1df9a9d9e3761f0665d98d0274d8035dcce6f23edf8425948ded"
+    "src/workspace/trash.rs": "34cc0529369b1df9a9d9e3761f0665d98d0274d8035dcce6f23edf8425948ded",
+    "src/workspace/typing_undo.rs": "2fd9f656f5846b7f9947c853d492448d5e725b738d57d745aafde8aedd321bb3"
   },
   "oracle_sources": {
     "Notepad_plus.rc": "cb930d135a47c2f8da40ddfab8cacc9d399621dc7927f4fab29fe031d6c139e9",
@@ -1303,7 +1304,7 @@
       "alternate": [
         {
           "path": "src/workspace/mod.rs",
-          "line": 1177,
+          "line": 1178,
           "method": "open_tab_rename"
         }
       ],
@@ -10463,7 +10464,7 @@
         {
           "method": "zoom_in",
           "path": "src/workspace/mod.rs",
-          "line": 1450,
+          "line": 1451,
           "wire_path": "src/workspace/render.rs",
           "wire_line": 390
         }
@@ -10530,7 +10531,7 @@
         {
           "method": "zoom_out",
           "path": "src/workspace/mod.rs",
-          "line": 1459,
+          "line": 1460,
           "wire_path": "src/workspace/render.rs",
           "wire_line": 391
         }
@@ -10597,7 +10598,7 @@
         {
           "method": "zoom_reset",
           "path": "src/workspace/mod.rs",
-          "line": 1468,
+          "line": 1469,
           "wire_path": "src/workspace/render.rs",
           "wire_line": 392
         }

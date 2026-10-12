@@ -46,6 +46,7 @@ mod project_file_visits;
 mod folder_panel;
 mod format;
 mod history;
+pub(crate) mod typing_undo;
 mod prepared_edits;
 mod reload;
 mod reload_guard;
@@ -2006,3 +2007,6 @@ mod replace_lifecycle_audit_tests;
 
 #[cfg(test)]
 mod physical_line_tests;
+
+#[cfg(test)]
+mod typing_undo_tests;

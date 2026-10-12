@@ -161,7 +161,8 @@ fn source_input_origin_registered_handler_accepts_successive_edits_and_preedit_a
         visual.update(|_, cx| {
             let w = entity.read(cx);
             assert_eq!(w.buffer().rope.to_string(), "a😀日本😀first 中😀\n");
-            assert_eq!(w.tabs[0].undo_stack.len(), 3);
+            // Adjacent ordinary input shares one entry; IME retains its dedicated Single.
+            assert_eq!(w.tabs[0].undo_stack.len(), 2);
             assert_eq!(w.tabs[1].buffer.rope.to_string(), "second café\n");
         });
     });

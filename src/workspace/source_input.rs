@@ -274,7 +274,9 @@ mod tests {
             visual.update_window_entity(entity, |w, _, cx| { w.tabs[1].buffer = crate::io::read_buffer(&path).unwrap(); cx.notify(); });
             visual.dispatch_action(TabGoto2);
             visual.run_until_parked();
-            visual.simulate_input("source_");
+            visual.simulate_input("source");
+            visual.update_window_entity(entity, |w, _, cx| { w.begin_edit_group(); w.end_edit_group(cx); });
+            visual.simulate_input("_");
             visual.dispatch_action(EditUndo);
             visual.dispatch_action(ViewCsvPreview);
             visual.run_until_parked();

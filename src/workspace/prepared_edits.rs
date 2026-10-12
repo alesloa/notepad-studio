@@ -254,7 +254,7 @@ impl Workspace {
         if tab.undo_stack.len() < playback.undo_base {
             self.set_status("Not enough memory to combine macro history; Undo remains in separate steps"); cx.notify(); return false;
         }
-        playback.undo_len = tab.undo_stack.len(); playback.redo_len = tab.redo_stack.len();
+        playback.refresh_history(tab);
         let operation = Operation::Merge { entries: receiver, base: playback.undo_base, selection: playback.selection, block: playback.block };
         self.regex_replacement.macro_playback = Some(playback);
         if !self.start_prepared(operation, false, window, cx) { self.stop_prepared_macro("Macro history could not start"); return false; }

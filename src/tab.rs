@@ -25,6 +25,7 @@ pub(crate) struct Tab {
     pub(crate) desired_col_x: Option<Pixels>,
     pub(crate) undo_stack: Vec<UndoEntry>,
     pub(crate) redo_stack: Vec<UndoEntry>,
+    pub(crate) typing_undo: crate::workspace::typing_undo::State,
     /// Open edit-group transaction. While `Some`, every per-edit op is
     /// appended here instead of pushed to `undo_stack` as a fresh entry.
     /// Used by Replace All so undoing reverses every replacement at once.
@@ -81,6 +82,7 @@ impl Tab {
             desired_col_x: None,
             undo_stack: Vec::new(),
             redo_stack: Vec::new(),
+            typing_undo: Default::default(),
             edit_transaction: None,
             scroll_top: px(0.),
             scroll_left: px(0.),
@@ -121,6 +123,7 @@ impl Tab {
             desired_col_x: None,
             undo_stack: Vec::new(),
             redo_stack: Vec::new(),
+            typing_undo: Default::default(),
             edit_transaction: None,
             scroll_top: px(0.),
             scroll_left: px(0.),
@@ -131,6 +134,12 @@ impl Tab {
             csv_draft: None,
         }
     }
+    pub(crate) fn seal_typing_undo_revision(&mut self, revision: &crate::buffer::ContentRevision) -> bool {
+        if self.buffer.raw_revision != *revision { return false; }
+        self.typing_undo.seal();
+        true
+    }
+
     pub(crate) fn observe_content_activity(&mut self) {
         let rich = self.buffer.rich_doc.as_ref().map(|payload| payload.revision.clone());
         if self.observed_raw.as_ref() != Some(&self.buffer.raw_revision) || self.observed_rich != rich {

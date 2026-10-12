@@ -15,6 +15,14 @@ impl Workspace {
         new_text: &str,
         cx: &mut Context<Self>,
     ) -> EditOp {
+        let range = crate::buffer::char_boundary_range(&self.buffer().rope, byte_range);
+        let removed = self.buffer().slice_bytes(range.clone());
+        self.apply_owned_edit(range, removed, new_text.to_owned(), cx)
+    }
+
+    fn apply_owned_edit(
+        &mut self, byte_range: Range<usize>, removed: String, inserted: String, cx: &mut Context<Self>,
+    ) -> EditOp {
         let active = self.active;
         let tab = &mut self.tabs[active];
         // Callers derive ranges from find results, undo history (possibly
@@ -24,7 +32,7 @@ impl Workspace {
         let Range { start, end } =
             crate::buffer::char_boundary_range(&tab.buffer.rope, byte_range);
 
-        let removed = tab.buffer.slice_bytes(start..end);
+        let new_text = inserted.as_str();
         let marker = tab.begin_select_marker.filter(|&byte| byte <= tab.buffer.rope.len_bytes()
             && crate::buffer::floor_char_boundary(&tab.buffer.rope, byte) == byte);
         let before_revision = tab.buffer.raw_revision.clone();
@@ -101,7 +109,7 @@ impl Workspace {
             after_revision,
             byte_start: start,
             removed,
-            inserted: new_text.to_string(),
+            inserted,
             sel_before_anchor,
             sel_before_head,
         };
@@ -167,6 +175,8 @@ impl Workspace {
             cx.notify();
             return;
         }
+        let revision = self.buffer().raw_revision.clone();
+        self.active_tab_mut().seal_typing_undo_revision(&revision);
         let op = self.apply_edit(byte_range, new_text, cx);
         let in_transaction;
         {
@@ -192,6 +202,38 @@ impl Workspace {
         }
     }
 
+    pub(crate) fn replace_input_text(
+        &mut self, byte_range: Range<usize>, new_text: &str, coalesce: bool, cx: &mut Context<Self>,
+    ) -> bool {
+        if self.buffer().read_only {
+            self.set_status("Buffer is read-only"); cx.notify(); return false;
+        }
+        let range = crate::buffer::char_boundary_range(&self.buffer().rope, byte_range);
+        if range.is_empty() && new_text.is_empty() { return false; }
+        if range.start.checked_add(new_text.len()).is_none()
+            || self.buffer().rope.len_bytes().checked_sub(range.end - range.start)
+                .and_then(|len| len.checked_add(new_text.len())).is_none() {
+            self.set_status("Typing exceeds the document size limit; no changes applied");
+            cx.notify(); return false;
+        }
+        let coalesce = coalesce && range.is_empty() && !new_text.is_empty() && !self.bulk_edit
+            && self.tabs.get(self.active).is_some_and(|tab| tab.view_mode == crate::tab::TabViewMode::Edit);
+        let (removed, inserted) = match super::typing_undo::prepare_text(self.active_tab_mut(), &range, new_text) {
+            Ok(text) => text,
+            Err(message) => { self.set_status(message); cx.notify(); return false; }
+        };
+        let plan = match super::typing_undo::prepare(self.active_tab_mut(), range.start, coalesce) {
+            Ok(plan) => plan,
+            Err(message) => { self.set_status(message); cx.notify(); return false; }
+        };
+        let op = self.apply_owned_edit(range, removed, inserted, cx);
+        super::typing_undo::commit(self.active_tab_mut(), plan, op, coalesce);
+        if self.tabs.get(self.active).is_some_and(|tab| tab.edit_transaction.is_none()) && self.find_state.open && !self.find_state.query.is_empty() {
+            self.refresh_matches();
+        }
+        true
+    }
+
     /// Open an undo transaction on the active tab. Until the matching
     /// `end_edit_group` call, every `replace_byte_range` op is collected into
     /// the same composite undo entry instead of pushing a fresh per-edit
@@ -199,6 +241,8 @@ impl Workspace {
     /// until its matching end, including commands called during macro replay.
     pub(crate) fn begin_edit_group(&mut self) {
         let tab = self.active_tab_mut();
+        let revision = tab.buffer.raw_revision.clone();
+        tab.seal_typing_undo_revision(&revision);
         if let Some(txn) = tab.edit_transaction.as_mut() {
             txn.depth = txn.depth.saturating_add(1);
             return;

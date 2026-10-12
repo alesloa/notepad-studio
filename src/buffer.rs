@@ -278,6 +278,10 @@ impl Buffer {
         self.dirty = false;
     }
 
+    pub(crate) fn at_raw_savepoint(&self) -> bool {
+        self.savepoint.as_ref().is_some_and(|saved| saved.raw == self.raw_revision)
+    }
+
     pub(crate) fn forget_savepoint(&mut self) {
         self.savepoint = None;
         self.dirty = true;

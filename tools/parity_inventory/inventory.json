@@ -1,5 +1,5 @@
 {
-  "studio_source_sha256": "032a8ba5223f22e50801f0f4794d280dda7e591cb99212d898d6ee046849b586",
+  "studio_source_sha256": "6286ae5df89da0b2fb13d767939948d65210c9c2695ff5f7dd36ba8ee08dc08d",
   "studio_sources": {
     "src/actions/bookmarks.rs": "eeaf95badc144e0fa7f8c2445495e706f1209291c1285ddd3578fef0c84eb5fc",
     "src/actions/edit.rs": "90200c45bc846149a2a05b8ce0b1ab98118b185094686abacccc0ddc882969b4",
@@ -24,7 +24,7 @@
     "src/app/keymap.rs": "a80009f2e271ca2ace56f1a9fcd65b009773710931f3a1424a3c139d1befe34f",
     "src/app/menus/app_menu.rs": "703d08cc9f7a62abff24b51f2b1e61075830ed62b02efaee11444ca1a3618d2b",
     "src/app/menus/bookmarks.rs": "3e6858d5482370ef6d1d757cf39fb50b5a4823199f7ec24abfb535cd9eb282af",
-    "src/app/menus/edit.rs": "cccbc604cd37efd4e09ccd562b204031d33ad99a34a3237b7d98b57ad59d7201",
+    "src/app/menus/edit.rs": "314c854d7d9fa6c239413af66f7c7761d62e4374bcc97b08048f327620add19f",
     "src/app/menus/encoding.rs": "50c53eed1ae652d4b076de3e8cc17a365cd56050d5c759cc10458fa4313f455a",
     "src/app/menus/file.rs": "6b0ab811d1f50d61798c60700b20ffe56abc9ae77facc6460a4df1ca0570aa5a",
     "src/app/menus/help.rs": "c8cc90a6954a8a4fc653f3588253e6b4cbbaa679a4146ee47d6b6c022cecbad4",
@@ -44,7 +44,7 @@
     "src/app/startup.rs": "ed3356bfde9b66d54caff71b3cb09f52d5761d5ebf49da73291acda40abf1ba1",
     "src/app/window.rs": "42f1117f4c7940254786aa67dea89e21f2be2b71d644ac81b48198de204c246d",
     "src/assets.rs": "58f498f42210c21e76038342146108d5a2d584a69804c1d1b75d49b63a1c6bf7",
-    "src/buffer/prepared.rs": "85f08ca8854789015378372a257835faa4a6c77a2e0a64f15d834ae3e6523362",
+    "src/buffer/prepared.rs": "ddbfd37d5d3648de07c65f2f2a303538aa2baa5a4a7ebafa7fbb9de15a5a029c",
     "src/buffer.rs": "7005892fce831a9e3142ca0154f4811eb486cb3d6d80407759aed98d6de75794",
     "src/call_context.rs": "c0f382cfec3d27faefda0e2cfdd1aa8c6aed86823121f90dd05a605bd35273bd",
     "src/changelog.rs": "6f1cdf601ac205897a3d06a86cbc2c8ca8fcb2e29686ee7785992d666be0fcc8",
@@ -64,10 +64,13 @@
     "src/edit_ops/editor_keys.rs": "714dbbf52dc4893f93916fce5996cf21ca8529c46c2e8e3d273236044e3311c4",
     "src/edit_ops/indent_ops.rs": "2380542c41bee8963729042c65b5f2d4af905092a9f74d90c0a966e205e789e2",
     "src/edit_ops/insert.rs": "6b131b2ed7c21b4d2b08942d3f6f19f8559fc96efc1ea917c5016befcc79af01",
-    "src/edit_ops/line_ops.rs": "9d18a8e19482116b1df0feba9ade37e4a50560a47b9d9e547d35ecc106ddf086",
-    "src/edit_ops/line_sort.rs": "8897039681c177a1bc58d94f4088088687f4a0385bc74149377d2be0f02c7d31",
+    "src/edit_ops/legacy_dedupe.rs": "397b89e05a1d0ee41a900118aafe88834a020dede8a7e5d2b3a3bce4599161dc",
+    "src/edit_ops/legacy_lines.rs": "5dd15ac90d7ea5f35163ff27c0752e9682e0e1bdee4dc6c63027e1a3d0a72e0b",
+    "src/edit_ops/legacy_numeric.rs": "394f8743b5b24f1ce19a895cc83b77fdd2bf10e48506cd8e0c932ee7af09e33d",
+    "src/edit_ops/line_ops.rs": "2e1852386c4eb1ec6224c7b67ab2d9ae78463064c0d4a46da8b3d7e175ddf176",
+    "src/edit_ops/line_sort.rs": "8729c914b44e0c54ed07f1b66353ebefbf2ece9403eebcee4106feebbbb9aed4",
     "src/edit_ops/menu_line_commands.rs": "db6feab022a8b9bc14d20132902bb5b946ed9fb8e1e8f34084c231f08efff6fe",
-    "src/edit_ops/mod.rs": "7730b24af2bcd280b1b23f3358cbabcbfbb34f1d355774317380d682cd13d242",
+    "src/edit_ops/mod.rs": "fb7d361d875167d4fbc3da7ff8b3a876a21e4913949a582c65b94dff42041db3",
     "src/edit_ops/on_selection.rs": "a189ef1126a9072a28a8d232fb64ec118da514281744d6f876b3e76990cb7a0e",
     "src/edit_ops/readonly.rs": "a0b71fa924e537a091c95a561c188cb7ed3d0bb92126e615095d103646fe051f",
     "src/edit_ops/trim_both_scope.rs": "e69a6c4becb48689fc73e7f157d482869f17f5cf7a1384324a3c49ac6767b8f4",
@@ -97,7 +100,7 @@
     "src/io_stream.rs": "f3a304c2a25bccf95d8ed6569dd4a7d4db6764135cce55fa0c6ba18ffb013768",
     "src/locale_date.rs": "b7c0a84062bcd5a8142bf9ff3c3c62dcce03f40fa5fc3ff7824b858f52b1f7c8",
     "src/locale_sort_windows.rs": "456d5f41ceaa63ec1c0acf33a082a01a0814b779097f2aed8cfd662a9ca5dfcd",
-    "src/macros.rs": "10b02bbde492435da42564f3398494456d6058d39f3617264bb05c3c9c83c298",
+    "src/macros.rs": "0a15c28ab687490a29597c829cb3faade7ac01d93a65a5e43564cf8d1a7c88ca",
     "src/macros_playback_fixture.rs": "fe4904388250c4abb8bcb2ad990b3e1e736da46ca9a5b8fe8e5515925798ab61",
     "src/main.rs": "c4e677bd9dbddd531fb39e99bfab56de13b68c492d22b7d93f3e584f6389d30f",
     "src/panic_log.rs": "f3b24ecf846e2b7a6b218ba1a732efad70da2113cba2746175dbd33e96290c6f",
@@ -310,7 +313,7 @@
     "src/workspace/ime.rs": "761420f3a3a2a82a86609f909df4809d44372b2e61d4d68855146db100fa088b",
     "src/workspace/input_handler.rs": "ef1a987ad7c26cfb1d7574da1a1317e57f533df85109297224a3cca498d9f9c6",
     "src/workspace/language.rs": "d2de7352c993a234b32d8df2b93741c6319ccada93f9fc4f37ded2998bd223b0",
-    "src/workspace/macros.rs": "814acc33548307e8e33bdcd96922c221cef273b95e01178b71b5e182aa657d48",
+    "src/workspace/macros.rs": "b429ae5aa2910f84ce5636e6aaf3a9d482077713da619cbb017173eaf47460dc",
     "src/workspace/markdown_format.rs": "1e8c6fa671dfb4f0304f9c885628d0ce8c537f0cdaf5d9d044bb3929694201f0",
     "src/workspace/menu_bar.rs": "eb33b9884b6e0574c700fa5c6a7460139c23bc09dfb4c5dff3ea4cfd936b8795",
     "src/workspace/menu_state.rs": "c08c5730ca88b4773ff7e69c8375574d6b9946653ff0b8eb9c4245dec4707989",
@@ -319,7 +322,7 @@
     "src/workspace/movement.rs": "842121092e1c8537d4a9eb47c890fea8fcd08ce6eb427e5d067e89c5d544af9e",
     "src/workspace/open_existing.rs": "2f0688288f495fb8717aa9e7338e47be14c405af2e33491a70a7f2e57b06ccbd",
     "src/workspace/plugins.rs": "9e1c3d4dd021e69ecf0e7f3ac26db856e40a3413d86336dffeb3830bb5f61e92",
-    "src/workspace/prepared_edits.rs": "7038196aeeda7066b407f00754b1ca1b3cf82f13b32170d1b15761bf3e4309ee",
+    "src/workspace/prepared_edits.rs": "c4e1eb1e1c79562da14dda1ab8bf5bad4a12d4cb7afb4eb202fc498e60ddc728",
     "src/workspace/prepared_macro_capture.rs": "926de786c5269f0425b1aeb62ce92fdbf88f5a4ac230360150ac3ff62a81fe50",
     "src/workspace/project_file_visits.rs": "c359c6b1f887f8849a03831435663f5e628d1d518c61923ca3b486452143255e",
     "src/workspace/proofreading.rs": "60304192a859e36321e3f69c8ce458884b5f851d5818e809c59bd403526f2d0b",
@@ -330,7 +333,7 @@
     "src/workspace/rich_edit.rs": "6e19702656046073b5388eac4cdf93bc3a3b218b5fa63cf9cbedcbbe747068c2",
     "src/workspace/rich_replacement.rs": "8b3dc53ff3638c61f110346021c58c8b01a81fe70c0ebca3a0072a16157aecf2",
     "src/workspace/run.rs": "c0ffc5d538bbb7135d7d471850a1e0564d5282d43a716c03a7e50767e27c03bd",
-    "src/workspace/search_macro.rs": "aa143eb34aac2e85e93a8ea502316eb8ae952e4c9d2272ceb62f6f818e49f085",
+    "src/workspace/search_macro.rs": "47dbe0d76ec38073d3392cac7769bb27120f5fcc1fd04f4bddc69079007cb61d",
     "src/workspace/session_syntax_bench.rs": "d8d114a040c63b6c3a69c7c1b83d8e350fba9a66c7f14429c4a506abd215595c",
     "src/workspace/source_input.rs": "08752743d74f93856561f80f1f10c69354effc0688a202c9b70e3accd3f132a7",
     "src/workspace/status.rs": "338218be900828e0bb19a57570021582980fcce542d0a04e130e49912937726c",
@@ -1961,7 +1964,7 @@
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 25,
+          "line": 29,
           "menu_path": "Edit > Undo",
           "label": "Undo"
         }
@@ -2027,7 +2030,7 @@
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 26,
+          "line": 30,
           "menu_path": "Edit > Redo",
           "label": "Redo"
         }
@@ -2093,7 +2096,7 @@
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 28,
+          "line": 32,
           "menu_path": "Edit > Cut",
           "label": "Cut"
         }
@@ -2159,7 +2162,7 @@
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 29,
+          "line": 33,
           "menu_path": "Edit > Copy",
           "label": "Copy"
         }
@@ -2225,7 +2228,7 @@
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 30,
+          "line": 34,
           "menu_path": "Edit > Paste",
           "label": "Paste"
         }
@@ -2285,7 +2288,7 @@
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 31,
+          "line": 35,
           "menu_path": "Edit > Delete",
           "label": "Delete"
         }
@@ -2345,7 +2348,7 @@
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 33,
+          "line": 37,
           "menu_path": "Edit > Select All",
           "label": "Select All"
         }
@@ -2405,7 +2408,7 @@
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 34,
+          "line": 38,
           "menu_path": "Edit > Begin/End Select",
           "label": "Begin/End Select"
         }
@@ -2463,7 +2466,7 @@
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 35,
+          "line": 39,
           "menu_path": "Edit > Begin/End Select in Column Mode",
           "label": "Begin/End Select in Column Mode"
         }
@@ -2519,7 +2522,7 @@
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 71,
+          "line": 75,
           "menu_path": "Edit > Insert > Date Time (short)",
           "label": "Date Time (short)"
         }
@@ -2575,7 +2578,7 @@
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 72,
+          "line": 76,
           "menu_path": "Edit > Insert > Date Time (long)",
           "label": "Date Time (long)"
         }
@@ -2631,7 +2634,7 @@
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 73,
+          "line": 77,
           "menu_path": "Edit > Insert > Date Time (customized)",
           "label": "Date Time (customized)"
         }
@@ -2687,7 +2690,7 @@
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 82,
+          "line": 86,
           "menu_path": "Edit > Copy to Clipboard > Current Full File path to Clipboard",
           "label": "Current Full File path to Clipboard"
         }
@@ -2743,7 +2746,7 @@
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 83,
+          "line": 87,
           "menu_path": "Edit > Copy to Clipboard > Current Filename to Clipboard",
           "label": "Current Filename to Clipboard"
         }
@@ -2799,7 +2802,7 @@
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 84,
+          "line": 88,
           "menu_path": "Edit > Copy to Clipboard > Current Dir. Path to Clipboard",
           "label": "Current Dir. Path to Clipboard"
         }
@@ -2855,7 +2858,7 @@
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 87,
+          "line": 91,
           "menu_path": "Edit > Copy to Clipboard > Copy All Filenames",
           "label": "Copy All Filenames"
         }
@@ -2911,7 +2914,7 @@
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 88,
+          "line": 92,
           "menu_path": "Edit > Copy to Clipboard > Copy All File Paths",
           "label": "Copy All File Paths"
         }
@@ -2967,7 +2970,7 @@
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 97,
+          "line": 101,
           "menu_path": "Edit > Indent > Increase Line Indent",
           "label": "Increase Line Indent"
         }
@@ -3023,7 +3026,7 @@
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 98,
+          "line": 102,
           "menu_path": "Edit > Indent > Decrease Line Indent",
           "label": "Decrease Line Indent"
         }
@@ -3083,7 +3086,7 @@
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 107,
+          "line": 111,
           "menu_path": "Edit > Convert Case to > UPPERCASE",
           "label": "UPPERCASE"
         }
@@ -3143,7 +3146,7 @@
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 108,
+          "line": 112,
           "menu_path": "Edit > Convert Case to > lowercase",
           "label": "lowercase"
         }
@@ -3201,7 +3204,7 @@
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 110,
+          "line": 114,
           "menu_path": "Edit > Convert Case to > Proper Case",
           "label": "Proper Case"
         }
@@ -3259,7 +3262,7 @@
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 111,
+          "line": 115,
           "menu_path": "Edit > Convert Case to > Proper Case (blend)",
           "label": "Proper Case (blend)"
         }
@@ -3319,7 +3322,7 @@
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 112,
+          "line": 116,
           "menu_path": "Edit > Convert Case to > Sentence case",
           "label": "Sentence case"
         }
@@ -3379,7 +3382,7 @@
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 113,
+          "line": 117,
           "menu_path": "Edit > Convert Case to > Sentence case (blend)",
           "label": "Sentence case (blend)"
         }
@@ -3435,7 +3438,7 @@
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 115,
+          "line": 119,
           "menu_path": "Edit > Convert Case to > iNVERT cASE",
           "label": "iNVERT cASE"
         }
@@ -3491,7 +3494,7 @@
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 116,
+          "line": 120,
           "menu_path": "Edit > Convert Case to > rANdOm cASe",
           "label": "rANdOm cASe"
         }
@@ -3547,7 +3550,7 @@
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 125,
+          "line": 129,
           "menu_path": "Edit > Line Operations > Duplicate Current Line",
           "label": "Duplicate Current Line"
         }
@@ -3603,7 +3606,7 @@
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 126,
+          "line": 130,
           "menu_path": "Edit > Line Operations > Remove Duplicate Lines",
           "label": "Remove Duplicate Lines"
         }
@@ -3612,7 +3615,7 @@
         {
           "method": "remove_duplicate_lines",
           "path": "src/edit_ops/line_ops.rs",
-          "line": 592,
+          "line": 511,
           "wire_path": "src/workspace/render.rs",
           "wire_line": 471
         }
@@ -3659,7 +3662,7 @@
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 127,
+          "line": 131,
           "menu_path": "Edit > Line Operations > Remove Consecutive Duplicate Lines",
           "label": "Remove Consecutive Duplicate Lines"
         }
@@ -3668,7 +3671,7 @@
         {
           "method": "remove_consecutive_duplicate_lines",
           "path": "src/edit_ops/line_ops.rs",
-          "line": 610,
+          "line": 520,
           "wire_path": "src/workspace/render.rs",
           "wire_line": 472
         }
@@ -3719,7 +3722,7 @@
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 131,
+          "line": 135,
           "menu_path": "Edit > Line Operations > Split Lines",
           "label": "Split Lines"
         }
@@ -3728,7 +3731,7 @@
         {
           "method": "split_lines",
           "path": "src/edit_ops/line_ops.rs",
-          "line": 629,
+          "line": 531,
           "wire_path": "src/workspace/render.rs",
           "wire_line": 473
         }
@@ -3779,7 +3782,7 @@
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 132,
+          "line": 136,
           "menu_path": "Edit > Line Operations > Join Lines",
           "label": "Join Lines"
         }
@@ -3788,7 +3791,7 @@
         {
           "method": "join_lines",
           "path": "src/edit_ops/line_ops.rs",
-          "line": 646,
+          "line": 548,
           "wire_path": "src/workspace/render.rs",
           "wire_line": 474
         }
@@ -3839,7 +3842,7 @@
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 133,
+          "line": 137,
           "menu_path": "Edit > Line Operations > Move Up Current Line",
           "label": "Move Up Current Line"
         }
@@ -3899,7 +3902,7 @@
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 134,
+          "line": 138,
           "menu_path": "Edit > Line Operations > Move Down Current Line",
           "label": "Move Down Current Line"
         }
@@ -3955,7 +3958,7 @@
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 135,
+          "line": 139,
           "menu_path": "Edit > Line Operations > Remove Empty Lines",
           "label": "Remove Empty Lines"
         }
@@ -3964,7 +3967,7 @@
         {
           "method": "remove_empty_lines",
           "path": "src/edit_ops/line_ops.rs",
-          "line": 670,
+          "line": 572,
           "wire_path": "src/workspace/render.rs",
           "wire_line": 475
         }
@@ -4011,7 +4014,7 @@
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 136,
+          "line": 140,
           "menu_path": "Edit > Line Operations > Remove Empty Lines (Containing Blank chars)",
           "label": "Remove Empty Lines (Containing Blank chars)"
         }
@@ -4020,7 +4023,7 @@
         {
           "method": "remove_empty_lines_containing_blank",
           "path": "src/edit_ops/line_ops.rs",
-          "line": 682,
+          "line": 584,
           "wire_path": "src/workspace/render.rs",
           "wire_line": 476
         }
@@ -4071,13 +4074,13 @@
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 140,
+          "line": 144,
           "menu_path": "Edit > Line Operations > Insert Blank Line Above Current",
           "label": "Insert Blank Line Above Current"
         },
         {
           "path": "src/app/menus/edit.rs",
-          "line": 224,
+          "line": 228,
           "menu_path": "Edit > Blank Operations > Insert Blank Line Above",
           "label": "Insert Blank Line Above"
         }
@@ -4137,13 +4140,13 @@
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 141,
+          "line": 145,
           "menu_path": "Edit > Line Operations > Insert Blank Line Below Current",
           "label": "Insert Blank Line Below Current"
         },
         {
           "path": "src/app/menus/edit.rs",
-          "line": 225,
+          "line": 229,
           "menu_path": "Edit > Blank Operations > Insert Blank Line Below",
           "label": "Insert Blank Line Below"
         }
@@ -4199,7 +4202,7 @@
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 142,
+          "line": 146,
           "menu_path": "Edit > Line Operations > Reverse Line Order",
           "label": "Reverse Line Order"
         }
@@ -4208,7 +4211,7 @@
         {
           "method": "reverse_line_order",
           "path": "src/edit_ops/line_ops.rs",
-          "line": 566,
+          "line": 491,
           "wire_path": "src/workspace/render.rs",
           "wire_line": 491
         }
@@ -4255,7 +4258,7 @@
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 143,
+          "line": 147,
           "menu_path": "Edit > Line Operations > Randomize Line Order",
           "label": "Randomize Line Order"
         }
@@ -4264,7 +4267,7 @@
         {
           "method": "randomize_line_order",
           "path": "src/edit_ops/line_ops.rs",
-          "line": 578,
+          "line": 500,
           "wire_path": "src/workspace/render.rs",
           "wire_line": 492
         }
@@ -4311,7 +4314,7 @@
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 145,
+          "line": 149,
           "menu_path": "Edit > Line Operations > Sort Lines Lexicographically Ascending",
           "label": "Sort Lines Lexicographically Ascending"
         }
@@ -4320,7 +4323,7 @@
         {
           "method": "sort_lines_lex_asc",
           "path": "src/edit_ops/line_ops.rs",
-          "line": 459,
+          "line": 417,
           "wire_path": "src/workspace/render.rs",
           "wire_line": 477
         }
@@ -4367,7 +4370,7 @@
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 146,
+          "line": 150,
           "menu_path": "Edit > Line Operations > Sort Lines Lex. Ascending Ignoring Case",
           "label": "Sort Lines Lex. Ascending Ignoring Case"
         }
@@ -4423,7 +4426,7 @@
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 147,
+          "line": 151,
           "menu_path": "Edit > Line Operations > Sort Lines In Locale Order Ascending",
           "label": "Sort Lines In Locale Order Ascending"
         }
@@ -4479,7 +4482,7 @@
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 148,
+          "line": 152,
           "menu_path": "Edit > Line Operations > Sort Lines As Integers Ascending",
           "label": "Sort Lines As Integers Ascending"
         }
@@ -4488,7 +4491,7 @@
         {
           "method": "sort_lines_int_asc",
           "path": "src/edit_ops/line_ops.rs",
-          "line": 483,
+          "line": 435,
           "wire_path": "src/workspace/render.rs",
           "wire_line": 485
         }
@@ -4535,7 +4538,7 @@
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 149,
+          "line": 153,
           "menu_path": "Edit > Line Operations > Sort Lines As Decimals (Comma) Ascending",
           "label": "Sort Lines As Decimals (Comma) Ascending"
         }
@@ -4544,7 +4547,7 @@
         {
           "method": "sort_lines_dec_comma_asc",
           "path": "src/edit_ops/line_ops.rs",
-          "line": 507,
+          "line": 453,
           "wire_path": "src/workspace/render.rs",
           "wire_line": 487
         }
@@ -4591,7 +4594,7 @@
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 150,
+          "line": 154,
           "menu_path": "Edit > Line Operations > Sort Lines As Decimals (Dot) Ascending",
           "label": "Sort Lines As Decimals (Dot) Ascending"
         }
@@ -4600,7 +4603,7 @@
         {
           "method": "sort_lines_dec_dot_asc",
           "path": "src/edit_ops/line_ops.rs",
-          "line": 531,
+          "line": 471,
           "wire_path": "src/workspace/render.rs",
           "wire_line": 489
         }
@@ -4647,7 +4650,7 @@
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 151,
+          "line": 155,
           "menu_path": "Edit > Line Operations > Sort Lines By Length Ascending",
           "label": "Sort Lines By Length Ascending"
         }
@@ -4703,7 +4706,7 @@
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 153,
+          "line": 157,
           "menu_path": "Edit > Line Operations > Sort Lines Lexicographically Descending",
           "label": "Sort Lines Lexicographically Descending"
         }
@@ -4712,7 +4715,7 @@
         {
           "method": "sort_lines_lex_desc",
           "path": "src/edit_ops/line_ops.rs",
-          "line": 471,
+          "line": 426,
           "wire_path": "src/workspace/render.rs",
           "wire_line": 478
         }
@@ -4759,7 +4762,7 @@
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 154,
+          "line": 158,
           "menu_path": "Edit > Line Operations > Sort Lines Lex. Descending Ignoring Case",
           "label": "Sort Lines Lex. Descending Ignoring Case"
         }
@@ -4815,7 +4818,7 @@
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 155,
+          "line": 159,
           "menu_path": "Edit > Line Operations > Sort Lines In Locale Order Descending",
           "label": "Sort Lines In Locale Order Descending"
         }
@@ -4871,7 +4874,7 @@
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 156,
+          "line": 160,
           "menu_path": "Edit > Line Operations > Sort Lines As Integers Descending",
           "label": "Sort Lines As Integers Descending"
         }
@@ -4880,7 +4883,7 @@
         {
           "method": "sort_lines_int_desc",
           "path": "src/edit_ops/line_ops.rs",
-          "line": 495,
+          "line": 444,
           "wire_path": "src/workspace/render.rs",
           "wire_line": 486
         }
@@ -4927,7 +4930,7 @@
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 157,
+          "line": 161,
           "menu_path": "Edit > Line Operations > Sort Lines As Decimals (Comma) Descending",
           "label": "Sort Lines As Decimals (Comma) Descending"
         }
@@ -4936,7 +4939,7 @@
         {
           "method": "sort_lines_dec_comma_desc",
           "path": "src/edit_ops/line_ops.rs",
-          "line": 519,
+          "line": 462,
           "wire_path": "src/workspace/render.rs",
           "wire_line": 488
         }
@@ -4983,7 +4986,7 @@
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 158,
+          "line": 162,
           "menu_path": "Edit > Line Operations > Sort Lines As Decimals (Dot) Descending",
           "label": "Sort Lines As Decimals (Dot) Descending"
         }
@@ -4992,7 +4995,7 @@
         {
           "method": "sort_lines_dec_dot_desc",
           "path": "src/edit_ops/line_ops.rs",
-          "line": 543,
+          "line": 480,
           "wire_path": "src/workspace/render.rs",
           "wire_line": 490
         }
@@ -5039,7 +5042,7 @@
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 159,
+          "line": 163,
           "menu_path": "Edit > Line Operations > Sort Lines By Length Descending",
           "label": "Sort Lines By Length Descending"
         }
@@ -5099,7 +5102,7 @@
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 168,
+          "line": 172,
           "menu_path": "Edit > Comment/Uncomment > Toggle Block Comment",
           "label": "Toggle Block Comment"
         }
@@ -5159,7 +5162,7 @@
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 169,
+          "line": 173,
           "menu_path": "Edit > Comment/Uncomment > Block Comment",
           "label": "Block Comment"
         }
@@ -5219,7 +5222,7 @@
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 170,
+          "line": 174,
           "menu_path": "Edit > Comment/Uncomment > Block Uncomment",
           "label": "Block Uncomment"
         }
@@ -5279,7 +5282,7 @@
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 172,
+          "line": 176,
           "menu_path": "Edit > Comment/Uncomment > Toggle Stream Comment",
           "label": "Toggle Stream Comment"
         }
@@ -5334,7 +5337,7 @@
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 173,
+          "line": 177,
           "menu_path": "Edit > Comment/Uncomment > Stream Uncomment",
           "label": "Stream Uncomment"
         }
@@ -5393,7 +5396,7 @@
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 182,
+          "line": 186,
           "menu_path": "Edit > Auto-Completion > Function Completion",
           "label": "Function Completion"
         }
@@ -5452,7 +5455,7 @@
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 183,
+          "line": 187,
           "menu_path": "Edit > Auto-Completion > Word Completion",
           "label": "Word Completion"
         }
@@ -5511,7 +5514,7 @@
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 186,
+          "line": 190,
           "menu_path": "Edit > Auto-Completion > Function Parameters Hint",
           "label": "Function Parameters Hint"
         }
@@ -5570,7 +5573,7 @@
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 187,
+          "line": 191,
           "menu_path": "Edit > Auto-Completion > Function Parameters Previous Hint",
           "label": "Function Parameters Previous Hint"
         }
@@ -5629,7 +5632,7 @@
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 188,
+          "line": 192,
           "menu_path": "Edit > Auto-Completion > Function Parameters Next Hint",
           "label": "Function Parameters Next Hint"
         }
@@ -5714,7 +5717,7 @@
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 197,
+          "line": 201,
           "menu_path": "Edit > EOL Conversion > Windows (CR LF)",
           "label": "Windows (CR LF)"
         }
@@ -5770,7 +5773,7 @@
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 198,
+          "line": 202,
           "menu_path": "Edit > EOL Conversion > Unix (LF)",
           "label": "Unix (LF)"
         }
@@ -5826,7 +5829,7 @@
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 199,
+          "line": 203,
           "menu_path": "Edit > EOL Conversion > Macintosh (CR)",
           "label": "Macintosh (CR)"
         }
@@ -5882,7 +5885,7 @@
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 208,
+          "line": 212,
           "menu_path": "Edit > Blank Operations > Trim Trailing Space",
           "label": "Trim Trailing Space"
         }
@@ -5938,7 +5941,7 @@
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 209,
+          "line": 213,
           "menu_path": "Edit > Blank Operations > Trim Leading Space",
           "label": "Trim Leading Space"
         }
@@ -5994,7 +5997,7 @@
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 210,
+          "line": 214,
           "menu_path": "Edit > Blank Operations > Trim Leading and Trailing Space",
           "label": "Trim Leading and Trailing Space"
         }
@@ -6050,7 +6053,7 @@
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 214,
+          "line": 218,
           "menu_path": "Edit > Blank Operations > EOL to Space",
           "label": "EOL to Space"
         }
@@ -6106,7 +6109,7 @@
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 215,
+          "line": 219,
           "menu_path": "Edit > Blank Operations > Remove Unnecessary Blank and EOL",
           "label": "Remove Unnecessary Blank and EOL"
         }
@@ -6162,7 +6165,7 @@
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 220,
+          "line": 224,
           "menu_path": "Edit > Blank Operations > TAB to Space",
           "label": "TAB to Space"
         }
@@ -6218,7 +6221,7 @@
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 221,
+          "line": 225,
           "menu_path": "Edit > Blank Operations > Space to TAB (All)",
           "label": "Space to TAB (All)"
         }
@@ -6274,7 +6277,7 @@
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 222,
+          "line": 226,
           "menu_path": "Edit > Blank Operations > Space to TAB (Leading)",
           "label": "Space to TAB (Leading)"
         }
@@ -6474,7 +6477,7 @@
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 234,
+          "line": 238,
           "menu_path": "Edit > On Selection > Open File",
           "label": "Open File"
         }
@@ -6529,7 +6532,7 @@
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 236,
+          "line": 240,
           "menu_path": "Edit > On Selection > Open Containing Folder in Explorer",
           "label": "Open Containing Folder in Explorer"
         }
@@ -6608,7 +6611,7 @@
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 241,
+          "line": 245,
           "menu_path": "Edit > On Selection > Search on Internet",
           "label": "Search on Internet"
         }
@@ -7042,7 +7045,7 @@
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 50,
+          "line": 54,
           "menu_path": "Edit > Character Panel…",
           "label": "Character Panel…"
         }
@@ -7097,7 +7100,7 @@
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 49,
+          "line": 53,
           "menu_path": "Edit > Clipboard History…",
           "label": "Clipboard History…"
         }
@@ -7153,7 +7156,7 @@
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 61,
+          "line": 65,
           "menu_path": "Edit > Set Read-Only",
           "label": "Set Read-Only"
         }
@@ -7269,7 +7272,7 @@
       "studio_menu": [
         {
           "path": "src/app/menus/edit.rs",
-          "line": 62,
+          "line": 66,
           "menu_path": "Edit > Clear Read-Only Flag",
           "label": "Clear Read-Only Flag"
         }
@@ -21222,7 +21225,7 @@
         {
           "method": "macro_start_recording",
           "path": "src/workspace/macros.rs",
-          "line": 350,
+          "line": 362,
           "wire_path": "src/workspace/render.rs",
           "wire_line": 518
         }
@@ -21262,7 +21265,7 @@
         {
           "method": "macro_stop_recording",
           "path": "src/workspace/macros.rs",
-          "line": 367,
+          "line": 379,
           "wire_path": "src/workspace/render.rs",
           "wire_line": 519
         }
@@ -21321,7 +21324,7 @@
         {
           "method": "macro_playback",
           "path": "src/workspace/macros.rs",
-          "line": 383,
+          "line": 395,
           "wire_path": "src/workspace/render.rs",
           "wire_line": 520
         }
@@ -21376,7 +21379,7 @@
         {
           "method": "macro_save_current",
           "path": "src/workspace/macros.rs",
-          "line": 416,
+          "line": 428,
           "wire_path": "src/workspace/render.rs",
           "wire_line": 522
         }
@@ -21433,7 +21436,7 @@
         {
           "method": "macro_run_multiple_times",
           "path": "src/workspace/macros.rs",
-          "line": 401,
+          "line": 413,
           "wire_path": "src/workspace/render.rs",
           "wire_line": 521
         }

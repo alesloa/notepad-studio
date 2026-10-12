@@ -18,6 +18,10 @@ mod clipboard_all_tests;
 #[path = "edit_line_sort_tests.rs"]
 mod line_sort_tests;
 
+#[cfg(test)]
+#[path = "edit_legacy_line_tests.rs"]
+mod legacy_line_tests;
+
 pub(crate) fn build(_state: &MenuState) -> Menu {
     Menu {
         name: "&Edit".into(),

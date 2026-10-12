@@ -12,6 +12,10 @@ pub(super) fn needs_background(event: &MacroEvent) -> bool {
             | MacroEvent::RemoveBookmarkedLines | MacroEvent::RemoveNonBookmarkedLines | MacroEvent::InverseBookmarks
             | MacroEvent::GoToMatchingBrace | MacroEvent::SelectInBetween
             | MacroEvent::CopyBookmarkedLines | MacroEvent::Undo | MacroEvent::Redo | MacroEvent::SortLinesLexIgnoreCaseAsc | MacroEvent::SortLinesLexIgnoreCaseDesc
+            | MacroEvent::SortLinesLexAsc | MacroEvent::SortLinesLexDesc | MacroEvent::ReverseLineOrder | MacroEvent::RandomizeLineOrder
+            | MacroEvent::SortLinesIntAsc | MacroEvent::SortLinesIntDesc | MacroEvent::SortLinesDecCommaAsc | MacroEvent::SortLinesDecCommaDesc
+            | MacroEvent::SortLinesDecDotAsc | MacroEvent::SortLinesDecDotDesc
+            | MacroEvent::RemoveDuplicateLines | MacroEvent::RemoveConsecutiveDuplicateLines
             | MacroEvent::SortLinesLocaleAsc | MacroEvent::SortLinesLocaleDesc | MacroEvent::SortLinesLengthAsc | MacroEvent::SortLinesLengthDesc)
 }
 
@@ -40,6 +44,7 @@ pub(in crate::workspace) struct Playback {
     pub(in crate::workspace) redo_len: usize,
     pub(in crate::workspace) grouped: bool,
     pub(in crate::workspace) selection: Selection,
+    pub(in crate::workspace) block: Option<crate::buffer::BlockSelection>,
 }
 
 impl Playback {
@@ -171,7 +176,7 @@ impl Workspace {
             metadata_only: events.iter().all(allows_read_only),
             undo_base: tab.undo_stack.len(), undo_len: tab.undo_stack.len(), redo_len: tab.redo_stack.len(),
             grouped: !events.iter().any(|ev| matches!(ev, MacroEvent::Undo | MacroEvent::Redo)),
-            selection: tab.selection,
+            selection: tab.selection, block: tab.block_selection,
         };
         self.cancel_regex_replacement();
         self.close_autocomplete(cx); self.close_function_hint(cx);

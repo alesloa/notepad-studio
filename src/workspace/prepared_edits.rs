@@ -1,7 +1,7 @@
 // Large manual prefix commands prepare off-thread and publish one Rope state.
 use super::{history::HistoryDirection, Workspace};
 use crate::{buffer::{ContentRevision, SavePoint, UndoEntry, prepared::{Metadata, PreparedGroup}},
-    edit_ops::{menu_line_commands::prepare_indentation, bookmark_edits::{BookmarkCommand, BookmarkInput, prepare_bookmarks, prepare_paste}, line_sort::{SortCommand, SortFormat, prepare_sort}}, tab::{InputFocus, TabViewMode}};
+    edit_ops::{menu_line_commands::prepare_indentation, bookmark_edits::{BookmarkCommand, BookmarkInput, prepare_bookmarks, prepare_paste}, line_sort::{SortCommand, SortFormat, prepare_sort}, legacy_lines::{LegacyCommand, LegacyRequest, prepare_legacy}}, tab::{InputFocus, TabViewMode}};
 use gpui::{AppContext, Context, Window};
 use std::{path::PathBuf, sync::{Arc, atomic::{AtomicBool, Ordering}}};
 use uuid::Uuid;
@@ -130,6 +130,8 @@ pub(crate) struct PendingPreparedEdit {
     playback: Option<Uuid>,
     #[cfg(test)]
     capture: std::time::Duration,
+    #[cfg(test)]
+    capture_main_thread: bool,
 }
 
 impl Drop for PendingPreparedEdit {
@@ -144,8 +146,8 @@ impl Drop for PendingPreparedEdit {
 enum Operation {
     Indent, Replay { group: Arc<PreparedGroup>, undo: bool },
     Bookmarks { command: BookmarkCommand, paste: Option<gpui::ClipboardItem> },
-    Sort(SortCommand),
-    Merge { entries: futures::channel::oneshot::Receiver<Result<Vec<UndoEntry>, &'static str>>, base: usize, selection: crate::buffer::Selection },
+    Sort(SortCommand), Legacy { command: LegacyCommand, seed: u64 },
+    Merge { entries: futures::channel::oneshot::Receiver<Result<Vec<UndoEntry>, &'static str>>, base: usize, selection: crate::buffer::Selection, block: Option<crate::buffer::BlockSelection> },
 }
 struct ResultState {
     group: Arc<PreparedGroup>, metadata: Metadata,
@@ -154,6 +156,8 @@ struct ResultState {
     clipboard_history: Option<String>,
     #[cfg(test)]
     worker: std::time::Duration,
+    #[cfg(test)]
+    worker_main_thread: bool,
 }
 
 #[cfg(test)]
@@ -163,6 +167,9 @@ pub(crate) struct Timing {
     pub(crate) worker: std::time::Duration,
     pub(crate) publish: std::time::Duration,
     pub(crate) clipboard: std::time::Duration,
+    pub(crate) capture_main_thread: bool,
+    pub(crate) worker_main_thread: bool,
+    pub(crate) publish_main_thread: bool,
 }
 
 impl Workspace {
@@ -214,6 +221,22 @@ impl Workspace {
         self.start_prepared(Operation::Sort(command), false, window, cx)
     }
 
+    pub(crate) fn legacy_line_available(&mut self, window: &Window, cx: &mut Context<Self>) -> bool {
+        if source_context(self, window, true, false, true) {
+            let stale_rows = self.tabs.get(self.active).is_some_and(|tab| tab.block_selection.is_some_and(|block|
+                block.anchor_line >= tab.buffer.rope.len_lines() || block.head_line >= tab.buffer.rope.len_lines()));
+            if stale_rows {
+                self.set_status("Rectangular line operation rows no longer match the document"); cx.notify(); return false;
+            }
+            return true;
+        }
+        self.set_status("Focus an editable Source or Raw View before preparing line edits; finish active edits or composition first");
+        cx.notify(); false
+    }
+    pub(crate) fn start_prepared_legacy(&mut self, command: LegacyCommand, seed: u64, window: &mut Window, cx: &mut Context<Self>) -> bool {
+        self.start_prepared(Operation::Legacy { command, seed }, false, window, cx)
+    }
+
     pub(crate) fn stop_prepared_macro(&mut self, reason: &str) {
         if let Some(playback) = self.regex_replacement.macro_playback.take() { self.set_status(playback.stopped(reason)); }
     }
@@ -231,7 +254,7 @@ impl Workspace {
             self.set_status("Not enough memory to combine macro history; Undo remains in separate steps"); cx.notify(); return false;
         }
         playback.undo_len = tab.undo_stack.len(); playback.redo_len = tab.redo_stack.len();
-        let operation = Operation::Merge { entries: receiver, base: playback.undo_base, selection: playback.selection };
+        let operation = Operation::Merge { entries: receiver, base: playback.undo_base, selection: playback.selection, block: playback.block };
         self.regex_replacement.macro_playback = Some(playback);
         if !self.start_prepared(operation, false, window, cx) { self.stop_prepared_macro("Macro history could not start"); return false; }
         let Some(id) = self.pending_prepared_edit.as_ref().map(|pending| pending.id) else { return false; };
@@ -264,7 +287,7 @@ impl Workspace {
         let macro_allowed = !matches!(operation, Operation::Indent) &&
             (!matches!(&operation, Operation::Replay { group, .. } if !group.is_line_edit()));
         let read_only_allowed = matches!(operation, Operation::Bookmarks { command: BookmarkCommand::Inverse, .. });
-        let block_allowed = matches!(operation, Operation::Sort(_) | Operation::Merge { .. })
+        let block_allowed = matches!(operation, Operation::Sort(_) | Operation::Legacy { .. } | Operation::Merge { .. })
             || matches!(operation, Operation::Bookmarks { command: BookmarkCommand::Inverse, .. })
             || matches!(&operation, Operation::Replay { group, .. } if group.is_line_edit());
         let stamp = match Stamp::capture(self, window, macro_allowed, read_only_allowed, block_allowed) {
@@ -287,22 +310,27 @@ impl Workspace {
             || matches!(&operation, Operation::Replay { group, .. } if !group.is_line_edit()) {
             "Preparing line indentation; Escape cancels"
         } else if matches!(operation, Operation::Replay { .. }) { "Preparing line history; Escape cancels"
-        } else if matches!(operation, Operation::Sort(_)) { "Preparing line sorting; Escape cancels" }
+        } else if matches!(operation, Operation::Sort(_) | Operation::Legacy { .. }) { "Preparing line sorting; Escape cancels" }
         else if matches!(operation, Operation::Merge { .. }) { "Preparing macro history; Escape cancels" }
         else { "Preparing bookmark edits; Escape cancels" };
         let playback = self.regex_replacement.macro_playback.as_ref().map(|playback| playback.id);
         if let Operation::Bookmarks { command, .. } = &operation { crate::macros::record(command.event()); }
         if let Operation::Sort(command) = &operation { crate::macros::record(command.event()); }
+        if let Operation::Legacy { command, .. } = &operation { crate::macros::record(command.event()); }
         #[cfg(test)]
         let gate = self.prepared_test_gate.take();
         #[cfg(test)]
         let publish_gate = self.prepared_test_publish_gate.take();
+        #[cfg(test)]
+        let worker_executor = cx.background_executor().clone();
         let work = cx.background_spawn(async move {
             let mut operation = operation;
             #[cfg(test)]
             if let Some(gate) = gate { let _ = gate.await; }
             #[cfg(test)]
             let worker_start = std::time::Instant::now();
+            #[cfg(test)]
+            let worker_main_thread = worker_executor.is_main_thread();
             let (group, mapped, clipboard, history) = match &mut operation {
                 Operation::Indent => {
                     let group = Arc::new(prepare_indentation(rope, revision, selection, tabs, width, increase, &worker_cancel)?);
@@ -311,7 +339,7 @@ impl Workspace {
                 }
                 Operation::Replay { group, undo } => {
                     if !group.matches_rope(&rope, *undo, &worker_cancel)? {
-                        return Err("Indentation history no longer matches this document; no changes applied");
+                        return Err("Indentation history no longer matches this document; no changes applied".into());
                     }
                     (group.clone(), group.remap(&metadata, *undo, &worker_cancel)?, None, None)
                 }
@@ -325,10 +353,17 @@ impl Workspace {
                     let mapped = group.remap(&metadata, false, &worker_cancel)?;
                     (group, mapped, None, None)
                 }
-                Operation::Merge { entries, base, selection: before_selection } => {
+                Operation::Legacy { command, seed } => {
+                    let group = Arc::new(prepare_legacy(rope, revision, selection, block, LegacyRequest { command: *command, seed: *seed }, SortFormat { eol: eol.as_str(), encoding }, &worker_cancel).map_err(|error| error.message())?);
+                    let mapped = group.remap(&metadata, false, &worker_cancel)?;
+                    (group, mapped, None, None)
+                }
+                Operation::Merge { entries, base, selection: before_selection, block: before_block } => {
                     let mut entries = entries.await.map_err(|_| "Macro history capture cancelled")??;
                     let suffix = entries.get(*base..).ok_or("Macro history changed during capture")?;
-                    let group = Arc::new(PreparedGroup::combine_history(suffix, rope, revision, *before_selection, selection, &worker_cancel)?);
+                    let mut group = PreparedGroup::combine_history(suffix, rope, revision, *before_selection, selection, &worker_cancel)?;
+                    if group.tracks_blocks() { group.set_block_history(*before_block, block)?; }
+                    let group = Arc::new(group);
                     entries.truncate(*base);
                     entries.try_reserve(1).map_err(|_| "Not enough memory to combine macro history; Undo remains in separate steps")?;
                     entries.push(UndoEntry::Prepared(group.clone()));
@@ -336,12 +371,14 @@ impl Workspace {
                 }
             };
             let clipboard_history = clipboard.as_ref().map(|text| crate::clipboard_history::prepare_copy(text, &worker_cancel)).transpose()?;
-            Ok::<_, &'static str>((operation, ResultState { group, metadata: mapped,
+            Ok::<_, String>((operation, ResultState { group, metadata: mapped,
                 clipboard, clipboard_history, history,
-                #[cfg(test)] worker: worker_start.elapsed() }))
+                #[cfg(test)] worker: worker_start.elapsed(),
+                #[cfg(test)] worker_main_thread }))
         });
         self.pending_prepared_edit = Some(PendingPreparedEdit { id, stamp: Some(stamp), cancel, executor: cx.background_executor().clone(), status, clipboard, playback,
-            #[cfg(test)] capture: std::time::Duration::ZERO });
+            #[cfg(test)] capture: std::time::Duration::ZERO,
+            #[cfg(test)] capture_main_thread: cx.background_executor().is_main_thread() });
         self.close_autocomplete(cx);
         self.close_function_hint(cx);
         self.set_status(status);
@@ -365,7 +402,7 @@ impl Workspace {
         true
     }
 
-    fn finish_prepared(&mut self, id: Uuid, result: Result<(Operation, ResultState), &'static str>, window: &mut Window, cx: &mut Context<Self>) {
+    fn finish_prepared(&mut self, id: Uuid, result: Result<(Operation, ResultState), String>, window: &mut Window, cx: &mut Context<Self>) {
         #[cfg(test)]
         let publish_start = std::time::Instant::now();
         let Some(pending) = self.pending_prepared_edit.as_ref() else { drop_on_worker(result, cx); return; };
@@ -376,6 +413,8 @@ impl Workspace {
             && playback_id.is_none_or(|id| self.regex_replacement.macro_playback.as_ref().is_some_and(|playback| playback.id == id && playback.valid(self, window)));
         #[cfg(test)]
         let capture = pending.capture;
+        #[cfg(test)]
+        let capture_main_thread = pending.capture_main_thread;
         self.cancel_prepared_edit(cx);
         if !valid {
             drop_on_worker(result, cx);
@@ -389,7 +428,7 @@ impl Workspace {
         }
         let (operation, state) = match result {
             Ok(state) => state,
-            Err(message) => { self.set_status(message); self.stop_prepared_macro(message); cx.notify(); return; }
+            Err(message) => { self.set_status(message.as_str()); self.stop_prepared_macro(&message); cx.notify(); return; }
         };
         if let Operation::Merge { .. } = &operation {
             let Some(history) = state.history else {
@@ -415,7 +454,10 @@ impl Workspace {
                 cx.write_to_clipboard(gpui::ClipboardItem::new_string(text));
             }
             let selection = state.group.target(false).2;
-            if let Some(tab) = self.tabs.get_mut(self.active) { tab.selection = selection; }
+            if let Some(tab) = self.tabs.get_mut(self.active) {
+                tab.selection = selection;
+                if let Some(block) = state.group.target_block(false) { tab.block_selection = block; }
+            }
             self.commit_caret(cx);
             if self.status_message.as_deref() == Some(status) { self.status_message = None; }
             self.resume_prepared_macro(playback_id, window, cx);
@@ -434,7 +476,7 @@ impl Workspace {
                 tab.undo_stack.push(UndoEntry::Prepared(state.group.clone()));
                 old_redo = Some(std::mem::take(&mut tab.redo_stack));
             }
-            Operation::Bookmarks { .. } | Operation::Sort(_) => {
+            Operation::Bookmarks { .. } | Operation::Sort(_) | Operation::Legacy { .. } => {
                 if changed {
                     tab.undo_stack.push(UndoEntry::Prepared(state.group.clone()));
                     old_redo = Some(std::mem::take(&mut tab.redo_stack));
@@ -460,6 +502,7 @@ impl Workspace {
         );
         tab.begin_select_marker = state.metadata.marker;
         tab.selection = selection;
+        if let Some(block) = state.group.target_block(undo) { tab.block_selection = block; }
         tab.desired_col_x = None;
         tab.wrap_cache = None;
         tab.buffer.invalidate_flat_text();
@@ -488,7 +531,9 @@ impl Workspace {
         }
         drop_on_worker(operation, cx);
         #[cfg(test)]
-        self.prepared_timings.push(Timing { capture, worker: state.worker, publish: publish_start.elapsed(), clipboard: clipboard_time });
+        self.prepared_timings.push(Timing { capture, worker: state.worker, publish: publish_start.elapsed(), clipboard: clipboard_time,
+            capture_main_thread, worker_main_thread: state.worker_main_thread,
+            publish_main_thread: cx.background_executor().is_main_thread() });
         if self.status_message.as_deref() == Some(status) { self.status_message = None; }
         self.resume_prepared_macro(playback_id, window, cx);
         cx.notify();

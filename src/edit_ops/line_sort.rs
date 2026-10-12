@@ -37,17 +37,17 @@ impl SortCommand {
     }
 }
 
-struct Line<'a> { body: &'a str, eol: &'a str, start: usize }
+pub(super) struct Line<'a> { pub(super) body: &'a str, pub(super) eol: &'a str, pub(super) start: usize }
 pub(crate) struct SortPlan { pub(crate) range: Range<usize>, pub(crate) text: String, pub(crate) selection: Selection, changed: bool }
 pub(crate) type LocaleKey = fn(&str) -> Result<Vec<u8>, &'static str>;
 #[derive(Clone, Copy)]
 pub(crate) struct SortFormat<'a> { pub(crate) eol: &'a str, pub(crate) encoding: Encoding }
 
-fn check_cancel(cancel: &AtomicBool) -> Result<(), &'static str> {
+pub(super) fn check_cancel(cancel: &AtomicBool) -> Result<(), &'static str> {
     if cancel.load(AtomicOrdering::Relaxed) { Err(CANCELLED) } else { Ok(()) }
 }
 
-fn lines_in<'a>(text: &'a str, keep_final: bool, cancel: &AtomicBool) -> Result<Vec<Line<'a>>, &'static str> {
+pub(super) fn lines_in<'a>(text: &'a str, keep_final: bool, cancel: &AtomicBool) -> Result<Vec<Line<'a>>, &'static str> {
     let bytes = text.as_bytes();
     let mut lines = Vec::new();
     let (mut start, mut at) = (0usize, 0usize);
@@ -92,7 +92,7 @@ fn ignore_case_cmp(left: &[u16], right: &[u16], cancel: &AtomicBool) -> Result<O
     }
 }
 
-fn merge_order(order: &mut Vec<usize>, mut compare: impl FnMut(usize, usize) -> Result<Ordering, &'static str>,
+pub(super) fn merge_order(order: &mut Vec<usize>, mut compare: impl FnMut(usize, usize) -> Result<Ordering, &'static str>,
     cancel: &AtomicBool) -> Result<(), &'static str>
 {
     let mut scratch = Vec::new();
@@ -151,7 +151,7 @@ fn corner_offset(rope: &Rope, line: usize, column: usize, encoding: Encoding, ca
     Ok(bytes.saturating_add(column.saturating_sub(chars)))
 }
 
-fn basic_columns(rope: &Rope, block: Option<BlockSelection>, encoding: Encoding, cancel: &AtomicBool) -> Result<(usize, usize), &'static str> {
+pub(super) fn basic_columns(rope: &Rope, block: Option<BlockSelection>, encoding: Encoding, cancel: &AtomicBool) -> Result<(usize, usize), &'static str> {
     let Some(block) = block else { return Ok((0, 0)); };
     // The older Notepad++ sorters use Scintilla byte offsets (plus virtual
     // space) as UTF16 indices, even when the corners contain multibyte text.
@@ -160,7 +160,7 @@ fn basic_columns(rope: &Rope, block: Option<BlockSelection>, encoding: Encoding,
     Ok((anchor.min(head), anchor.max(head)))
 }
 
-fn selected_span(rope: &Rope, selection: Selection, block: Option<BlockSelection>) -> Option<super::line_ops::LineSpan> {
+pub(super) fn selected_span(rope: &Rope, selection: Selection, block: Option<BlockSelection>) -> Option<super::line_ops::LineSpan> {
     let Some(block) = block else { return line_span_in(rope, (!selection.is_empty()).then(|| selection.ordered())); };
     let last = rope.len_lines().saturating_sub(1);
     let top = block.min_line().min(last);

@@ -961,7 +961,15 @@
       ],
       "route_at_baseline": "routed",
       "behavior": "pending",
-      "evidence": []
+      "evidence": [
+        "docs/windows-legacy-lines-validation-20261011.md"
+      ],
+      "implementation": "integrated; installed callers and combined Windows build/full tests/Clippy passed; optimized candidate test-harness controls passed; native verification pending",
+      "remaining": [
+        "Native Windows input/visual and rectangle observation",
+        "Documented physical mixed-EOL, NUL, stable/pathological ordering and numeric-refusal geometry safety policies differ from exact upstream behavior",
+        "Limits on selected spans, rows, annotations and full macro history remain explicit"
+      ]
     },
     {
       "id": "IDM_EDIT_REMOVE_CONSECUTIVE_DUP_LINES",
@@ -977,7 +985,15 @@
       ],
       "route_at_baseline": "routed",
       "behavior": "pending",
-      "evidence": []
+      "evidence": [
+        "docs/windows-legacy-lines-validation-20261011.md"
+      ],
+      "implementation": "integrated; installed callers and combined Windows build/full tests/Clippy passed; optimized candidate test-harness controls passed; native verification pending",
+      "remaining": [
+        "Native Windows input/visual and rectangle observation",
+        "Documented physical mixed-EOL, NUL, stable/pathological ordering and numeric-refusal geometry safety policies differ from exact upstream behavior",
+        "Limits on selected spans, rows, annotations and full macro history remain explicit"
+      ]
     },
     {
       "id": "IDM_EDIT_SPLIT_LINES",
@@ -1121,7 +1137,15 @@
       ],
       "route_at_baseline": "routed",
       "behavior": "pending",
-      "evidence": []
+      "evidence": [
+        "docs/windows-legacy-lines-validation-20261011.md"
+      ],
+      "implementation": "integrated; installed callers and combined Windows build/full tests/Clippy passed; optimized candidate test-harness controls passed; native verification pending",
+      "remaining": [
+        "Native Windows input/visual and rectangle observation",
+        "Documented physical mixed-EOL, NUL, stable/pathological ordering and numeric-refusal geometry safety policies differ from exact upstream behavior",
+        "Limits on selected spans, rows, annotations and full macro history remain explicit"
+      ]
     },
     {
       "id": "IDM_EDIT_SORTLINES_RANDOMLY",
@@ -1137,7 +1161,15 @@
       ],
       "route_at_baseline": "routed",
       "behavior": "pending",
-      "evidence": []
+      "evidence": [
+        "docs/windows-legacy-lines-validation-20261011.md"
+      ],
+      "implementation": "integrated; installed callers and combined Windows build/full tests/Clippy passed; optimized candidate test-harness controls passed; native verification pending",
+      "remaining": [
+        "Native Windows input/visual and rectangle observation",
+        "Documented physical mixed-EOL, NUL, stable/pathological ordering and numeric-refusal geometry safety policies differ from exact upstream behavior",
+        "Limits on selected spans, rows, annotations and full macro history remain explicit"
+      ]
     },
     {
       "id": "IDM_EDIT_SORTLINES_LEXICOGRAPHIC_ASCENDING",
@@ -1153,7 +1185,15 @@
       ],
       "route_at_baseline": "routed",
       "behavior": "pending",
-      "evidence": []
+      "evidence": [
+        "docs/windows-legacy-lines-validation-20261011.md"
+      ],
+      "implementation": "integrated; installed callers and combined Windows build/full tests/Clippy passed; optimized candidate test-harness controls passed; native verification pending",
+      "remaining": [
+        "Native Windows input/visual and rectangle observation",
+        "Documented physical mixed-EOL, NUL, stable/pathological ordering and numeric-refusal geometry safety policies differ from exact upstream behavior",
+        "Limits on selected spans, rows, annotations and full macro history remain explicit"
+      ]
     },
     {
       "id": "IDM_EDIT_SORTLINES_LEXICO_CASE_INSENS_ASCENDING",
@@ -1223,7 +1263,15 @@
       ],
       "route_at_baseline": "routed",
       "behavior": "pending",
-      "evidence": []
+      "evidence": [
+        "docs/windows-legacy-lines-validation-20261011.md"
+      ],
+      "implementation": "integrated; installed callers and combined Windows build/full tests/Clippy passed; optimized candidate test-harness controls passed; native verification pending",
+      "remaining": [
+        "Native Windows input/visual and rectangle observation",
+        "Documented physical mixed-EOL, NUL, stable/pathological ordering and numeric-refusal geometry safety policies differ from exact upstream behavior",
+        "Limits on selected spans, rows, annotations and full macro history remain explicit"
+      ]
     },
     {
       "id": "IDM_EDIT_SORTLINES_DECIMALCOMMA_ASCENDING",
@@ -1239,7 +1287,15 @@
       ],
       "route_at_baseline": "routed",
       "behavior": "pending",
-      "evidence": []
+      "evidence": [
+        "docs/windows-legacy-lines-validation-20261011.md"
+      ],
+      "implementation": "integrated; installed callers and combined Windows build/full tests/Clippy passed; optimized candidate test-harness controls passed; native verification pending",
+      "remaining": [
+        "Native Windows input/visual and rectangle observation",
+        "Documented physical mixed-EOL, NUL, stable/pathological ordering and numeric-refusal geometry safety policies differ from exact upstream behavior",
+        "Limits on selected spans, rows, annotations and full macro history remain explicit"
+      ]
     },
     {
       "id": "IDM_EDIT_SORTLINES_DECIMALDOT_ASCENDING",
@@ -1255,7 +1311,15 @@
       ],
       "route_at_baseline": "routed",
       "behavior": "pending",
-      "evidence": []
+      "evidence": [
+        "docs/windows-legacy-lines-validation-20261011.md"
+      ],
+      "implementation": "integrated; installed callers and combined Windows build/full tests/Clippy passed; optimized candidate test-harness controls passed; native verification pending",
+      "remaining": [
+        "Native Windows input/visual and rectangle observation",
+        "Documented physical mixed-EOL, NUL, stable/pathological ordering and numeric-refusal geometry safety policies differ from exact upstream behavior",
+        "Limits on selected spans, rows, annotations and full macro history remain explicit"
+      ]
     },
     {
       "id": "IDM_EDIT_SORTLINES_LENGTH_ASCENDING",
@@ -1298,7 +1362,15 @@
       ],
       "route_at_baseline": "routed",
       "behavior": "pending",
-      "evidence": []
+      "evidence": [
+        "docs/windows-legacy-lines-validation-20261011.md"
+      ],
+      "implementation": "integrated; installed callers and combined Windows build/full tests/Clippy passed; optimized candidate test-harness controls passed; native verification pending",
+      "remaining": [
+        "Native Windows input/visual and rectangle observation",
+        "Documented physical mixed-EOL, NUL, stable/pathological ordering and numeric-refusal geometry safety policies differ from exact upstream behavior",
+        "Limits on selected spans, rows, annotations and full macro history remain explicit"
+      ]
     },
     {
       "id": "IDM_EDIT_SORTLINES_LEXICO_CASE_INSENS_DESCENDING",
@@ -1368,7 +1440,15 @@
       ],
       "route_at_baseline": "routed",
       "behavior": "pending",
-      "evidence": []
+      "evidence": [
+        "docs/windows-legacy-lines-validation-20261011.md"
+      ],
+      "implementation": "integrated; installed callers and combined Windows build/full tests/Clippy passed; optimized candidate test-harness controls passed; native verification pending",
+      "remaining": [
+        "Native Windows input/visual and rectangle observation",
+        "Documented physical mixed-EOL, NUL, stable/pathological ordering and numeric-refusal geometry safety policies differ from exact upstream behavior",
+        "Limits on selected spans, rows, annotations and full macro history remain explicit"
+      ]
     },
     {
       "id": "IDM_EDIT_SORTLINES_DECIMALCOMMA_DESCENDING",
@@ -1384,7 +1464,15 @@
       ],
       "route_at_baseline": "routed",
       "behavior": "pending",
-      "evidence": []
+      "evidence": [
+        "docs/windows-legacy-lines-validation-20261011.md"
+      ],
+      "implementation": "integrated; installed callers and combined Windows build/full tests/Clippy passed; optimized candidate test-harness controls passed; native verification pending",
+      "remaining": [
+        "Native Windows input/visual and rectangle observation",
+        "Documented physical mixed-EOL, NUL, stable/pathological ordering and numeric-refusal geometry safety policies differ from exact upstream behavior",
+        "Limits on selected spans, rows, annotations and full macro history remain explicit"
+      ]
     },
     {
       "id": "IDM_EDIT_SORTLINES_DECIMALDOT_DESCENDING",
@@ -1400,7 +1488,15 @@
       ],
       "route_at_baseline": "routed",
       "behavior": "pending",
-      "evidence": []
+      "evidence": [
+        "docs/windows-legacy-lines-validation-20261011.md"
+      ],
+      "implementation": "integrated; installed callers and combined Windows build/full tests/Clippy passed; optimized candidate test-harness controls passed; native verification pending",
+      "remaining": [
+        "Native Windows input/visual and rectangle observation",
+        "Documented physical mixed-EOL, NUL, stable/pathological ordering and numeric-refusal geometry safety policies differ from exact upstream behavior",
+        "Limits on selected spans, rows, annotations and full macro history remain explicit"
+      ]
     },
     {
       "id": "IDM_EDIT_SORTLINES_LENGTH_DESCENDING",
@@ -7880,7 +7976,7 @@
       "evidence": []
     }
   ],
-  "current_source_sha256": "032a8ba5223f22e50801f0f4794d280dda7e591cb99212d898d6ee046849b586",
+  "current_source_sha256": "6286ae5df89da0b2fb13d767939948d65210c9c2695ff5f7dd36ba8ee08dc08d",
   "current_route_counts": {
     "action-only": 2,
     "alternate-only": 2,

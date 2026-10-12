@@ -1,5 +1,5 @@
 // Immutable prefix edits. Only this builder can create a fast replay entry.
-use super::{ContentRevision, EditOp, Selection};
+use super::{BlockSelection, ContentRevision, EditOp, Selection};
 use ropey::Rope;
 use std::{collections::BTreeSet, ops::Range, sync::{Arc, atomic::{AtomicBool, Ordering}}};
 
@@ -139,6 +139,7 @@ struct PreparedBody {
     lines: bool,
     bookmark_insert_end: bool,
     segments: Vec<Arc<PreparedBody>>,
+    blocks: Option<(Option<BlockSelection>, Option<BlockSelection>)>,
 }
 
 impl Clone for PreparedGroup {
@@ -211,7 +212,7 @@ impl PreparedGroup {
         }
         Ok(Self { before_revision: revision, after_revision: current, body: Arc::new(PreparedBody {
             before, after: after.clone(), before_selection, after_selection: after_selection.clamped(&after), ops,
-            forward: PrefixMap(forward), backward: PrefixMap(backward), lines: true, bookmark_insert_end: false, segments: Vec::new(),
+            forward: PrefixMap(forward), backward: PrefixMap(backward), lines: true, bookmark_insert_end: false, segments: Vec::new(), blocks: None,
         }) })
     }
     pub(crate) fn build(before: Rope, revision: ContentRevision, before_selection: Selection,
@@ -269,7 +270,7 @@ impl PreparedGroup {
         Ok(Self { before_revision: revision, after_revision: current_revision,
             body: Arc::new(PreparedBody { before, after: after.clone(),
             before_selection, after_selection: after_selection.clamped(&after), ops,
-            forward: PrefixMap(forward), backward: PrefixMap(backward), lines: false, bookmark_insert_end: false, segments: Vec::new() }) })
+            forward: PrefixMap(forward), backward: PrefixMap(backward), lines: false, bookmark_insert_end: false, segments: Vec::new(), blocks: None }) })
     }
 
     pub(crate) fn ops(&self) -> &[EditOp] { &self.body.ops }
@@ -326,6 +327,15 @@ impl PreparedGroup {
         Arc::make_mut(&mut self.body).after_selection = selection;
     }
 
+    pub(crate) fn set_block_history(&mut self, before: Option<BlockSelection>, after: Option<BlockSelection>) -> Result<(), &'static str> {
+        let body = Arc::get_mut(&mut self.body).ok_or("Line history is already sealed")?;
+        body.blocks = Some((before, after)); Ok(())
+    }
+    pub(crate) fn tracks_blocks(&self) -> bool { self.body.blocks.is_some() }
+    pub(crate) fn target_block(&self, undo: bool) -> Option<Option<BlockSelection>> {
+        self.body.blocks.map(|(before, after)| if undo { before } else { after })
+    }
+
     pub(crate) fn combine_history(entries: &[super::UndoEntry], after: Rope, revision: ContentRevision,
         before_selection: Selection, after_selection: Selection, cancel: &AtomicBool,
     ) -> Result<Self, &'static str> {
@@ -358,10 +368,14 @@ impl PreparedGroup {
             before.insert(before.byte_to_char(op.byte_start), &op.removed);
             current = op.before_revision.clone();
         }
-        let mut segments = Vec::new(); let mut cursor = before.clone();
+        let mut segments = Vec::new(); let mut cursor = before.clone(); let mut blocks = None;
         for entry in entries {
             if cancel.load(Ordering::Relaxed) { return Err("Macro history preparation cancelled"); }
             if let super::UndoEntry::Prepared(group) = entry {
+                if let Some((before, after)) = group.body.blocks {
+                    let first = blocks.map_or(before, |pair: (Option<BlockSelection>, Option<BlockSelection>)| pair.0);
+                    blocks = Some((first, after));
+                }
                 segments.try_reserve(group.body.segments.len().max(1)).map_err(|_| "Not enough memory to combine macro history")?;
                 if group.body.segments.is_empty() { segments.push(group.body.clone()); }
                 else { segments.extend(group.body.segments.iter().cloned()); }
@@ -385,7 +399,7 @@ impl PreparedGroup {
         Ok(Self { before_revision: current, after_revision: revision, body: Arc::new(PreparedBody {
             before: before.clone(), after: after.clone(), before_selection: before_selection.clamped(&before),
             after_selection: after_selection.clamped(&after), ops, forward: PrefixMap(Vec::new()), backward: PrefixMap(Vec::new()),
-            lines: true, bookmark_insert_end: false, segments,
+            lines: true, bookmark_insert_end: false, segments, blocks,
         }) })
     }
     pub(crate) fn rebind(&mut self, current: &mut ContentRevision) {

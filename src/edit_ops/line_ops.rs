@@ -22,13 +22,13 @@
 // when the selection covers only a single line. Each op produces one
 // `replace_byte_range` call so it lands as a single undo entry.
 //
-// Line ends: each op works on the block's own terminators (`edit_ops::util`)
-// and never inserts the buffer's on-disk EOL, because the rope is
-// LF-internal. Sort, reverse, randomize and any-dedupe follow NPP `sortLines`
-// / `removeAnyDuplicateLines`: line i of the result takes the terminator line
+// Line ends: physical CR/LF terminators stay in the Rope. The prepared legacy
+// planner owns sort, reverse, randomize and dedupe. For mixed-EOL safety,
+// permutations and any-dedupe retain positional terminators: output line i takes the terminator line
 // i had, and a block that reaches the end of the document keeps its final
 // (possibly empty) line in the set, so the block never grows or gains a line.
 
+#[cfg(test)]
 use std::cmp::Ordering;
 use std::ops::Range;
 
@@ -92,10 +92,8 @@ pub(super) fn line_span_in(rope: &Rope, selection: Option<Range<usize>>) -> Opti
         }
     };
 
-    // ropey also ends lines at VT, FF, NEL, LS and PS; the ops split only on
-    // CR and LF, as Notepad++ does. Widen the block to whole CR/LF lines so
-    // it never cuts one: a cut line's tail would fuse with whatever the op
-    // moved last.
+    // Rope rows use CR/LF. Keep the complete physical row boundary when a
+    // caller supplies a byte span, including an unterminated final row.
     let block_start = crlf_line_start(rope, rope.line_to_byte(first_line));
     let rope_end = if last_line + 1 < total_lines {
         rope.line_to_byte(last_line + 1)
@@ -177,6 +175,7 @@ fn crlf_line_end(rope: &Rope, at: usize) -> usize {
 /// The lines a permuting or filtering op works on. Like NPP, the empty piece
 /// after the block's last line end is dropped unless the block reaches the
 /// end of the document.
+#[cfg(test)]
 fn block_pieces(block: &str, reaches_doc_end: bool) -> Vec<(&str, &str)> {
     let mut pieces = split_lines_eol(block);
     if !reaches_doc_end && pieces.len() > 1 && pieces.last() == Some(&("", "")) {
@@ -190,6 +189,7 @@ fn block_pieces(block: &str, reaches_doc_end: bool) -> Vec<(&str, &str)> {
 /// `None` when a lone CR would land right before an empty LF line (or after
 /// a CR that precedes the block): the pair would read back as one CRLF and
 /// swallow a line. Only a block that mixes CR and LF line ends can hit this.
+#[cfg(test)]
 fn rebuild_positional(bodies: &[&str], eols: &[&str], after_cr: bool) -> Option<String> {
     let n = bodies.len();
     let mut out = String::with_capacity(bodies.iter().map(|b| b.len() + 2).sum());
@@ -210,6 +210,7 @@ fn rebuild_positional(bodies: &[&str], eols: &[&str], after_cr: bool) -> Option<
 }
 
 /// Rebuild after `reorder` permutes the bodies of `block`.
+#[cfg(test)]
 fn permute_block(
     block: &str,
     span: &LineSpan,
@@ -222,6 +223,7 @@ fn permute_block(
     rebuild_positional(&bodies, &eols, span.after_cr)
 }
 
+#[cfg(test)]
 fn sort_block(
     block: &str,
     span: &LineSpan,
@@ -240,88 +242,60 @@ fn sort_block(
 /// NPP `NumericSorter::sort` shape: filter into "empty after preparation"
 /// vs "parses as f64", stable-sort the numerics, then put empties before
 /// numerics (ascending) or after (descending).
-fn sort_decimal_block(
-    block: &str,
-    span: &LineSpan,
-    descending: bool,
-    sep: DecimalSep,
-) -> Option<String> {
-    permute_block(block, span, |bodies| {
-        let admissable: &[char] = match sep {
-            DecimalSep::Comma => &[' ', '\t', '\r', '\n', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', ',', '-'],
-            DecimalSep::Dot => &[' ', '\t', '\r', '\n', '0', '1', '2', '3', '4', '5', '6', '7', '8', '9', '.', '-'],
+#[cfg(test)]
+fn sort_decimal_block(block: &str, span: &LineSpan, descending: bool, sep: DecimalSep) -> Option<String> {
+    let cancel = std::sync::atomic::AtomicBool::new(false);
+    let pieces = block_pieces(block,span.reaches_doc_end);
+    let separator = match sep { DecimalSep::Comma => 44, DecimalSep::Dot => 46 };
+    let numbers = pieces.iter().map(|(body,_)| super::legacy_numeric::decimal_key(
+        &body.encode_utf16().collect::<Vec<_>>(), separator, &cancel)).collect::<Result<Vec<_>,_>>().ok()?;
+    let mut order = (0..pieces.len()).collect::<Vec<_>>();
+    super::line_sort::merge_order(&mut order, |a,b| {
+        let result = match (numbers.get(a),numbers.get(b)) {
+            (Some(None),Some(None)) => Ordering::Equal,
+            (Some(None),Some(Some(_))) => Ordering::Less,
+            (Some(Some(_)),Some(None)) => Ordering::Greater,
+            (Some(Some(a)),Some(Some(b))) => a.partial_cmp(b).ok_or("invalid decimal fixture")?,
+            _ => return Err("invalid decimal fixture"),
         };
-        let mut numerics: Vec<(&str, f64)> = Vec::new();
-        let mut empties: Vec<&str> = Vec::new();
-        for line in bodies.iter().copied() {
-            let prefix: String = line.chars().take_while(|c| admissable.contains(c)).collect();
-            let normalized = match sep {
-                DecimalSep::Comma => prefix.replace(',', "."),
-                DecimalSep::Dot => prefix.clone(),
-            };
-            let trimmed = normalized.trim();
-            if trimmed.is_empty() {
-                empties.push(line);
-                continue;
-            }
-            match trimmed.parse::<f64>() {
-                Ok(n) => numerics.push((line, n)),
-                Err(_) => empties.push(line),
-            }
-        }
-        if descending {
-            merge_sort_by(&mut numerics, |a, b| b.1.partial_cmp(&a.1).unwrap_or(Ordering::Equal));
-        } else {
-            merge_sort_by(&mut numerics, |a, b| a.1.partial_cmp(&b.1).unwrap_or(Ordering::Equal));
-        }
-        bodies.clear();
-        if descending {
-            bodies.extend(numerics.into_iter().map(|(l, _)| l));
-            bodies.extend(empties);
-        } else {
-            bodies.extend(empties);
-            bodies.extend(numerics.into_iter().map(|(l, _)| l));
-        }
-    })
+        Ok(if descending { result.reverse() } else { result })
+    }, &cancel).ok()?;
+    let bodies = order.into_iter().map(|index| pieces.get(index).map(|p|p.0)).collect::<Option<Vec<_>>>()?;
+    rebuild_positional(&bodies, &pieces.iter().map(|p|p.1).collect::<Vec<_>>(), span.after_cr)
 }
 
+#[cfg(test)]
 fn reverse_block(block: &str, span: &LineSpan) -> Option<String> {
     permute_block(block, span, |bodies| bodies.reverse())
 }
 
+#[cfg(test)]
 fn shuffle_block(block: &str, span: &LineSpan) -> Option<String> {
     permute_block(block, span, |bodies| fisher_yates_shuffle(bodies))
 }
 
 /// NPP `removeAnyDuplicateLines`: keep the first copy of each line.
+#[cfg(test)]
 fn dedupe_any_block(block: &str, span: &LineSpan) -> Option<String> {
-    let pieces = block_pieces(block, span.reaches_doc_end);
-    let eols: Vec<&str> = pieces.iter().map(|p| p.1).collect();
-    let mut seen: std::collections::HashSet<&str> = std::collections::HashSet::new();
-    let bodies: Vec<&str> = pieces
-        .iter()
-        .map(|p| p.0)
-        .filter(|body| seen.insert(*body))
-        .collect();
-    rebuild_positional(&bodies, &eols, span.after_cr)
+    let cancel = std::sync::atomic::AtomicBool::new(false);
+    let lines = super::line_sort::lines_in(block,span.reaches_doc_end,&cancel).ok()?;
+    let edits = super::legacy_dedupe::any_duplicate(block,&lines,0,span.after_cr,&cancel).ok()?;
+    let mut output = block.to_owned();
+    for edit in edits.into_iter().rev() { output.replace_range(edit.range,&edit.text); }
+    Some(output)
 }
 
 /// NPP `removeDuplicateLines`: drop a line equal to the one above it. NPP
-/// compares lines with their line end, so the last line (no line end) never
-/// matches the one before it. Kept lines keep their own terminator.
+/// compares line ends, then removes the preceding terminated row when the
+/// final unterminated row has the same body. Kept rows retain their terminator.
+#[cfg(test)]
 fn dedupe_consecutive_block(block: &str, span: &LineSpan) -> String {
-    let pieces = block_pieces(block, span.reaches_doc_end);
-    let mut out = String::with_capacity(block.len());
-    let mut prev: Option<(&str, &str)> = None;
-    for piece in pieces {
-        if prev == Some(piece) {
-            continue;
-        }
-        out.push_str(piece.0);
-        out.push_str(piece.1);
-        prev = Some(piece);
-    }
-    out
+    let cancel = std::sync::atomic::AtomicBool::new(false);
+    let lines = super::line_sort::lines_in(block,span.reaches_doc_end,&cancel).expect("valid physical fixture");
+    let edits = super::legacy_dedupe::consecutive(block,&lines,0,span.after_cr,&cancel).expect("valid deletion fixture");
+    let mut output = block.to_owned();
+    for edit in edits.into_iter().rev() { output.replace_range(edit.range,&edit.text); }
+    output
 }
 
 /// Wrap every line of the block at `edge` columns. New breaks inside a line
@@ -422,6 +396,7 @@ impl Workspace {
         let new_block = match op(&block, &span) {
             LineOpResult::Replace(text) => text,
             LineOpResult::Skip => return,
+            #[cfg(test)]
             LineOpResult::MixedLineEnds => {
                 self.set_status(
                     "Line operation skipped: the selection mixes CR and LF line endings \
@@ -439,33 +414,13 @@ impl Workspace {
 
     // ---- Sort variants ---------------------------------------------------------------------
 
-    fn sort_with(
-        &mut self,
-        descending: bool,
-        cmp: fn(&str, &str) -> Ordering,
-        cx: &mut Context<Self>,
-    ) {
-        self.run_line_op(cx, |block, span| {
-            // NPP gates sort to multi-line selections only when a selection
-            // exists (whole-buffer sort is fine even for single-line files —
-            // the sort is a no-op but harmless).
-            if !span.whole_buffer && span.first_line == span.last_line {
-                return LineOpResult::Skip;
-            }
-            sort_block(block, span, descending, cmp).into()
-        });
-    }
-
     pub(crate) fn sort_lines_lex_asc(
         &mut self,
         _: &EditSortLinesLexAsc,
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if self.input_focus(window) != InputFocus::Editor {
-            return;
-        }
-        self.sort_with(false, |a, b| a.cmp(b), cx);
+        self.run_legacy_line(super::legacy_lines::LegacyCommand::LexAsc, window, cx);
     }
 
     pub(crate) fn sort_lines_lex_desc(
@@ -474,10 +429,7 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if self.input_focus(window) != InputFocus::Editor {
-            return;
-        }
-        self.sort_with(true, |a, b| a.cmp(b), cx);
+        self.run_legacy_line(super::legacy_lines::LegacyCommand::LexDesc, window, cx);
     }
 
     pub(crate) fn sort_lines_int_asc(
@@ -486,10 +438,7 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if self.input_focus(window) != InputFocus::Editor {
-            return;
-        }
-        self.sort_with(false, natural_cmp, cx);
+        self.run_legacy_line(super::legacy_lines::LegacyCommand::IntAsc, window, cx);
     }
 
     pub(crate) fn sort_lines_int_desc(
@@ -498,10 +447,7 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if self.input_focus(window) != InputFocus::Editor {
-            return;
-        }
-        self.sort_with(true, natural_cmp, cx);
+        self.run_legacy_line(super::legacy_lines::LegacyCommand::IntDesc, window, cx);
     }
 
     pub(crate) fn sort_lines_dec_comma_asc(
@@ -510,10 +456,7 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if self.input_focus(window) != InputFocus::Editor {
-            return;
-        }
-        self.sort_decimal(false, DecimalSep::Comma, cx);
+        self.run_legacy_line(super::legacy_lines::LegacyCommand::CommaAsc, window, cx);
     }
 
     pub(crate) fn sort_lines_dec_comma_desc(
@@ -522,10 +465,7 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if self.input_focus(window) != InputFocus::Editor {
-            return;
-        }
-        self.sort_decimal(true, DecimalSep::Comma, cx);
+        self.run_legacy_line(super::legacy_lines::LegacyCommand::CommaDesc, window, cx);
     }
 
     pub(crate) fn sort_lines_dec_dot_asc(
@@ -534,10 +474,7 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if self.input_focus(window) != InputFocus::Editor {
-            return;
-        }
-        self.sort_decimal(false, DecimalSep::Dot, cx);
+        self.run_legacy_line(super::legacy_lines::LegacyCommand::DotAsc, window, cx);
     }
 
     pub(crate) fn sort_lines_dec_dot_desc(
@@ -546,19 +483,7 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if self.input_focus(window) != InputFocus::Editor {
-            return;
-        }
-        self.sort_decimal(true, DecimalSep::Dot, cx);
-    }
-
-    fn sort_decimal(&mut self, descending: bool, sep: DecimalSep, cx: &mut Context<Self>) {
-        self.run_line_op(cx, |block, span| {
-            if !span.whole_buffer && span.first_line == span.last_line {
-                return LineOpResult::Skip;
-            }
-            sort_decimal_block(block, span, descending, sep).into()
-        });
+        self.run_legacy_line(super::legacy_lines::LegacyCommand::DotDesc, window, cx);
     }
 
     // ---- Reverse / Randomize ---------------------------------------------------------------
@@ -569,10 +494,7 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if self.input_focus(window) != InputFocus::Editor {
-            return;
-        }
-        self.run_line_op(cx, |block, span| reverse_block(block, span).into());
+        self.run_legacy_line(super::legacy_lines::LegacyCommand::Reverse, window, cx);
     }
 
     pub(crate) fn randomize_line_order(
@@ -581,10 +503,7 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if self.input_focus(window) != InputFocus::Editor {
-            return;
-        }
-        self.run_line_op(cx, |block, span| shuffle_block(block, span).into());
+        self.run_legacy_line(super::legacy_lines::LegacyCommand::Randomize, window, cx);
     }
 
     // ---- Dedup -----------------------------------------------------------------------------
@@ -595,16 +514,7 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if self.input_focus(window) != InputFocus::Editor {
-            return;
-        }
-        self.run_line_op(cx, |block, span| {
-            // NPP gate: dedup needs at least two lines.
-            if span.first_line == span.last_line {
-                return LineOpResult::Skip;
-            }
-            dedupe_any_block(block, span).into()
-        });
+        self.run_legacy_line(super::legacy_lines::LegacyCommand::AnyDuplicate, window, cx);
     }
 
     pub(crate) fn remove_consecutive_duplicate_lines(
@@ -613,15 +523,7 @@ impl Workspace {
         window: &mut Window,
         cx: &mut Context<Self>,
     ) {
-        if self.input_focus(window) != InputFocus::Editor {
-            return;
-        }
-        self.run_line_op(cx, |block, span| {
-            if span.first_line == span.last_line {
-                return LineOpResult::Skip;
-            }
-            LineOpResult::Replace(dedupe_consecutive_block(block, span))
-        });
+        self.run_legacy_line(super::legacy_lines::LegacyCommand::ConsecutiveDuplicate, window, cx);
     }
 
     // ---- Split / Join ----------------------------------------------------------------------
@@ -699,9 +601,11 @@ enum LineOpResult {
     Skip,
     /// The rebuilt block would fuse a lone CR with an LF; leave it alone and
     /// tell the user why.
+    #[cfg(test)]
     MixedLineEnds,
 }
 
+#[cfg(test)]
 impl From<Option<String>> for LineOpResult {
     fn from(result: Option<String>) -> Self {
         match result {
@@ -712,6 +616,7 @@ impl From<Option<String>> for LineOpResult {
 }
 
 #[derive(Clone, Copy)]
+#[cfg(test)]
 enum DecimalSep {
     Comma,
     Dot,
@@ -722,6 +627,7 @@ enum DecimalSep {
 /// NPP's IntegerSorter, which is not one once `-` is involved (`"-."` equals
 /// `"."`, yet `"-." < "-1" < "."`). This sort only ever compares and moves,
 /// so any comparator yields some permutation of the input.
+#[cfg(test)]
 fn merge_sort_by<T: Copy>(items: &mut Vec<T>, mut cmp: impl FnMut(&T, &T) -> Ordering) {
     let mut width = 1usize;
     while width < items.len() {
@@ -762,147 +668,11 @@ fn merge_sort_by<T: Copy>(items: &mut Vec<T>, mut cmp: impl FnMut(&T, &T) -> Ord
 /// NPP's IntegerSorter is a *natural* sort — it walks two strings in lockstep,
 /// comparing numeric runs as numbers (length-first, then digit-by-digit) and
 /// non-numeric runs as text. Negative numbers are handled by detecting a `-`
-/// followed by a digit. Leading-zero counts break ties so `"01"` sorts after
-/// `"1"`.
+/// followed by a digit. More leading zeros sort first for equal numeric runs.
+#[cfg(test)]
 fn natural_cmp(a: &str, b: &str) -> Ordering {
-    use std::cmp::Ordering::*;
-    let ab: Vec<char> = a.chars().collect();
-    let bb: Vec<char> = b.chars().collect();
-    let mut ai = 0usize;
-    let mut bi = 0usize;
-    loop {
-        if ai >= ab.len() || bi >= bb.len() {
-            // One side exhausted — fall through to a tail-compare on the
-            // remaining slices. Match NPP's `a.compare(min(ai,len), npos, b,
-            // min(bi,len), npos)`.
-            let a_tail: String = ab[ai.min(ab.len())..].iter().collect();
-            let b_tail: String = bb[bi.min(bb.len())..].iter().collect();
-            return a_tail.cmp(&b_tail);
-        }
-
-        let mut a_is_num = ab[ai].is_ascii_digit();
-        let mut b_is_num = bb[bi].is_ascii_digit();
-        let mut a_sign = 1i32;
-        let mut b_sign = 1i32;
-        if !a_is_num && ai + 1 < ab.len() && ab[ai] == '-' && ab[ai + 1].is_ascii_digit() {
-            a_is_num = true;
-            a_sign = -1;
-        }
-        if !b_is_num && bi + 1 < bb.len() && bb[bi] == '-' && bb[bi + 1].is_ascii_digit() {
-            b_is_num = true;
-            b_sign = -1;
-        }
-
-        if a_is_num != b_is_num {
-            // One is num, one isn't — NPP returns the raw char diff and
-            // bumps both indices.
-            let res = (ab[ai] as i32) - (bb[bi] as i32);
-            ai += 1;
-            bi += 1;
-            if res < 0 {
-                return Less;
-            } else if res > 0 {
-                return Greater;
-            } else {
-                continue;
-            }
-        } else if a_is_num {
-            if a_sign != b_sign {
-                return if a_sign == 1 { Greater } else { Less };
-            }
-            if a_sign == -1 {
-                ai += 1;
-                bi += 1;
-            }
-            // Skip leading zeros and remember how many we ate so equal-length
-            // tail digit runs still tiebreak by zero-count.
-            let mut a_zeros = 0;
-            while ai < ab.len() && ab[ai] == '0' {
-                a_zeros += 1;
-                ai += 1;
-            }
-            let mut b_zeros = 0;
-            while bi < bb.len() && bb[bi] == '0' {
-                b_zeros += 1;
-                bi += 1;
-            }
-            // Find end of digit run on each side.
-            let mut a_end = ai;
-            while a_end < ab.len() && ab[a_end].is_ascii_digit() {
-                a_end += 1;
-            }
-            let mut b_end = bi;
-            while b_end < bb.len() && bb[b_end].is_ascii_digit() {
-                b_end += 1;
-            }
-            let a_len = a_end - ai;
-            let b_len = b_end - bi;
-            if a_len != b_len {
-                let cmp = a_len.cmp(&b_len);
-                return if a_sign == -1 { cmp.reverse() } else { cmp };
-            }
-            // Equal-length digit runs — compare digit by digit.
-            let mut digit_cmp = Equal;
-            for _ in 0..a_len {
-                let d = (ab[ai] as i32) - (bb[bi] as i32);
-                ai += 1;
-                bi += 1;
-                if d != 0 {
-                    digit_cmp = if d < 0 { Less } else { Greater };
-                    if a_sign == -1 {
-                        digit_cmp = digit_cmp.reverse();
-                    }
-                    break;
-                }
-            }
-            if digit_cmp != Equal {
-                // Skip remaining digits so the next iteration realigns.
-                while ai < ab.len() && ab[ai].is_ascii_digit() {
-                    ai += 1;
-                }
-                while bi < bb.len() && bb[bi].is_ascii_digit() {
-                    bi += 1;
-                }
-                return digit_cmp;
-            }
-            // Equal digit runs — break tie on leading-zero count.
-            if a_zeros != b_zeros {
-                return b_zeros.cmp(&a_zeros);
-            }
-            // Otherwise loop continues into the post-number region.
-        } else {
-            // Both are non-numeric runs. Skip a leading `-` on each and
-            // compare the chunk up to the next digit / minus.
-            if ab[ai] == '-' {
-                ai += 1;
-            }
-            if bb[bi] == '-' {
-                bi += 1;
-            }
-            let mut a_end = ai;
-            while a_end < ab.len()
-                && !ab[a_end].is_ascii_digit()
-                && ab[a_end] != '-'
-            {
-                a_end += 1;
-            }
-            let mut b_end = bi;
-            while b_end < bb.len()
-                && !bb[b_end].is_ascii_digit()
-                && bb[b_end] != '-'
-            {
-                b_end += 1;
-            }
-            let a_chunk: String = ab[ai..a_end].iter().collect();
-            let b_chunk: String = bb[bi..b_end].iter().collect();
-            ai = a_end;
-            bi = b_end;
-            let chunk_cmp = a_chunk.cmp(&b_chunk);
-            if chunk_cmp != Equal {
-                return chunk_cmp;
-            }
-        }
-    }
+    super::legacy_numeric::natural_compare(&a.encode_utf16().collect::<Vec<_>>(),
+        &b.encode_utf16().collect::<Vec<_>>(), &std::sync::atomic::AtomicBool::new(false)).expect("valid natural fixture")
 }
 
 /// Wrap one logical line at `edge` columns, NPP `Editor::LinesSplit` style:
@@ -944,6 +714,7 @@ fn wrap_line_at_column(line: &str, edge: usize, out: &mut Vec<String>) {
 /// Fisher-Yates shuffle seeded from the system clock. Avoids pulling in
 /// `rand` for one op. Same shape as NPP's `RandomSorter` (which seeds
 /// `default_random_engine` from `time(NULL)`).
+#[cfg(test)]
 fn fisher_yates_shuffle<T>(slice: &mut [T]) {
     use std::time::SystemTime;
     let mut state: u64 = SystemTime::now()
@@ -991,7 +762,7 @@ mod tests {
         "x\n\n\nx\n",
         "10\n-2\n3,5\n3.5\n-.\n.\n-1\n",
         "aaaa bbbb cccc\r\n中中中中中中\rdd",
-        // ropey also breaks lines on VT, FF, NEL, LS and PS.
+        // Unicode separators remain within a physical CR/LF row.
         "b\u{2028}a\nc\u{85}d\u{b}e\u{c}f\u{2029}g\n",
         "\u{2028}\r\n\u{85}",
     ];
@@ -1084,7 +855,13 @@ mod tests {
                     .to_string();
                 for (name, op, permutes) in ops() {
                     let ctx = format!("{name} on {input:?} sel {sel:?}");
-                    let Some(out) = op(&block, &span) else {
+                    let result = op(&block, &span);
+                    // These fixed corpus rows were previously classified as
+                    // empty keys. The reviewed decimal policy refuses them.
+                    let invalid_decimal = name.starts_with("sort_dec_") && block_pieces(&block,span.reaches_doc_end).iter()
+                        .any(|(body,_)| *body == "-." || (name.starts_with("sort_dec_dot_") && *body == "."));
+                    if invalid_decimal { assert!(result.is_none(),"{ctx}: invalid decimal was accepted"); continue; }
+                    let Some(out) = result else {
                         // Only a block that mixes a lone CR with LF may bail.
                         let has_lone_cr = split_lines_eol(&block).iter().any(|p| p.1 == "\r")
                             || span.after_cr;
@@ -1180,6 +957,14 @@ mod tests {
 
     #[test]
     fn int_sort_survives_inconsistent_comparator() {
+        for prefix in ["", "0"] {
+            let dotted = format!("{prefix}-.");
+            let dot = format!("{prefix}.");
+            let negative = format!("{prefix}-1");
+            assert_eq!(natural_cmp(&dotted, &dot), Ordering::Equal);
+            assert_eq!(natural_cmp(&dotted, &negative), Ordering::Less);
+            assert_eq!(natural_cmp(&negative, &dot), Ordering::Less);
+        }
         // `natural_cmp` is not a total order ("-." == "." but
         // "-." < "-1" < "."). std `sort_by` panics on this input.
         let lines = [
@@ -1258,11 +1043,11 @@ mod tests {
         assert_eq!(dedupe_any_block(&block, &span).as_deref(), Some("a\n"));
         let (_, span, block) = span_of("b\r\na\r\nb\r\nz", Some(0..9));
         assert_eq!(dedupe_any_block(&block, &span).as_deref(), Some("b\r\na\r\n"));
-        // Consecutive dedupe compares line ends too: the last line has none.
+        // Its EOF correction retains the last unterminated matching row.
         let (_, span, block) = span_of("a\na", None);
-        assert_eq!(dedupe_consecutive_block(&block, &span), "a\na");
+        assert_eq!(dedupe_consecutive_block(&block, &span), "a");
         let (_, span, block) = span_of("a\n\n\n", None);
-        assert_eq!(dedupe_consecutive_block(&block, &span), "a\n\n");
+        assert_eq!(dedupe_consecutive_block(&block, &span), "a\n");
         let (_, span, block) = span_of("é\r\né\r\n中", None);
         assert_eq!(dedupe_consecutive_block(&block, &span), "é\r\n中");
     }

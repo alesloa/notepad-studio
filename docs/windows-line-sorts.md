@@ -51,4 +51,10 @@ Each phase median is calculated independently across the three runs. Locale capt
 
 Deciding logs are gates/release-sort-final-run1.log (SHA256 17317aeb6ff2b01ed336817626450bf300574f7bf54099beb4dfea863910072d), run2 (2aed0dd3b82e1bcba97f63c0a6589098780d42e96918ef079f10de064fefdd14) and run3 (e82a22799de378b3a396f20f963557aba17bb3c999acef6c535418e1c54a6eba). gates/release-sort-final-receipt.json records the quiet window and waited, hidden, redirected process runner; gates/sort-final-evidence.json stores all samples and summaries. An initial PowerShell GUI launch returned no output or exit status and was excluded. gates/sort-final-evidence.sha256 hashes the deciding artifacts; gates/sort-source.sha256 remains 0ad5dc4081c40dda75aaba5bf492d9a8868996376413d46602ec3a24fb9759bf. Gates remain local ignored artifacts. Both borrowed debug/release caches are idle and retained. Mac/Linux locale collation remains a separate gate: those builds return a clear unavailable status without editing.
 
-The older lexical/integer/decimal/reverse/shuffle handlers remain unchanged at d01099f: line_ops.rs:459–555 calls run_line_op, copies and replaces the selected slice on the UI thread, collapses selection to block start and has no corresponding MacroEvent variants. A later leaf must move those callers through the prepared engine and separately match UTF16 lexical order plus Notepad++ numeric parsing/overflow/error rules. This leaf does not claim their background, selection or macro parity.
+The twelve older lexical/integer/decimal/reverse/shuffle/dedup callers now use
+the prepared engine, guarded publication and saved mixed macros. UTF16 keys,
+whole-request numeric refusal, dedupe EOF behavior and runtime rectangle
+history have installed-caller controls. Combined main Windows checks and six
+optimized candidate test-harness controls pass; native verification remains
+open. See [legacy validation and explicit limits](windows-legacy-lines-validation-20261011.md).
+The preceding six-sort evidence is historical and remains qualified as recorded.

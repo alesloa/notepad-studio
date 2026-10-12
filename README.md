@@ -20,6 +20,9 @@ A lightweight, cross-platform text editor inspired by Notepad++, written in Rust
 > Manual large line indentation and its Undo/Redo also prepare in the
 > background, with Escape cancellation and one Undo per completed edit.
 > This includes costly annotations and a few very long selected lines.
+> Existing lexical, integer, decimal, reverse, randomize and duplicate-removal
+> commands also prepare in background, with cancellation and saved macro support.
+> See [their Windows checks and limits](docs/windows-legacy-lines-validation-20261011.md).
 > Post-edit and streamed-file completion syntax highlighting run in background
 > workers, with per-tab coalescing and bounded output. Syntax size limits use
 > the Rope byte count before allocating a full text copy.

@@ -10,6 +10,10 @@ Notepad++, written in Rust on GPUI. Apache-2.0.
 
 v0.0.5 — current
 
+  Sort, Reverse, Randomize and duplicate-line removal now prepare in background
+  with Escape cancellation, guarded publication and saved macro support.
+  Numeric conversion errors leave the whole document and its Undo history intact.
+
   Renamed untitled tabs keep the name you choose when first-line titles are
   enabled, including after edits, Undo/Redo, recovery and window transfer.
 

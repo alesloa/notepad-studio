@@ -23,29 +23,59 @@ build (62.729 s), 2,690 unit plus three integration tests/30 ignored
 193 pairs), 12 inventory tests and generation check pass on all 733 frozen
 source/manifest entries. Seven source files are exact copies of the final
 reviewed leaf. See [rename validation](windows-untitled-label-validation-20261011.md).
-The label sources are integrated and checked; verify Git log/status for the resulting commit.
+The label fix is committed as `19e26d5`. The legacy batch is integrated and checked; verify Git log/status for its resulting commit.
 
-Book implements all twelve hash tools in its isolated leaf. Root verified
-54 final source/manifest/license files, retained EXE/PDB, nine logs and seven
-failed/weak source snapshots. All 60 hash and three clipboard ownership controls
-pass. Required build/full tests/Clippy are authorized and pending. Optimized
-source/plan review, native verification and main composition remain open. The
-SHA-512 file title explicitly corrects the misleading default upstream caption.
-Sort's final 23-file candidate passes build, 2,771 unit plus three integration
-tests/32 ignored and Clippy with zero new diagnostics (334 occurrences / 195
-pairs). Both >10 MiB controls pass in debug. Root verified its 16-entry review
-package and 34-entry frozen evidence manifest. Default release test compilation
-is authorized; measurement runs wait for an explicit quiet slot. Effective test
-profile differences from the shipping app must be disclosed. Earlier compile
-and fixture failures remain preserved and excluded from product failure counts.
+The twelve legacy line commands are integrated with the newer brace/macro
+behavior preserved. Main build (44.379 s), 2,809 unit plus three integration
+checks/32 ignored (52.94 s unit /138.404 s total), Clippy (23.510 s) with exact
+331 occurrences/193 pairs, and twelve inventory tests/check pass. All 966
+frozen entries stayed unchanged during the required gates. Eighteen leaf files
+match after Git newline normalization; three macro files retain only main's
+newer brace additions. See [legacy validation](windows-legacy-lines-validation-20261011.md).
+Six optimized candidate test-harness controls pass on 12,059,999 bytes/90,000
+rows, with 36 actions, 36 saved macros and 144 held refusals; harness unwind differs
+from shipping abort. Root verified all77 final evidence and nine release
+provenance entries. Native rectangle/input/visual proof remains open.
 
-File's fresh `windows-normal-save-background` leaf is based at `6be0a4d`.
-Root verified G1: seven actual foreground prepare/write violations, an older
-Save As reply taking ownership after a newer completion, and 29 passing
-ownership/close controls. Implementation is authorized under the frozen
-capture/publication and close/Exit settlement contract. The safe commit gate
-must serialize destructive workers without blocking the UI and preserve
-critical restore errors. Bounded restore behavior is already integrated.
+Book's final Hash Tools delivery is frozen at 55 files; root verified the 54-file
+production/test/license predecessor,63 hash plus three clipboard controls,
+build/full tests (2,718 unit+three integration/30 ignored) and unchanged
+app-target JSON diagnostics: 404 occurrences/114 pairs. The actual registered
+prepaint IME regression is fixed with per-field generations while Copy retains
+its dialog-wide guard. All 45 standalone opt3/Thin-LTO/codegen1/abort controls
+passed with 90 empty competitor checks and no restart; final metrics/doc suffix
+review and main composition remain. Engine/file-worker timers and whole-process
+peaks are qualified; native UI/IME/paste/ACP/external clipboard remain open.
+The accurate SHA-512 title deliberately corrects the default upstream caption.
+Book now conducts a separate read-only typing Undo grouping audit; no product
+failure is inferred merely from the earlier per-character test fixtures.
+
+File's `windows-normal-save-background` leaf is based at `6be0a4d`. Root
+verified separate G3 Save All/popup: 42 positive functions plus the remaining Full
+foreground-clone RED, the G4 native helper (five new positives; all26 source
+archives/103 evidence entries), and G5 held normal Save (three positive
+functions/one genuine close-settlement RED; all104 evidence entries). Counts
+are not additive across packets. The registered close callback accepts while
+an authorized Save remains held; the test releases/settles it before failing.
+The bounded native cursor/Builder is reviewed, but not registered in Full yet.
+Actual Writer/readback, raw Undo/CSV/metadata/cache/tickets/aliases and close/Exit
+settlement still require integration under the unchanged Full contract.
+App-owned gates share destructive admission across windows without blocking
+UI; admitted operations keep permits until actual cleanup. Root reviewed the
+refined 64 KiB/128-item shared-turn, 512 MiB budget and ticket/retirement barrier
+boundary `4f43e770`. Preserve mandatory rescue/errors and old recovery/cache on
+refusal; metadata identities cover changes not scheduling autosave.
+
+Sort now owns `windows-automatic-title`, detached at `19e26d5`. Corrected G1
+has three PASS/ten RED: nine real naming-contract failures and one getter-work
+failure. Compile-only and welcome-text/EOL fixture runs remain excluded and
+preserved. Pure bounded normalization passes six focused controls; registered
+scalar/prepared/history/consumer work is still in progress. The approved
+fixed-collision summary preserves admitted intermediate names. Capacity
+exhaustion may suspend title metadata visibly, retain the accepted name and
+leave text/IME/history/Save/recovery available; never refuse a document edit
+for a derived title. Surrogate-boundary U+FFFD representation is an explicit
+tested parity limit with document bytes unchanged. Root owns final composition.
 
 Root also verified the separate publication packet: one intentional bounded-
 capture RED after real Full recovery byte/state positives. A controlled model

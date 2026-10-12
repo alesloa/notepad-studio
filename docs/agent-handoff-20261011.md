@@ -4,7 +4,82 @@ Continue the user's goal of finishing Windows Notepad++ behavior and feature
 parity. Mac testing is deferred. Full parity remains open; this is a tested
 checkpoint for one completed batch.
 
-## Current checkpoint
+## Current checkpoint, updated after typing integration
+
+The latest product-source checkpoint is `ba9f296` (`fix: group adjacent text
+input for undo`), after Hash Tools `f62f750`, legacy line operations `4a5dad8`
+and explicit untitled labels `19e26d5`. Main source is clean; nothing was pushed.
+The earlier sections below are historical evidence, including superseded worker
+assignments. Use this section and the current work queue to choose new work.
+
+Adjacent ordinary Source/Raw insertion grouping is integrated. Main build,
+2,899 unit plus three integration tests/32 ignored, Clippy with zero new warning
+pairs, inventory checks and 18 scoped optimized controls pass. The main Clippy
+baseline has 332 located occurrences/193 distinct message/path pairs; the extra
+occurrence is an inherited session warning. See
+[typing main validation](windows-typing-main-validation-20261011.md) and
+[typing performance](windows-typing-undo-performance-20261011.md). Optional
+grouping refusal keeps a separate edit; essential text/history refusal precedes
+mutation and recording. Captured Save fences and stronger history stamps are
+part of this checkpoint. Deletion, Enter/Tab, completion and native boundaries
+still need their own proof. The inventory remains 196 routed/271 missing unique
+IDs; routing alone does not establish behavior parity.
+
+Active isolated work, inspected during the continuation:
+
+- **File** (`windows-normal-save-background`, base `6be0a4d`): normal Save and
+  held Save/Save As/Save All prerequisites passed their scoped controls. G14
+  protected recovery publication and complete orphan planning pass 37
+  persistence functions/one inherited ignored test. Root verified 64 evidence
+  entries and 52 source pairs. The deciding late-entry error now preserves all
+  four original files, and actual retry succeeds. Planning uses the shared
+  request budget; known Delete/stale-native cleanup and later removal errors
+  have separate guarantees. These are Writer/helper prerequisites. Registered
+  coherent Full capture, cache coordinator, App permits/tickets, Copy/Move and
+  close/Exit settlement are still being implemented under boundary `4f43e770`.
+  Preserve 64 KiB/128 items per UI turn, the 512 MiB cumulative budget and the
+  complete current raw/native/Undo/CSV recovery schema. Essential error and
+  actual cleanup acknowledgements govern close permission.
+- **Sort** (`windows-automatic-title`, base `19e26d5`, with later source
+  additions): candidate 6's three behavior controls and one diagnostic pass;
+  15 encoding/EOL cases are nested in one function. Two candidate-5 Save
+  assertions wrongly expected an untitled label after successful Save; corrected
+  tests preserve disk/document/history checks and the saved-path caption.
+  The per-character macro setup exhausted naming metadata while preserving
+  text/history; the intended single painted callback saved-macro control passes.
+  Candidate 7 then reproduced a real UI-budget defect across 512 accepted Source
+  callbacks: Latest-map growth exceeded 32 KiB. Bounded 16-slot pages, joint
+  notice/input accounting and command/waiter limits are being corrected.
+  Complete source/consumer/disposal review, broad gates and main integration
+  remain open. Metadata limits retain accepted names and keep edits, Save and
+  recovery available. The original mounted CRLF fixture's exact failure cause
+  remains unproven; its diagnostic is not an additional parity result.
+- **Book** (`windows-deletion-undo`, base `ba9f296`): test-only G1 ran all twelve
+  registered Source/Raw parameters, with eight single-deletion positives and
+  four repeated-deletion mismatches in two functions. The worker reports 17 deletion
+  and 24 existing typing controls passing on its frozen correction; Root review,
+  broad checks and main composition are pending. Preserve the oracle's
+  editing-byte adjacency rule, every operation/revision/first caret and captured
+  Save fences. Valid BOF/EOF/read-only macro intents remain replayable;
+  essential refusal stops a saved macro before its later edit. Test-accessor
+  and UTF-8 packaging failures were compile-only, not behavior results.
+
+Root also ran a detached-Find brace probe. Actual Find/document/field controls
+passed before two missing-GoTo observations. The oracle's separate Find
+accelerator table excludes brace actions, so these assertions are not accepted
+parity failures without native routing evidence. The test-only patch, binary
+and logs are retained; main source was restored exactly. Exact lexer styles,
+styled tails and native brace behavior remain open.
+
+Local detailed receipts and review records stay under ignored `gates/` and
+`log/`. Keep existing caches/artifacts and inspect live processes before reusing
+them. Root's Cargo cache is `target`; workers retain their exclusive caches.
+Recheck the actual process state before any optimized timing run. The native
+bridge remains unavailable; no desktop UI/IME/clipboard verification is claimed.
+The full Windows goal remains active. Mac tests are deferred; Linux/WSL/VM runs,
+pushing and release publication are outside this pass.
+
+## Earlier checkpoints and reference
 
 Bounded failed-save restoration is committed as `6be0a4d`; its combined
 Windows checks and exact optimized helper controls passed. Brace navigation is

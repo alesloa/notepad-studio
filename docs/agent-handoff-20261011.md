@@ -15,13 +15,19 @@ exact source, logs, executable and scope. Twenty-four separate optimized model
 controls and 48 empty inventories pass; added deletion costs and lower model
 memory are recorded without a native speed claim. No push accompanies this batch.
 
-File's first registered Save→Full native/raw Undo readback and shared-turn
-controls pass, but an admitted-Writer barrier reproduced premature close
-acceptance. Close/Exit and final Full/cache/ticket/Copy/Move composition remain
-open. Sort's fixed Latest pages, joint admission and complete freshness guards
-passed focused controls; pristine-tab activity initialization and IME no-op final
-stamps produced two deciding failures. Narrow corrections are underway. Book's
-deletion delivery is complete; next work is the keyboard Enter/Tab oracle audit.
+The [2026-10-12 audit](windows-parity-audit-20261012.md) records the latest isolated
+results. File's registered Save→Full readback passes, but independent controls
+found shared-turn bookmark/CSV overruns and an admitted storage error hidden by
+close. Corrected focused controls and actual unsaved peer preservation pass;
+immediate explicit retry still refuses from the old completed error. Its deciding
+correction, close/Exit and full coordinator composition remain open.
+Sort candidate 11 passes corrected activity/IME/CSV stamps, coalesced deletion
+notifications and continuation controls. Its full-run parser and inherited
+getter fixture need correction before required broad gates can pass. Book's
+keyboard baseline ran all 69 contexts across two frozen packets, with three
+passing functions and eight failures. Implement exact Enter/Tab history, columns,
+indentation and recording while continuing Advanced, rectangle and large-command
+work. A temporary safe refusal is not completed keyboard parity.
 Root owns final composition and commits. Use the actual Git log for the current
 commit identity; native verification and the full inventory backlog remain open.
 

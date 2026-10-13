@@ -198,6 +198,8 @@ pub(crate) struct ToolbarFlags {
     pub(crate) has_recorded_macro: bool,
     pub(crate) word_wrap: bool,
     pub(crate) show_whitespace: bool,
+    /// Spelling or grammar checking is on. Lights the spell-check button.
+    pub(crate) proofreading: bool,
     /// Active tab's file extension is `.md` / `.markdown` etc. Drives the
     /// enable/disable state of the markdown view-toggle pair.
     pub(crate) is_markdown: bool,
@@ -270,6 +272,7 @@ enum Cmd {
     ZoomReset,
     ShowWhitespace,
     WordWrap,
+    Proofreading,
     FullScreen,
     MacroStart,
     MacroStop,
@@ -356,6 +359,7 @@ const ITEMS_VIEW: &[Item] = &[
     Item { cmd: Cmd::ZoomReset, icon: "icons/zoom_reset.svg", tooltip: "Reset Zoom", action_id: Some("ViewZoomReset") },
     Item { cmd: Cmd::ShowWhitespace, icon: "icons/whitespace.svg", tooltip: "Show Whitespace", action_id: None },
     Item { cmd: Cmd::WordWrap, icon: "icons/word_wrap.svg", tooltip: "Word Wrap", action_id: None },
+    Item { cmd: Cmd::Proofreading, icon: "icons/spell_check.svg", tooltip: "Check Spelling and Grammar", action_id: Some("EditToggleSpellingAndGrammar") },
     Item { cmd: Cmd::FullScreen, icon: "icons/maximize.svg", tooltip: "Toggle Full Screen", action_id: Some("ViewToggleFullScreen") },
 ];
 // Mirrors Notepad++ macOS's five separate Macro toolbar buttons
@@ -507,6 +511,7 @@ fn pressed_for(cmd: Cmd, flags: &ToolbarFlags) -> bool {
     match cmd {
         Cmd::ShowWhitespace => flags.show_whitespace,
         Cmd::WordWrap => flags.word_wrap,
+        Cmd::Proofreading => flags.proofreading,
         // Highlight the Start button while a recording is in flight so the
         // toolbar visually pulses with the recorder state even though Start
         // is technically disabled.
@@ -664,6 +669,11 @@ pub(crate) fn toolbar(
                                 w.toggle_show_whitespace(&ViewShowWhitespace, window, cx)
                             }
                             Cmd::WordWrap => w.toggle_word_wrap(&ViewWordWrap, window, cx),
+                            Cmd::Proofreading => w.toggle_spelling_and_grammar(
+                                &EditToggleSpellingAndGrammar,
+                                window,
+                                cx,
+                            ),
                             Cmd::FullScreen => {
                                 w.toggle_full_screen(&ViewToggleFullScreen, window, cx)
                             }
@@ -1010,5 +1020,16 @@ mod tests {
             assert_eq!(chord_for("OpenPreferences"), None);
         }
         assert_eq!(chord_for("NoSuchAction"), None);
+    }
+
+    #[test]
+    fn every_toolbar_icon_is_embedded() {
+        use gpui::AssetSource;
+        let missing: Vec<_> = GROUPS.iter().chain([ITEMS_RICH_DOC_FORMAT, ITEMS_MARKDOWN_FORMAT].iter())
+            .flat_map(|group| group.iter())
+            .filter(|item| !matches!(crate::assets::NotepadStudioAssets.load(item.icon), Ok(Some(_))))
+            .map(|item| item.icon)
+            .collect();
+        assert!(missing.is_empty(), "toolbar icons missing from assets.rs ICONS: {missing:?}");
     }
 }

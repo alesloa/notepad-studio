@@ -11,13 +11,15 @@ const SOURCE_LIMIT: usize = 1024 * 1024;
 const ISSUE_LIMIT: usize = 512;
 const TEXT_LIMIT: usize = 1024;
 const IGNORE_LIMIT: usize = 1024;
+const DICTIONARY_LIMIT: usize = 4096;
+const WORD_LIMIT: usize = 128;
 
 #[derive(Clone, PartialEq, Eq)]
-struct Policy { spelling: bool, grammar: bool }
+struct Policy { spelling: bool, grammar: bool, dictionary: Vec<String> }
 impl Policy {
     fn current() -> Self {
         let prefs = crate::settings::snapshot();
-        Self { spelling: prefs.proofread_spelling, grammar: prefs.proofread_grammar }
+        Self { spelling: prefs.proofread_spelling, grammar: prefs.proofread_grammar, dictionary: prefs.proofread_dictionary }
     }
 }
 
@@ -204,6 +206,8 @@ impl Workspace {
                 });
                 let Ok(Some((request, cancel, ignored))) = request else { continue; };
                 let parsed = executor.spawn(async move {
+                    let mut ignored = ignored;
+                    ignored.extend(request.stamp.policy.dictionary.iter().map(|word| word.to_lowercase()));
                     let source = request.stamp.rope.to_string();
                     let mut result = crate::proofreading::check(&source, request.stamp.markdown,
                         request.stamp.policy.spelling, request.stamp.policy.grammar, &cancel);
@@ -311,6 +315,27 @@ impl Workspace {
         cx.notify();
     }
 
+    /// Saves the menu's misspelled word to the user dictionary in settings.
+    /// The policy change rechecks every open window.
+    pub(crate) fn add_proofreading_word_to_dictionary(&mut self, menu_id: Uuid, cx: &mut Context<Self>) {
+        let Some(menu) = self.proofreader.menu.as_ref() else { return; };
+        if menu.target.id != menu_id || !self.proofreading_valid(&menu.stamp)
+            || !matches!(menu.target.issue.kind, IssueKind::Spelling) { return; }
+        let word = menu.target.issue.original.to_lowercase();
+        let mut prefs = crate::settings::snapshot();
+        if let Err(at) = prefs.proofread_dictionary.binary_search(&word) {
+            if word.len() > WORD_LIMIT || prefs.proofread_dictionary.len() >= DICTIONARY_LIMIT {
+                self.set_status("The dictionary is full"); cx.notify(); return;
+            }
+            prefs.proofread_dictionary.insert(at, word);
+            crate::settings::replace_and_save(prefs);
+        }
+        self.proofreader.menu = None;
+        self.hide_context_menu(cx);
+        self.ensure_proofreading(cx);
+        cx.notify();
+    }
+
     pub(crate) fn toggle_spelling(&mut self, _: &crate::actions::EditToggleSpelling, _: &mut Window, cx: &mut Context<Self>) {
         let mut prefs = crate::settings::snapshot(); prefs.proofread_spelling = !prefs.proofread_spelling;
         crate::settings::replace_and_save(prefs);
@@ -319,6 +344,15 @@ impl Workspace {
     }
     pub(crate) fn toggle_grammar(&mut self, _: &crate::actions::EditToggleGrammar, _: &mut Window, cx: &mut Context<Self>) {
         let mut prefs = crate::settings::snapshot(); prefs.proofread_grammar = !prefs.proofread_grammar;
+        crate::settings::replace_and_save(prefs);
+        crate::app::menus::rebuild_menus(cx);
+        self.ensure_proofreading(cx); cx.notify();
+    }
+    /// Toolbar switch: turns both checks off when either is on, else both on.
+    pub(crate) fn toggle_spelling_and_grammar(&mut self, _: &crate::actions::EditToggleSpellingAndGrammar, _: &mut Window, cx: &mut Context<Self>) {
+        let mut prefs = crate::settings::snapshot();
+        let on = !(prefs.proofread_spelling || prefs.proofread_grammar);
+        prefs.proofread_spelling = on; prefs.proofread_grammar = on;
         crate::settings::replace_and_save(prefs);
         crate::app::menus::rebuild_menus(cx);
         self.ensure_proofreading(cx); cx.notify();
@@ -401,6 +435,62 @@ mod tests {
         let mut ignored = HashSet::new(); ignored.insert("ths".into());
         valid_issues(source, &mut many, &ignored);
         assert!(many.is_empty());
+    }
+
+    #[test]
+    fn proofreading_dictionary_word_persists_and_rechecks_without_editing() {
+        with_sources(|entity, visual| {
+            let source = "Pay with Klarna today. Klarna works.";
+            prepare(entity, visual, source);
+            hold(entity, visual);
+            visual.update(|_, cx| entity.update(cx, |w, cx| {
+                let (request, _) = w.proofreader.held.take().unwrap();
+                w.proofreader.task = None;
+                w.finish_proofreading(request, Ok(vec![issue(9..15, "Klarna", "Karla")]), cx);
+                w.capture_proofreading_menu(10, cx);
+                let id = w.proofreading_menu().unwrap().id;
+                w.add_proofreading_word_to_dictionary(id, cx);
+                assert_eq!(crate::settings::snapshot().proofread_dictionary, vec!["klarna".to_string()]);
+                assert!(w.proofreading_menu().is_none());
+                assert!(w.proofreading_issues().is_empty());
+                assert_eq!(w.buffer().rope.to_string(), source);
+                assert!(!w.buffer().dirty);
+                assert!(w.tabs[0].undo_stack.is_empty());
+                // A second add of the same word keeps one entry.
+                let stamp = w.proofreading_stamp().unwrap();
+                w.finish_proofreading(Request { id: Uuid::new_v4(), stamp }, Ok(vec![issue(23..29, "Klarna", "Karla")]), cx);
+                w.capture_proofreading_menu(24, cx);
+                let id = w.proofreading_menu().unwrap().id;
+                w.add_proofreading_word_to_dictionary(id, cx);
+                assert_eq!(crate::settings::snapshot().proofread_dictionary, vec!["klarna".to_string()]);
+            }));
+            visual.run_until_parked();
+            visual.cx.executor().advance_clock(Duration::from_millis(300));
+            visual.run_until_parked();
+            visual.update(|_, cx| entity.update(cx, |w, cx| {
+                // A fresh session (new runtime) still honours the saved word.
+                let (request, result) = w.proofreader.held.take().expect("dictionary recheck");
+                w.proofreader.task = None;
+                w.finish_proofreading(request, result, cx);
+                assert!(w.proofreading_issues().iter().all(|issue| issue.original != "Klarna"));
+                w.proofreader = Runtime::default();
+                assert!(w.proofreading_stamp().unwrap().policy.dictionary.contains(&"klarna".to_string()));
+            }));
+        });
+    }
+
+    #[test]
+    fn proofreading_toolbar_toggle_turns_both_checks_off_then_on() {
+        with_sources(|entity, visual| {
+            let mut prefs = crate::settings::snapshot(); prefs.proofread_spelling = true; prefs.proofread_grammar = false;
+            let _prefs = crate::settings::override_for_test(prefs);
+            for expected in [false, true, false] {
+                visual.update(|window, cx| entity.update(cx, |w, cx|
+                    w.toggle_spelling_and_grammar(&crate::actions::EditToggleSpellingAndGrammar, window, cx)));
+                let prefs = crate::settings::snapshot();
+                assert_eq!((prefs.proofread_spelling, prefs.proofread_grammar), (expected, expected));
+            }
+        });
     }
 
     #[test]

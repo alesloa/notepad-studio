@@ -2,4 +2,5 @@
 gpui::actions!(notepad_studio, [
     EditToggleSpelling,
     EditToggleGrammar,
+    EditToggleSpellingAndGrammar,
 ]);

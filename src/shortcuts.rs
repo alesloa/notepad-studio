@@ -237,6 +237,7 @@ static CATALOG: &[ActionEntry] = &[
     row!(EditOpenTextTools, "Text Tools", EXTRA, GLOBAL, [], []),
     row!(EditToggleSpelling, "Check Spelling", EXTRA, W, [], []),
     row!(EditToggleGrammar, "Check Grammar", EXTRA, W, [], []),
+    row!(EditToggleSpellingAndGrammar, "Check Spelling and Grammar", EXTRA, W, [], []),
     row!(EditRandomCase, "rANdOm cASe", Some("IDM_EDIT_RANDOMCASE"), W, [], []),
     row!(EditRandomizeLineOrder, "Randomize Line Order", Some("IDM_EDIT_SORTLINES_RANDOMLY"), W, [], []),
     row!(EditRemoveConsecutiveDuplicateLines, "Remove Consecutive Duplicate Lines", Some("IDM_EDIT_REMOVE_CONSECUTIVE_DUP_LINES"), W, [], []),

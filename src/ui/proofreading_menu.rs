@@ -36,6 +36,17 @@ pub(crate) fn append_rows(
     }
     if correction.issue.kind == crate::proofreading::IssueKind::Spelling {
         let id = correction.id;
+        let ws = workspace.clone();
+        menu = menu.child(div()
+            .id("proofreading-add-to-dictionary")
+            .px(rems(12. / 16.)).py(rems(4. / 16.))
+            .cursor(CursorStyle::PointingHand)
+            .hover(|s| s.bg(rgb(theme.toggle_active)))
+            .child("Add to Dictionary")
+            .on_mouse_down(MouseButton::Left, move |_, _, cx| {
+                cx.stop_propagation();
+                ws.update(cx, |w, cx| w.add_proofreading_word_to_dictionary(id, cx));
+            }));
         menu = menu.child(div()
             .id("proofreading-ignore")
             .px(rems(12. / 16.)).py(rems(4. / 16.))

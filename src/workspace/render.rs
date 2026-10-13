@@ -134,6 +134,10 @@ impl Render for Workspace {
             has_recorded_macro: !crate::macros::current().is_empty(),
             word_wrap: self.word_wrap,
             show_whitespace: self.show_whitespace,
+            proofreading: {
+                let prefs = crate::settings::snapshot();
+                prefs.proofread_spelling || prefs.proofread_grammar
+            },
             is_markdown: active_is_markdown,
             markdown_preview_active: active_in_preview,
             is_csv: active_is_csv,
@@ -182,6 +186,7 @@ impl Render for Workspace {
             .on_action(cx.listener(Self::redo))
             .on_action(cx.listener(Self::toggle_spelling))
             .on_action(cx.listener(Self::toggle_grammar))
+            .on_action(cx.listener(Self::toggle_spelling_and_grammar))
             .on_action(cx.listener(Self::open_run))
             .on_action(cx.listener(Self::run_saved_command))
             .on_action(cx.listener(Self::validate_run_shortcuts))

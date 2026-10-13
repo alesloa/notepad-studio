@@ -1085,6 +1085,10 @@ pub(crate) struct Settings {
     pub(crate) proofread_spelling: bool,
     #[serde(default = "default_true")]
     pub(crate) proofread_grammar: bool,
+    /// Words added through the spelling menu's "Add to Dictionary", stored
+    /// lowercase and sorted. Spelling checks skip them in every window.
+    #[serde(default)]
+    pub(crate) proofread_dictionary: Vec<String>,
 
     // --- Auto-Completion panel ------------------------------------------
 
@@ -1438,6 +1442,7 @@ impl Default for Settings {
             print_footer_font_italic: false,
             proofread_spelling: true,
             proofread_grammar: true,
+            proofread_dictionary: Vec::new(),
             autocompletion_mode: AutocompletionMode::default(),
             autocompletion_from_chars: DEFAULT_AUTOCOMPLETION_FROM_CHARS,
             autocompletion_brief: false,
@@ -1862,6 +1867,15 @@ mod tests {
         let loaded: Settings = toml::from_str(&toml::to_string(&settings).unwrap()).unwrap();
         assert!(!loaded.proofread_spelling && !loaded.proofread_grammar);
         assert_eq!(loaded.tab_width, 8);
+    }
+
+    #[test]
+    fn proofreading_dictionary_defaults_empty_and_round_trips() {
+        let old: Settings = toml::from_str("tab_width = 8\n").unwrap();
+        assert!(old.proofread_dictionary.is_empty());
+        let settings = Settings { proofread_dictionary: vec!["klarna".into(), "stripe".into()], ..old };
+        let loaded: Settings = toml::from_str(&toml::to_string(&settings).unwrap()).unwrap();
+        assert_eq!(loaded.proofread_dictionary, vec!["klarna".to_string(), "stripe".to_string()]);
     }
 
     #[test]

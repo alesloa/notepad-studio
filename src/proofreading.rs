@@ -219,7 +219,12 @@ pub(crate) fn check(source: &str, markdown: bool, spelling: bool, grammar: bool,
             let byte_end = offsets.get(end).copied().ok_or("Invalid proofreading offset")?;
             let text = source.get(byte_start..byte_end).ok_or("Invalid proofreading text boundary")?;
             if text.trim().is_empty() { start = end; continue; }
-            let document = Document::new(text, &PlainEnglish, &dictionary);
+            // harper-core 0.33.0 PhrasalVerbAsCompoundNoun unwraps the token past
+            // a whitespace neighbour, so a batch must not begin or end with whitespace.
+            let body = text.trim_start();
+            let lead = text.get(..text.len().saturating_sub(body.len())).map_or(0, |s| s.chars().count());
+            let body = body.trim_end();
+            let document = Document::new(body, &PlainEnglish, &dictionary);
             let lints = linter.lint(&document);
             cancelled(cancel)?;
             for lint in lints {
@@ -228,8 +233,9 @@ pub(crate) fn check(source: &str, markdown: bool, spelling: bool, grammar: bool,
                 } else {
                     if !grammar || !whole_paragraph { continue; } IssueKind::Grammar
                 };
-                let lo = start.checked_add(lint.span.start).ok_or("Invalid proofreading offset")?;
-                let hi = start.checked_add(lint.span.end).ok_or("Invalid proofreading offset")?;
+                let base = start.checked_add(lead).ok_or("Invalid proofreading offset")?;
+                let lo = base.checked_add(lint.span.start).ok_or("Invalid proofreading offset")?;
+                let hi = base.checked_add(lint.span.end).ok_or("Invalid proofreading offset")?;
                 if lo >= hi || hi > end { continue; }
                 let Some((&lo, &hi)) = offsets.get(lo).zip(offsets.get(hi)) else { continue; };
                 let Some(original) = source.get(lo..hi) else { continue; };
@@ -341,5 +347,19 @@ mod tests {
         let issues = checked("This https://example.com sentnce.\nThis is an test.", false);
         assert!(issues.iter().any(|issue| issue.original == "sentnce"));
         assert!(issues.iter().any(|issue| issue.kind == IssueKind::Grammar));
+    }
+
+    #[test]
+    fn compound_noun_beside_batch_edge_whitespace_does_not_panic() {
+        // harper-core 0.33.0 PhrasalVerbAsCompoundNoun unwraps the token past
+        // a whitespace neighbour, so "popup\n" at a batch edge used to abort.
+        for source in ["- [ ] Order paid, no popup\n", "no popup \t", "  popup is shown.", "`code` popup here.\n"] {
+            checked(source, true);
+            checked(source, false);
+        }
+        let source = "  This is a sentnce popup.\n";
+        let issues = checked(source, false);
+        let issue = issues.iter().find(|i| i.original == "sentnce").unwrap();
+        assert_eq!(issue.range.start, source.find("sentnce").unwrap());
     }
 }

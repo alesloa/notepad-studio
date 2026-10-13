@@ -10,6 +10,9 @@ Notepad++, written in Rust on GPUI. Apache-2.0.
 
 v0.0.6 — current
 
+  Opening a file no longer crashes the app when grammar checking finds a word
+  such as "popup" at the start or end of a line.
+
   Grammar checking no longer underlines runs of spaces. Table padding, aligned
   columns and two spaces after a period stay unmarked.
 

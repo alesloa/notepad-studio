@@ -10,6 +10,12 @@ Notepad++, written in Rust on GPUI. Apache-2.0.
 
 v0.0.6 — current
 
+  CSV preview now prepares larger grids in background and renders visible rows.
+  Oversized or excessively ragged grids stay available in Source View. Grid
+  edits and Undo/Redo history have memory limits that preserve the source when
+  an operation is refused.
+
+
   Opening a file no longer crashes the app when grammar checking finds a word
   such as "popup" at the start or end of a line.
 

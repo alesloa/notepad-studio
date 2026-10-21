@@ -146,27 +146,20 @@ fn write_tsv(rows: &[Vec<&str>]) -> String {
 /// Parse clipboard text into a 2-D vector of cell strings. Tries TSV
 /// first because that's the format we emit; falls back to CSV when the
 /// payload has no tabs. Empty input → empty result.
+#[cfg(test)]
 pub(crate) fn parse_clipboard(text: &str) -> Vec<Vec<String>> {
-    if text.is_empty() {
-        return Vec::new();
+    parse_clipboard_checked(text).unwrap_or_default()
+}
+
+pub(super) fn parse_clipboard_checked(text: &str) -> Result<Vec<Vec<String>>, &'static str> {
+    if text.is_empty() { return Ok(Vec::new()); }
+    let delimiter = if text.contains('\t') { b'\t' } else { b',' };
+    let mut rows = super::limits::read_rows(text, delimiter)?;
+    if rows.is_empty() {
+        if text.len() > super::limits::MAX_CELL_BYTES { return Err(super::limits::TOO_LARGE); }
+        rows.push(vec![text.to_owned()]);
     }
-    let delim = if text.contains('\t') { b'\t' } else { b',' };
-    let mut reader = csv::ReaderBuilder::new()
-        .has_headers(false)
-        .flexible(true)
-        .delimiter(delim)
-        .from_reader(text.as_bytes());
-    let mut out: Vec<Vec<String>> = Vec::new();
-    for record in reader.records().flatten() {
-        let row: Vec<String> = record.iter().map(|f| f.to_string()).collect();
-        out.push(row);
-    }
-    // Plain single-line text with no delimiter at all comes through as
-    // a one-cell record. That's the right shape for a single-cell paste.
-    if out.is_empty() && !text.is_empty() {
-        out.push(vec![text.to_string()]);
-    }
-    out
+    Ok(rows)
 }
 
 #[cfg(test)]
@@ -314,6 +307,6 @@ mod tests {
         }
         assert!(parse_clipboard("").is_empty());
         let wide = parse_clipboard(&"\t".repeat(99_999));
-        assert_eq!((wide.len(), wide[0].len()), (1, 100_000));
+        assert!(wide.is_empty());
     }
 }

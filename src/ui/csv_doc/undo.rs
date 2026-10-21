@@ -14,11 +14,30 @@ use gpui::Pixels;
 
 use super::model::{CellRange, CsvModel};
 
-/// Maximum number of snapshots kept on each stack. Once exceeded, the
-/// oldest entry is dropped on push. 200 covers a typical session
-/// without ballooning memory — a 10k-row CSV snapshot is ~1 MB and
-/// stacking 200 of those is still well under typical app overhead.
+/// Depth is a secondary cap: the combined undo/redo history also has a
+/// byte budget, evicted before another deep snapshot is allocated.
 pub(crate) const MAX_DEPTH: usize = 200;
+const MAX_HISTORY_BYTES: usize = 64 * 1024 * 1024;
+
+fn retained_bytes(headers: &[String], rows: &[Vec<String>], source: Option<&CsvSourceState>,
+    metadata: [usize; 4]) -> usize {
+    let [row_order, col_order, widths, selections] = metadata;
+    headers.iter().chain(rows.iter().flatten()).fold(0usize, |bytes, value|
+        bytes.saturating_add(value.len()).saturating_add(std::mem::size_of::<String>()))
+        .saturating_add(rows.len().saturating_mul(std::mem::size_of::<Vec<String>>()))
+        .saturating_add(source.map_or(0, |state| state.rope.len_bytes()))
+        .saturating_add(row_order.saturating_add(col_order).saturating_mul(std::mem::size_of::<usize>()))
+        .saturating_add(widths.saturating_mul(std::mem::size_of::<Pixels>()))
+        .saturating_add(selections.saturating_mul(5 * std::mem::size_of::<usize>()))
+        .saturating_add(std::mem::size_of::<CsvSnapshot>())
+}
+
+impl CsvSnapshot {
+    fn retained_bytes(&self) -> usize {
+        retained_bytes(&self.headers, &self.rows, self.source_state.as_ref(), [self.row_order.len(),
+            self.col_order.len(), self.col_widths.len(), self.selected_rows.len().saturating_add(self.selected_cols.len())])
+    }
+}
 
 /// Exact source associated with a grid state. Rope clones share chunks;
 /// retaining it lets Undo restore optional quoting as well as cell values.
@@ -50,7 +69,7 @@ pub(crate) struct CsvSnapshot {
 }
 
 impl CsvModel {
-    /// Build a snapshot of the current state. Cheap clone — no copies
+    /// Build a snapshot of the current state. Deep copy — no copies
     /// of focus handles, scroll handles or in-flight cell input.
     pub(crate) fn snapshot(&self) -> CsvSnapshot {
         CsvSnapshot {
@@ -105,14 +124,29 @@ impl CsvModel {
     /// Push the current state onto the undo stack. Clears the redo
     /// stack — any future history is invalidated by a fresh mutation.
     /// Caps depth at MAX_DEPTH by dropping the oldest entry.
+    fn snapshot_bytes(&self) -> usize {
+        retained_bytes(&self.headers, &self.rows, self.pending_source.as_ref().or(self.source_state.as_ref()),
+            [self.row_order.len(), self.col_order.len(), self.col_widths.len(),
+            self.selected_rows.len().saturating_add(self.selected_cols.len())])
+    }
+
+    fn trim_history_for(&mut self, reserve: usize) {
+        let mut bytes = self.undo_stack.iter().chain(&self.redo_stack)
+            .fold(reserve, |bytes, entry| bytes.saturating_add(entry.retained_bytes()));
+        while bytes > MAX_HISTORY_BYTES {
+            let stack = if !self.undo_stack.is_empty() { &mut self.undo_stack } else { &mut self.redo_stack };
+            if stack.is_empty() { break; }
+            bytes = bytes.saturating_sub(stack.remove(0).retained_bytes());
+        }
+    }
+
     pub(crate) fn push_undo(&mut self) {
+        self.redo_stack.clear();
+        self.trim_history_for(self.snapshot_bytes());
+        if self.undo_stack.len() >= MAX_DEPTH { self.undo_stack.remove(0); }
         let snap = self.snapshot();
         self.pending_source = None;
         self.undo_stack.push(snap);
-        if self.undo_stack.len() > MAX_DEPTH {
-            self.undo_stack.remove(0);
-        }
-        self.redo_stack.clear();
     }
 
     /// Pop the most recent undo snapshot without restoring it. Used by
@@ -128,12 +162,10 @@ impl CsvModel {
         let Some(snap) = self.undo_stack.pop() else {
             return false;
         };
+        self.trim_history_for(self.snapshot_bytes());
         let current = self.snapshot();
         self.restore(snap);
         self.redo_stack.push(current);
-        if self.redo_stack.len() > MAX_DEPTH {
-            self.redo_stack.remove(0);
-        }
         true
     }
 
@@ -143,12 +175,10 @@ impl CsvModel {
         let Some(snap) = self.redo_stack.pop() else {
             return false;
         };
+        self.trim_history_for(self.snapshot_bytes());
         let current = self.snapshot();
         self.restore(snap);
         self.undo_stack.push(current);
-        if self.undo_stack.len() > MAX_DEPTH {
-            self.undo_stack.remove(0);
-        }
         true
     }
 }
@@ -397,5 +427,24 @@ mod tests {
         // Already sorted ascending.
         m.sort_by_col(0, true);
         assert_eq!(m.undo_stack.len(), 0);
+    }
+}
+
+#[cfg(test)]
+mod memory_tests {
+    #[test]
+    fn history_discards_old_large_snapshots_before_the_next_copy() {
+        let mut model = super::CsvModel::empty(b',');
+        model.rebuild_from_source("h\nx\n", 1);
+        for index in 0..150 { assert!(model.set_cell(0, 0, format!("{index}{}", "x".repeat(512 * 1024)))); }
+        let bytes: usize = model.undo_stack.iter().map(super::CsvSnapshot::retained_bytes).sum();
+        assert!(bytes <= super::MAX_HISTORY_BYTES);
+        assert!(model.undo_stack.len() < super::MAX_DEPTH);
+        for _ in 0..50 {
+            assert!(model.undo());
+            let bytes: usize = model.undo_stack.iter().chain(&model.redo_stack).map(super::CsvSnapshot::retained_bytes).sum();
+            assert!(bytes <= super::MAX_HISTORY_BYTES);
+        }
+        assert!(model.redo());
     }
 }

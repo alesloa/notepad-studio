@@ -6,14 +6,10 @@
 // `entity.update(cx, …)` inside event closures, which write back to
 // the model on `Workspace::csv_models`.
 //
-// V1 does NOT virtualize — every row is rendered. For files under
-// ~5k rows this is comfortable; beyond that the scroll lag becomes
-// visible. Virtualization is a follow-up; the architectural seam is
-// the inner row loop in `render_body` which can switch to a
-// `uniform_list`-style visible-rows-only render without disturbing the
-// outer layout.
+// Row snapshots and row elements cover the viewport plus overscan. Spacers
+// retain full scroll geometry without cloning or painting offscreen cells.
 
-use std::collections::{BTreeSet, HashSet};
+use std::collections::{BTreeMap, BTreeSet, HashSet};
 
 use gpui::{
     AnyElement, CursorStyle, Entity, FocusHandle, IntoElement, MouseButton, ParentElement, Pixels,
@@ -39,7 +35,11 @@ pub(crate) struct CsvGridSnapshot {
     pub(crate) row_count: usize,
     pub(crate) col_widths: Vec<Pixels>,
     pub(crate) headers: Vec<String>,
-    pub(crate) cells: Vec<Vec<String>>,
+    pub(crate) cells: BTreeMap<usize, Vec<String>>,
+    pub(crate) rows_before: usize,
+    pub(crate) rows_after: usize,
+    pub(crate) parse_error: Option<&'static str>,
+    pub(crate) aggregate: Option<super::status_bar::AggregateSummary>,
     pub(crate) active_cell: Option<(usize, usize)>,
     pub(crate) editing_cell: Option<(usize, usize)>,
     pub(crate) cell_input_handle: Option<FocusHandle>,
@@ -85,9 +85,14 @@ impl CsvGridSnapshot {
         let row_count = model.row_count();
         let col_widths: Vec<Pixels> = (0..col_count).map(|c| model.col_width(c)).collect();
         let headers: Vec<String> = (0..col_count).map(|c| model.header(c).to_string()).collect();
-        let cells: Vec<Vec<String>> = (0..row_count)
-            .map(|r| (0..col_count).map(|c| model.cell(r, c).to_string()).collect())
-            .collect();
+        let hidden_rows: HashSet<usize> = if model.any_filter_active() {
+            (0..row_count).filter(|&row| !model.row_is_visible(row)).collect()
+        } else { HashSet::new() };
+        let displayed: Vec<usize> = (0..row_count).filter(|row| !hidden_rows.contains(row)).collect();
+        let (first, last) = viewport_rows(displayed.len(), -f32::from(model.scroll_handle.offset().y),
+            f32::from(model.scroll_handle.bounds().size.height));
+        let cells = displayed.get(first..last).unwrap_or_default().iter().map(|&r|
+            (r, (0..col_count).map(|c| model.cell(r, c).to_string()).collect())).collect();
         let cell_input_handle = model.cell_input.as_ref().map(|i| i.focus_handle.clone());
         let grid_focus = model.grid_focus.clone();
         let total_content_width = model.total_content_width();
@@ -97,6 +102,9 @@ impl CsvGridSnapshot {
             col_widths,
             headers,
             cells,
+            rows_before: first, rows_after: displayed.len().saturating_sub(last),
+            parse_error: model.parse_error,
+            aggregate: super::status_bar::compute_model_aggregate(model),
             active_cell: model.active_cell,
             editing_cell: if model.draft_needs_strip() { None } else { model.editing_cell },
             detached_draft: model.draft_needs_strip(),
@@ -126,12 +134,21 @@ impl CsvGridSnapshot {
                 .iter()
                 .filter_map(|(c, s)| if s.is_empty() { None } else { Some(*c) })
                 .collect(),
-            hidden_rows: (0..row_count)
-                .filter(|&r| !model.row_is_visible(r))
-                .collect(),
+            hidden_rows,
             fill_drag: model.fill_drag,
         }
     }
+}
+
+fn viewport_rows(count: usize, offset: f32, height: f32) -> (usize, usize) {
+    let offset = if offset.is_finite() { offset.max(0.) } else { 0. };
+    let height = if height.is_finite() && height > 0. { height } else { 720. };
+    // Deleting/filtering rows can leave the previous scroll offset beyond
+    // the new extent until layout clamps it. Still paint the final viewport.
+    let offset = offset.min((count as f32 * ROW_HEIGHT_PX - height).max(0.));
+    let first = ((offset / ROW_HEIGHT_PX) as usize).saturating_sub(2).min(count);
+    let visible = ((height / ROW_HEIGHT_PX).ceil() as usize).saturating_add(5).min(256);
+    (first, first.saturating_add(visible).min(count))
 }
 
 /// Translucent overlay applied on top of selected rows / columns. The
@@ -154,6 +171,20 @@ pub(crate) fn csv_preview_pane(
     let grid_focus = snapshot.grid_focus.clone();
     let input_bridge = grid_focus.as_ref().map(|focus| super::grid_input::grid_input_bridge(workspace.clone(), focus.clone()));
     let draft_strip = recovered_draft_strip(theme, snapshot, workspace.clone());
+    if let Some(error) = snapshot.parse_error {
+        // Copy comes from the local parser's explicit admission failure.
+        let source = workspace.clone();
+        return div().id("csv-grid-refused").flex().flex_col().size_full().bg(rgb(theme.bg))
+            .text_color(rgb(theme.text)).text_size(rems(13. / 16.))
+            .when_some(grid_focus.as_ref(), |pane, handle| pane.track_focus(handle))
+            .when_some(input_bridge, |pane, bridge| pane.child(bridge))
+            .when_some(draft_strip, |pane, strip| pane.child(strip))
+            .child(div().flex_grow().flex().flex_col().items_center().justify_center().gap(rems(1.))
+                .child(error).child(div().id("csv-grid-source-view").cursor(CursorStyle::PointingHand)
+                    .child("Source View").on_mouse_down(MouseButton::Left, move |_, window, cx| {
+                        source.update(cx, |w, cx| w.view_csv_source(&crate::actions::ViewCsvSource, window, cx));
+                    }))).into_any_element();
+    }
     if snapshot.col_count == 0 {
         // Empty-schema placeholder. Still tracks the grid focus so
         // Cmd-A / arrows / typed chars don't fall through to the rope
@@ -201,6 +232,7 @@ pub(crate) fn csv_preview_pane(
     let body_width = snapshot.total_content_width + px(ROW_GUTTER_WIDTH_PX);
 
     let ws_for_bg = workspace.clone();
+    let ws_for_scroll = workspace.clone();
     let grid_focus_for_bg = grid_focus.clone();
 
     let mut pane = div()
@@ -246,6 +278,7 @@ pub(crate) fn csv_preview_pane(
                 .overflow_y_scroll()
                 .overflow_x_scroll()
                 .track_scroll(&scroll_handle)
+                .on_scroll_wheel(move |_, _, cx| ws_for_scroll.update(cx, |_, cx| cx.notify()))
                 // Click on grid background — areas below the last row,
                 // beyond the last column — clears the axis selection
                 // and steals focus back to the grid handle. Matches
@@ -701,9 +734,10 @@ fn render_body(
     snap: &CsvGridSnapshot,
     workspace: Entity<Workspace>,
 ) -> impl IntoElement {
-    let mut body = div().flex().flex_col();
+    let mut body = div().flex().flex_col()
+        .child(div().h(px(snap.rows_before as f32 * ROW_HEIGHT_PX)).flex_shrink_0());
 
-    for row in 0..snap.row_count {
+    for &row in snap.cells.keys() {
         // AutoFilter — skip rendering rows hidden by an active filter.
         // Row identity (the logical index) is preserved so cell coords
         // anywhere else in the code base stay valid; we just don't
@@ -805,7 +839,7 @@ fn render_body(
             let width = snap.col_widths.get(col).copied().unwrap_or(px(DEFAULT_COL_WIDTH_PX));
             let value = snap
                 .cells
-                .get(row)
+                .get(&row)
                 .and_then(|r| r.get(col))
                 .cloned()
                 .unwrap_or_default();
@@ -904,6 +938,8 @@ fn render_body(
 
         body = body.child(row_div);
     }
+
+    body = body.child(div().h(px(snap.rows_after as f32 * ROW_HEIGHT_PX)).flex_shrink_0());
 
     // Row drag move + up — window-global so the drag tracks past the
     // gutter's bounds. Same pattern as the column drag handlers above.
@@ -1379,5 +1415,23 @@ mod tests {
         assert_eq!(drop_logical_for_x(px(10.), 1, &[px(100.)], px(100.)), 0);
         assert_eq!(drop_logical_for_x(px(10.), 0, &[], px(0.)), 0);
         assert_eq!(drop_logical_for_x(px(10.), usize::MAX, &[px(1.)], px(1.)), 0);
+    }
+}
+
+#[cfg(test)]
+mod viewport_tests {
+    use super::*;
+    #[test]
+    fn snapshots_copy_only_viewport_rows_and_keep_full_selection_aggregates() {
+        let mut model = CsvModel::empty(b',');
+        model.rebuild_from_source(&format!("a\n{}", "1\n".repeat(100_000)), 1);
+        model.cell_range = Some(CellRange::new((0, 0), (99_999, 0)));
+        let snapshot = CsvGridSnapshot::from_model(&model);
+        assert_eq!(snapshot.row_count, 100_000); assert!(snapshot.cells.len() <= 256);
+        assert_eq!(snapshot.aggregate.as_ref().map(|value| value.count), Some(100_000));
+        assert_eq!(snapshot.rows_before + snapshot.cells.len() + snapshot.rows_after, 100_000);
+        assert_eq!(viewport_rows(1000, 2400., 240.), (98, 113));
+        assert_eq!(viewport_rows(5, 1_000_000., 240.), (0, 5));
+        assert_eq!(viewport_rows(0, 1_000_000., 240.), (0, 0));
     }
 }

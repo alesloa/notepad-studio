@@ -231,6 +231,10 @@ impl CsvCellInput {
 }
 
 pub(crate) struct CsvModel {
+    pub(super) infer_delimiter: bool,
+    pub(super) parse_job: Option<super::loading::Job>,
+    pub(crate) parse_error: Option<&'static str>,
+    pub(crate) edit_error: Option<&'static str>,
     /// A recovered editor whose coordinates or source cannot be trusted.
     pub(crate) detached_draft: Option<crate::session::CsvDraft>,
     /// Hold a committed editor until render can hand its focus to the visible view.
@@ -384,6 +388,9 @@ pub(crate) struct CsvModel {
 impl CsvModel {
     pub(crate) fn empty(delimiter: u8) -> Self {
         Self {
+            infer_delimiter: false,
+            parse_job: None,
+            parse_error: None, edit_error: None,
             detached_draft: None,
             retired_cell_focus: None,
             headers: Vec::new(),
@@ -587,58 +594,28 @@ impl CsvModel {
     /// to identity — any in-flight drag is implicitly cancelled because
     /// the source-side edit that triggered the rebuild is authoritative.
     pub(crate) fn rebuild_from_source(&mut self, source: &str, generation: u64) {
-        self.source_state = None;
-        self.pending_source = None;
-        self.reparse_requested = false;
+        if self.infer_delimiter { self.delimiter = detect_delimiter(source, self.delimiter); self.infer_delimiter = false; }
+        let parsed = super::limits::Parsed::new(source, self.delimiter, self.has_header, &std::sync::atomic::AtomicBool::new(false));
+        self.install_parsed(parsed, generation);
+    }
+
+    pub(super) fn install_parsed(&mut self, parsed: Result<super::limits::Parsed, &'static str>, generation: u64) {
+        self.parse_job.take();
+        self.source_state = None; self.pending_source = None; self.reparse_requested = false;
+        let parsed = match parsed {
+            Ok(parsed) => parsed,
+            Err(error) => {
+                self.parse_error = Some(error);
+                self.headers.clear(); self.rows.clear(); self.col_order.clear(); self.row_order.clear();
+                self.col_widths.clear(); self.undo_stack.clear(); self.redo_stack.clear(); return;
+            }
+        };
+        self.parse_error = None; self.edit_error = None;
         let preserved_widths = self.col_widths.clone();
-
-        // Detect and strip UTF-8 BOM. csv crate handles BOM internally but
-        // the round-trip needs the model to remember whether one was
-        // present so emit can re-prepend.
-        let (had_bom, stripped) = strip_bom(source);
-        self.has_bom = had_bom;
-
-        // Detect line terminator from the first occurrence. CRLF wins
-        // over LF when both are present at the same offset (a CRLF is a
-        // `\r` immediately followed by `\n`, never the other way).
-        self.line_terminator = detect_line_terminator(stripped);
-
-        // Trailing newline preservation. csv writer always emits one; we
-        // trim on emit when this is false.
-        self.trailing_newline =
-            stripped.ends_with('\n') || stripped.ends_with('\r');
-
-        let mut reader = csv::ReaderBuilder::new()
-            .has_headers(false)
-            .flexible(true)
-            .delimiter(self.delimiter)
-            .from_reader(stripped.as_bytes());
-
-        let mut all_rows: Vec<Vec<String>> = Vec::new();
-        for record in reader.records().flatten() {
-            let row: Vec<String> = record.iter().map(|f| f.to_string()).collect();
-            all_rows.push(row);
-        }
-
-        let col_count = all_rows
-            .iter()
-            .map(|r| r.len())
-            .max()
-            .unwrap_or(0);
-
-        if self.has_header && !all_rows.is_empty() {
-            let mut headers = all_rows.remove(0);
-            normalize_row_len(&mut headers, col_count);
-            self.headers = headers;
-        } else {
-            self.headers = (0..col_count)
-                .map(|i| format!("Column {}", i + 1))
-                .collect();
-        }
-        for row in &mut all_rows {
-            normalize_row_len(row, col_count);
-        }
-        self.rows = all_rows;
+        self.headers = parsed.headers; self.rows = parsed.rows;
+        self.has_bom = parsed.had_bom; self.line_terminator = parsed.line_terminator;
+        self.trailing_newline = parsed.trailing_newline;
+        let col_count = self.headers.len();
 
         if preserved_widths.len() == col_count {
             self.col_widths = preserved_widths;
@@ -744,6 +721,10 @@ impl CsvModel {
                 return false;
             }
         }
+        if value.len() > super::limits::MAX_CELL_BYTES
+            || !self.admit_bytes(value.len().saturating_sub(self.cell(row_logical, col_logical).len())) {
+            self.edit_error = Some(super::limits::EDIT_TOO_LARGE); return false;
+        }
         self.push_undo();
         // push_undo only snapshots, so the row found above is still here.
         let Some(row) = self.rows.get_mut(row_orig) else {
@@ -763,6 +744,10 @@ impl CsvModel {
         };
         if self.headers.get(col_orig).map(|s| s.as_str()) == Some(value.as_str()) {
             return false;
+        }
+        if value.len() > super::limits::MAX_CELL_BYTES
+            || !self.admit_bytes(value.len().saturating_sub(self.header(col_logical).len())) {
+            self.edit_error = Some(super::limits::EDIT_TOO_LARGE); return false;
         }
         self.push_undo();
         if self.headers.len() <= col_orig {
@@ -1106,6 +1091,7 @@ impl CsvModel {
     }
 
     pub(crate) fn add_row(&mut self) {
+        if !self.admit_shape(self.row_count().saturating_add(1), self.col_count().max(1)) { return; }
         self.push_undo();
         let col_count = self.col_count().max(1);
         self.rows.push(vec![String::new(); col_count]);
@@ -1113,6 +1099,7 @@ impl CsvModel {
     }
 
     pub(crate) fn add_column(&mut self) {
+        if !self.admit_shape(self.row_count(), self.col_count().saturating_add(1)) { return; }
         self.push_undo();
         let new_orig = self.headers.len();
         let label = format!("Column {}", new_orig + 1);
@@ -1252,6 +1239,7 @@ impl CsvModel {
     /// after it. Resets `row_order` to identity afterwards so the new
     /// row sits in the expected display position.
     pub(crate) fn insert_row_at(&mut self, row_logical: usize, above: bool) {
+        if !self.admit_shape(self.row_count().saturating_add(1), self.col_count().max(1)) { return; }
         self.push_undo();
         let col_count = self.col_count().max(1);
         let total = self.row_order.len();
@@ -1272,6 +1260,7 @@ impl CsvModel {
     }
 
     pub(crate) fn insert_col_at(&mut self, col_logical: usize, left: bool) {
+        if !self.admit_shape(self.row_count(), self.col_count().saturating_add(1)) { return; }
         let total = self.col_order.len();
         if total == 0 {
             // add_column already pushes undo — don't double up here.
@@ -1432,114 +1421,62 @@ impl CsvModel {
             return false;
         }
 
-        self.push_undo();
-
-        // 1×1 fill — broadcast the single source cell across every
-        // target cell in the supplied range.
-        if src_rows == 1 && src_cols == 1 {
-            if let Some(range) = fill_target {
-                let value = data[0].first().cloned().unwrap_or_default();
-                let r0 = range.min_row();
-                let r1 = range.max_row();
-                let c0 = range.min_col();
-                let c1 = range.max_col();
-                self.grow_to_accommodate(r1, c1);
-                // Growth stops at the last index `usize` can count, so
-                // walk only the cells that now exist.
-                let r1 = r1.min(self.row_count().saturating_sub(1));
-                let c1 = c1.min(self.col_count().saturating_sub(1));
-                let mut changed = false;
-                for r in r0..=r1 {
-                    for c in c0..=c1 {
-                        if self.write_cell_raw(r, c, &value) {
-                            changed = true;
-                        }
-                    }
-                }
-                if !changed {
-                    self.pop_undo_no_restore();
-                }
-                return changed;
-            }
-        }
-
-        // Repeat-tile — multi-cell source pasted into a target range
-        // whose dimensions are an exact multiple of the source. Matches
-        // Excel: copy 1×2, select 1×6, paste → 3 tiled copies. Plain
-        // anchor-only paste falls through when the shapes don't fit.
-        if let Some(range) = fill_target {
-            let r0 = range.min_row();
-            let r1 = range.max_row();
-            let c0 = range.min_col();
-            let c1 = range.max_col();
-            let tgt_rows = (r1 - r0).saturating_add(1);
-            let tgt_cols = (c1 - c0).saturating_add(1);
-            let row_fits = tgt_rows > src_rows && tgt_rows % src_rows == 0;
-            let col_fits = tgt_cols > src_cols && tgt_cols % src_cols == 0;
-            let row_match = tgt_rows == src_rows;
-            let col_match = tgt_cols == src_cols;
-            // Tile only when at least one axis is a strict multiple and
-            // the other axis either matches or is also a strict multiple.
-            if (row_fits || row_match) && (col_fits || col_match) && (row_fits || col_fits) {
-                self.grow_to_accommodate(r1, c1);
-                let r1 = r1.min(self.row_count().saturating_sub(1));
-                let c1 = c1.min(self.col_count().saturating_sub(1));
-                let mut changed = false;
-                for r in r0..=r1 {
-                    let src_r = (r - r0) % src_rows;
-                    let src_row = &data[src_r];
-                    if src_row.is_empty() {
-                        continue;
-                    }
-                    let src_row_cols = src_row.len();
-                    for c in c0..=c1 {
-                        let src_c = (c - c0) % src_cols;
-                        let value = if src_c < src_row_cols {
-                            src_row[src_c].as_str()
-                        } else {
-                            ""
-                        };
-                        if self.write_cell_raw(r, c, value) {
-                            changed = true;
-                        }
-                    }
-                }
-                if !changed {
-                    self.pop_undo_no_restore();
-                }
-                return changed;
-            }
-        }
-
-        // Block paste — write source[i][j] to (anchor + i, anchor + j),
-        // growing the model as needed. Empty source rows (csv parsed an
-        // empty trailing line) are skipped.
-        let (Some(target_max_row), Some(target_max_col)) = (
-            anchor_row.checked_add(src_rows.saturating_sub(1)),
-            anchor_col.checked_add(src_cols.saturating_sub(1)),
-        ) else {
-            // The block would end past the last index `usize` can count.
-            self.pop_undo_no_restore();
-            return false;
+        // Choose the actual destination before budgeting: a mismatched
+        // selection falls back to the anchor, while matching shapes tile.
+        let tiled = fill_target.filter(|range| {
+            let rows = range.max_row().saturating_sub(range.min_row()).saturating_add(1);
+            let cols = range.max_col().saturating_sub(range.min_col()).saturating_add(1);
+            (src_rows == 1 && src_cols == 1)
+                || (rows % src_rows == 0 && cols % src_cols == 0
+                    && rows >= src_rows && cols >= src_cols && (rows > src_rows || cols > src_cols))
+        });
+        let (r0, c0, r1, c1) = if let Some(range) = tiled {
+            // usize::MAX is the existing whole-sheet selection sentinel.
+            // It fills current cells without attempting to grow that axis.
+            (range.min_row(), range.min_col(),
+                if range.max_row() == usize::MAX { self.row_count().saturating_sub(1) } else { range.max_row() },
+                if range.max_col() == usize::MAX { self.col_count().saturating_sub(1) } else { range.max_col() })
+        } else {
+            let (Some(r1), Some(c1)) = (anchor_row.checked_add(src_rows - 1), anchor_col.checked_add(src_cols - 1)) else {
+                self.edit_error = Some(super::limits::EDIT_TOO_LARGE); return false;
+            };
+            (anchor_row, anchor_col, r1, c1)
         };
-        self.grow_to_accommodate(target_max_row, target_max_col);
-
-        let mut changed = false;
-        for (i, row) in data.iter().enumerate() {
-            if row.is_empty() {
-                continue;
-            }
-            for (j, value) in row.iter().enumerate() {
-                let r = anchor_row + i;
-                let c = anchor_col + j;
-                if self.write_cell_raw(r, c, value) {
-                    changed = true;
+        if r0 > r1 || c0 > c1 { return false; }
+        let rows = r1.saturating_add(1).max(self.row_count());
+        let cols = c1.saturating_add(1).max(self.col_count());
+        if !self.admit_shape(rows, cols) { return false; }
+        let value_at = |r: usize, c: usize| -> Option<&str> {
+            let row = data.get((r - r0) % src_rows)?;
+            if tiled.is_some() && row.is_empty() { return None; }
+            row.get((c - c0) % src_cols).map(String::as_str)
+                .or_else(|| tiled.is_some().then_some(""))
+        };
+        let mut removed = 0usize; let mut added = 0usize;
+        for r in r0..=r1 {
+            for c in c0..=c1 {
+                let Some(value) = value_at(r, c) else { continue; };
+                if value.len() > super::limits::MAX_CELL_BYTES {
+                    self.edit_error = Some(super::limits::EDIT_TOO_LARGE); return false;
                 }
+                removed = removed.saturating_add(self.cell(r, c).len());
+                added = added.saturating_add(value.len());
             }
         }
-        if !changed {
-            self.pop_undo_no_restore();
+        // Newly created headers are retained even in a headerless grid.
+        added = added.saturating_add((self.col_count()..cols)
+            .map(|col| format!("Column {}", col + 1).len()).sum::<usize>());
+        if !self.admit_replacement(removed, added) { return false; }
+        self.push_undo();
+        let old_shape = (self.row_count(), self.col_count());
+        self.grow_to_accommodate(r1, c1);
+        let mut changed = old_shape != (self.row_count(), self.col_count());
+        for r in r0..=r1 {
+            for c in c0..=c1 {
+                if let Some(value) = value_at(r, c) { changed |= self.write_cell_raw(r, c, value); }
+            }
         }
+        if !changed { self.pop_undo_no_restore(); }
         changed
     }
 
@@ -1559,6 +1496,14 @@ impl CsvModel {
         if r1 <= r0 {
             return false;
         }
+        let mut removed = 0usize; let mut added = 0usize;
+        for r in (r0 + 1)..=r1 {
+            for c in c0..=c1 {
+                removed = removed.saturating_add(self.cell(r, c).len());
+                added = added.saturating_add(self.cell(r0, c).len());
+            }
+        }
+        if !self.admit_replacement(removed, added) { return false; }
         let src: Vec<String> = (c0..=c1).map(|c| self.cell(r0, c).to_string()).collect();
         self.push_undo();
         let mut changed = false;
@@ -1591,6 +1536,14 @@ impl CsvModel {
         if c1 <= c0 {
             return false;
         }
+        let mut removed = 0usize; let mut added = 0usize;
+        for r in r0..=r1 {
+            for c in (c0 + 1)..=c1 {
+                removed = removed.saturating_add(self.cell(r, c).len());
+                added = added.saturating_add(self.cell(r, c0).len());
+            }
+        }
+        if !self.admit_replacement(removed, added) { return false; }
         let src: Vec<String> = (r0..=r1).map(|r| self.cell(r, c0).to_string()).collect();
         self.push_undo();
         let mut changed = false;
@@ -1612,6 +1565,7 @@ impl CsvModel {
     /// paste to grow the sheet rather than clipping at the existing
     /// boundary.
     fn grow_to_accommodate(&mut self, target_row: usize, target_col: usize) {
+        if !self.admit_shape(target_row.saturating_add(1).max(self.row_count()), target_col.saturating_add(1).max(self.col_count())) { return; }
         // An axis at `usize::MAX` has no count after it and is left as
         // it is; callers clamp their writes to the cells that exist.
         // Add columns first so freshly-added rows have the right width.
@@ -1787,92 +1741,52 @@ impl CsvModel {
         let extend_right = target.max_col() > src.max_col();
         let extend_left = target.min_col() < src.min_col();
 
-        self.push_undo();
-        // Always restore cell_range to the target on commit so even a
-        // no-change fill (e.g. cyclic copy that happened to match) ends
-        // up with the new selection.
-        self.cell_range = Some(target);
-
-        let mut changed = false;
-
-        if extend_down || extend_up {
-            // Vertical extension — each source column is its own
-            // pattern. Walk columns; build the source column slice; run
-            // the pattern; project N new cells.
-            for col in src.min_col()..=src.max_col() {
-                let source_cells: Vec<String> = (src.min_row()..=src.max_row())
-                    .map(|r| self.cell(r, col).to_string())
-                    .collect();
-                let pattern = super::fill_series::detect(&source_cells);
-                let count = if extend_down {
-                    target.max_row() - src.max_row()
-                } else {
-                    src.min_row() - target.min_row()
-                };
-                let projected = super::fill_series::project_with_source_len(
-                    &pattern,
-                    source_cells.len(),
-                    count,
-                    extend_up,
-                );
-                if extend_down {
-                    let start_row = src.max_row() + 1;
-                    for (i, v) in projected.into_iter().enumerate() {
-                        // None: the pattern has no value for this cell (a
-                        // date past chrono's calendar, a non-finite
-                        // number), so the cell keeps what it had.
-                        let Some(v) = v else { continue };
-                        if self.write_cell_raw(start_row + i, col, &v) {
-                            changed = true;
-                        }
-                    }
-                } else {
-                    let start_row = target.min_row();
-                    for (i, v) in projected.into_iter().enumerate() {
-                        let Some(v) = v else { continue };
-                        if self.write_cell_raw(start_row + i, col, &v) {
-                            changed = true;
-                        }
-                    }
-                }
-            }
-        } else if extend_right || extend_left {
-            // Horizontal extension — each source row is its own pattern.
-            for row in src.min_row()..=src.max_row() {
-                let source_cells: Vec<String> = (src.min_col()..=src.max_col())
-                    .map(|c| self.cell(row, c).to_string())
-                    .collect();
-                let pattern = super::fill_series::detect(&source_cells);
-                let count = if extend_right {
-                    target.max_col() - src.max_col()
-                } else {
-                    src.min_col() - target.min_col()
-                };
-                let projected = super::fill_series::project_with_source_len(
-                    &pattern,
-                    source_cells.len(),
-                    count,
-                    extend_left,
-                );
-                if extend_right {
-                    let start_col = src.max_col() + 1;
-                    for (i, v) in projected.into_iter().enumerate() {
-                        let Some(v) = v else { continue };
-                        if self.write_cell_raw(row, start_col + i, &v) {
-                            changed = true;
-                        }
-                    }
-                } else {
-                    let start_col = target.min_col();
-                    for (i, v) in projected.into_iter().enumerate() {
-                        let Some(v) = v else { continue };
-                        if self.write_cell_raw(row, start_col + i, &v) {
-                            changed = true;
-                        }
-                    }
-                }
+        if target.max_row() >= self.row_count() || target.max_col() >= self.col_count()
+            || src.max_row() >= self.row_count() || src.max_col() >= self.col_count() { return false; }
+        // Plan bounded writes before copying history or mutating any cell.
+        // Projecting a whole column first could allocate gigabytes when a
+        // large text value is repeated down a small source document.
+        let vertical = extend_down || extend_up;
+        let reverse = extend_up || extend_left;
+        let count = if extend_down { target.max_row() - src.max_row() }
+            else if extend_up { src.min_row() - target.min_row() }
+            else if extend_right { target.max_col() - src.max_col() }
+            else if extend_left { src.min_col() - target.min_col() } else { return false; };
+        let start = if extend_down { src.max_row() + 1 } else if extend_up { target.min_row() }
+            else if extend_right { src.max_col() + 1 } else { target.min_col() };
+        let (axis_start, axis_end) = if vertical { (src.min_col(), src.max_col()) }
+            else { (src.min_row(), src.max_row()) };
+        let mut removed = 0usize;
+        for axis in axis_start..=axis_end {
+            for i in 0..count {
+                let (r, c) = if vertical { (start + i, axis) } else { (axis, start + i) };
+                removed = removed.saturating_add(self.cell(r, c).len());
             }
         }
+        let base = self.data_bytes().saturating_sub(removed);
+        let mut added = 0usize; let mut plan = Vec::new();
+        for axis in axis_start..=axis_end {
+            let source_cells: Vec<String> = if vertical {
+                (src.min_row()..=src.max_row()).map(|r| self.cell(r, axis).to_owned()).collect()
+            } else { (src.min_col()..=src.max_col()).map(|c| self.cell(axis, c).to_owned()).collect() };
+            let pattern = super::fill_series::detect(&source_cells);
+            for i in 0..count {
+                let (r, c) = if vertical { (start + i, axis) } else { (axis, start + i) };
+                let value = super::fill_series::project_at(&pattern, source_cells.len(), count, i, reverse);
+                // An unrepresentable pattern keeps the existing cell.
+                let bytes = value.as_ref().map_or_else(|| self.cell(r, c).len(), String::len);
+                added = added.saturating_add(bytes);
+                if bytes > super::limits::MAX_CELL_BYTES || base.saturating_add(added) > super::limits::MAX_SOURCE_BYTES
+                    || plan.try_reserve(1).is_err() {
+                    self.edit_error = Some(super::limits::EDIT_TOO_LARGE); return false;
+                }
+                if let Some(value) = value { plan.push((r, c, value)); }
+            }
+        }
+        self.push_undo();
+        self.cell_range = Some(target);
+        let mut changed = false;
+        for (r, c, value) in plan { changed |= self.write_cell_raw(r, c, &value); }
 
         if !changed {
             // The fill landed on cells that already held the projected
@@ -1887,13 +1801,14 @@ impl CsvModel {
     }
 
     pub(crate) fn toggle_has_header(&mut self) {
+        if self.has_header && !self.admit_shape(self.row_count().saturating_add(1), self.col_count()) { return; }
         self.push_undo();
         let col_count = self.col_count();
         if self.has_header {
             // Convert headers row back into a data row.
             self.has_header = false;
             let mut row = std::mem::take(&mut self.headers);
-            normalize_row_len(&mut row, col_count);
+            row.resize(col_count, String::new());
             self.rows.insert(0, row);
             self.headers = (0..col_count)
                 .map(|i| format!("Column {}", i + 1))
@@ -1908,7 +1823,7 @@ impl CsvModel {
             }
             let promoted = self.rows.remove(0);
             self.headers = promoted;
-            normalize_row_len(&mut self.headers, col_count);
+            self.headers.resize(col_count, String::new());
             self.has_header = true;
             self.row_order = (0..self.rows.len()).collect();
         }
@@ -1926,9 +1841,10 @@ impl CsvModel {
     }
 
     pub(crate) fn set_delimiter(&mut self, delim: u8) {
-        if self.delimiter == delim {
+        if self.delimiter == delim && !self.infer_delimiter {
             return;
         }
+        self.infer_delimiter = false;
         self.push_undo();
         self.delimiter = delim;
         // Delimiter selection reinterprets the same source bytes.
@@ -2198,6 +2114,7 @@ impl CsvModel {
     }
 
     fn emit_source_with_override(&self, draft: Option<(usize, usize, &str)>) -> Option<String> {
+        if self.parse_error.is_some() { return None; }
         // Empty schema with empty rows = empty file. Skip the csv writer
         // entirely (which would emit a single quoted empty record).
         if self.headers.is_empty() && self.rows.is_empty() {
@@ -2396,6 +2313,7 @@ impl CsvModel {
         } else {
             self.cell(row, col).to_string()
         };
+        if !self.replacement_fits(&original) { self.edit_error = Some(super::limits::EDIT_TOO_LARGE); return false; }
         let Some(new_value) = self.compute_replacement(&original) else {
             return false;
         };
@@ -2432,61 +2350,44 @@ impl CsvModel {
     /// Replace every match with `replace_text` in one undo grain.
     /// Returns the number of replacements performed.
     pub(crate) fn replace_all(&mut self) -> usize {
-        if self.find_query.is_empty() || self.find_matches.is_empty() {
-            return 0;
-        }
-        // Capture the match list before mutating; refresh after.
-        let targets: Vec<(usize, usize)> = self.find_matches.clone();
-        // Single undo grain — push once, then do raw writes that skip
-        // their own push_undo. Done via direct field writes for headers
-        // and rows, mirroring what set_cell / set_header do internally.
-        self.push_undo();
-        let mut count = 0usize;
-        for (row, col) in targets {
-            let original = if row == usize::MAX {
-                self.header(col).to_string()
-            } else {
-                self.cell(row, col).to_string()
-            };
-            let Some(new_value) = self.compute_replacement(&original) else {
-                continue;
-            };
-            if new_value == original {
-                continue;
+        if self.find_query.is_empty() || self.find_matches.is_empty() { return 0; }
+        let mut bytes = self.data_bytes();
+        let mut planned = Vec::new();
+        for &(row, col) in &self.find_matches {
+            let original = if row == usize::MAX { self.header(col) } else { self.cell(row, col) };
+            if !self.replacement_fits(original) {
+                self.edit_error = Some(super::limits::EDIT_TOO_LARGE); return 0;
             }
-            // Write through the same col_order/row_order remap as the
-            // pushing variants without re-pushing undo.
-            if row == usize::MAX {
-                let Some(&col_orig) = self.col_order.get(col) else { continue };
-                if self.headers.len() <= col_orig {
-                    self.headers.resize(col_orig + 1, String::new());
-                }
-                self.headers[col_orig] = new_value;
-            } else {
-                let Some(&row_orig) = self.row_order.get(row) else { continue };
-                let Some(&col_orig) = self.col_order.get(col) else { continue };
-                let row_vec = match self.rows.get_mut(row_orig) {
-                    Some(r) => r,
-                    None => continue,
+            let Some(value) = self.compute_replacement(original) else { continue; };
+            if value == original { continue; }
+            let Some(total) = bytes.checked_sub(original.len()).and_then(|bytes| bytes.checked_add(value.len()))
+                .filter(|&bytes| bytes <= super::limits::MAX_SOURCE_BYTES) else {
+                    self.edit_error = Some(super::limits::EDIT_TOO_LARGE); return 0;
                 };
-                if row_vec.len() <= col_orig {
-                    row_vec.resize(col_orig + 1, String::new());
-                }
-                row_vec[col_orig] = new_value;
-            }
-            count += 1;
+            bytes = total;
+            if planned.try_reserve(1).is_err() { self.edit_error = Some(super::limits::EDIT_TOO_LARGE); return 0; }
+            planned.push((row, col, value));
         }
-        if count == 0 {
-            // Spurious undo entry — pop without restoring.
-            self.pop_undo_no_restore();
-        } else {
-            self.refresh_find_matches();
-            self.replace_summary = Some(format!(
-                "Replaced {count} match{}",
-                if count == 1 { "" } else { "es" }
-            ));
+        if planned.is_empty() { return 0; }
+        self.push_undo();
+        let count = planned.len();
+        for (row, col, value) in planned {
+            let Some(&column) = self.col_order.get(col) else { continue; };
+            let cell = if row == usize::MAX { self.headers.get_mut(column) }
+                else { self.row_order.get(row).and_then(|&row| self.rows.get_mut(row)).and_then(|row| row.get_mut(column)) };
+            if let Some(cell) = cell { *cell = value; }
         }
+        self.refresh_find_matches();
+        self.replace_summary = Some(format!("Replaced {count} match{}", if count == 1 { "" } else { "es" }));
         count
+    }
+
+    fn replacement_fits(&self, original: &str) -> bool {
+        let count = if self.find_whole_cell { 1 } else if self.find_case_sensitive {
+            original.matches(self.find_query.as_str()).count()
+        } else { original.to_lowercase().matches(self.find_query.to_lowercase().as_str()).count() };
+        count.checked_mul(self.replace_text.len()).and_then(|extra| original.len().checked_add(extra))
+            .is_some_and(|bytes| bytes <= super::limits::MAX_CELL_BYTES)
     }
 
     /// Compute the new value for a cell when applying the current
@@ -2494,6 +2395,7 @@ impl CsvModel {
     /// `None` when no replacement applies (no match in substring mode,
     /// or cell didn't equal query in whole-cell mode).
     fn compute_replacement(&self, original: &str) -> Option<String> {
+        if !self.replacement_fits(original) { return None; }
         if self.find_query.is_empty() {
             return None;
         }
@@ -2660,7 +2562,7 @@ impl<'a> LoweredOffsets<'a> {
 /// Strip a leading UTF-8 BOM if present. Returns the stripped slice and
 /// whether a BOM was detected. UTF-8 BOM = 0xEF 0xBB 0xBF which encodes
 /// the single char `\u{FEFF}`.
-fn strip_bom(s: &str) -> (bool, &str) {
+pub(super) fn strip_bom(s: &str) -> (bool, &str) {
     if let Some(stripped) = s.strip_prefix('\u{FEFF}') {
         (true, stripped)
     } else {
@@ -2671,7 +2573,7 @@ fn strip_bom(s: &str) -> (bool, &str) {
 /// Detect the dominant line terminator. Walks bytes left-to-right; the
 /// first `\r\n` pair commits to CRLF, a bare `\n` before any `\r` commits
 /// to LF. No line break at all → fall back to LF.
-fn detect_line_terminator(s: &str) -> LineTerminator {
+pub(super) fn detect_line_terminator(s: &str) -> LineTerminator {
     let bytes = s.as_bytes();
     let mut i = 0;
     while i < bytes.len() {
@@ -2688,17 +2590,6 @@ fn detect_line_terminator(s: &str) -> LineTerminator {
         }
     }
     LineTerminator::Lf
-}
-
-/// Pad / truncate `row` so it has exactly `n` columns. Used to keep
-/// every row in `CsvModel::rows` rectangular — the grid renderer assumes
-/// uniform column counts when laying out cells.
-fn normalize_row_len(row: &mut Vec<String>, n: usize) {
-    if row.len() < n {
-        row.resize(n, String::new());
-    } else if row.len() > n {
-        row.truncate(n);
-    }
 }
 
 /// Convert a zero-based column index into the spreadsheet letter label
@@ -5037,8 +4928,9 @@ mod tests {
         let line = ",".repeat(999_999);
         let started = std::time::Instant::now();
         let m = fresh(&line);
-        assert_eq!((m.row_count(), m.col_count()), (0, 1_000_000));
-        assert_eq!(m.emit_source().unwrap(), line);
+        assert_eq!((m.row_count(), m.col_count()), (0, 0));
+        assert_eq!(m.parse_error, Some(super::super::limits::TOO_LARGE));
+        assert!(m.emit_source().is_none());
         let took = started.elapsed();
         assert!(took < std::time::Duration::from_secs(20), "took {took:?}");
     }

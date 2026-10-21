@@ -28,6 +28,8 @@ pub(crate) mod format_bar;
 pub(crate) mod grid;
 mod grid_input;
 pub(crate) mod model;
+mod limits;
+mod loading;
 pub(crate) mod status_bar;
 pub(crate) mod undo;
 
@@ -65,3 +67,8 @@ pub(crate) fn default_delimiter_for_path(path: Option<&std::path::Path>) -> u8 {
 
 #[cfg(test)]
 mod grid_input_tests;
+
+pub(crate) fn cancel_preparation(workspace: &mut crate::workspace::Workspace) {
+    let Some(tab) = workspace.tabs.get(workspace.active) else { return; };
+    if let Some(model) = workspace.csv_models.get_mut(&tab.session_id) { loading::cancel(model); }
+}

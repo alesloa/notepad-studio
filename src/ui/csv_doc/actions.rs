@@ -277,6 +277,12 @@ fn try_commit_cell_edit(w: &mut Workspace, cx: &mut Context<Workspace>) -> Resul
     if model.source_state.as_ref().is_none_or(|source| source.revision != tab.buffer.raw_revision) {
         return Err("CSV source changed; cancel the draft before rebuilding the grid".into());
     }
+    // Validate before serializing or changing the rope. A refused commit
+    // keeps the user's draft and both history stacks available.
+    if input.buffer.len() > super::limits::MAX_CELL_BYTES
+        || model.data_bytes().saturating_sub(original.len()).saturating_add(input.buffer.len()) > super::limits::MAX_SOURCE_BYTES {
+        return Err(super::limits::EDIT_TOO_LARGE.into());
+    }
     let value = input.buffer.clone();
     let new_text = model.emit_source_with_cell(row, col, &value).ok_or("the grid could not be written back as CSV text")?;
     let total = tab.buffer.rope.len_bytes();
@@ -421,8 +427,10 @@ pub(crate) fn ensure_model(
     window: &mut Window,
     cx: &mut Context<Workspace>,
 ) {
+    if super::loading::start_if_large(w, window, cx) { return; }
     let tab_id = w.tabs[w.active].session_id;
     let generation = w.autosave_generation;
+    if let Some(error) = w.csv_models.get_mut(&tab_id).and_then(|model| model.edit_error.take()) { w.set_status(error); }
     if !w.csv_models.contains_key(&tab_id) {
         let focus_recovered = window.is_window_active()
             && (w.focus_handle.is_focused(window) || window.focused(cx).is_none());
@@ -439,28 +447,7 @@ pub(crate) fn ensure_model(
         model.rebuild_from_source(&source, generation);
         model.bind_source(&buffer.rope, &buffer.raw_revision);
         model.grid_focus = Some(grid_focus.clone());
-        if let Some(mut draft) = recovered {
-            let value = std::mem::take(&mut draft.value);
-            let coordinates = draft.col.and_then(|col| {
-                if col >= model.col_count() { return None; }
-                if draft.is_header { return model.has_header.then_some((usize::MAX, col)); }
-                draft.row.filter(|row| *row < model.row_count()).map(|row| (row, col))
-            });
-            if !draft.source_matches || coordinates.is_none() || draft.delimiter != Some(delim) {
-                draft.refusal = Some(draft.refusal.clone().unwrap_or_else(|| "Recovered CSV draft cannot be applied safely; copy its text or cancel it before editing the source".into()));
-                model.source_state = None;
-                w.set_status(draft.refusal.as_deref().unwrap_or("CSV draft could not be applied"));
-                model.detached_draft = Some(draft.clone());
-            }
-            model.editing_cell = coordinates;
-            model.active_cell = coordinates.filter(|(row, _)| *row != usize::MAX);
-            let handle = cx.focus_handle();
-            let mut input = CsvCellInput::new(handle.clone(), value);
-            input.cursor = draft_char_boundary(&input.buffer, draft.cursor);
-            input.anchor = draft_char_boundary(&input.buffer, draft.anchor);
-            model.cell_input = Some(input);
-            if focus_recovered { window.focus(&handle, cx); }
-        }
+        if let Some(status) = restore_draft(&mut model, recovered, focus_recovered, window, cx) { w.set_status(status); }
         w.csv_models.insert(tab_id, model);
         register_grid_blur_listener(w, tab_id, &grid_focus, window, cx);
         cx.notify();
@@ -493,13 +480,43 @@ pub(crate) fn ensure_model(
     }
 }
 
+
+pub(super) fn restore_draft(model: &mut super::CsvModel, recovered: Option<crate::session::CsvDraft>,
+    focus_recovered: bool, window: &mut Window, cx: &mut Context<Workspace>) -> Option<String> {
+    let delim = model.delimiter;
+    let mut status = None;
+    if let Some(mut draft) = recovered {
+        let value = std::mem::take(&mut draft.value);
+        let coordinates = draft.col.and_then(|col| {
+            if col >= model.col_count() { return None; }
+            if draft.is_header { return model.has_header.then_some((usize::MAX, col)); }
+            draft.row.filter(|row| *row < model.row_count()).map(|row| (row, col))
+        });
+        if !draft.source_matches || coordinates.is_none() || draft.delimiter != Some(delim) {
+            draft.refusal = Some(draft.refusal.clone().unwrap_or_else(|| "Recovered CSV draft cannot be applied safely; copy its text or cancel it before editing the source".into()));
+            model.source_state = None;
+            status = draft.refusal.clone();
+            model.detached_draft = Some(draft.clone());
+        }
+        model.editing_cell = coordinates;
+        model.active_cell = coordinates.filter(|(row, _)| *row != usize::MAX);
+        let handle = cx.focus_handle();
+        let mut input = CsvCellInput::new(handle.clone(), value);
+        input.cursor = draft_char_boundary(&input.buffer, draft.cursor);
+        input.anchor = draft_char_boundary(&input.buffer, draft.anchor);
+        model.cell_input = Some(input);
+        if focus_recovered { window.focus(&handle, cx); }
+    }
+    status
+}
+
 /// Register a blur listener on the grid's focus handle so clicking
 /// outside the grid (toolbar, tab bar, another tab's editor, another
 /// app) clears the selection — Excel parity. Guards against the
 /// "grid → own cell editor" focus transition: when the cell input
 /// takes focus next, the listener returns without clearing so the
 /// editing session is preserved.
-fn register_grid_blur_listener(
+pub(super) fn register_grid_blur_listener(
     w: &mut Workspace,
     tab_id: Uuid,
     handle: &FocusHandle,
@@ -1445,7 +1462,10 @@ pub(crate) fn paste_into_grid(w: &mut Workspace, cx: &mut Context<Workspace>) {
     if text.is_empty() {
         return;
     }
-    let data = super::clipboard::parse_clipboard(&text);
+    let data = match super::clipboard::parse_clipboard_checked(&text) {
+        Ok(data) => data,
+        Err(error) => { w.set_status(error); cx.notify(); return; }
+    };
     if data.is_empty() {
         return;
     }

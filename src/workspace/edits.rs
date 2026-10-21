@@ -1276,6 +1276,7 @@ impl Workspace {
         cx: &mut Context<Self>,
     ) {
         let focus = self.input_focus(window);
+        crate::ui::csv_doc::cancel_preparation(self);
         self.set_csv_view_mode(false, cx);
         self.focus_source_editor(focus, window, cx);
     }
@@ -1317,6 +1318,7 @@ impl Workspace {
         if tab.buffer.is_rich_doc() {
             self.set_rich_doc_view_mode(false, cx);
         } else if crate::ui::csv_doc::is_csv_path(path) {
+            crate::ui::csv_doc::cancel_preparation(self);
             self.set_csv_view_mode(false, cx);
         } else if crate::ui::markdown_view::is_markdown_path(path) {
             self.set_markdown_view_mode(false, cx);

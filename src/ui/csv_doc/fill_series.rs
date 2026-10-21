@@ -484,26 +484,21 @@ fn insert_thousands(s: &str) -> String {
 /// A `None` entry is a value the pattern can't represent: a date outside
 /// chrono's calendar, or a number that isn't finite. The caller leaves
 /// that cell as it is rather than writing a wrong value into it.
+#[cfg(test)]
 pub(crate) fn project_with_source_len(
     pattern: &Pattern,
     source_len: usize,
     count: usize,
     reverse: bool,
 ) -> Vec<Option<String>> {
-    (0..count)
-        .map(|i| {
-            // Position of the projected cell counted from the first
-            // source cell: source_len, source_len + 1, .. forward and
-            // -count, .., -1 backward. i128 holds either for any usize,
-            // and a step times it for any i64 step.
-            let k = if reverse {
-                -(i128::try_from(count - i).ok()?)
-            } else {
-                i128::try_from(source_len).ok()?.checked_add(i128::try_from(i).ok()?)?
-            };
-            project_cell(pattern, k)
-        })
-        .collect()
+    (0..count).map(|i| project_at(pattern, source_len, count, i, reverse)).collect()
+}
+
+pub(crate) fn project_at(pattern: &Pattern, source_len: usize, count: usize, index: usize, reverse: bool) -> Option<String> {
+    if index >= count { return None; }
+    let k = if reverse { -i128::try_from(count.checked_sub(index)?).ok()? }
+        else { i128::try_from(source_len).ok()?.checked_add(i128::try_from(index).ok()?)? };
+    project_cell(pattern, k)
 }
 
 /// The value `k` cells after the first source cell (before it when `k`

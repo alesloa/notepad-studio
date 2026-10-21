@@ -32,6 +32,7 @@ pub(crate) struct AggregateSummary {
 /// Iterate the cells inside the active selection and produce a
 /// numeric aggregate when 2+ cells parse. Headers are excluded.
 /// Empty cells and non-numeric cells are skipped silently.
+#[cfg(test)]
 pub(crate) fn compute_aggregate(
     cells: &[Vec<String>],
     active_cell: Option<(usize, usize)>,
@@ -39,19 +40,24 @@ pub(crate) fn compute_aggregate(
     selected_rows: &BTreeSet<usize>,
     selected_cols: &BTreeSet<usize>,
 ) -> Option<AggregateSummary> {
-    let row_count = cells.len();
-    let col_count = cells.first().map(|r| r.len()).unwrap_or(0);
+    compute_aggregate_with(cells.len(), cells.first().map_or(0, Vec::len), active_cell, cell_range,
+        selected_rows, selected_cols, |r, c| cells.get(r).and_then(|row| row.get(c)).map(String::as_str))
+}
 
-    let cell_at = |r: usize, c: usize| -> Option<&str> {
-        cells.get(r).and_then(|row| row.get(c)).map(|s| s.as_str())
-    };
+pub(super) fn compute_model_aggregate(model: &super::model::CsvModel) -> Option<AggregateSummary> {
+    compute_aggregate_with(model.row_count(), model.col_count(), model.active_cell, model.cell_range,
+        &model.selected_rows, &model.selected_cols, |r, c| Some(model.cell(r, c)))
+}
 
+fn compute_aggregate_with<'a>(row_count: usize, col_count: usize, active_cell: Option<(usize, usize)>,
+    cell_range: Option<super::model::CellRange>, selected_rows: &BTreeSet<usize>, selected_cols: &BTreeSet<usize>,
+    cell_at: impl Fn(usize, usize) -> Option<&'a str>) -> Option<AggregateSummary> {
     let mut sum = 0.0_f64;
     let mut count = 0usize;
 
     if let Some(range) = cell_range {
-        for r in range.min_row()..=range.max_row() {
-            for c in range.min_col()..=range.max_col() {
+        for r in range.min_row()..range.max_row().saturating_add(1).min(row_count) {
+            for c in range.min_col()..range.max_col().saturating_add(1).min(col_count) {
                 let Some(s) = cell_at(r, c) else { continue };
                 let Some(n) = parse_numeric(s) else { continue };
                 sum += n;
@@ -165,14 +171,7 @@ pub(crate) fn csv_status_bar(theme: &Theme, snap: &CsvGridSnapshot) -> impl Into
         snap.hidden_rows.len(),
     );
 
-    let agg = compute_aggregate(
-        &snap.cells,
-        snap.active_cell,
-        snap.cell_range,
-        &snap.selected_rows,
-        &snap.selected_cols,
-    );
-    let agg_text = format_aggregate(agg.as_ref());
+    let agg_text = format_aggregate(snap.aggregate.as_ref());
 
     let mut bar = div()
         .h(rems(24. / 16.))

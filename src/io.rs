@@ -8,6 +8,9 @@ mod safety_copy;
 mod restore_copy;
 use safety_copy::make_safety_copy;
 pub(crate) use background_drop::BackgroundDrop;
+pub(crate) use copy_snapshot::Snapshot as ExportSnapshot;
+pub(crate) use copy_stage::{Stage as CopyStage, Backup as CopyBackup};
+pub(crate) use save_as_dialog::pick_docx as pick_docx_path;
 pub(crate) use copy_stage::Progress as CopyProgress;
 pub(crate) use save_as_dialog::pick_rename as pick_rename_path;
 

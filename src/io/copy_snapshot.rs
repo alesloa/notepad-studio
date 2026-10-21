@@ -14,7 +14,7 @@ impl Budget {
 }
 struct Run { text: Vec<String>, link: Vec<String>, style: InlineStyle, has_link: bool }
 struct Paragraph { level: Option<u8>, props: BlockProps, runs: Vec<Run> }
-pub(super) struct Snapshot {
+pub(crate) struct Snapshot {
     buffer: Buffer, raw: Vec<String>, paragraphs: Vec<Paragraph>, raw_offset: usize,
     block: usize, run: usize, text_offset: usize, link_offset: usize, edited: bool, capture_raw: bool,
     budget: Budget,
@@ -55,7 +55,7 @@ fn join(parts: Vec<String>, allocation: &mut Budget) -> Result<String, String> {
 }
 
 impl Snapshot {
-    pub(super) fn new(buffer: &Buffer) -> Self {
+    pub(crate) fn new(buffer: &Buffer) -> Self {
         let mut captured = super::copy_writer::snapshot(buffer);
         let mut edited = false; let mut capture_raw = false;
         if let Some(payload) = &buffer.rich_doc {
@@ -75,7 +75,11 @@ impl Snapshot {
             run: 0, text_offset: 0, link_offset: 0, edited, capture_raw, budget: Budget { used: 0, limit } }
     }
 
-    pub(super) fn step(&mut self, buffer: &Buffer) -> Result<bool, String> {
+    pub(crate) fn for_export(buffer: &Buffer) -> Self {
+        let mut snapshot = Self::new(buffer); snapshot.edited = true; snapshot
+    }
+
+    pub(crate) fn step(&mut self, buffer: &Buffer) -> Result<bool, String> {
         let Some(payload) = &buffer.rich_doc else { return Ok(true); };
         let mut budget = CAPTURE_BYTES;
         for _ in 0..CAPTURE_ITEMS {
@@ -125,7 +129,7 @@ impl Snapshot {
     }
 
     // Called by the background worker: joining strings never blocks editor input.
-    pub(super) fn finish(mut self) -> Result<Buffer, String> {
+    pub(crate) fn finish(mut self) -> Result<Buffer, String> {
         if let Some(payload) = &mut self.buffer.rich_doc {
             payload.raw_view_text = join(self.raw, &mut self.budget)?;
             self.budget.charge(self.paragraphs.len().checked_mul(std::mem::size_of::<Block>()).ok_or(LIMIT_ERROR)?)?;

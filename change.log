@@ -15,6 +15,10 @@ v0.0.6 — current
   edits and Undo/Redo history have memory limits that preserve the source when
   an operation is refused.
 
+  Save As .docx now prepares legacy Word conversions in background, checks that
+  the source is still current, and protects files open in another window or
+  referring to the original document.
+
 
   Opening a file no longer crashes the app when grammar checking finds a word
   such as "popup" at the start or end of a line.

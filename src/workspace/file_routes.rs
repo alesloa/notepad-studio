@@ -238,9 +238,9 @@ impl Workspace {
 }
 
 #[cfg(target_os = "windows")]
-fn file_identity(path: &Path) -> Option<file_id::FileId> { file_id::get_file_id(path).ok() }
+pub(super) fn file_identity(path: &Path) -> Option<file_id::FileId> { file_id::get_file_id(path).ok() }
 #[cfg(any(target_os = "macos", target_os = "linux"))]
-fn file_identity(path: &Path) -> Option<(u64, u64)> {
+pub(super) fn file_identity(path: &Path) -> Option<(u64, u64)> {
     use std::os::unix::fs::MetadataExt;
     std::fs::metadata(path).ok().map(|metadata| (metadata.dev(), metadata.ino()))
 }

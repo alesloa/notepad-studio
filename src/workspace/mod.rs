@@ -74,6 +74,7 @@ mod plugins;
 mod render;
 mod run;
 mod rich_edit;
+mod rich_export;
 mod status;
 pub(crate) mod source_input;
 mod menu_state;

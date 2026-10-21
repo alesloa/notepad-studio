@@ -15,6 +15,15 @@ pub(super) fn pick(starting: Option<PathBuf>, suggested: String) -> impl std::fu
 
 #[cfg_attr(not(test), allow(clippy::manual_async_fn))]
 pub(super) fn pick_with_title(starting: Option<PathBuf>, suggested: String, title: &'static str) -> impl std::future::Future<Output = Option<PathBuf>> {
+    pick_filtered(starting, suggested, title, None)
+}
+
+pub(crate) fn pick_docx(starting: Option<PathBuf>, suggested: String) -> impl std::future::Future<Output = Option<PathBuf>> {
+    pick_filtered(starting, suggested, "Save As .docx", Some("docx"))
+}
+
+#[cfg_attr(not(test), allow(clippy::manual_async_fn))]
+fn pick_filtered(starting: Option<PathBuf>, suggested: String, title: &'static str, extension: Option<&'static str>) -> impl std::future::Future<Output = Option<PathBuf>> {
     #[cfg(test)]
     let reply = REPLY.with(|slot| slot.borrow_mut().take());
     #[cfg(test)]
@@ -24,6 +33,7 @@ pub(super) fn pick_with_title(starting: Option<PathBuf>, suggested: String, titl
         if let Some(reply) = reply { return reply.await.ok().flatten(); }
         let mut dialog = rfd::AsyncFileDialog::new().set_title(title).set_file_name(&suggested);
         if let Some(directory) = starting { dialog = dialog.set_directory(directory); }
+        if let Some(extension) = extension { dialog = dialog.add_filter("Word Document (.docx)", &[extension]); }
         dialog.save_file().await.map(|file| file.path().to_path_buf())
     }
 }

@@ -17,7 +17,7 @@
 //! those edits land on the in-memory AST and persist through Save As .docx.
 //!
 //! Save semantics: regular Save is rejected (`RichDocError::SaveAsRequired`).
-//! The only persistence path is `save_as_docx`, which writes a fresh `.docx`
+//! The export path uses `docx_bytes` to prepare a fresh `.docx`
 //! zip via the existing DOCX serializer — the original `.doc` is never
 //! modified.
 
@@ -69,12 +69,16 @@ pub fn open(path: &Path) -> Result<RichDocPayload> {
 /// The original `.doc` is never touched. Reuses `docx::serialize_document_xml`
 /// to emit the body; we synthesise the rest of the minimal-valid OOXML
 /// package by hand (Content Types, rels, styles).
+#[cfg(test)]
 pub fn save_as_docx(payload: &RichDocPayload, target_path: &Path) -> Result<()> {
-    super::ensure_text_only(&payload.ast)?;
-    let document_xml = docx_body_for(&payload.ast)?;
-    let bytes = build_minimal_docx(&document_xml)?;
+    let bytes = docx_bytes(payload)?;
     super::write_document_bytes(target_path, &bytes)?;
     Ok(())
+}
+
+pub(crate) fn docx_bytes(payload: &RichDocPayload) -> Result<Vec<u8>> {
+    super::ensure_text_only(&payload.ast)?;
+    build_minimal_docx(&docx_body_for(&payload.ast)?)
 }
 
 /// Public for `save_as_docx` and tests — produces a `word/document.xml`

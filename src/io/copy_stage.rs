@@ -27,13 +27,13 @@ fn stamp(path: &Path) -> Result<Option<Stamp>, String> {
     }
 }
 
-pub(super) struct Backup {
+pub(crate) struct Backup {
     mode: BackupOnSaveMode, custom: Option<PathBuf>,
     #[cfg(test)]
     fault: Option<tests::Fault>,
 }
 impl Backup {
-    pub(super) fn capture() -> Self {
+    pub(crate) fn capture() -> Self {
         let settings = crate::settings::snapshot();
         Self { mode: settings.backup_on_save_mode, custom: (settings.backup_use_custom_dir
             && !settings.backup_custom_dir.trim().is_empty()).then(|| PathBuf::from(settings.backup_custom_dir.trim())),
@@ -49,11 +49,11 @@ impl Backup {
     }
 }
 
-pub(super) struct Stage { directory: PathBuf, file: PathBuf, destination: PathBuf, selected: Option<Stamp> }
+pub(crate) struct Stage { directory: PathBuf, file: PathBuf, destination: PathBuf, selected: Option<Stamp> }
 #[derive(Debug)]
-pub(super) enum CommitError { Cancelled, Preparation(String), Write(super::SaveError) }
+pub(crate) enum CommitError { Cancelled, Preparation(String), Write(super::SaveError) }
 impl CommitError {
-    pub(super) fn critical(&self) -> bool { matches!(self, Self::Write(super::SaveError::NotRestored { .. })) }
+    pub(crate) fn critical(&self) -> bool { matches!(self, Self::Write(super::SaveError::NotRestored { .. })) }
 }
 impl std::fmt::Display for CommitError {
     fn fmt(&self, formatter: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
@@ -62,6 +62,21 @@ impl std::fmt::Display for CommitError {
 }
 impl Stage {
     pub(super) fn prepare(buffer: Buffer, destination: PathBuf, progress: &Progress) -> Result<Self, String> {
+        Self::prepare_with(destination, progress, |path| super::copy_writer::write_copy(&buffer, path))
+    }
+
+    pub(crate) fn prepare_bytes(bytes: &[u8], destination: PathBuf, progress: &Progress) -> Result<Self, String> {
+        Self::prepare_with(destination, progress, |path| {
+            let mut file = fs::File::create(path).map_err(|error| error.to_string())?;
+            for chunk in bytes.chunks(crate::io_stream::STREAM_CHUNK_SIZE) {
+                progress.check().map_err(|error| error.to_string())?;
+                file.write_all(chunk).map_err(|error| error.to_string())?;
+            }
+            Ok(())
+        })
+    }
+
+    fn prepare_with(destination: PathBuf, progress: &Progress, write: impl FnOnce(&Path) -> Result<(), String>) -> Result<Self, String> {
         progress.check().map_err(|error| error.to_string())?;
         let selected = stamp(&destination)?;
         let name = destination.file_name().ok_or("destination has no file name")?;
@@ -71,13 +86,13 @@ impl Stage {
         let file = directory.join(name);
         let stage = Self { directory, file, destination, selected };
         // The reserved directory contains no prior file, so the shared writer cannot back up user data here.
-        super::copy_writer::write_copy(&buffer, &stage.file)?;
+        write(&stage.file)?;
         progress.check().map_err(|error| error.to_string())?;
         progress.total.store(fs::metadata(&stage.file).map_err(|error| error.to_string())?.len(), Ordering::Relaxed);
         Ok(stage)
     }
 
-    pub(super) fn commit(&self, backup: &Backup, progress: &Progress) -> Result<(), CommitError> {
+    pub(crate) fn commit(&self, backup: &Backup, progress: &Progress) -> Result<(), CommitError> {
         #[cfg(test)]
         if let Some(fault) = &backup.fault {
             progress.check().map_err(|_| CommitError::Cancelled)?;

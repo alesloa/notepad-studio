@@ -16,7 +16,7 @@ the [menu inventory](docs/notepadpp-parity-inventory.md).
 - Find and Replace with regex, Find in Files, Mark and bookmarks.
 - Syntax highlighting for 25 languages, bracket matching, auto-indent and comment toggling.
 - Word wrap, show whitespace, zoom and full screen (F11).
-- Column (block) selection and multi-cursor editing.
+- Column (block) selection.
 - Macro record and replay, with saved macros in the Macro menu.
 - A Shortcut Mapper, so you can change the shortcut of any built-in menu command.
 - Opens big files without freezing. Files over 10 MB load in the background with a Cancel button.

@@ -1,8 +1,8 @@
 // Auto-Completion panel — NPP `Auto-Completion` parity.
 //
 // Two halves:
-//   * Auto-completion (mode + N-th char + 5 toggles) — UI-only persist;
-//     the consuming completion engine is deferred. NPP source:
+//   * Auto-completion (mode + N-th char + 5 toggles), consumed by the
+//     workspace completion engine. NPP source:
 //     `Parameters.h:803-810`.
 //   * Auto-Insert (6 pair toggles + user-defined slots) — the 6 pair toggles
 //     are LIVE and drive `Workspace::replace_text_in_range` matched-pair
@@ -13,7 +13,7 @@
 // Vec<(String, String)>` so users can hand-edit `settings.toml` today and
 // the runtime hook will pick the entries up next launch.
 
-use gpui::{IntoElement, ParentElement, SharedString, Styled, WeakEntity, div, rems, rgb};
+use gpui::{IntoElement, ParentElement, Styled, WeakEntity, div, rems};
 
 use crate::settings::{self, AutocompletionMode};
 use crate::theme::Theme;
@@ -243,11 +243,6 @@ fn autocompletion_group(
         )
     };
 
-    let caveat = caveat(
-        theme,
-        "Engine deferred — these settings persist now and will apply when the auto-completion engine ships.",
-    );
-
     render_group_box(
         theme,
         "Auto-completion",
@@ -259,7 +254,6 @@ fn autocompletion_group(
             ignore_toggle,
             tab_toggle,
             enter_toggle,
-            caveat,
         ],
     )
     .into_any_element()
@@ -391,12 +385,4 @@ fn mode_label(m: AutocompletionMode) -> &'static str {
         AutocompletionMode::Word => "word",
         AutocompletionMode::FunctionAndWord => "function + word",
     }
-}
-
-fn caveat(theme: &Theme, text: &'static str) -> gpui::AnyElement {
-    div()
-        .text_size(rems(11. / 16.))
-        .text_color(rgb(theme.chrome_text))
-        .child(SharedString::from(text))
-        .into_any_element()
 }

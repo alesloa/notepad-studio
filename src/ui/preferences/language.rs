@@ -54,14 +54,14 @@ pub(super) fn render(
 
     let grid = grid_4col(rows);
 
-    body.child(render_group_box(theme, "Disable language items", vec![grid]))
+    body.child(render_group_box(theme, "Default-language exclusions", vec![grid]))
         .child(
             div()
                 .text_color(rgb(theme.chrome_text))
                 .text_size(rems(11. / 16.))
                 .child(SharedString::from(
                     "Checked languages are skipped by the New Document default-language cycler. \
-A dedicated Language menu is not yet present in Notepad Studio; once added, excluded items will also be hidden there.",
+The Language menu remains available for selecting a document language.",
                 )),
         )
         .into_any_element()

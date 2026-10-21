@@ -22,6 +22,9 @@ v0.0.6 — current
   Clickable links use the system launcher on macOS, Linux and Windows, with
   Cmd-click on macOS and Ctrl-click on Linux and Windows.
 
+  Preferences now identifies independent multi-cursor editing as unavailable
+  and removes outdated language-menu and completion notices.
+
 
   Opening a file no longer crashes the app when grammar checking finds a word
   such as "popup" at the start or end of a line.

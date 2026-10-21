@@ -33,29 +33,12 @@ pub(super) fn render(
     let snap = settings::snapshot();
 
     // --- Multi-editing -------------------------------------------------
-    let weak_multi = weak.clone();
-    let multi_toggle = npp_checkbox(
-        theme,
-        "prefs-editing2-multi-editing",
-        "Enable Multi-editing (Ctrl+Mouse click/selection)",
-        snap.multi_editing_enabled,
-        move |checked, cx| {
-            let _ = weak_multi.update(cx, |this, cx| {
-                let mut next = settings::snapshot();
-                next.multi_editing_enabled = checked;
-                settings::replace_and_save(next);
-                this.last_action = Some(if checked {
-                    "Multi-editing enabled (engine pending)".to_string()
-                } else {
-                    "Multi-editing disabled".to_string()
-                });
-                cx.notify();
-            });
-        },
-    );
+    // The editor has linear and rectangular selections; it has no independent cursors.
+    // Keep the persisted field readable, but do not expose a working-looking toggle.
+    let multi_toggle = npp_checkbox_disabled(theme, "Enable Multi-editing (Ctrl+Mouse click/selection)", false);
     let multi_caveat = caveat(
         theme,
-        "Engine deferred — single-cursor model active until multi-cursor lands.",
+        "Multiple independent cursors are not available. Use column selection to edit a block.",
     );
     let multi_group = render_group_box(theme, "Multi-editing", vec![multi_toggle, multi_caveat]);
 

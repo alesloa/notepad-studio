@@ -70,10 +70,17 @@ use crate::panic_log::install_panic_hook;
 fn main() {
     install_panic_hook();
     // Single-instance gate. If another live Notepad Studio is already running, this
-    // call drops a sentinel the running instance polls for, then exits the
+    // call queues an activation request for the running instance, then exits the
     // current process with code 0. Has to land before the gpui Application
     // is built so a duplicate launch doesn't briefly flash a window.
-    single_instance::acquire_or_raise();
+    if let Err(error) = single_instance::acquire_or_raise() {
+        eprintln!("[startup] {error}");
+        // No GPUI app or borrowed window exists yet; the native error contains
+        // the actual lock/forwarding failure returned above.
+        rfd::MessageDialog::new().set_title(crate::consts::APP_NAME).set_description(&error)
+            .set_level(rfd::MessageLevel::Error).show();
+        return;
+    }
     // Queue any positional file path arguments so the activation poller opens
     // them once the workspace is up. Covers cold-start `Exec=notepad-studio
     // %F` (Linux), Explorer's "Open With → Notepad Studio" (Windows), and
@@ -157,8 +164,7 @@ fn main() {
             if !app::startup::protects_placement(cx) { flush_window_settings_for_alive(&alive); }
             // Release after window teardown has flushed its recovery state,
             // so the next instance cannot race the final writes.
-            // A crash leaves the lock behind; the next launch's stale-PID
-            // branch will clear it.
+            // The OS releases the file lock on a crash; its inode stays stable.
             recent::finish_shutdown();
             async { single_instance::release(); }
         })

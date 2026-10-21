@@ -1,14 +1,11 @@
-# Lightweight build-check. Runs on every push to main and on every pull request
-# to catch compile breakage across all three desktop OSes. Intentionally minimal:
-# no clippy/fmt gates, no release build, no test suite — just `cargo build` and
-# `cargo check` so a broken commit is caught early without a slow pipeline.
-
+# Build, regression and lint checks on all supported desktop hosts.
 name: CI
 
 on:
   push:
     branches: [main]
   pull_request: {}
+  workflow_call: {}
 
 jobs:
   build-check:
@@ -40,6 +37,8 @@ jobs:
 
       - name: Install Rust toolchain
         uses: dtolnay/rust-toolchain@stable
+        with:
+          components: clippy
 
       - name: Cache Rust build
         uses: Swatinem/rust-cache@v2
@@ -60,3 +59,12 @@ jobs:
 
       - name: cargo check
         run: cargo check
+
+      - name: Regression tests
+        run: cargo test -p notepad-studio -p notepad-studio-plugin -p sample-uppercase-plugin
+
+      - name: Clippy
+        run: cargo clippy -p notepad-studio --all-targets
+
+      - name: Parity inventory parser tests
+        run: python -m unittest discover -s tools/parity_inventory -p 'test_*.py'

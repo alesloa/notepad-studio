@@ -33,12 +33,18 @@ permissions:
   contents: write
 
 jobs:
+  qa:
+    uses: ./.github/workflows/ci.yml
+    permissions:
+      contents: read
+
   # ---------------------------------------------------------------------------
   # macOS — Apple Silicon (arm64) and Intel (x86_64). Same steps, same runner
   # (macos-14); each entry targets its own triple, bundles the .app via
   # cargo-bundle and zips it.
   # ---------------------------------------------------------------------------
   macos:
+    needs: qa
     name: macOS ${{ matrix.arch }}
     strategy:
       fail-fast: false
@@ -139,6 +145,7 @@ jobs:
   # bare binary (assets are embedded — no assets/ dir to ship).
   # ---------------------------------------------------------------------------
   linux:
+    needs: qa
     name: Linux x86_64
     runs-on: ubuntu-latest
     steps:
@@ -188,6 +195,7 @@ jobs:
   # app icon is link-time-embedded into the .exe via build.rs).
   # ---------------------------------------------------------------------------
   windows:
+    needs: qa
     name: Windows x86_64
     runs-on: windows-latest
     steps:

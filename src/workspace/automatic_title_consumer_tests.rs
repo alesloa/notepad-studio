@@ -23,6 +23,7 @@ fn automatic_title_held_save_consumers_wait_for_original_tab_suggestion() {
             automatic_title_paste(visual, &format!("{}suggested café中", "/".repeat(10000)));
             let requests = crate::io::SaveDialogRequestCaptureForTest::new();
             let (reply, selected) = futures::channel::oneshot::channel();
+            let _copy_choice = crate::io::SaveCopyOptionsForTest::new(Some(false));
             let _dialog = crate::io::SaveAsDialogOverrideForTest::new(selected);
             match mode { 0 => visual.dispatch_action(FileSave), 1 => visual.dispatch_action(crate::actions::FileSaveAs),
                 _ => visual.dispatch_action(crate::actions::FileSaveCopyAs) }

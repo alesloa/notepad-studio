@@ -421,7 +421,7 @@ fn explicit_untitled_label_survives_first_line_title_preference() {
                     assert_eq!(entity.read(cx).tabs[0].buffer.title_bar_label(), name);
                 });
             }
-            visual.simulate_keystrokes("ctrl-home");
+            visual.dispatch_action(crate::actions::MoveDocStart);
             visual.update(|_, cx| cx.write_to_clipboard(gpui::ClipboardItem::new_string("changed ".into())));
             visual.dispatch_action(crate::actions::EditPaste); visual.run_until_parked();
             visual.update(|_, cx| {
@@ -560,7 +560,7 @@ fn automatic_title_unicode_spaces_are_preserved() {
 fn automatic_title_empty_edit_retains_previous_name_through_undo_redo() {
     with_automatic_title(|entity,visual| {
         automatic_title_paste(visual,"retained\nsecond"); assert_eq!(automatic_title_name(entity,visual),"retained");
-        visual.simulate_keystrokes("ctrl-a"); visual.simulate_keystrokes("backspace"); visual.run_until_parked();
+        visual.dispatch_action(crate::actions::EditSelectAll); visual.simulate_keystrokes("backspace"); visual.run_until_parked();
         visual.update(|_,cx|assert_eq!(entity.read(cx).tabs[0].buffer.rope.to_string(),""));
         assert_eq!(automatic_title_name(entity,visual),"retained");
         visual.dispatch_action(crate::actions::EditUndo);visual.run_until_parked();assert_eq!(automatic_title_name(entity,visual),"retained");

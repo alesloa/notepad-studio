@@ -237,7 +237,15 @@ fn with_editor(body: &str, raw: bool, test: impl FnOnce(&Entity<Workspace>, &mut
 }
 
 fn paint(visual: &mut VisualTestContext) { visual.update(|window, cx| { window.refresh(); let _ = window.draw(cx); }); }
-fn press(visual: &mut VisualTestContext, key: &str) { visual.simulate_keystrokes(key); visual.run_until_parked(); paint(visual); }
+fn press(visual: &mut VisualTestContext, key: &str) {
+    let action = match key { "ctrl-z" => Some("EditUndo"), "ctrl-y" => Some("EditRedo"),
+        "ctrl-delete" => Some("EditDeleteWordRight"), _ => None };
+    let key = action.map(|id| {
+        let entry = crate::shortcuts::catalog().iter().find(|entry| entry.id == id).expect("catalog action");
+        *crate::shortcuts::platform_default_keys(entry).first().expect("default chord")
+    }).unwrap_or(key);
+    visual.simulate_keystrokes(key); visual.run_until_parked(); paint(visual);
+}
 fn text(workspace: &Entity<Workspace>, visual: &mut VisualTestContext) -> String {
     visual.update(|_, cx| workspace.read(cx).buffer().rope.to_string())
 }

@@ -13,6 +13,8 @@ pub(crate) use save_as_dialog::pick_rename as pick_rename_path;
 
 mod save_all;
 #[cfg(test)]
+pub(crate) use save_copy::tests::Options as SaveCopyOptionsForTest;
+#[cfg(test)]
 pub(crate) use save_as_dialog::Override as SaveAsDialogOverrideForTest;
 #[cfg(test)]
 pub(crate) use save_as_dialog::RequestCapture as SaveDialogRequestCaptureForTest;

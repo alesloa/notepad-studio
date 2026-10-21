@@ -158,8 +158,10 @@ impl Workspace {
         };
         let snap = settings::snapshot();
         let url = url_for(snap.search_engine, &snap.search_engine_custom_url, &text);
-        launch_url(&url);
-        self.set_status(format!("Searching: {text}"));
+        match crate::shell::open_url(&url) {
+            Ok(()) => self.set_status(format!("Searching: {text}")),
+            Err(error) => self.set_status(format!("Could not open link: {error}")),
+        }
         cx.notify();
     }
 
@@ -176,8 +178,10 @@ impl Workspace {
         };
         let body = encode_uri_component(&text);
         let url = format!("mailto:?body={body}");
-        launch_url(&url);
-        self.set_status("Composing email");
+        match crate::shell::open_url(&url) {
+            Ok(()) => self.set_status("Composing email"),
+            Err(error) => self.set_status(format!("Could not open link: {error}")),
+        }
         cx.notify();
     }
 
@@ -333,23 +337,6 @@ fn launch_terminal_in(dir: &Path) {
         .args(["/C", "start", "cmd", "/K", "cd", "/D"])
         .arg(dir)
         .spawn();
-}
-
-#[cfg(target_os = "macos")]
-fn launch_url(url: &str) {
-    let _ = Command::new("open").arg(url).spawn();
-}
-
-#[cfg(target_os = "linux")]
-fn launch_url(url: &str) {
-    let _ = Command::new("xdg-open").arg(url).spawn();
-}
-
-#[cfg(target_os = "windows")]
-fn launch_url(url: &str) {
-    // `start` is a cmd builtin — go through cmd /C. Empty quoted "" is the
-    // window title slot so a URL beginning with " isn't taken as the title.
-    let _ = Command::new("cmd").args(["/C", "start", "", url]).spawn();
 }
 
 // --- search-engine URL templates ---------------------------------------

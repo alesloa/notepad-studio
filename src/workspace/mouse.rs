@@ -22,15 +22,18 @@ impl Workspace {
         let ctrl = event.modifiers.control;
         let cmd = event.modifiers.platform;
 
-        // Cmd+click on a URL → open in default browser. Single click only;
+        // Cmd-click on macOS / Ctrl-click on Windows and Linux opens a URL. Single click only;
         // multi-click falls through to normal selection so Cmd+double-click
         // can still extend behaviours later. Skips when the feature is
         // disabled in Preferences → Cloud & Link.
-        if cmd && !alt && !shift && !ctrl && event.click_count == 1 {
+        if link_click(ctrl, cmd, alt, shift, event.click_count, cfg!(target_os = "macos")) {
             let snap = settings::snapshot();
             if snap.clickable_urls_enabled {
                 if let Some(url) = url_at_offset(self, offset) {
-                    let _ = std::process::Command::new("open").arg(url).spawn();
+                    if let Err(error) = crate::shell::open_url(&url) {
+                        // The launcher supplies the error detail.
+                        self.set_status(format!("Could not open link: {error}"));
+                    }
                     cx.notify();
                     return;
                 }
@@ -285,4 +288,23 @@ fn url_at_offset(ws: &Workspace, offset: usize) -> Option<String> {
         }
     }
     None
+}
+
+fn link_click(control: bool, platform: bool, alt: bool, shift: bool, clicks: usize, macos: bool) -> bool {
+    !alt && !shift && clicks == 1 && if macos { platform && !control } else { control && !platform }
+}
+
+#[cfg(test)]
+mod link_tests {
+    #[test]
+    fn link_modifier_is_platform_specific_and_does_not_steal_other_gestures() {
+        for macos in [false, true] {
+            let (control, platform) = (!macos, macos);
+            assert!(super::link_click(control, platform, false, false, 1, macos));
+            assert!(!super::link_click(platform, control, false, false, 1, macos));
+            assert!(!super::link_click(control, platform, true, false, 1, macos));
+            assert!(!super::link_click(control, platform, false, true, 1, macos));
+            assert!(!super::link_click(control, platform, false, false, 2, macos));
+        }
+    }
 }

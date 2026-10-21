@@ -9,6 +9,19 @@
 use std::path::Path;
 use std::process::Command;
 
+/// URLs stay data for the existing `open` dependency, including its native
+/// ShellExecute backend on Windows. Never interpolate a link into a shell.
+pub(crate) fn open_url(url: &str) -> Result<(), String> {
+    open_url_with(url, |url| open::that_detached(url))
+}
+
+fn open_url_with(url: &str, launch: impl FnOnce(&str) -> std::io::Result<()>) -> Result<(), String> {
+    if url.is_empty() || url.contains('\0') || url.starts_with('-') {
+        return Err("Invalid link".into());
+    }
+    launch(url).map_err(|error| error.to_string())
+}
+
 /// Open the system file manager focused on `path` — Finder reveals the file
 /// on macOS, Explorer with `/select` on Windows, and `xdg-open` on the
 /// containing directory on Linux (no select-equivalent in the freedesktop
@@ -128,4 +141,18 @@ pub(crate) fn open_with_default_viewer(path: &Path) -> Result<(), String> {
     }
     #[allow(unreachable_code)]
     Err("Unsupported platform".to_string())
+}
+
+#[cfg(test)]
+mod url_tests {
+    #[test]
+    fn links_reach_the_native_launcher_unchanged_and_errors_are_returned() {
+        let url = "https://example.com/?first=1&second=é%20中#fragment";
+        assert!(super::open_url_with(url, |actual| { assert_eq!(actual, url); Ok(()) }).is_ok());
+        let error = super::open_url_with(url, |_| Err(std::io::Error::other("controlled launch failure")));
+        assert_eq!(error.err().as_deref(), Some("controlled launch failure"));
+        for invalid in ["", "-bad", "https://example.com/\0"] {
+            assert!(super::open_url_with(invalid, |_| panic!("invalid link reached launcher")).is_err());
+        }
+    }
 }

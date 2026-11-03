@@ -1,6 +1,10 @@
+// PowerEditor/src/WinControls/TabBar/TabBar.cpp:771 — single-line tabs that
+// overflow scroll by the mouse wheel and the msctls_updown32 arrows.
+// PowerEditor/src/WinControls/TabBar/TabBar.cpp:1190 — WM_MBUTTONUP closes
+// the tab under the cursor.
 use gpui::{
-    ClickEvent, Context, Entity, IntoElement, MouseButton, Render, SharedString, Window, div,
-    prelude::*, point, px, rems, rgb,
+    ClickEvent, Context, Entity, IntoElement, MouseButton, Pixels, Render, ScrollHandle,
+    SharedString, Window, canvas, div, prelude::*, point, px, rems, rgb,
 };
 
 use crate::settings;
@@ -79,10 +83,95 @@ impl Render for DraggedTab {
     }
 }
 
+/// Which overflow arrows a single-line strip shows, read from its layout.
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct TabScroll {
+    overflow: bool,
+    back: bool,
+    forward: bool,
+}
+
+impl TabScroll {
+    fn of(scroll: &ScrollHandle) -> Self {
+        Self::from_offsets(-scroll.offset().x, scroll.max_offset().width)
+    }
+
+    /// `scrolled` is how far the strip is scrolled, `max` how far it can go.
+    fn from_offsets(scrolled: Pixels, max: Pixels) -> Self {
+        // Half a pixel of slack absorbs layout rounding at either end.
+        let slack = px(0.5);
+        Self {
+            overflow: max > slack,
+            back: scrolled > slack,
+            forward: scrolled < max - slack,
+        }
+    }
+}
+
+/// Scroll distance that moves the strip one tab back or forward, like the
+/// arrows of the Win32 tab control. `starts` holds each tab's left edge
+/// measured from the first tab.
+fn step_target(starts: &[Pixels], scrolled: Pixels, max: Pixels, forward: bool) -> Pixels {
+    // A strip parked on a tab edge counts as on it.
+    let slack = px(0.5);
+    let target = if forward {
+        starts.iter().copied().find(|&start| start > scrolled + slack).unwrap_or(max)
+    } else {
+        starts.iter().copied().rev().find(|&start| start < scrolled - slack).unwrap_or(px(0.))
+    };
+    target.min(max).max(px(0.))
+}
+
+fn step_tab_strip(scroll: &ScrollHandle, forward: bool) {
+    let lefts: Vec<Pixels> = (0..scroll.children_count())
+        .filter_map(|ix| scroll.bounds_for_item(ix))
+        .map(|bounds| bounds.left())
+        .collect();
+    let Some(&first) = lefts.first() else { return };
+    let starts: Vec<Pixels> = lefts.iter().map(|&left| left - first).collect();
+    let offset = scroll.offset();
+    let target = step_target(&starts, -offset.x, scroll.max_offset().width, forward);
+    scroll.set_offset(point(-target, offset.y));
+}
+
+/// One overflow arrow at the right end of a single-line strip.
+fn scroll_arrow(
+    theme: &Theme,
+    glyph: &'static str,
+    selector: &'static str,
+    enabled: bool,
+    forward: bool,
+    scroll: &ScrollHandle,
+    workspace: Entity<Workspace>,
+) -> impl IntoElement {
+    let scroll = scroll.clone();
+    let hover_bg = theme.toolbar_hover_bg;
+    div()
+        .debug_selector(move || selector.to_string())
+        .flex()
+        .flex_none()
+        .items_center()
+        .justify_center()
+        .h_full()
+        .w(rems(20. / 16.))
+        .text_size(rems(1.))
+        .text_color(rgb(if enabled { theme.chrome_text } else { theme.disabled_text }))
+        .child(glyph)
+        .when(enabled, |arrow| {
+            arrow
+                .hover(|s| s.bg(rgb(hover_bg)))
+                .on_mouse_down(MouseButton::Left, move |_e, _w, cx| {
+                    step_tab_strip(&scroll, forward);
+                    workspace.update(cx, |_, cx| cx.notify());
+                })
+        })
+}
+
 pub(crate) fn tab_strip(
     theme: &Theme,
     tabs: &[TabSummary],
     active: usize,
+    scroll: &ScrollHandle,
     workspace: Entity<Workspace>,
 ) -> impl IntoElement {
     let prefs = settings::snapshot();
@@ -108,6 +197,7 @@ pub(crate) fn tab_strip(
         row = row.h(strip_height);
     }
 
+    let mut tab_divs = Vec::with_capacity(tabs.len());
     for (idx, tab) in tabs.iter().enumerate() {
         let is_active = idx == active;
         let bg_color = if is_active || !prefs.tab_darken_inactive {
@@ -137,6 +227,7 @@ pub(crate) fn tab_strip(
         let drop_handle = workspace.clone();
         let menu_handle = workspace.clone();
         let dblclick_handle = workspace.clone();
+        let middle_handle = workspace.clone();
 
         // Switch on press (on_mouse_down) — feels snappy and, contrary
         // to my earlier theory, does NOT kill drag-detection. GPUI
@@ -222,6 +313,7 @@ pub(crate) fn tab_strip(
             .debug_selector(move || format!("tab-{idx}"))
             .flex()
             .flex_col()
+            .flex_none()
             .items_stretch()
             .h(strip_height)
             .border_r_1()
@@ -235,6 +327,9 @@ pub(crate) fn tab_strip(
                     // the cursor was when the right button went down.
                     w.show_tab_context_menu(idx, point(pos.x, pos.y), cx);
                 });
+            })
+            .on_mouse_up(MouseButton::Middle, move |_e, window, cx| {
+                middle_handle.update(cx, |w, cx| w.close_tab_at(idx, window, cx));
             });
 
         // NPP `Lock (no drag and drop)` gates drag/drop registration entirely
@@ -274,12 +369,13 @@ pub(crate) fn tab_strip(
             });
         }
 
-        row = row.child(tab_div);
+        tab_divs.push(tab_div);
     }
 
     let new_handle = workspace.clone();
     let new_button = div()
         .flex()
+        .flex_none()
         .items_center()
         .justify_center()
         .h(strip_height)
@@ -291,7 +387,60 @@ pub(crate) fn tab_strip(
             new_handle.update(cx, |w, cx| w.new_tab(cx));
         });
 
-    row.child(new_button)
+    if prefs.tab_multi_line {
+        return row.children(tab_divs).child(new_button);
+    }
+
+    // Tabs keep their width and the strip scrolls. `+` stays right after
+    // the last tab until the strip fills, then pins to the right edge
+    // beside the arrows, which show only while tabs are hidden.
+    let state = TabScroll::of(scroll);
+    let strip = div()
+        .id("tab-strip-scroll")
+        .flex()
+        .flex_row()
+        .items_stretch()
+        .h_full()
+        .min_w(px(0.))
+        .overflow_x_scroll()
+        .track_scroll(scroll)
+        .children(tab_divs);
+    // The arrows were drawn from the previous frame's layout. When this
+    // frame's layout disagrees (window resized, tab opened, closed or
+    // revealed), draw once more so they catch up.
+    let watched = scroll.clone();
+    let sync = canvas(
+        |_, _, _| (),
+        move |_, _, window, cx| {
+            if TabScroll::of(&watched) != state {
+                window.defer(cx, |window, _| window.refresh());
+            }
+        },
+    )
+    .absolute();
+    row = row.child(strip).child(new_button).child(sync);
+    if state.overflow {
+        row = row
+            .child(scroll_arrow(
+                theme,
+                "\u{2039}",
+                "tab-scroll-back",
+                state.back,
+                false,
+                scroll,
+                workspace.clone(),
+            ))
+            .child(scroll_arrow(
+                theme,
+                "\u{203A}",
+                "tab-scroll-forward",
+                state.forward,
+                true,
+                scroll,
+                workspace,
+            ));
+    }
+    row
 }
 
 /// Vertical tab strip — fixed-width column on the LEFT of the editor body.
@@ -301,8 +450,9 @@ pub(crate) fn tab_strip(
 /// The `+` button sits at the bottom of the column.
 ///
 /// Mirrors `tab_strip` 1:1 for behaviour: same press-to-switch, same drag
-/// reorder, same right-click context menu, same close-button + double-
-/// click-to-close gating. Only the visual orientation differs.
+/// reorder, same right-click context menu, same middle-click close, same
+/// close-button + double-click-to-close gating. Only the visual
+/// orientation differs.
 pub(crate) fn tab_strip_vertical(
     theme: &Theme,
     tabs: &[TabSummary],
@@ -362,6 +512,7 @@ pub(crate) fn tab_strip_vertical(
         let drop_handle = workspace.clone();
         let menu_handle = workspace.clone();
         let dblclick_handle = workspace.clone();
+        let middle_handle = workspace.clone();
 
         let label_div = div()
             .flex()
@@ -446,6 +597,9 @@ pub(crate) fn tab_strip_vertical(
                 menu_handle.update(cx, |w, cx| {
                     w.show_tab_context_menu(idx, point(pos.x, pos.y), cx);
                 });
+            })
+            .on_mouse_up(MouseButton::Middle, move |_e, window, cx| {
+                middle_handle.update(cx, |w, cx| w.close_tab_at(idx, window, cx));
             });
 
         if !prefs.tab_lock_drag {
@@ -497,3 +651,7 @@ pub(crate) fn tab_strip_vertical(
 
     col.child(new_button)
 }
+
+#[cfg(test)]
+#[path = "tab_strip_tests.rs"]
+mod tests;

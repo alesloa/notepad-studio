@@ -61,6 +61,14 @@ impl Render for Workspace {
         if window.is_window_active() {
             self.publish_menu_state(cx);
         }
+        // A newly active tab scrolls into view once, as the Win32 tab
+        // control does on TCM_SETCURSEL; arrow and wheel scrolling between
+        // switches is left where the user put it.
+        let active_id = self.tabs.get(self.active).map(|t| t.session_id);
+        if active_id != self.tab_strip_revealed {
+            self.tab_strip_revealed = active_id;
+            self.tab_strip_scroll.scroll_to_item(self.active);
+        }
         let menu_bar = self.menu_bar_view(theme, window, cx);
         let buffer = self.buffer();
         let active_tab = &self.tabs[self.active];
@@ -587,7 +595,13 @@ impl Render for Workspace {
             // when `tab_vertical` is on (vertical strip is mounted inside
             // the body row below).
             .when(!prefs.tab_bar_hidden && !prefs.tab_vertical, |this| {
-                this.child(tab_strip(&theme, &tab_summaries, active, cx.entity().clone()))
+                this.child(tab_strip(
+                    &theme,
+                    &tab_summaries,
+                    active,
+                    &self.tab_strip_scroll,
+                    cx.entity().clone(),
+                ))
             })
             // Goto-line stays inline above the editor — the spec explicitly
             // allows keeping Goto inline rather than folding it into the

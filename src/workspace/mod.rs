@@ -238,6 +238,12 @@ pub(crate) struct Workspace {
     /// paint would build a fresh `ScrollHandle::new()` and the offset would
     /// snap back to 0 on the next notify (typing, mouse-move, anything).
     pub(crate) rich_doc_scroll_handle: ScrollHandle,
+    /// Horizontal tab strip scroll position, moved by the overflow
+    /// arrows and the mouse wheel. Lives here so it survives re-renders.
+    pub(crate) tab_strip_scroll: ScrollHandle,
+    /// Tab the strip last scrolled into view. A new active tab (Ctrl+Tab,
+    /// file open) is revealed once, and chevron scrolling is left alone.
+    pub(crate) tab_strip_revealed: Option<Uuid>,
     /// Markdown preview scrollbar drag state. Same shape as `v_scroll_drag`
     /// but owned by the preview's own scrollbar; the editor scrollbar uses
     /// `v_scroll_drag` and they shouldn't share state.
@@ -811,6 +817,8 @@ impl Workspace {
             md_preview_scroll_handle: ScrollHandle::new(),
             md_preview_scroll_drag: None,
             rich_doc_scroll_handle: ScrollHandle::new(),
+            tab_strip_scroll: ScrollHandle::new(),
+            tab_strip_revealed: None,
             rich_doc_scroll_drag: None,
             preview_block_targets: Vec::new(),
             preview_caret_scroll_pending: false,

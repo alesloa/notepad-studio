@@ -10,6 +10,12 @@ Notepad++, written in Rust on GPUI. Apache-2.0.
 
 v0.0.6 — current
 
+  When tabs no longer fit, the tab bar scrolls instead of running off the
+  window. Arrows at its right end step through the hidden tabs, and the mouse
+  wheel scrolls it. A newly active tab scrolls into view.
+
+  Middle-click a tab to close it.
+
   CSV preview now prepares larger grids in background and renders visible rows.
   Oversized or excessively ragged grids stay available in Source View. Grid
   edits and Undo/Redo history have memory limits that preserve the source when

@@ -4,7 +4,7 @@ A lightweight, cross-platform text editor inspired by Notepad++, written in Rust
 
 ![Notepad Studio, a lightweight cross-platform text editor for macOS, Windows, and Linux](docs/screenshot.png)
 
-**Status:** v0.0.6. The core editor works on macOS, Linux and Windows.
+**Status:** v0.0.7. The core editor works on macOS, Linux and Windows.
 Currently in flight: making it behave like Notepad++ in the details. That means
 checking input methods (IME) and auto-completion, fixing focus bugs, speeding up
 very large edits, replaying old macros that save files, and filling the gaps in

@@ -8,7 +8,7 @@ Notepad Studio is a lightweight cross-platform text editor inspired by
 Notepad++, written in Rust on GPUI. Apache-2.0.
 
 
-v0.0.6 — current
+v0.0.7 — current
 
   When tabs no longer fit, the tab bar scrolls instead of running off the
   window. Arrows at its right end step through the hidden tabs, and the mouse
